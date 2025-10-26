@@ -11,7 +11,7 @@ export default function FeedPage() {
 }
 
 type Post = {
-  id: string;
+  id: number; // BIGINT -> number
   user_id: string;
   title: string | null;
   body: string | null;
@@ -24,7 +24,7 @@ type Post = {
 
 type Comment = {
   id: string;
-  post_id: string;
+  post_id: number; // BIGINT -> number
   user_id: string;
   body: string | null;
   image_url: string | null;
@@ -88,7 +88,6 @@ function FeedInner() {
       let video_url: string | null = null;
 
       if (files && files.length) {
-        // допускаем фото и видео вместе: берём первое фото и первое видео
         const arr = Array.from(files);
         const img = arr.find(f => !isVideo(f));
         const vid = arr.find(f => isVideo(f));
@@ -154,10 +153,12 @@ function FeedInner() {
 function PostCard({ post, onChanged }: { post: Post; onChanged: () => Promise<void> }) {
   const seenRef = useRef(false);
   useEffect(() => {
-    // Простой инкремент просмотров при первом маунте карточки
     if (seenRef.current) return;
     seenRef.current = true;
-    supabase.rpc('increment_post_view', { p_post_id: post.id }).catch(() => {});
+    (async () => {
+      const { error } = await supabase.rpc('increment_post_view', { p_post_id: post.id });
+      // if (error) console.warn('increment view error', error);
+    })();
   }, [post.id]);
 
   const [comments, setComments] = useState<Comment[]>([]);
@@ -169,7 +170,6 @@ function PostCard({ post, onChanged }: { post: Post; onChanged: () => Promise<vo
 
   useEffect(() => {
     (async () => {
-      // проверяем, лайкнул ли пользователь
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return setHasLike(false);
       const { data } = await supabase.from('post_likes')
