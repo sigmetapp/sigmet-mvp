@@ -20,8 +20,14 @@ function ProfileCard() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
-      setProfile(data || { user_id: user.id, username: '', full_name: '', bio: '', avatar_url: '' });
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setProfile(
+        data || { user_id: user.id, username: '', full_name: '', bio: '', avatar_url: '' }
+      );
       setLoading(false);
     })();
   }, []);
@@ -45,15 +51,27 @@ function ProfileCard() {
   if (loading) return <div className="p-6 text-white/70">Loading...</div>;
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
+    <main className="max-w-2xl mx-auto p-6">
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+        <h1 className="text-white text-xl font-semibold">Your profile</h1>
+
         <div className="flex items-center gap-4">
-          <img src={profile.avatar_url || '/avatar-fallback.png'} className="w-16 h-16 rounded-full object-cover" alt="avatar" />
+          <img
+            src={profile.avatar_url || '/avatar-fallback.png'}
+            className="w-16 h-16 rounded-full object-cover"
+            alt="avatar"
+          />
           <div>
             <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-white" />
-            <button onClick={uploadAvatar} className="ml-2 px-3 py-2 rounded-lg bg-white text-black text-sm">Upload</button>
+            <button
+              onClick={uploadAvatar}
+              className="ml-2 px-3 py-2 rounded-lg bg-white text-black text-sm"
+            >
+              Upload
+            </button>
           </div>
         </div>
+
         <div>
           <label className="block text-white/80 text-sm mb-2">Username</label>
           <input
@@ -62,6 +80,7 @@ function ProfileCard() {
             onChange={e => setProfile({ ...profile, username: e.target.value })}
           />
         </div>
+
         <div>
           <label className="block text-white/80 text-sm mb-2">Full name</label>
           <input
@@ -70,6 +89,7 @@ function ProfileCard() {
             onChange={e => setProfile({ ...profile, full_name: e.target.value })}
           />
         </div>
+
         <div>
           <label className="block text-white/80 text-sm mb-2">About</label>
           <textarea
@@ -78,9 +98,15 @@ function ProfileCard() {
             onChange={e => setProfile({ ...profile, bio: e.target.value })}
           />
         </div>
+
         {note && <div className="text-white/70 text-sm">{note}</div>}
-        <button onClick={saveProfile} className="w-full rounded-xl py-3 bg-white text-black font-medium">Save</button>
+        <button
+          onClick={saveProfile}
+          className="w-full rounded-xl py-3 bg-white text-black font-medium"
+        >
+          Save
+        </button>
       </div>
-    </div>
+    </main>
   );
 }
