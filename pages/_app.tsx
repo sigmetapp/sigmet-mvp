@@ -1,5 +1,6 @@
 import type { AppProps } from "next/app";
-import "@/styles/globals.css";
+// ВАЖНО: относительный импорт, без "@/"
+import "../styles/globals.css";
 import Layout from "@/components/Layout";
 import { useRouter } from "next/router";
 
