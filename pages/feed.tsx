@@ -11,9 +11,8 @@ export default function FeedPage() {
 }
 
 type Post = {
-  id: number; // BIGINT -> number
-  user_id: string;
-  title: string | null;
+  id: number;
+  user_id: string | null;
   body: string | null;
   image_url: string | null;
   video_url: string | null;
@@ -24,7 +23,7 @@ type Post = {
 
 type Comment = {
   id: string;
-  post_id: number; // BIGINT -> number
+  post_id: number;
   user_id: string;
   body: string | null;
   image_url: string | null;
@@ -32,8 +31,14 @@ type Comment = {
   created_at: string;
 };
 
+type Profile = {
+  user_id: string;
+  username: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+};
+
 function FeedInner() {
-  const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
   const [items, setItems] = useState<Post[]>([]);
@@ -97,14 +102,14 @@ function FeedInner() {
 
       const { error: insErr } = await supabase.from('posts').insert({
         user_id: user.id,
-        title: title || null,
+        author_id: user.id,
         body: body || null,
         image_url,
         video_url,
       });
       if (insErr) throw insErr;
 
-      setTitle(''); setBody(''); setFiles(null);
+      setBody(''); setFiles(null);
       await load();
     } catch (err: any) {
       setMsg(err.message || 'Failed to publish');
@@ -113,27 +118,49 @@ function FeedInner() {
     }
   }
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const openFilePicker = () => fileInputRef.current?.click();
+
   return (
     <main className="max-w-2xl mx-auto p-6 space-y-6">
       <section className="card p-6 space-y-3">
         <h1 className="text-white text-xl font-semibold">Create a post</h1>
-        <input className="input" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} />
-        <textarea className="input" placeholder="Text" value={body} onChange={e => setBody(e.target.value)} />
-        <div className="space-y-2">
-          <label className="label">Media (photos and/or videos)</label>
-          <input
-            type="file"
-            accept="image/*,video/*"
-            multiple
-            onChange={e => setFiles(e.target.files)}
-            className="text-white"
+
+        <div className="flex items-start gap-3">
+          <textarea
+            className="input flex-1"
+            placeholder="What's on your mind?"
+            value={body}
+            onChange={e => setBody(e.target.value)}
           />
-          {files && files.length > 0 && (
-            <div className="text-white/70 text-sm">
-              Selected: {Array.from(files).map(f => f.name).join(', ')}
-            </div>
-          )}
+          <div className="flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={openFilePicker}
+              className="rounded-full w-10 h-10 bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center"
+              title="Add photo/video"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" className="text-white/80">
+                <path fill="currentColor" d="M16.5 6.5L7.5 15.5a3 3 0 1 0 4.24 4.24l9-9a5 5 0 1 0-7.07-7.07l-9 9" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              onChange={e => setFiles(e.target.files)}
+              className="hidden"
+            />
+          </div>
         </div>
+
+        {files && files.length > 0 && (
+          <div className="text-white/70 text-xs">
+            Attached: {Array.from(files).map(f => f.name).join(', ')}
+          </div>
+        )}
+
         {msg && <div className="text-white/80 text-sm">{msg}</div>}
         <button onClick={createPost} disabled={pending} className="btn btn-primary w-full disabled:opacity-60">
           {pending ? 'Please wait…' : 'Publish'}
@@ -150,6 +177,16 @@ function FeedInner() {
   );
 }
 
+function timeAgo(dateStr: string) {
+  const d = new Date(dateStr);
+  const s = Math.floor((Date.now() - d.getTime()) / 1000);
+  const steps = [60, 60, 24, 7, 4.345, 12];
+  let i = 0, val = s;
+  while (i < steps.length && val >= steps[i]) { val = Math.floor(val / steps[i]); i++; }
+  const label = ['sec','min','hr','day','wk','mo','yr'][i] || 'yr';
+  return `${val} ${label}${val !== 1 ? 's' : ''} ago`;
+}
+
 function PostCard({ post, onChanged }: { post: Post; onChanged: () => Promise<void> }) {
   const seenRef = useRef(false);
   useEffect(() => {
@@ -161,12 +198,26 @@ function PostCard({ post, onChanged }: { post: Post; onChanged: () => Promise<vo
     })();
   }, [post.id]);
 
+  const [profile, setProfile] = useState<Profile | null>(null);
+  useEffect(() => {
+    (async () => {
+      if (!post.user_id) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id,username,full_name,avatar_url')
+        .eq('user_id', post.user_id)
+        .maybeSingle();
+      setProfile((data as Profile) || null);
+    })();
+  }, [post.user_id]);
+
   const [comments, setComments] = useState<Comment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [cBody, setCBody] = useState('');
   const [cFiles, setCFiles] = useState<FileList | null>(null);
   const [likePending, setLikePending] = useState(false);
   const [hasLike, setHasLike] = useState<boolean | null>(null);
+  const [likesCount, setLikesCount] = useState<number>(post.likes_count);
 
   useEffect(() => {
     (async () => {
@@ -189,11 +240,12 @@ function PostCard({ post, onChanged }: { post: Post; onChanged: () => Promise<vo
       if (hasLike) {
         await supabase.from('post_likes').delete().eq('post_id', post.id).eq('user_id', user.id);
         setHasLike(false);
+        setLikesCount(c => Math.max(c - 1, 0));
       } else {
         await supabase.from('post_likes').insert({ post_id: post.id, user_id: user.id });
         setHasLike(true);
+        setLikesCount(c => c + 1);
       }
-      await onChanged();
     } finally {
       setLikePending(false);
     }
@@ -209,7 +261,6 @@ function PostCard({ post, onChanged }: { post: Post; onChanged: () => Promise<vo
     setComments((data ?? []) as Comment[]);
     setLoadingComments(false);
   }
-
   useEffect(() => { loadComments(); }, [post.id]);
 
   function getExtFromMime(mime?: string) {
@@ -264,18 +315,40 @@ function PostCard({ post, onChanged }: { post: Post; onChanged: () => Promise<vo
 
   return (
     <article className="card overflow-hidden">
+      <div className="p-4 flex items-center gap-3 border-b border-white/10">
+        <img
+          src={profile?.avatar_url || '/avatar-fallback.png'}
+          className="w-9 h-9 rounded-full object-cover"
+          alt="avatar"
+        />
+        <div className="min-w-0">
+          <div className="text-white text-sm font-medium truncate">
+            {profile?.full_name || profile?.username || 'Unknown user'}
+          </div>
+          <div className="text-white/50 text-xs">{timeAgo(post.created_at)}</div>
+        </div>
+      </div>
+
       {post.image_url && <img src={post.image_url} alt="" className="w-full aspect-video object-cover" />}
       {post.video_url && (
         <video className="w-full aspect-video object-cover" src={post.video_url} controls preload="metadata" />
       )}
+
       <div className="p-4 space-y-3">
-        {post.title && <h3 className="text-white font-medium">{post.title}</h3>}
         {post.body && <p className="text-white/80 text-sm whitespace-pre-wrap">{post.body}</p>}
 
         <div className="flex items-center gap-4 text-white/70 text-sm">
           <div>Views: <span className="text-white">{post.views}</span></div>
-          <button onClick={toggleLike} disabled={likePending} className="text-white/80 hover:text-white">
-            {hasLike ? '−' : '+'} {post.likes_count}
+          <button
+            onClick={toggleLike}
+            disabled={likePending}
+            className={`flex items-center gap-1 ${hasLike ? 'text-white' : 'text-white/80 hover:text-white'}`}
+            title={hasLike ? 'Unlike' : 'Like'}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" className="inline">
+              <path fill="currentColor" d="M12 21s-6.716-4.35-9.193-7.18C1.05 12 2.3 8.5 5.5 8.5c2.1 0 3.1 1.5 3.5 2 .4-.5 1.4-2 3.5-2 3.2 0 4.45 3.5 2.693 5.32C18.716 16.65 12 21 12 21z"/>
+            </svg>
+            <span>{likesCount}</span>
           </button>
         </div>
 
