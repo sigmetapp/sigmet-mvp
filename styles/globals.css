@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-grad-from: #0b1221;
+  --bg-grad-to: #121a2f;
+}
+
+html, body, #__next { height: 100%; }
+body { background: #0a0f1c; }
+
+.bg-sigmet {
+  background-image: radial-gradient(1200px 800px at 20% -20%, rgba(255,255,255,0.06), transparent 40%),
+                    radial-gradient(900px 900px at 100% 0%, rgba(66, 153, 225, 0.06), transparent 40%),
+                    linear-gradient(180deg, var(--bg-grad-from), var(--bg-grad-to));
+}
+
+.card {
+  @apply bg-white/5 border border-white/10 rounded-2xl;
+}
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-xl font-medium;
+}
+.btn-primary {
+  @apply bg-white text-black hover:opacity-90;
+}
+.input {
+  @apply w-full rounded-xl bg-white/10 text-white px-3 py-3 outline-none focus:ring-2 focus:ring-white/30;
+}
+.label {
+  @apply block text-white/80 text-sm mb-2;
+}
+.text-muted { @apply text-white/70; }
+.text-dim { @apply text-white/50; }
