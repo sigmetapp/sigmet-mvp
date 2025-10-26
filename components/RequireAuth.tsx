@@ -9,8 +9,11 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) router.replace('/auth');
-      else setReady(true);
+      if (!user) {
+        router.replace('/auth');
+      } else {
+        setReady(true);
+      }
     })();
   }, [router]);
 
