@@ -1,99 +1,86 @@
-import { useEffect, useState, ChangeEvent } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { RequireAuth } from '@/components/RequireAuth';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+export default function ProfilePage() {
+  return (
+    <RequireAuth>
+      <ProfileCard />
+    </RequireAuth>
+  );
+}
 
-export default function Profile() {
-  const [userId, setUserId] = useState<string | null>(null)
-  const [email, setEmail] = useState<string | null>(null)
-  const [username, setUsername] = useState('')
-  const [bio, setBio] = useState('')
-  const [country, setCountry] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+function ProfileCard() {
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<any>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [note, setNote] = useState<string>();
 
   useEffect(() => {
-    ;(async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      setUserId(user.id)
-      setEmail(user.email ?? null)
-      const { data } = await supabase
-        .from('profiles').select('*').eq('user_id', user.id).maybeSingle()
-      if (data) {
-        setUsername(data.username ?? '')
-        setBio(data.bio ?? '')
-        setCountry(data.country ?? '')
-        setAvatarUrl(data.avatar_url ?? null)
-      }
-    })()
-  }, [])
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
+      setProfile(data || { user_id: user.id, username: '', full_name: '', bio: '', avatar_url: '' });
+      setLoading(false);
+    })();
+  }, []);
 
-  async function save() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { alert('Sign in first'); return }
-    const { error } = await supabase.from('profiles').upsert({
-      user_id: user.id, username, bio, country, avatar_url: avatarUrl
-    })
-    if (error) alert(error.message); else alert('Saved')
+  async function saveProfile() {
+    if (!profile) return;
+    const { error } = await supabase.from('profiles').upsert(profile, { onConflict: 'user_id' });
+    setNote(error ? error.message : 'Profile saved');
   }
 
-  async function onFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!userId) { alert('Sign in first'); return }
-    try {
-      setLoading(true)
-      const ext = file.name.split('.').pop() || 'png'
-      const path = `${userId}.${ext}`
-      const { error: uploadErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-      if (uploadErr) throw uploadErr
-      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
-      const publicUrl = pub.publicUrl
-      setAvatarUrl(publicUrl)
-      const { error: upErr } = await supabase.from('profiles').upsert({ user_id: userId, avatar_url: publicUrl })
-      if (upErr) throw upErr
-    } catch (err: any) {
-      alert(err.message)
-    } finally {
-      setLoading(false)
-    }
+  async function uploadAvatar() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !file) return;
+    const path = `${user.id}/avatar.png`;
+    const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+    if (upErr) { setNote(upErr.message); return; }
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+    setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }));
   }
+
+  if (loading) return <div className="p-6 text-white/70">Loading...</div>;
 
   return (
-    <main style={{padding:24,fontFamily:'system-ui',maxWidth:640}}>
-      <h1>Profile</h1>
-      {!userId && <p>Please <a href="/login">sign in</a>.</p>}
-      {userId && (
-        <>
-          <div style={{display:'flex',alignItems:'center',gap:16,margin:'12px 0'}}>
-            <img src={avatarUrl ?? 'https://placehold.co/80x80?text=Avatar'} alt="avatar" width={80} height={80}
-                 style={{borderRadius:'50%',objectFit:'cover',border:'1px solid #eee'}} />
-            <div>
-              <input type="file" accept="image/*" onChange={onFileChange} />
-              {loading && <div style={{fontSize:12,opacity:.7}}>Uploading...</div>}
-            </div>
+    <div className="max-w-2xl mx-auto p-6">
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-4">
+          <img src={profile.avatar_url || '/avatar-fallback.png'} className="w-16 h-16 rounded-full object-cover" alt="avatar" />
+          <div>
+            <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-white" />
+            <button onClick={uploadAvatar} className="ml-2 px-3 py-2 rounded-lg bg-white text-black text-sm">Upload</button>
           </div>
-
-          <label>Username</label>
-          <input value={username} onChange={e=>setUsername(e.target.value)}
-                 style={{display:'block',width:'100%',padding:8,margin:'6px 0 16px'}}/>
-
-          <label>Bio</label>
-          <textarea value={bio} onChange={e=>setBio(e.target.value)} rows={3}
-                    style={{display:'block',width:'100%',padding:8,margin:'6px 0 16px'}}/>
-
-          <label>Country</label>
-          <input value={country} onChange={e=>setCountry(e.target.value)}
-                 style={{display:'block',width:'100%',padding:8,margin:'6px 0 16px'}}/>
-
-          <button onClick={save} style={{padding:'8px 12px'}}>Save</button>
-          <div style={{fontSize:12,opacity:.7,marginTop:8}}>Signed in as: {email}</div>
-        </>
-      )}
-    </main>
-  )
+        </div>
+        <div>
+          <label className="block text-white/80 text-sm mb-2">Username</label>
+          <input
+            className="w-full rounded-xl bg-white/10 text-white px-3 py-3"
+            value={profile.username || ''}
+            onChange={e => setProfile({ ...profile, username: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-white/80 text-sm mb-2">Full name</label>
+          <input
+            className="w-full rounded-xl bg-white/10 text-white px-3 py-3"
+            value={profile.full_name || ''}
+            onChange={e => setProfile({ ...profile, full_name: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-white/80 text-sm mb-2">About</label>
+          <textarea
+            className="w-full rounded-xl bg-white/10 text-white px-3 py-3"
+            value={profile.bio || ''}
+            onChange={e => setProfile({ ...profile, bio: e.target.value })}
+          />
+        </div>
+        {note && <div className="text-white/70 text-sm">{note}</div>}
+        <button onClick={saveProfile} className="w-full rounded-xl py-3 bg-white text-black font-medium">Save</button>
+      </div>
+    </div>
+  );
 }
