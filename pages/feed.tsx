@@ -30,26 +30,23 @@ type Comment = {
 };
 
 function FeedInner() {
-  // composer state
   const [text, setText] = useState('');
   const [img, setImg] = useState<File | null>(null);
   const [vid, setVid] = useState<File | null>(null);
   const imgRef = useRef<HTMLInputElement>(null);
   const vidRef = useRef<HTMLInputElement>(null);
 
-  // feed state
   const [uid, setUid] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
 
-  // per-post UI state
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBody, setEditBody] = useState<string>('');
   const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
   const [commentInput, setCommentInput] = useState<Record<number, string>>({});
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
-  const viewedOnce = useRef<Set<number>>(new Set()); // prevent multiple view++ in one session
+  const viewedOnce = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
@@ -68,38 +65,24 @@ function FeedInner() {
     setLoading(false);
   }
 
-  // --- Upload helpers ---
-  function pickImg() { imgRef.current?.click(); }
-  function pickVid() { vidRef.current?.click(); }
-  function onPickImg(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (f && f.type.startsWith('image/')) setImg(f);
-  }
-  function onPickVid(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (f && f.type.startsWith('video/')) setVid(f);
-  }
-
-  async function uploadToStorage(file: File, folder: 'images'|'videos') {
+  async function uploadToStorage(file: File, folder: 'images' | 'videos') {
     const ext = file.name.split('.').pop() || 'bin';
     const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const bucket = supabase.storage.from('posts'); // bucket name: posts
-    const { error } = await bucket.upload(path, file, { upsert: false, contentType: file.type || undefined });
+    const bucket = supabase.storage.from('posts');
+    const { error } = await bucket.upload(path, file, { upsert: false, contentType: file.type });
     if (error) throw error;
     const { data } = bucket.getPublicUrl(path);
     return data.publicUrl as string;
   }
 
-  // --- Create post ---
   async function onPublish() {
-    if (!uid) { alert('Sign-in is required'); return; }
-    if (!text && !img && !vid) { alert('Post cannot be empty'); return; }
-
+    if (!uid) return alert('Sign in required');
+    if (!text && !img && !vid) return alert('Post cannot be empty');
     setPublishing(true);
+
     try {
       let image_url: string | null = null;
       let video_url: string | null = null;
-
       if (img) image_url = await uploadToStorage(img, 'images');
       if (vid) video_url = await uploadToStorage(vid, 'videos');
 
@@ -112,29 +95,30 @@ function FeedInner() {
       if (error) throw error;
       if (data) setPosts(prev => [data as Post, ...prev]);
       setText(''); setImg(null); setVid(null);
-    } catch (e: any) {
-      alert(e?.message || 'Publish error');
+    } catch (err: any) {
+      alert(err.message || 'Publish error');
     } finally {
       setPublishing(false);
     }
   }
 
-  // --- Views (increment once per session per post) ---
+  // ✅ Fixed version (no .catch)
   async function addViewOnce(postId: number) {
     if (viewedOnce.current.has(postId)) return;
     viewedOnce.current.add(postId);
-    // optimistic update
+
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, views: (p.views ?? 0) + 1 } : p));
-    await supabase.rpc?.('increment_post_views', { p_id: postId }).catch(async () => {
-      // fallback: direct update if no RPC exists
-      await supabase.from('posts').update({ views: (posts.find(p => p.id === postId)?.views ?? 0) + 1 }).eq('id', postId);
-    });
+    try {
+      const { error } = await supabase.rpc('increment_post_views', { p_id: postId });
+      if (error) throw error;
+    } catch {
+      const current = posts.find(p => p.id === postId)?.views ?? 0;
+      await supabase.from('posts').update({ views: current + 1 }).eq('id', postId);
+    }
   }
 
-  // --- Like toggle (requires table post_likes with unique (post_id,user_id)) ---
   async function toggleLike(post: Post) {
-    if (!uid) { alert('Sign-in is required'); return; }
-    // naive check: if user already liked?
+    if (!uid) return alert('Sign in required');
     const { data: liked } = await supabase
       .from('post_likes')
       .select('id')
@@ -143,46 +127,36 @@ function FeedInner() {
       .maybeSingle();
 
     if (!liked) {
-      // like
-      const ins = await supabase.from('post_likes').insert({ post_id: post.id, user_id: uid });
-      if (!ins.error) {
+      const { error } = await supabase.from('post_likes').insert({ post_id: post.id, user_id: uid });
+      if (!error)
         setPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: (p.likes_count ?? 0) + 1 } : p));
-      }
     } else {
-      // unlike
-      const del = await supabase.from('post_likes').delete().eq('post_id', post.id).eq('user_id', uid);
-      if (!del.error) {
-        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: Math.max(0, (p.likes_count ?? 0) - 1) } : p));
-      }
+      const { error } = await supabase.from('post_likes').delete().eq('post_id', post.id).eq('user_id', uid);
+      if (!error)
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: Math.max(0, (p.likes_count ?? 1) - 1) } : p));
     }
   }
 
-  // --- Edit & delete (author only by RLS) ---
-  function startEdit(p: Post) {
-    setEditingId(p.id);
-    setEditBody(p.body || '');
-  }
-  function cancelEdit() {
-    setEditingId(null);
-    setEditBody('');
-  }
-  async function saveEdit(p: Post) {
-    const { data, error } = await supabase.from('posts').update({ body: editBody }).eq('id', p.id).select('*').single();
-    if (!error && data) {
-      setPosts(prev => prev.map(x => x.id === p.id ? (data as Post) : x));
-      cancelEdit();
-    } else {
-      alert(error?.message || 'Edit failed');
-    }
-  }
   async function deletePost(p: Post) {
     if (!confirm('Delete this post?')) return;
     const { error } = await supabase.from('posts').delete().eq('id', p.id);
     if (!error) setPosts(prev => prev.filter(x => x.id !== p.id));
-    else alert(error.message);
   }
 
-  // --- Comments ---
+  async function saveEdit(p: Post) {
+    const { data, error } = await supabase
+      .from('posts')
+      .update({ body: editBody })
+      .eq('id', p.id)
+      .select('*')
+      .single();
+
+    if (!error && data) {
+      setPosts(prev => prev.map(x => x.id === p.id ? (data as Post) : x));
+      setEditingId(null);
+    }
+  }
+
   async function loadComments(postId: number) {
     const { data, error } = await supabase
       .from('comments')
@@ -193,94 +167,49 @@ function FeedInner() {
   }
 
   async function addComment(postId: number) {
-    if (!uid) { alert('Sign-in is required'); return; }
+    if (!uid) return alert('Sign in required');
     const body = (commentInput[postId] || '').trim();
     if (!body) return;
-
     const { data, error } = await supabase
       .from('comments')
       .insert({ post_id: postId, user_id: uid, body })
       .select('*')
       .single();
-
     if (!error && data) {
       setComments(prev => ({ ...prev, [postId]: [ ...(prev[postId] || []), data as Comment ] }));
       setCommentInput(prev => ({ ...prev, [postId]: '' }));
-    } else {
-      alert(error?.message || 'Comment failed');
     }
   }
 
-  // --- UI helpers ---
-  const EyeIcon = () => (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-    </svg>
+  const Eye = () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" stroke="currentColor" strokeWidth="1.5"/><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5"/></svg>
   );
-  const HeartIcon = () => (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
-      <path d="M12 21s-7-4.4-9.2-8.1C1.5 9.6 3.6 6 7.3 6c2.1 0 3.3 1 4.7 2 1.4-1 2.6-2 4.7-2 3.7 0 5.8 3.6 4.5 6.9C19 16.6 12 21 12 21Z" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-    </svg>
+  const Heart = () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5"><path d="M12 21s-7-4.4-9.2-8.1C1.5 9.6 3.6 6 7.3 6c2.1 0 3.3 1 4.7 2 1.4-1 2.6-2 4.7-2 3.7 0 5.8 3.6 4.5 6.9C19 16.6 12 21 12 21Z" stroke="currentColor" strokeWidth="1.5"/></svg>
   );
 
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-6">
-      {/* Composer (English UI) */}
+      {/* Composer */}
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="What do you want to share?"
-          className="w-full resize-none bg-transparent outline-none placeholder-white/40 min-h-[80px]"
+          className="w-full bg-transparent outline-none placeholder-white/40 min-h-[80px]"
         />
+        <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={e => setImg(e.target.files?.[0] || null)} />
+        <input ref={vidRef} type="file" accept="video/*" className="hidden" onChange={e => setVid(e.target.files?.[0] || null)} />
 
-        {/* hidden inputs */}
-        <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
-          const f = e.target.files?.[0]; if (f?.type.startsWith('image/')) setImg(f);
-        }} />
-        <input ref={vidRef} type="file" accept="video/*" className="hidden" onChange={(e) => {
-          const f = e.target.files?.[0]; if (f?.type.startsWith('video/')) setVid(f);
-        }} />
-
-        {/* two round icon buttons */}
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => imgRef.current?.click()}
-            className="h-10 w-10 grid place-items-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
-            aria-label="Upload photo"
-            title="Upload photo"
-          >
-            {/* photo icon */}
-            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
-              <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-              <circle cx="9" cy="10" r="2" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M21 16l-4.5-4.5L9 19" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-            </svg>
+          <button onClick={() => imgRef.current?.click()} className="h-10 w-10 grid place-items-center rounded-xl border border-white/10 hover:bg-white/10">
+            📷
           </button>
-
-          <button
-            type="button"
-            onClick={() => vidRef.current?.click()}
-            className="h-10 w-10 grid place-items-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
-            aria-label="Upload video"
-            title="Upload video"
-          >
-            {/* video icon */}
-            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
-              <rect x="3" y="5" width="13" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M19 8l3 2v4l-3 2V8z" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-            </svg>
+          <button onClick={() => vidRef.current?.click()} className="h-10 w-10 grid place-items-center rounded-xl border border-white/10 hover:bg-white/10">
+            🎥
           </button>
-
           <div className="ml-auto">
-            <button
-              type="button"
-              onClick={onPublish}
-              disabled={publishing}
-              className="px-4 py-2 rounded-xl bg-white/90 text-black hover:bg-white disabled:opacity-60"
-            >
+            <button onClick={onPublish} disabled={publishing} className="px-4 py-2 rounded-xl bg-white/90 text-black hover:bg-white">
               {publishing ? 'Publishing…' : 'Publish'}
             </button>
           </div>
@@ -291,174 +220,69 @@ function FeedInner() {
       {loading ? (
         <div className="text-white/60">Loading…</div>
       ) : (
-        <div className="space-y-4">
-          {posts.map((p) => (
-            <PostCard
-              key={p.id}
-              post={p}
-              isAuthor={!!uid && uid === p.user_id}
-              onView={() => addViewOnce(p.id)}
-              onStartEdit={() => startEdit(p)}
-              onSaveEdit={() => saveEdit(p)}
-              onCancelEdit={cancelEdit}
-              editingId={editingId}
-              editBody={editBody}
-              setEditBody={setEditBody}
-              onDelete={() => deletePost(p)}
-              onToggleLike={() => toggleLike(p)}
-              onToggleComments={async () => {
+        posts.map((p) => (
+          <div key={p.id} className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
+            <div className="flex justify-between text-sm text-white/70">
+              <div><b>Author:</b> {p.user_id ? p.user_id.slice(0, 8) : 'Unknown'}</div>
+              <div>{new Date(p.created_at).toLocaleString()}</div>
+            </div>
+
+            {editingId === p.id ? (
+              <div className="space-y-2">
+                <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} className="w-full bg-transparent border border-white/10 rounded-xl p-2" />
+                <div className="flex gap-2">
+                  <button onClick={() => saveEdit(p)} className="px-3 py-1 bg-white/90 text-black rounded-lg">Save</button>
+                  <button onClick={() => setEditingId(null)} className="px-3 py-1 border border-white/20 rounded-lg">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {p.body && <p>{p.body}</p>}
+                {p.image_url && <img src={p.image_url} className="rounded-xl border border-white/10" alt="" />}
+                {p.video_url && <video controls className="w-full rounded-xl border border-white/10"><source src={p.video_url} /></video>}
+              </>
+            )}
+
+            {uid === p.user_id && editingId !== p.id && (
+              <div className="flex gap-3">
+                <button onClick={() => { setEditingId(p.id); setEditBody(p.body || ''); }} className="px-3 py-1 border border-white/20 rounded-lg">Edit</button>
+                <button onClick={() => deletePost(p)} className="px-3 py-1 border border-white/20 rounded-lg">Delete</button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-5 text-white/80">
+              <div className="flex items-center gap-1"><Eye /><span>{p.views ?? 0}</span></div>
+              <button onClick={() => toggleLike(p)} className="flex items-center gap-1 hover:text-white"><Heart /><span>{p.likes_count ?? 0}</span></button>
+              <button className="ml-auto underline" onClick={async () => {
                 setOpenComments(prev => ({ ...prev, [p.id]: !prev[p.id] }));
                 if (!openComments[p.id]) await loadComments(p.id);
-              }}
-              comments={comments[p.id] || []}
-              commentValue={commentInput[p.id] || ''}
-              setCommentValue={(v) => setCommentInput(prev => ({ ...prev, [p.id]: v }))}
-              onAddComment={() => addComment(p.id)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PostCard(props: {
-  post: Post;
-  isAuthor: boolean;
-  onView: () => void;
-  onStartEdit: () => void;
-  onSaveEdit: () => void;
-  onCancelEdit: () => void;
-  editingId: number | null;
-  editBody: string;
-  setEditBody: (v: string) => void;
-  onDelete: () => void;
-  onToggleLike: () => void;
-  onToggleComments: () => void;
-  comments: Comment[];
-  commentValue: string;
-  setCommentValue: (v: string) => void;
-  onAddComment: () => void;
-}) {
-  const { post: p } = props;
-
-  useEffect(() => {
-    // count view when component mounts
-    props.onView();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const EyeIcon = () => (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-    </svg>
-  );
-  const HeartIcon = () => (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
-      <path d="M12 21s-7-4.4-9.2-8.1C1.5 9.6 3.6 6 7.3 6c2.1 0 3.3 1 4.7 2 1.4-1 2.6-2 4.7-2 3.7 0 5.8 3.6 4.5 6.9C19 16.6 12 21 12 21Z" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-    </svg>
-  );
-
-  const isEditing = props.editingId === p.id;
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
-      {/* Author & time */}
-      <div className="flex items-center justify-between text-sm text-white/70">
-        <div className="truncate">
-          <span className="font-medium">Author:</span>{' '}
-          <span title={p.user_id || ''}>
-            {p.user_id ? `${p.user_id.slice(0, 8)}…` : 'Unknown'}
-          </span>
-        </div>
-        <div>{new Date(p.created_at).toLocaleString()}</div>
-      </div>
-
-      {/* Content */}
-      {isEditing ? (
-        <div className="space-y-2">
-          <textarea
-            value={props.editBody}
-            onChange={(e) => props.setEditBody(e.target.value)}
-            className="w-full resize-none bg-transparent outline-none border border-white/10 rounded-xl p-2"
-            rows={3}
-          />
-          <div className="flex gap-2">
-            <button onClick={props.onSaveEdit} className="px-3 py-1 rounded-lg bg-white/90 text-black">Save</button>
-            <button onClick={props.onCancelEdit} className="px-3 py-1 rounded-lg border border-white/20">Cancel</button>
-          </div>
-        </div>
-      ) : (
-        <>
-          {p.body && <p className="whitespace-pre-wrap">{p.body}</p>}
-          {p.image_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={p.image_url} alt="" className="rounded-xl border border-white/10" />
-          )}
-          {p.video_url && (
-            <video controls className="w-full rounded-xl border border-white/10">
-              <source src={p.video_url} />
-            </video>
-          )}
-        </>
-      )}
-
-      {/* Author actions */}
-      {props.isAuthor && !isEditing && (
-        <div className="flex gap-3">
-          <button className="px-3 py-1 rounded-lg border border-white/20" onClick={props.onStartEdit}>Edit</button>
-          <button className="px-3 py-1 rounded-lg border border-white/20" onClick={props.onDelete}>Delete</button>
-        </div>
-      )}
-
-      {/* Footer: views + like + comments */}
-      <div className="flex items-center gap-5 text-white/80">
-        <div className="inline-flex items-center gap-1">
-          <EyeIcon />
-          {/* requirement: views as symbol not text — мы показываем число рядом с иконкой */}
-          <span className="text-sm">{p.views ?? 0}</span>
-        </div>
-
-        <button className="inline-flex items-center gap-1 hover:text-white" onClick={props.onToggleLike} title="Like">
-          <HeartIcon />
-          <span className="text-sm">{p.likes_count ?? 0}</span>
-        </button>
-
-        <button className="ml-auto text-sm underline hover:no-underline" onClick={props.onToggleComments}>
-          Comments
-        </button>
-      </div>
-
-      {/* Comments block */}
-      {props.commentValue !== undefined && (
-        <div className="space-y-2">
-          {props.comments.length > 0 && (
-            <div className="space-y-2">
-              {props.comments.map((c) => (
-                <div key={c.id} className="rounded-xl bg-white/5 border border-white/10 p-2">
-                  <div className="text-xs text-white/60 flex justify-between">
-                    <span>By {c.user_id ? `${c.user_id.slice(0,8)}…` : 'Unknown'}</span>
-                    <span>{new Date(c.created_at).toLocaleString()}</span>
-                  </div>
-                  {c.body && <div className="mt-1">{c.body}</div>}
-                </div>
-              ))}
+              }}>Comments</button>
             </div>
-          )}
 
-          <div className="flex gap-2">
-            <input
-              value={props.commentValue}
-              onChange={(e) => props.setCommentValue(e.target.value)}
-              placeholder="Write a comment…"
-              className="flex-1 rounded-lg bg-transparent border border-white/10 px-3 py-2 outline-none placeholder-white/40"
-            />
-            <button onClick={props.onAddComment} className="px-3 py-2 rounded-lg bg-white/90 text-black hover:bg-white">
-              Send
-            </button>
+            {openComments[p.id] && (
+              <div className="space-y-2">
+                {comments[p.id]?.map((c) => (
+                  <div key={c.id} className="rounded-xl bg-white/5 border border-white/10 p-2 text-sm">
+                    <div className="text-xs text-white/60 flex justify-between">
+                      <span>{c.user_id?.slice(0, 8) || 'Anon'}</span>
+                      <span>{new Date(c.created_at).toLocaleString()}</span>
+                    </div>
+                    <div>{c.body}</div>
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <input
+                    value={commentInput[p.id] || ''}
+                    onChange={(e) => setCommentInput(prev => ({ ...prev, [p.id]: e.target.value }))}
+                    placeholder="Write a comment…"
+                    className="flex-1 rounded-lg bg-transparent border border-white/10 px-3 py-2 outline-none placeholder-white/40"
+                  />
+                  <button onClick={() => addComment(p.id)} className="px-3 py-2 rounded-lg bg-white/90 text-black hover:bg-white">Send</button>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        ))
       )}
     </div>
   );
