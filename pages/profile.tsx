@@ -45,28 +45,16 @@ export default function Profile() {
     const file = e.target.files?.[0]
     if (!file) return
     if (!userId) { alert('Sign in first'); return }
-
     try {
       setLoading(true)
-      // имя файла: avatars/<userId>.png (или исходное расширение)
       const ext = file.name.split('.').pop() || 'png'
       const path = `${userId}.${ext}`
-
-      // перезаписываем файл (upsert: true)
-      const { error: uploadErr } = await supabase
-        .storage.from('avatars')
-        .upload(path, file, { upsert: true })
+      const { error: uploadErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
       if (uploadErr) throw uploadErr
-
-      // получаем публичный URL
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
       const publicUrl = pub.publicUrl
       setAvatarUrl(publicUrl)
-
-      // сразу апдейтим профиль
-      const { error: upErr } = await supabase
-        .from('profiles')
-        .upsert({ user_id: userId, avatar_url: publicUrl })
+      const { error: upErr } = await supabase.from('profiles').upsert({ user_id: userId, avatar_url: publicUrl })
       if (upErr) throw upErr
     } catch (err: any) {
       alert(err.message)
@@ -82,12 +70,8 @@ export default function Profile() {
       {userId && (
         <>
           <div style={{display:'flex',alignItems:'center',gap:16,margin:'12px 0'}}>
-            <img
-              src={avatarUrl ?? 'https://placehold.co/80x80?text=Avatar'}
-              alt="avatar"
-              width={80} height={80}
-              style={{borderRadius:'50%',objectFit:'cover',border:'1px solid #eee'}}
-            />
+            <img src={avatarUrl ?? 'https://placehold.co/80x80?text=Avatar'} alt="avatar" width={80} height={80}
+                 style={{borderRadius:'50%',objectFit:'cover',border:'1px solid #eee'}} />
             <div>
               <input type="file" accept="image/*" onChange={onFileChange} />
               {loading && <div style={{fontSize:12,opacity:.7}}>Uploading...</div>}

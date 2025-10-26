@@ -47,19 +47,13 @@ export default function Header() {
         {userEmail && (
           <>
             {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt="me"
-                width={32} height={32}
-                style={{borderRadius:'50%',objectFit:'cover',border:'1px solid #ddd'}}
-              />
+              <img src={avatarUrl} alt="me" width={32} height={32}
+                   style={{borderRadius:'50%',objectFit:'cover',border:'1px solid #ddd'}} />
             ) : (
               <div style={{
                 width:32,height:32,borderRadius:'50%',background:'#ddd',
                 display:'grid',placeItems:'center',fontSize:12
-              }}>
-                :)
-              </div>
+              }}>🙂</div>
             )}
             <span style={{opacity:.7}}>{userEmail}</span>
             <button onClick={signOut}
