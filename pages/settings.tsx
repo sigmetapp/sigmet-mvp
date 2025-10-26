@@ -39,27 +39,40 @@ function SettingsInner() {
     return data.publicUrl as string;
   }
 
-  async function save() {
-    setSaving(true);
-    try {
-      let newLogoUrl = logo_url || null;
-      if (logo) newLogoUrl = await uploadLogo(logo);
+ async function save() {
+  setSaving(true);
+  try {
+    let newLogoUrl = logo_url || null;
+    if (logo) newLogoUrl = await uploadLogo(logo);
 
-      const { error } = await supabase
-        .from("site_settings")
-        .upsert({ id: 1, site_name: name || null, logo_url: newLogoUrl })
-        .eq("id", 1);
-      if (error) throw error;
+    // Получим uid для обновления updated_by (опционально)
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u?.user?.id ?? null;
 
-      // маленький «пинок» провайдеру: просто перезагрузим страницу
-      // (или можно усложнить и дернуть select из контекста)
-      window.location.reload();
-    } catch (e: any) {
-      alert(e?.message || "Save failed");
-    } finally {
-      setSaving(false);
-    }
+    const payload = {
+      id: 1,
+      site_name: name || null,
+      logo_url: newLogoUrl,
+      updated_by: uid,
+      updated_at: new Date().toISOString(),
+    };
+
+    // ВАЖНО: onConflict:'id', без .eq()
+    const { error } = await supabase
+      .from("site_settings")
+      .upsert(payload, { onConflict: "id" });
+
+    if (error) throw error;
+
+    // Обновим UI (проще всего перезагрузить)
+    window.location.reload();
+  } catch (e: any) {
+    alert(e?.message || "Save failed");
+  } finally {
+    setSaving(false);
   }
+}
+
 
   return (
     <div className="max-w-xl mx-auto p-6 space-y-6">
