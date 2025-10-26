@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0b1020;
+  --card: rgba(255,255,255,0.03);
+  --muted: #a8b3c7;
+}
+html, body { background: var(--bg); color: #e8eef6; }
+.container { max-width: 1120px; margin: 0 auto; padding: 20px; }
+.card { background: var(--card); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; }
+.btn { @apply inline-flex items-center px-3 py-2 rounded text-sm font-medium bg-white text-black hover:opacity-90; }
+.input { @apply w-full bg-transparent border border-white/10 rounded px-3 py-2; }

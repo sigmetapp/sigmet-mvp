@@ -1,0 +1,97 @@
+-- Supabase SQL schema v1 for Sigmet MVP
+
+create table if not exists public.profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  username text unique not null,
+  full_name text,
+  bio text,
+  country text,
+  avatar_url text,
+  directions_selected text[] default '{}'::text[],
+  created_at timestamptz default now()
+);
+
+create table if not exists public.directions (
+  id text primary key,
+  title text not null,
+  sort int not null
+);
+
+insert into public.directions(id, title, sort) values
+('health','Health',1),('career','Career',2),('learning','Learning',3),
+('finance','Finance',4),('family','Family',5),('community','Community',6),
+('mindfulness','Mindfulness',7),('creativity','Creativity',8),
+('sport','Sport',9),('travel','Travel',10),('ethics','Ethics',11),
+('digital','Digital Hygiene',12)
+on conflict (id) do nothing;
+
+create table if not exists public.posts (
+  id bigserial primary key,
+  author_id uuid not null references auth.users(id) on delete cascade,
+  text text,
+  media_urls text[] default '{}'::text[],
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create index if not exists posts_author_created_idx on public.posts(author_id, created_at desc);
+
+create table if not exists public.post_reactions (
+  post_id bigint references public.posts(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  kind text check (kind in ('like')),
+  created_at timestamptz default now(),
+  primary key (post_id, user_id)
+);
+
+create table if not exists public.comments (
+  id bigserial primary key,
+  post_id bigint not null references public.posts(id) on delete cascade,
+  author_id uuid not null references auth.users(id) on delete cascade,
+  text text not null,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.dm_threads (
+  id bigserial primary key,
+  a uuid not null references auth.users(id) on delete cascade,
+  b uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz default now(),
+  unique (a, b)
+);
+
+create table if not exists public.dm_messages (
+  id bigserial primary key,
+  thread_id bigint not null references public.dm_threads(id) on delete cascade,
+  sender uuid not null references auth.users(id) on delete cascade,
+  text text,
+  media_urls text[] default '{}'::text[],
+  created_at timestamptz default now()
+);
+
+create table if not exists public.invites (
+  code text primary key,
+  creator uuid not null references auth.users(id) on delete cascade,
+  max_uses int not null default 5,
+  uses int not null default 0,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.sw_events (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null,
+  value int not null default 1,
+  meta jsonb,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.sw_scores (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  total int not null default 0,
+  last_updated timestamptz default now()
+);
+
+alter table public.profiles enable row level security;
+create policy if not exists "read profiles" on public.profiles for select using (true);
+create policy if not exists "own profile" on public.profiles for update using (auth.uid() = user_id);
+create policy if not exists "insert own profile" on public.profiles for insert with check (auth.uid() = user_id);
