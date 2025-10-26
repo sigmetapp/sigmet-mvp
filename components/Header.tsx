@@ -1,68 +1,29 @@
-'use client';
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// components/Header.tsx
+import Link from "next/link";
+import Image from "next/image";
+import { useSiteSettings } from "@/components/SiteSettingsContext";
 
 export default function Header() {
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUserEmail(user?.email ?? null);
-      if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('avatar_url')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (data?.avatar_url) setAvatarUrl(data.avatar_url);
-      }
-    })();
-  }, []);
-
-  async function signOut() {
-    await supabase.auth.signOut();
-    window.location.href = '/';
-  }
+  const { logo_url, site_name } = useSiteSettings();
 
   return (
-    <header style={{
-      display: 'flex', justifyContent: 'space-between',
-      alignItems: 'center', padding: '16px 24px',
-      borderBottom: '1px solid #eee', background: '#fafafa',
-      fontFamily: 'system-ui'
-    }}>
-      <Link href="/" style={{fontWeight:600,fontSize:18,textDecoration:'none',color:'#000'}}>Sigmet</Link>
-      <nav style={{display:'flex',alignItems:'center',gap:16,fontSize:14}}>
-        <Link href="/feed">Feed</Link>
-        <Link href="/profile">Profile</Link>
-        {!userEmail && <Link href="/login" className="btn">Login</Link>}
-        {userEmail && (
-          <>
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="me" width={32} height={32}
-                   style={{borderRadius:'50%',objectFit:'cover',border:'1px solid #ddd'}} />
-            ) : (
-              <div style={{
-                width:32,height:32,borderRadius:'50%',background:'#ddd',
-                display:'grid',placeItems:'center',fontSize:12
-              }}>🙂</div>
-            )}
-            <span style={{opacity:.7}}>{userEmail}</span>
-            <button onClick={signOut}
-              style={{border:'none',background:'#000',color:'#fff',padding:'6px 12px',borderRadius:6,cursor:'pointer'}}>
-              Sign out
-            </button>
-          </>
-        )}
-      </nav>
+    <header className="sticky top-0 z-50 backdrop-blur bg-black/30 border-b border-white/10">
+      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-2">
+          {logo_url ? (
+            /* Старайтесь держать логотип ~32–40px высотой */
+            <Image src={logo_url} alt="Logo" width={36} height={36} className="rounded-md" />
+          ) : (
+            <div className="h-9 w-9 rounded-md bg-white/10 grid place-items-center">S</div>
+          )}
+          <span className="text-white/90 font-medium">{site_name || "SIGMET"}</span>
+        </Link>
+
+        <nav className="ml-auto flex items-center gap-4 text-sm">
+          <Link href="/feed" className="text-white/80 hover:text-white">Feed</Link>
+          <Link href="/settings" className="text-white/60 hover:text-white">Settings</Link>
+        </nav>
+      </div>
     </header>
   );
 }
