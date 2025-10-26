@@ -1,16 +1,11 @@
 import type { AppProps } from "next/app";
-// ВАЖНО: относительный импорт, без "@/"
-import "../styles/globals.css";
-import Layout from "@/components/Layout";
-import { useRouter } from "next/router";
+import "@/styles/globals.css";
+import { SiteSettingsProvider } from "@/components/SiteSettingsContext";
 
-export default function App({ Component, pageProps }: AppProps) {
-  const router = useRouter();
-  const isAuth = router.pathname.startsWith("/auth");
-  if (isAuth) return <Component {...pageProps} />;
+export default function MyApp({ Component, pageProps }: AppProps) {
   return (
-    <Layout>
+    <SiteSettingsProvider>
       <Component {...pageProps} />
-    </Layout>
+    </SiteSettingsProvider>
   );
 }
