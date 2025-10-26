@@ -158,7 +158,6 @@ function PostCard({ post, onChanged }: { post: Post; onChanged: () => Promise<vo
     if (seenRef.current) return;
     seenRef.current = true;
     supabase.rpc('increment_post_view', { p_post_id: post.id }).catch(() => {});
-    // onChanged(); // можно не перезагружать сразу, чтобы не дёргать лишний запрос
   }, [post.id]);
 
   const [comments, setComments] = useState<Comment[]>([]);
