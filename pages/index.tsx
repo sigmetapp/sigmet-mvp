@@ -1,88 +1,237 @@
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+// pages/index.tsx
+import Head from 'next/head';
+import Link from 'next/link';
+import React from 'react';
 
 export default function Home() {
-  const [loading, setLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [profile, setProfile] = useState<any | null>(null);
+  const container: React.CSSProperties = {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '0 24px',
+  };
 
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-      setUserEmail(user.email ?? null);
-      const { data } = await supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle();
-      setProfile(data || null);
-      setLoading(false);
-    })();
-  }, []);
+  const card: React.CSSProperties = {
+    backgroundColor: '#ffffff',
+    border: '1px solid #d0d7de',
+    borderRadius: 8,
+    padding: 24,
+  };
 
-  if (loading) return <div className="p-6 text-white/70">Loading...</div>;
+  const muted: React.CSSProperties = { color: '#57606a' };
 
-  if (userEmail && profile) {
-    return (
-      <main className="grid gap-6 md:grid-cols-2 items-stretch">
-        <section className="card p-6 shadow-soft">
-          <h1 className="text-2xl font-semibold mb-4">Your profile</h1>
-          <div className="flex items-center gap-4 mb-4">
-            <img
-              src={profile.avatar_url || "/avatar-fallback.png"}
-              className="w-16 h-16 rounded-full object-cover"
-              alt="avatar"
+  return (
+    <div style={{ backgroundColor: '#f6f8fa', minHeight: '100vh' }}>
+      <Head>
+        <title>Sigmet</title>
+        <meta name="description" content="Sigmet social network" />
+      </Head>
+
+      {/* Header */}
+      <header
+        style={{
+          backgroundColor: '#ffffff',
+          borderBottom: '1px solid #d0d7de',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+        }}
+      >
+        <div style={{ ...container, display: 'flex', alignItems: 'center', height: 56 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              aria-label="Sigmet"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 6,
+                border: '1px solid #d0d7de',
+                background: 'linear-gradient(180deg,#fafbfc,#eff2f6)',
+              }}
             />
-            <div>
-              <div className="text-white font-medium">{profile.full_name || "No name"}</div>
-              <div className="text-white/70 text-sm">@{profile.username || "username"}</div>
-              <div className="text-white/50 text-xs mt-1">{userEmail}</div>
+            <Link href="/" style={{ textDecoration: 'none' }}>
+              <span style={{ fontSize: 18, fontWeight: 600, color: '#24292f' }}>Sigmet</span>
+            </Link>
+          </div>
+
+          <nav style={{ marginLeft: 24, display: 'flex', gap: 16 }}>
+            <Link href="/feed" style={{ color: '#24292f', textDecoration: 'none' }}>Feed</Link>
+            <Link href="/profile" style={{ color: '#24292f', textDecoration: 'none' }}>Profile</Link>
+            <Link href="/sw" style={{ color: '#24292f', textDecoration: 'none' }}>Social Weight</Link>
+            <Link href="/about" style={{ color: '#24292f', textDecoration: 'none' }}>About</Link>
+          </nav>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 12 }}>
+            <Link
+              href="/login"
+              style={{
+                border: '1px solid #d0d7de',
+                borderRadius: 6,
+                padding: '6px 12px',
+                color: '#24292f',
+                textDecoration: 'none',
+                backgroundColor: '#fafbfc',
+              }}
+            >
+              Login
+            </Link>
+            <Link
+              href="/signup"
+              style={{
+                border: '1px solid #1f883d',
+                backgroundColor: '#2da44e',
+                color: '#ffffff',
+                borderRadius: 6,
+                padding: '6px 12px',
+                textDecoration: 'none',
+                fontWeight: 600,
+              }}
+            >
+              Sign up
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <main style={{ ...container, paddingTop: 40, paddingBottom: 40 }}>
+        <section style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 32, lineHeight: 1.2, color: '#24292f' }}>
+              Build your social weight with real progress
+            </h1>
+            <p style={{ ...muted, marginTop: 12, fontSize: 16, lineHeight: 1.7 }}>
+              Sigmet is a modern social network where your actions shape reputation and growth.
+              Create posts, track achievements, join focused communities, and see your value grow.
+            </p>
+            <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+              <Link
+                href="/feed"
+                style={{
+                  backgroundColor: '#2da44e',
+                  color: '#fff',
+                  border: '1px solid #1f883d',
+                  borderRadius: 6,
+                  padding: '10px 16px',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                }}
+              >
+                Go to feed
+              </Link>
+              <Link
+                href="/docs"
+                style={{
+                  backgroundColor: '#ffffff',
+                  color: '#24292f',
+                  border: '1px solid #d0d7de',
+                  borderRadius: 6,
+                  padding: '10px 16px',
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                }}
+              >
+                Learn more
+              </Link>
             </div>
           </div>
-          {profile.bio && (
-            <p className="text-white/80 text-sm whitespace-pre-wrap">{profile.bio}</p>
-          )}
-          <div className="mt-6 flex gap-3">
-            <Link href="/profile" className="btn btn-primary">Edit profile</Link>
-            <Link href="/feed" className="btn bg-white/10 text-white border border-white/10">Open feed</Link>
+
+          <div>
+            <div style={{ ...card }}>
+              <h3 style={{ marginTop: 0, marginBottom: 8, color: '#24292f' }}>Quick start</h3>
+              <ol style={{ ...muted, paddingLeft: 18, margin: 0, lineHeight: 1.7 }}>
+                <li>Create an account</li>
+                <li>Complete basic profile</li>
+                <li>Pick 3 growth directions</li>
+                <li>Post your first update</li>
+              </ol>
+              <Link
+                href="/signup"
+                style={{
+                  display: 'inline-block',
+                  marginTop: 14,
+                  textDecoration: 'none',
+                  border: '1px solid #1f883d',
+                  backgroundColor: '#2da44e',
+                  color: '#fff',
+                  borderRadius: 6,
+                  padding: '8px 12px',
+                  fontWeight: 600,
+                }}
+              >
+                Create account
+              </Link>
+            </div>
           </div>
         </section>
 
-        <section className="card p-6 shadow-soft">
-          <h2 className="text-xl font-semibold mb-3">Shortcuts</h2>
-          <ul className="list-disc pl-5 space-y-2 text-white/80 text-sm">
-            <li>Update your avatar and bio in <span className="font-medium">Profile settings</span></li>
-            <li>Create posts with an image cover in <span className="font-medium">Feed</span></li>
-            <li>Sign out via the top-right menu</li>
+        {/* Feature cards */}
+        <section style={{ marginTop: 32, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24 }}>
+          <div style={card}>
+            <h3 style={{ marginTop: 0, marginBottom: 8, color: '#24292f' }}>Communities by purpose</h3>
+            <p style={{ ...muted, margin: 0 }}>
+              Tune your feed with topics that matter. Less noise, more depth.
+            </p>
+          </div>
+
+          <div style={card}>
+            <h3 style={{ marginTop: 0, marginBottom: 8, color: '#24292f' }}>Social weight</h3>
+            <p style={{ ...muted, margin: 0 }}>
+              A transparent score based on activity, contributions, learning, and impact.
+            </p>
+          </div>
+
+          <div style={card}>
+            <h3 style={{ marginTop: 0, marginBottom: 8, color: '#24292f' }}>Creator first</h3>
+            <p style={{ ...muted, margin: 0 }}>
+              Fair authorship and analytics for posts, media, and long form content.
+            </p>
+          </div>
+        </section>
+
+        {/* Secondary section */}
+        <section style={{ marginTop: 32, ...card }}>
+          <h3 style={{ marginTop: 0, color: '#24292f' }}>Latest updates</h3>
+          <ul style={{ ...muted, paddingLeft: 18, margin: 0, lineHeight: 1.8 }}>
+            <li>Profile header redesign</li>
+            <li>Feed performance improvements</li>
+            <li>Early Social Weight dashboard</li>
           </ul>
         </section>
       </main>
-    );
-  }
 
-  return (
-    <main className="grid gap-6 md:grid-cols-2 items-stretch">
-      <section className="card p-6 shadow-soft">
-        <h1 className="text-3xl font-semibold mb-3">Welcome to Sigmet</h1>
-        <p className="text-white/70">
-          Personal feed, profile and simple posting — all in a focused dark UI.
-        </p>
-        <div className="mt-6 flex gap-3">
-          <Link href="/auth" className="btn btn-primary">Sign in</Link>
-          <Link href="/feed" className="btn bg-white/10 text-white border border-white/10">Browse feed</Link>
+      {/* Footer */}
+      <footer
+        style={{
+          backgroundColor: '#ffffff',
+          borderTop: '1px solid #d0d7de',
+          marginTop: 40,
+        }}
+      >
+        <div style={{ ...container, paddingTop: 16, paddingBottom: 16, textAlign: 'center' }}>
+          <p style={{ ...muted, margin: 0 }}>
+            © {new Date().getFullYear()} Sigmet. All rights reserved.
+          </p>
         </div>
-      </section>
+      </footer>
 
-      <section className="card p-6 shadow-soft">
-        <h2 className="text-xl font-semibold mb-3">What’s inside</h2>
-        <ul className="list-disc pl-5 space-y-2 text-white/80 text-sm">
-          <li>Email + password auth (no magic links)</li>
-          <li>Profile with avatar (Supabase Storage)</li>
-          <li>Public feed with image cover</li>
-          <li>Clean, minimal dark design</li>
-        </ul>
-        <div className="mt-6 text-white/50 text-xs">
-          Tip: Add your Supabase keys in Environment Variables.
-        </div>
-      </section>
-    </main>
+      {/* Small responsive tweaks */}
+      <style jsx>{`
+        @media (max-width: 1024px) {
+          main > section:first-of-type {
+            grid-template-columns: 1fr;
+          }
+          main > section:nth-of-type(2) {
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+        @media (max-width: 640px) {
+          main > section:nth-of-type(2) {
+            grid-template-columns: 1fr;
+          }
+        }
+        a:hover { opacity: 0.9; }
+        nav a:hover { text-decoration: underline; }
+      `}</style>
+    </div>
   );
 }
