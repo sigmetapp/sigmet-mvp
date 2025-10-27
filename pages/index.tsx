@@ -4,17 +4,15 @@ import Link from 'next/link';
 import React from 'react';
 
 export default function Home() {
-  // GitHub Dark palette
   const colors = {
     bg: '#0d1117',
     surface: '#161b22',
     text: '#c9d1d9',
     muted: '#8b949e',
     border: '#30363d',
-    primary: '#238636',
-    primaryBorder: '#2ea043',
-    buttonHover: '#2ea043',
-    link: '#58a6ff',
+    primary: '#2ea043',
+    primaryHover: '#3fb950',
+    accent: '#58a6ff',
   };
 
   const container: React.CSSProperties = {
@@ -26,11 +24,17 @@ export default function Home() {
   const card: React.CSSProperties = {
     backgroundColor: colors.surface,
     border: `1px solid ${colors.border}`,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 24,
+    boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
+    transition: 'transform .2s ease, box-shadow .2s ease',
   };
 
-  const muted: React.CSSProperties = { color: colors.muted };
+  const list: React.CSSProperties = {
+    color: colors.muted,
+    lineHeight: 1.8,
+    paddingLeft: 20,
+  };
 
   return (
     <div style={{ backgroundColor: colors.bg, minHeight: '100vh', color: colors.text }}>
@@ -39,33 +43,31 @@ export default function Home() {
         <meta name="description" content="Sigmet social network" />
       </Head>
 
-      {/* MAIN CONTENT ONLY. Header and Footer are rendered elsewhere */}
       <main style={container}>
-        {/* Hero */}
+        {/* HERO */}
         <section className="hero">
           <div className="hero-grid">
             <div>
               <h1 className="title">
-                Build your social weight with real progress
+                Build your <span className="accent">social weight</span> with real progress
               </h1>
               <p className="subtitle">
-                Sigmet is a modern social network where your actions shape reputation and growth.
-                Create posts, track achievements, join focused communities, and see your value grow.
+                Sigmet helps you grow with purpose. Share content, track goals, and see your evolution through data.
               </p>
               <div className="cta">
                 <Link href="/feed" className="btnPrimary">Go to feed</Link>
-                <Link href="/docs" className="btnGhost">Learn more</Link>
+                <Link href="/docs" className="btnSecondary">Learn more</Link>
               </div>
             </div>
 
             <div>
-              <div style={card}>
-                <h3 style={{ marginTop: 0, marginBottom: 8, color: colors.text }}>Quick start</h3>
-                <ol style={{ ...muted, paddingLeft: 18, margin: 0, lineHeight: 1.7 }}>
-                  <li>Create an account</li>
-                  <li>Complete basic profile</li>
-                  <li>Pick 3 growth directions</li>
-                  <li>Post your first update</li>
+              <div style={card} className="hoverCard">
+                <h3 style={{ marginTop: 0 }}>Quick start</h3>
+                <ol style={list}>
+                  <li>Sign up and confirm your email</li>
+                  <li>Set your profile and avatar</li>
+                  <li>Select 3 key growth directions</li>
+                  <li>Start sharing and tracking progress</li>
                 </ol>
                 <Link href="/signup" className="btnPrimary sm">Create account</Link>
               </div>
@@ -73,109 +75,109 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Features */}
+        {/* FEATURES */}
         <section className="features">
-          <div style={card}>
-            <h3 className="cardTitle">Communities by purpose</h3>
-            <p style={{ ...muted, margin: 0 }}>
-              Tune your feed with topics that matter. Less noise, more depth.
+          <div style={card} className="hoverCard">
+            <h3>🎯 Purpose-driven communities</h3>
+            <p style={{ color: colors.muted }}>
+              Focus on what matters. Join groups that align with your goals — less noise, more meaning.
             </p>
           </div>
 
-          <div style={card}>
-            <h3 className="cardTitle">Social weight</h3>
-            <p style={{ ...muted, margin: 0 }}>
-              A transparent score based on activity, contributions, learning, and impact.
+          <div style={card} className="hoverCard">
+            <h3>⚖️ Transparent social weight</h3>
+            <p style={{ color: colors.muted }}>
+              Reputation built from verified activity, contributions, and learning.
             </p>
           </div>
 
-          <div style={card}>
-            <h3 className="cardTitle">Creator first</h3>
-            <p style={{ ...muted, margin: 0 }}>
-              Fair authorship and analytics for posts, media, and long form content.
+          <div style={card} className="hoverCard">
+            <h3>🪶 Creator-first ecosystem</h3>
+            <p style={{ color: colors.muted }}>
+              Full analytics, fair authorship, and visibility for every creator.
             </p>
           </div>
         </section>
 
-        {/* Updates */}
-        <section style={{ ...card, marginTop: 32 }}>
-          <h3 style={{ marginTop: 0, color: colors.text }}>Latest updates</h3>
-          <ul style={{ ...muted, paddingLeft: 18, margin: 0, lineHeight: 1.8 }}>
-            <li>Profile header redesign</li>
-            <li>Feed performance improvements</li>
-            <li>Early Social Weight dashboard</li>
+        {/* UPDATES */}
+        <section style={{ ...card, marginTop: 40 }} className="hoverCard">
+          <h3>📢 Latest updates</h3>
+          <ul style={list}>
+            <li>New profile dashboard with analytics</li>
+            <li>Faster content loading in feed</li>
+            <li>Improved onboarding flow</li>
           </ul>
+          <Link href="/changelog" className="btnSecondary sm">View changelog</Link>
         </section>
       </main>
 
-      {/* PAGE SCOPED STYLES */}
       <style jsx>{`
         .hero-grid {
           display: grid;
           grid-template-columns: 1.2fr 1fr;
-          gap: 24px;
+          gap: 32px;
         }
         .title {
+          font-size: 36px;
+          font-weight: 700;
           margin: 0;
-          font-size: 32px;
-          line-height: 1.2;
+          line-height: 1.25;
+        }
+        .accent {
+          color: ${colors.accent};
         }
         .subtitle {
-          margin-top: 12px;
-          font-size: 16px;
-          line-height: 1.7;
           color: ${colors.muted};
+          margin-top: 12px;
+          font-size: 17px;
+          line-height: 1.7;
         }
         .cta {
           display: flex;
-          gap: 12px;
-          margin-top: 16px;
+          gap: 16px;
+          margin-top: 24px;
         }
         .btnPrimary {
-          display: inline-block;
-          text-decoration: none;
           background: ${colors.primary};
-          border: 1px solid ${colors.primaryBorder};
+          border: none;
           color: #fff;
-          border-radius: 6px;
-          padding: 10px 16px;
           font-weight: 600;
-        }
-        .btnPrimary.sm {
-          margin-top: 14px;
-          padding: 8px 12px;
+          border-radius: 8px;
+          padding: 12px 20px;
+          text-decoration: none;
+          transition: background .2s ease, transform .2s ease;
         }
         .btnPrimary:hover {
-          background: ${colors.buttonHover};
+          background: ${colors.primaryHover};
+          transform: translateY(-1px);
         }
-        .btnGhost {
-          display: inline-block;
-          text-decoration: none;
-          background: transparent;
-          border: 1px solid ${colors.border};
-          color: ${colors.text};
-          border-radius: 6px;
-          padding: 10px 16px;
+        .btnSecondary {
+          background: rgba(88,166,255,0.1);
+          border: 1px solid ${colors.accent};
+          color: ${colors.accent};
           font-weight: 500;
+          border-radius: 8px;
+          padding: 12px 20px;
+          text-decoration: none;
+          transition: background .2s ease, transform .2s ease;
         }
-        .btnGhost:hover {
-          background: rgba(255, 255, 255, 0.04);
+        .btnSecondary:hover {
+          background: rgba(88,166,255,0.15);
+          transform: translateY(-1px);
+        }
+        .btnPrimary.sm, .btnSecondary.sm {
+          padding: 8px 14px;
+          margin-top: 14px;
         }
         .features {
-          margin-top: 32px;
+          margin-top: 48px;
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
           gap: 24px;
         }
-        .cardTitle {
-          margin-top: 0;
-          margin-bottom: 8px;
-        }
-        a {
-          color: ${colors.link};
-        }
-        a:hover {
-          opacity: 0.95;
+        .hoverCard:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.3);
         }
 
         /* Responsive */
@@ -192,7 +194,7 @@ export default function Home() {
             grid-template-columns: 1fr;
           }
           .title {
-            font-size: 26px;
+            font-size: 28px;
           }
         }
       `}</style>
