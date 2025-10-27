@@ -55,7 +55,7 @@ export default function SignupPage() {
           ? `${window.location.origin}/auth/callback`
           : undefined;
 
-      // 1) Sign up the user with Supabase Auth
+      // 1) Sign up the user with Supabase Auth (confirmation email flow)
       const { data: signData, error: signErr } = await supabase.auth.signUp({
         email,
         password,
@@ -66,18 +66,7 @@ export default function SignupPage() {
       });
       if (signErr) throw signErr;
 
-      // 2) Create a profile record
-      const userId = signData.user?.id;
-      if (userId) {
-        const { error: insertErr } = await supabase
-          .from('profiles')
-          .insert([{ id: userId, email, full_name: fullName || null }]);
-        if (insertErr && !/duplicate key|23505/i.test(insertErr.message)) {
-          console.warn('profiles insert error:', insertErr.message);
-        }
-      }
-
-      // 3) Notify admin via API route
+      // 2) Optional: admin notification (gracefully skipped if no SMTP API)
       try {
         await fetch('/api/notify-signup', {
           method: 'POST',
@@ -85,16 +74,35 @@ export default function SignupPage() {
           body: JSON.stringify({ email, fullName }),
         });
       } catch {
-        // Ignore silently if no SMTP configured
+        // ignore silently
       }
 
-      setNotice(
-        'Please check your email inbox. A confirmation link has been sent.'
-      );
+      setNotice('Please check your email inbox. A confirmation link has been sent.');
     } catch (err: any) {
+      console.error('signup error', err);
       setErrorMsg(err?.message || 'Signup failed.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    setErrorMsg(null);
+    try {
+      await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+          emailRedirectTo:
+            typeof window !== 'undefined'
+              ? `${window.location.origin}/auth/callback`
+              : undefined,
+        },
+      });
+      setNotice('Confirmation email re-sent. Please check your inbox/spam folder.');
+    } catch (e: any) {
+      console.error('resend error', e);
+      setErrorMsg(e?.message || 'Resend failed.');
     }
   }
 
@@ -163,7 +171,20 @@ export default function SignupPage() {
               </div>
 
               {errorMsg && <div className="alert error">{errorMsg}</div>}
-              {notice && <div className="alert notice">{notice}</div>}
+
+              {notice && (
+                <div className="alert notice">
+                  {notice}
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    className="btnSecondary sm"
+                    style={{ marginLeft: 8 }}
+                  >
+                    Resend
+                  </button>
+                </div>
+              )}
 
               <div className="actions">
                 <button className="btnPrimary" disabled={loading}>
@@ -305,6 +326,7 @@ export default function SignupPage() {
           transition: transform .15s ease, background .15s ease;
         }
         .btnSecondary:hover { background: rgba(88,166,255,0.15); transform: translateY(-1px); }
+        .btnSecondary.sm { padding: 8px 12px; font-weight: 600; }
         ul {
           margin: 0;
           padding-left: 20px;
