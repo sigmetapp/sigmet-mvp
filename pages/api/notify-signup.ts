@@ -1,4 +1,3 @@
-// pages/api/notify-signup.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as nodemailer from 'nodemailer';
 
@@ -14,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     SMTP_USER,
     SMTP_PASS,
     SIGNUP_NOTIFY_TO,
-    SIGNUP_NOTIFY_FROM,
+    SIGNUP_NOTIFY_FROM
   } = process.env as Record<string, string | undefined>;
 
   if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SIGNUP_NOTIFY_TO) {
@@ -26,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       host: SMTP_HOST,
       port: Number(SMTP_PORT),
       secure: Number(SMTP_PORT) === 465,
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
+      auth: { user: SMTP_USER, pass: SMTP_PASS }
     });
 
     await transporter.sendMail({
@@ -36,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       text: `New user signed up.
 Email: ${email}
 Name: ${fullName || '(empty)'}
-Time: ${new Date().toISOString()}`,
+Time: ${new Date().toISOString()}`
     });
 
     return res.status(200).json({ ok: true });
