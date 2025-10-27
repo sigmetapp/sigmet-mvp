@@ -1,6 +1,5 @@
 // pages/api/notify-signup.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-// Use star import to be compatible regardless of esModuleInterop setting
 import * as nodemailer from 'nodemailer';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -18,7 +17,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     SIGNUP_NOTIFY_FROM,
   } = process.env as Record<string, string | undefined>;
 
-  // Graceful noop if SMTP not configured
   if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SIGNUP_NOTIFY_TO) {
     return res.status(200).json({ ok: true, skipped: true });
   }
