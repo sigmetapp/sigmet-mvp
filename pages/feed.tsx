@@ -41,6 +41,9 @@ function FeedInner() {
   const [publishing, setPublishing] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
 
+  // Map author user_id -> profile info (username, avatar)
+  const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; avatar_url: string | null }>>({});
+
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBody, setEditBody] = useState<string>("");
   const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
@@ -105,6 +108,24 @@ function FeedInner() {
       setPosts(data as Post[]);
       // Preload comment counts for visible posts
       preloadCommentCounts(data as Post[]);
+
+      // Preload author profiles (username, avatar)
+      const userIds = Array.from(
+        new Set((data as Post[]).map((p) => p.user_id).filter((x): x is string => Boolean(x)))
+      );
+      if (userIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("user_id, username, avatar_url")
+          .in("user_id", userIds);
+        if (profs) {
+          const map: Record<string, { username: string | null; avatar_url: string | null }> = {};
+          for (const p of profs as any[]) {
+            map[p.user_id as string] = { username: p.username ?? null, avatar_url: p.avatar_url ?? null };
+          }
+          setProfilesByUserId(map);
+        }
+      }
     }
     setLoading(false);
   }
@@ -406,11 +427,28 @@ function FeedInner() {
               onMouseEnter={() => addViewOnce(p.id)}
             >
               {/* header */}
-              <div className="flex justify-between text-sm text-white/70">
-                <div className="truncate">
-                  <span className="text-dim">Author:</span> {p.user_id ? p.user_id.slice(0, 8) : "Unknown"}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  {(() => {
+                    const prof = p.user_id ? profilesByUserId[p.user_id] : undefined;
+                    const avatar = prof?.avatar_url || "/avatar-fallback.png";
+                    const username = prof?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
+                    return (
+                      <>
+                        <img
+                          src={avatar}
+                          alt="avatar"
+                          className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
+                        />
+                        <div className="flex flex-col min-w-0">
+                          <div className="text-sm text-white truncate">{username}</div>
+                          <div className="text-xs text-white/60 truncate">Author</div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
-                <div className="text-dim">{new Date(p.created_at).toLocaleString()}</div>
+                <div className="text-xs text-white/60">{new Date(p.created_at).toLocaleString()}</div>
               </div>
 
               {/* content */}
@@ -430,7 +468,7 @@ function FeedInner() {
                 </div>
               ) : (
                 <>
-                  {p.body && <p className="leading-relaxed">{p.body}</p>}
+                  {p.body && <p className="leading-relaxed text-white">{p.body}</p>}
                   {p.image_url && (
                     <img src={p.image_url} className="rounded-2xl border border-white/10" alt="" />
                   )}
@@ -574,7 +612,7 @@ function FeedInner() {
       {composerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            className="absolute inset-0 bg-black/80"
+            className="absolute inset-0 bg-black/90"
             onClick={() => !publishing && setComposerOpen(false)}
           />
           <div className="relative z-10 w-full max-w-xl mx-auto p-4">
