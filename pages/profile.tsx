@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Button from '@/components/Button';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 
@@ -82,12 +83,9 @@ function ProfileSettings() {
           />
           <div>
             <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-white" />
-            <button
-              onClick={uploadAvatar}
-              className="ml-2 px-3 py-2 rounded-lg bg-white text-black text-sm"
-            >
+            <Button onClick={uploadAvatar} variant="secondary" size="sm" className="ml-2">
               Upload
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -178,12 +176,9 @@ function ProfileSettings() {
         </div>
 
         {note && <div className="text-white/70 text-sm">{note}</div>}
-        <button
-          onClick={saveProfile}
-          className="btn btn-primary w-full"
-        >
+        <Button onClick={saveProfile} variant="primary" className="w-full">
           Save
-        </button>
+        </Button>
       </div>
     </main>
   );

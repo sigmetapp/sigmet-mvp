@@ -1,6 +1,6 @@
 // pages/index.tsx
 import Head from "next/head";
-import Link from "next/link";
+import Button from "@/components/Button";
 
 export default function Home() {
   return (
@@ -34,8 +34,8 @@ export default function Home() {
                 Sigmet helps you grow with purpose. Share content, track goals, and see your evolution through data.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Link href="/feed" className="btn btn-primary">Go to feed</Link>
-                <Link href="/signup" className="btn border border-white/20 text-white/80 hover:bg-white/10">Create account</Link>
+                <Button href="/feed" variant="primary">Go to feed</Button>
+                <Button href="/signup" variant="secondary">Create account</Button>
               </div>
             </div>
 
@@ -48,7 +48,7 @@ export default function Home() {
                   <li>Select 3 key growth directions</li>
                   <li>Start sharing and tracking progress</li>
                 </ol>
-                <Link href="/signup" className="btn btn-primary mt-4">Get started</Link>
+                <Button href="/signup" variant="primary" className="mt-4">Get started</Button>
               </div>
             </div>
           </div>
