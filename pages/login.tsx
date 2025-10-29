@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -24,6 +25,7 @@ export default function LoginPage() {
   async function handleAuth(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
 
     if (!email || !password) {
       setError('Please enter your email and password.');
@@ -38,37 +40,17 @@ export default function LoginPage() {
           password,
         });
         if (signInErr) throw signInErr;
-
-        // создаём профиль, если его нет
-        const { data: u } = await supabase.auth.getUser();
-        if (u?.user) {
-          await supabase
-            .from('profiles')
-            .upsert(
-              { id: u.user.id, email: u.user.email },
-              { onConflict: 'id' }
-            );
-        }
+        router.replace('/feed');
       } else {
+        const origin = process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin;
         const { error: signUpErr } = await supabase.auth.signUp({
           email,
           password,
+          options: { emailRedirectTo: `${origin}/auth/callback` },
         });
         if (signUpErr) throw signUpErr;
-
-        // если подтверждение email выключено — профиль создастся сразу
-        const { data: u } = await supabase.auth.getUser();
-        if (u?.user) {
-          await supabase
-            .from('profiles')
-            .upsert(
-              { id: u.user.id, email: u.user.email },
-              { onConflict: 'id' }
-            );
-        }
+        setNotice('Check your email to confirm your account.');
       }
-
-      router.replace('/feed');
     } catch (err: any) {
       setError(err?.message || 'Authentication failed');
     } finally {
@@ -86,7 +68,7 @@ export default function LoginPage() {
     try {
       const origin = window.location.origin;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${origin}/reset-password`,
+        redirectTo: `${origin}/auth/reset`,
       });
       if (error) throw error;
       alert('Check your inbox for the password reset link.');
@@ -147,6 +129,7 @@ export default function LoginPage() {
           </label>
 
           {error && <div className="text-red-400 text-sm">{error}</div>}
+          {notice && <div className="text-white/80 text-sm">{notice}</div>}
 
           <button
             type="submit"
