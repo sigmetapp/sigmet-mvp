@@ -2,7 +2,8 @@
 
 create table if not exists public.profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  username text unique not null,
+  -- username is optional at creation; enforce uniqueness only when set
+  username text,
   full_name text,
   bio text,
   country text,
@@ -10,6 +11,16 @@ create table if not exists public.profiles (
   directions_selected text[] default '{}'::text[],
   created_at timestamptz default now()
 );
+
+-- Ensure legacy deployments relax strict constraints that break signup
+-- Drop NOT NULL and table-level UNIQUE (if previously created)
+alter table if exists public.profiles alter column username drop not null;
+alter table if exists public.profiles drop constraint if exists profiles_username_key;
+
+-- Enforce uniqueness only for non-empty usernames
+create unique index if not exists profiles_username_unique_nonempty
+  on public.profiles (username)
+  where username is not null and username <> '';
 
 create table if not exists public.directions (
   id text primary key,
