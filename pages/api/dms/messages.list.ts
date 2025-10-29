@@ -25,9 +25,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const before = req.query.before ? Number(req.query.before) : undefined;
     const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 50));
 
+    // Include per-message receipts so the client can compute sent/delivered/read
+    // Note: receipts are created by DB trigger on insert and updated to 'read'
+    // via the messages.read endpoint.
     let q = client
       .from('dms_messages')
-      .select('*')
+      .select('*, receipts:dms_message_receipts(user_id, status, updated_at)')
       .eq('thread_id', threadId)
       .is('deleted_at', null)
       .order('id', { ascending: false })
