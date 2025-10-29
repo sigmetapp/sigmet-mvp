@@ -16,6 +16,13 @@ body { background: #0a0f1c; }
                     linear-gradient(180deg, var(--bg-grad-from), var(--bg-grad-to));
 }
 
+/* Subtle dotted grid overlay for depth */
+.bg-dot-grid {
+  background-image: radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+
 .card {
   @apply bg-white/5 border border-white/10 rounded-2xl;
 }
@@ -33,3 +40,11 @@ body { background: #0a0f1c; }
 }
 .text-muted { @apply text-white/70; }
 .text-dim { @apply text-white/50; }
+
+/* Gradient text utility for brand accents */
+.gradient-text {
+  background-image: linear-gradient(90deg, #58a6ff, #3fb950);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

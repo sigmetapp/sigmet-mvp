@@ -31,10 +31,10 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur bg-black/30 border-b border-white/10">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-black/30 backdrop-blur supports-[backdrop-filter]:bg-black/30">
+      <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
         {/* LOGO + TITLE */}
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2 group">
           {logo_url ? (
             <Image
               src={logo_url}
@@ -44,9 +44,11 @@ export default function Header() {
               className="rounded-md"
             />
           ) : (
-            <div className="h-9 w-9 rounded-md bg-white/10 grid place-items-center">S</div>
+            <div className="h-9 w-9 rounded-md bg-white/10 grid place-items-center border border-white/10">S</div>
           )}
-          <span className="text-white/90 font-medium">{site_name || "SIGMET"}</span>
+          <span className="text-white/90 font-semibold tracking-tight">
+            {site_name || "SIGMET"}
+          </span>
         </Link>
 
         {/* MAIN NAV */}
@@ -70,12 +72,20 @@ export default function Header() {
 
           {/* AUTH LINKS */}
           {!user ? (
-            <Link
-              href="/login"
-              className="ml-2 px-3 py-1.5 rounded-lg text-sm bg-white/90 text-black hover:bg-white transition"
-            >
-              Login
-            </Link>
+            <>
+              <Link
+                href="/login"
+                className="ml-2 px-3 py-1.5 rounded-lg text-sm border border-white/20 text-white/80 hover:bg-white/10 transition"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                className="ml-2 px-3 py-1.5 rounded-lg text-sm bg-white text-black hover:opacity-90 transition"
+              >
+                Sign up
+              </Link>
+            </>
           ) : (
             <button
               onClick={handleLogout}

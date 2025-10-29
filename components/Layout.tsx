@@ -3,10 +3,16 @@ import Footer from "@/components/Footer";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-[radial-gradient(1200px_600px_at_50%_-10%,rgba(255,255,255,0.08),transparent),linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]">
-      <Header />
-      <main className="flex-1">{children}</main>
-      <Footer />
+    <div className="relative min-h-[100dvh] bg-sigmet">
+      {/* background overlay pattern */}
+      <div aria-hidden className="absolute inset-0 z-0 bg-dot-grid opacity-20" />
+
+      {/* content */}
+      <div className="relative z-10 min-h-[100dvh] flex flex-col">
+        <Header />
+        <main className="flex-1">{children}</main>
+        <Footer />
+      </div>
     </div>
   );
 }
