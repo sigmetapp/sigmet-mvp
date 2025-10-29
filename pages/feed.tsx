@@ -326,17 +326,42 @@ function FeedInner() {
     </svg>
   );
 
+  const Pencil = () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M16.862 3.487a1.75 1.75 0 0 1 2.476 2.476l-10.3 10.3a4 4 0 0 1-1.694 1.01l-3.2.914.914-3.2a4 4 0 0 1 1.01-1.694l10.294-10.306Z" />
+      <path d="M15 5l4 4" />
+    </svg>
+  );
+
+  const Trash = () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M4 7h16" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+      <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+
+  const Plus = () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
       {/* Page header */}
       <div className="mb-6 md:mb-8">
         <div className="flex items-end justify-between">
           <div>
-            <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight">Your feed</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight gradient-text">Your feed</h1>
             <p className="text-white/70 mt-1">Share progress and see what others are building.</p>
           </div>
           <div className="hidden sm:block">
-            <button type="button" onClick={() => setComposerOpen(true)} className="btn btn-primary">
+            <button type="button" onClick={() => setComposerOpen(true)} className="btn btn-primary gap-2 shadow-md">
+              <Plus />
               Create post
             </button>
           </div>
@@ -419,18 +444,25 @@ function FeedInner() {
 
               {/* author actions */}
               {uid === p.user_id && editingId !== p.id && (
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <button
                     onClick={() => {
                       setEditingId(p.id);
                       setEditBody(p.body || "");
                     }}
-                    className="btn border border-white/20 text-white/80 hover:bg-white/10"
+                    className="p-2 rounded-lg border border-white/15 text-white/75 hover:bg-white/10 hover:text-white transition"
+                    aria-label="Edit post"
+                    title="Edit"
                   >
-                    Edit
+                    <Pencil />
                   </button>
-                  <button onClick={() => deletePost(p)} className="btn border border-white/20 text-white/80 hover:bg-white/10">
-                    Delete
+                  <button
+                    onClick={() => deletePost(p)}
+                    className="p-2 rounded-lg border border-white/15 text-white/75 hover:bg-white/10 hover:text-white transition"
+                    aria-label="Delete post"
+                    title="Delete"
+                  >
+                    <Trash />
                   </button>
                 </div>
               )}
@@ -531,8 +563,9 @@ function FeedInner() {
         <button
           type="button"
           onClick={() => setComposerOpen(true)}
-          className="sm:hidden fixed right-6 bottom-6 btn btn-primary shadow-lg"
+          className="sm:hidden fixed right-6 bottom-6 btn btn-primary shadow-lg gap-2"
         >
+          <Plus />
           Post
         </button>
       </div>
@@ -541,7 +574,7 @@ function FeedInner() {
       {composerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-black/80"
             onClick={() => !publishing && setComposerOpen(false)}
           />
           <div className="relative z-10 w-full max-w-xl mx-auto p-4">
