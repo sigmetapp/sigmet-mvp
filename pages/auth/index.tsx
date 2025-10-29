@@ -15,7 +15,12 @@ export default function AuthPage() {
     setMsg(undefined);
     try {
       if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const origin = process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin;
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${origin}/auth/callback` },
+        });
         if (error) throw error;
         setMsg('Account created. Please confirm your email.');
       } else {
