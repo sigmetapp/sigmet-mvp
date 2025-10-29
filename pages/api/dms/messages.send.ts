@@ -68,6 +68,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .update({ last_message_id: message.id, last_message_at: message.created_at, updated_at: new Date().toISOString() })
       .eq('id', threadId);
 
+    // Attempt to fetch receipts created by trigger (best-effort)
+    let messageWithReceipts = message;
+    try {
+      const { data: enriched } = await client
+        .from('dms_messages')
+        .select('*, receipts:dms_message_receipts(user_id, status, updated_at)')
+        .eq('id', message.id)
+        .single();
+      if (enriched) messageWithReceipts = enriched as typeof message & { receipts?: any[] };
+    } catch {}
+
     // Push notifications (when recipient tab is not active):
     // For each user in `otherIds`, call Edge Function `push` with
     // { toUserId, title, body, url } to deliver a notification.
@@ -78,7 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     //   body: JSON.stringify({ toUserId, title, body, url }),
     // });
 
-    return res.status(200).json({ ok: true, message });
+    return res.status(200).json({ ok: true, message: messageWithReceipts });
   } catch (e: any) {
     const status = e?.status || 500;
     return res.status(status).json({ ok: false, error: e?.message || 'Internal error' });
