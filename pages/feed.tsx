@@ -327,29 +327,46 @@ function FeedInner() {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-[radial-gradient(1200px_600px_at_50%_-10%,rgba(255,255,255,0.08),transparent),linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]">
-      <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+      {/* Page header */}
+      <div className="mb-6 md:mb-8">
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight">Your feed</h1>
+            <p className="text-white/70 mt-1">Share progress and see what others are building.</p>
+          </div>
+          <div className="hidden sm:block">
+            <button type="button" onClick={() => setComposerOpen(true)} className="btn btn-primary">
+              Create post
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-3xl mx-auto space-y-6">
         {/* Directions toggle (selected in profile) */}
         {myDirections.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            {myDirections.map((id) => {
-              const meta = GROWTH_AREAS.find((a) => a.id === id);
-              const label = meta ? `${meta.emoji} ${meta.title}` : id;
-              const active = activeDirection === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => setActiveDirection(id)}
-                  className={`px-3 py-1.5 rounded-full text-sm transition border ${
-                    active
-                      ? "bg-white text-black border-white"
-                      : "text-white/80 border-white/20 hover:bg-white/10"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
+          <div className="card p-3 md:p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {myDirections.map((id) => {
+                const meta = GROWTH_AREAS.find((a) => a.id === id);
+                const label = meta ? `${meta.emoji} ${meta.title}` : id;
+                const active = activeDirection === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setActiveDirection(id)}
+                    className={`px-3 py-1.5 rounded-full text-sm transition border ${
+                      active
+                        ? "bg-white text-black border-white"
+                        : "text-white/80 border-white/20 hover:bg-white/10"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -360,15 +377,15 @@ function FeedInner() {
           posts.map((p) => (
             <div
               key={p.id}
-              className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md p-4 md:p-6 space-y-4 shadow-[0_8px_40px_rgba(0,0,0,0.25)]"
+              className="card p-4 md:p-6 space-y-4 transition-shadow hover:shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
               onMouseEnter={() => addViewOnce(p.id)}
             >
               {/* header */}
               <div className="flex justify-between text-sm text-white/70">
                 <div className="truncate">
-                  <b>Author:</b> {p.user_id ? p.user_id.slice(0, 8) : "Unknown"}
+                  <span className="text-dim">Author:</span> {p.user_id ? p.user_id.slice(0, 8) : "Unknown"}
                 </div>
-                <div>{new Date(p.created_at).toLocaleString()}</div>
+                <div className="text-dim">{new Date(p.created_at).toLocaleString()}</div>
               </div>
 
               {/* content */}
@@ -380,16 +397,8 @@ function FeedInner() {
                     className="w-full bg-transparent border border-white/10 rounded-2xl p-3 outline-none"
                   />
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => saveEdit(p)}
-                      className="px-4 py-2 rounded-xl bg-white/90 text-black hover:bg-white"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="px-4 py-2 rounded-xl border border-white/20"
-                    >
+                    <button onClick={() => saveEdit(p)} className="btn btn-primary">Save</button>
+                    <button onClick={() => setEditingId(null)} className="btn border border-white/20 text-white/80 hover:bg-white/10">
                       Cancel
                     </button>
                   </div>
@@ -398,17 +407,10 @@ function FeedInner() {
                 <>
                   {p.body && <p className="leading-relaxed">{p.body}</p>}
                   {p.image_url && (
-                    <img
-                      src={p.image_url}
-                      className="rounded-2xl border border-white/10"
-                      alt=""
-                    />
+                    <img src={p.image_url} className="rounded-2xl border border-white/10" alt="" />
                   )}
                   {p.video_url && (
-                    <video
-                      controls
-                      className="w-full rounded-2xl border border-white/10"
-                    >
+                    <video controls className="w-full rounded-2xl border border-white/10">
                       <source src={p.video_url} />
                     </video>
                   )}
@@ -417,20 +419,17 @@ function FeedInner() {
 
               {/* author actions */}
               {uid === p.user_id && editingId !== p.id && (
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <button
                     onClick={() => {
                       setEditingId(p.id);
                       setEditBody(p.body || "");
                     }}
-                    className="px-3 py-1.5 rounded-lg border border-white/20 hover:bg-white/5"
+                    className="btn border border-white/20 text-white/80 hover:bg-white/10"
                   >
                     Edit
                   </button>
-                  <button
-                    onClick={() => deletePost(p)}
-                    className="px-3 py-1.5 rounded-lg border border-white/20 hover:bg-white/5"
-                  >
+                  <button onClick={() => deletePost(p)} className="btn border border-white/20 text-white/80 hover:bg-white/10">
                     Delete
                   </button>
                 </div>
@@ -490,7 +489,6 @@ function FeedInner() {
                     }
                   }}
                 >
-                  {/* комментарии (N) */}
                   Comments ({commentCounts[p.id] ?? 0})
                 </button>
               </div>
@@ -499,10 +497,7 @@ function FeedInner() {
               {openComments[p.id] && (
                 <div className="space-y-2">
                   {comments[p.id]?.map((c) => (
-                    <div
-                      key={c.id}
-                      className="rounded-xl bg-white/5 border border-white/10 p-2 text-sm"
-                    >
+                    <div key={c.id} className="rounded-xl bg-white/5 border border-white/10 p-2 text-sm">
                       <div className="text-xs text-white/60 flex justify-between">
                         <span>{c.user_id?.slice(0, 8) || "Anon"}</span>
                         <span>{new Date(c.created_at).toLocaleString()}</span>
@@ -520,12 +515,9 @@ function FeedInner() {
                         }))
                       }
                       placeholder="Write a comment…"
-                      className="flex-1 rounded-lg bg-transparent border border-white/10 px-3 py-2 outline-none placeholder-white/40"
+                      className="input bg-transparent border border-white/10 py-2 focus:ring-0"
                     />
-                    <button
-                      onClick={() => addComment(p.id)}
-                      className="px-3 py-2 rounded-xl bg-white/90 text-black hover:bg-white"
-                    >
+                    <button onClick={() => addComment(p.id)} className="btn btn-primary">
                       Send
                     </button>
                   </div>
@@ -535,80 +527,76 @@ function FeedInner() {
           ))
         )}
 
-        {/* Floating Post button */}
+        {/* Floating Post button (mobile) */}
         <button
           type="button"
           onClick={() => setComposerOpen(true)}
-          className="fixed right-6 bottom-6 btn btn-primary shadow-lg"
+          className="sm:hidden fixed right-6 bottom-6 btn btn-primary shadow-lg"
         >
           Post
         </button>
+      </div>
 
-        {/* Composer modal */}
-        {composerOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="absolute inset-0 bg-black/60"
-              onClick={() => !publishing && setComposerOpen(false)}
-            />
-            <div className="relative z-10 w-full max-w-xl mx-auto p-4">
-              <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md p-4 md:p-6 shadow-[0_8px_40px_rgba(0,0,0,0.45)] space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-white/80 font-medium">Create post</div>
-                  <button
-                    onClick={() => !publishing && setComposerOpen(false)}
-                    className="text-white/60 hover:text-white"
-                    aria-label="Close"
-                  >
-                    ✕
+      {/* Composer modal */}
+      {composerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => !publishing && setComposerOpen(false)}
+          />
+          <div className="relative z-10 w-full max-w-xl mx-auto p-4">
+            <div className="card p-4 md:p-6 shadow-[0_8px_40px_rgba(0,0,0,0.45)] space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="text-white/80 font-medium">Create post</div>
+                <button
+                  onClick={() => !publishing && setComposerOpen(false)}
+                  className="text-white/60 hover:text-white"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="What do you want to share?"
+                className="w-full bg-transparent outline-none placeholder-white/40 min-h-[120px] text-base md:text-lg text-white"
+              />
+              <input
+                ref={unifiedFileRef}
+                type="file"
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  if (!file) { setImg(null); setVid(null); return; }
+                  if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
+                  else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
+                  else { setImg(null); setVid(null); }
+                }}
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => unifiedFileRef.current?.click()}
+                  className="px-3 py-2 rounded-xl border border-white/20 text-white/80 hover:bg-white/10 text-sm"
+                >
+                  📎 Media
+                </button>
+                {(img || vid) && (
+                  <span className="text-white/60 text-sm">
+                    {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
+                  </span>
+                )}
+                <div className="ml-auto">
+                  <button onClick={onPublish} disabled={publishing} className="btn btn-primary">
+                    {publishing ? "Publishing…" : "Publish"}
                   </button>
-                </div>
-                <textarea
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="What do you want to share?"
-                  className="w-full bg-transparent outline-none placeholder-white/40 min-h-[120px] text-base md:text-lg text-white"
-                />
-                <input
-                  ref={unifiedFileRef}
-                  type="file"
-                  accept="image/*,video/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    if (!file) { setImg(null); setVid(null); return; }
-                    if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
-                    else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
-                    else { setImg(null); setVid(null); }
-                  }}
-                />
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => unifiedFileRef.current?.click()}
-                    className="px-3 py-2 rounded-xl border border-white/20 text-white/80 hover:bg-white/10 text-sm"
-                  >
-                    📎 Media
-                  </button>
-                  {(img || vid) && (
-                    <span className="text-white/60 text-sm">
-                      {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
-                    </span>
-                  )}
-                  <div className="ml-auto">
-                    <button
-                      onClick={onPublish}
-                      disabled={publishing}
-                      className="btn btn-primary"
-                    >
-                      {publishing ? "Publishing…" : "Publish"}
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
