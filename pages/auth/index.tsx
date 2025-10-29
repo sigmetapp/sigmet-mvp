@@ -8,6 +8,10 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [msg, setMsg] = useState<string>();
+  const [showForgot, setShowForgot] = useState(false);
+  const [identifier, setIdentifier] = useState('');
+  const [forgotPending, setForgotPending] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,23 +30,42 @@ export default function AuthPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        window.location.href = '/';
+        const { data } = await supabase.auth.getUser();
+        const mustChange = Boolean((data.user as any)?.user_metadata?.must_change_password);
+        window.location.href = mustChange ? '/auth/reset' : '/';
       }
     } catch (err: any) {
       setMsg(err.message || 'Auth error');
     } finally { setPending(false); }
   }
 
-  async function resetPassword() {
-    setPending(true);
-    setMsg(undefined);
+  async function toggleForgot() {
+    setShowForgot((s) => !s);
+    setForgotMsg(null);
+  }
+
+  async function submitTempPasswordRequest(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotMsg(null);
+    if (!identifier.trim()) {
+      setForgotMsg('Please enter your email or username.');
+      return;
+    }
+    setForgotPending(true);
     try {
-      const origin = process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${origin}/auth/reset` });
-      if (error) throw error;
-      setMsg('Password reset link has been sent to your email.');
-    } catch (err: any) { setMsg(err.message || 'Failed to send reset link'); }
-    finally { setPending(false); }
+      const resp = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: identifier.trim() }),
+      });
+      const json = await resp.json();
+      if (!resp.ok || json?.ok === false) throw new Error(json?.message || 'Failed to reset password');
+      setForgotMsg('If the account exists, a temporary password has been emailed.');
+    } catch (err: any) {
+      setForgotMsg(err?.message || 'Failed to reset password');
+    } finally {
+      setForgotPending(false);
+    }
   }
 
   return (
@@ -79,10 +102,22 @@ export default function AuthPage() {
               {pending ? 'Please wait' : (mode==='signin' ? 'Sign in' : 'Create account')}
             </button>
 
-            <button type="button" onClick={resetPassword} className="w-full text-white/70 text-sm hover:text-white mt-2">
+            <button type="button" onClick={toggleForgot} className="w-full text-white/70 text-sm hover:text-white mt-2">
               Forgot password
             </button>
           </form>
+          {showForgot && (
+            <form onSubmit={submitTempPasswordRequest} className="card p-6 mt-4 space-y-3">
+              <div>
+                <label className="label">Email or username</label>
+                <input className="input" type="text" value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="you@example.com or your_nickname"/>
+              </div>
+              {forgotMsg && <div className="text-white/80 text-sm">{forgotMsg}</div>}
+              <button type="submit" disabled={forgotPending} className="btn btn-primary w-full disabled:opacity-60">
+                {forgotPending ? 'Sending...' : 'Reset Password'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>
