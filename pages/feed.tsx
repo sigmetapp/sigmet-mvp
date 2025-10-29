@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { RequireAuth } from "@/components/RequireAuth";
+import Button from "@/components/Button";
 
 export default function FeedPage() {
   return (
@@ -381,10 +382,7 @@ function FeedInner() {
             <p className="text-white/70 mt-1">Share progress and see what others are building.</p>
           </div>
           <div className="hidden sm:block">
-            <button type="button" onClick={() => setComposerOpen(true)} className="btn btn-primary gap-2 shadow-md">
-              <Plus />
-              Create post
-            </button>
+            <Button onClick={() => setComposerOpen(true)} variant="primary" className="shadow-md" icon={<Plus />}>Create post</Button>
           </div>
         </div>
       </div>
@@ -442,13 +440,35 @@ function FeedInner() {
                         />
                         <div className="flex flex-col min-w-0">
                           <div className="text-sm text-white truncate">{username}</div>
-                          <div className="text-xs text-white/60 truncate">Author</div>
                         </div>
                       </>
                     );
                   })()}
                 </div>
-                <div className="text-xs text-white/60">{new Date(p.created_at).toLocaleString()}</div>
+                <div className="flex items-center gap-2 text-xs text-white/60">
+                  <span>{new Date(p.created_at).toLocaleString()}</span>
+                  {uid === p.user_id && editingId !== p.id && (
+                    <div className="flex gap-1.5 ml-2">
+                      <Button
+                        variant="icon"
+                        ariaLabel="Edit post"
+                        title="Edit"
+                        onClick={() => {
+                          setEditingId(p.id);
+                          setEditBody(p.body || "");
+                        }}
+                        icon={<Pencil />}
+                      />
+                      <Button
+                        variant="icon"
+                        ariaLabel="Delete post"
+                        title="Delete"
+                        onClick={() => deletePost(p)}
+                        icon={<Trash />}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* content */}
@@ -460,10 +480,8 @@ function FeedInner() {
                     className="w-full bg-transparent border border-white/10 rounded-2xl p-3 outline-none"
                   />
                   <div className="flex gap-2">
-                    <button onClick={() => saveEdit(p)} className="btn btn-primary">Save</button>
-                    <button onClick={() => setEditingId(null)} className="btn border border-white/20 text-white/80 hover:bg-white/10">
-                      Cancel
-                    </button>
+                    <Button onClick={() => saveEdit(p)} variant="primary">Save</Button>
+                    <Button onClick={() => setEditingId(null)} variant="secondary">Cancel</Button>
                   </div>
                 </div>
               ) : (
@@ -480,30 +498,7 @@ function FeedInner() {
                 </>
               )}
 
-              {/* author actions */}
-              {uid === p.user_id && editingId !== p.id && (
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => {
-                      setEditingId(p.id);
-                      setEditBody(p.body || "");
-                    }}
-                    className="p-2 rounded-lg border border-white/15 text-white/75 hover:bg-white/10 hover:text-white transition"
-                    aria-label="Edit post"
-                    title="Edit"
-                  >
-                    <Pencil />
-                  </button>
-                  <button
-                    onClick={() => deletePost(p)}
-                    className="p-2 rounded-lg border border-white/15 text-white/75 hover:bg-white/10 hover:text-white transition"
-                    aria-label="Delete post"
-                    title="Delete"
-                  >
-                    <Trash />
-                  </button>
-                </div>
-              )}
+              {/* author actions moved to header near date */}
 
               {/* footer */}
               <div className="flex items-center gap-5 text-white/80">
@@ -598,14 +593,14 @@ function FeedInner() {
         )}
 
         {/* Floating Post button (mobile) */}
-        <button
-          type="button"
+        <Button
           onClick={() => setComposerOpen(true)}
-          className="sm:hidden fixed right-6 bottom-6 btn btn-primary shadow-lg gap-2"
+          variant="primary"
+          className="sm:hidden fixed right-6 bottom-6 shadow-lg"
+          icon={<Plus />}
         >
-          <Plus />
           Post
-        </button>
+        </Button>
       </div>
 
       {/* Composer modal */}
@@ -659,9 +654,9 @@ function FeedInner() {
                   </span>
                 )}
                 <div className="ml-auto">
-                  <button onClick={onPublish} disabled={publishing} className="btn btn-primary">
+                  <Button onClick={onPublish} disabled={publishing} variant="primary">
                     {publishing ? "Publishing…" : "Publish"}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>

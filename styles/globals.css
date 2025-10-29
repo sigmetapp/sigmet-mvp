@@ -5,10 +5,18 @@
 :root {
   --bg-grad-from: #0b1221;
   --bg-grad-to: #121a2f;
+  /* Design tokens */
+  --accent: #7affc0;
+  --bg: #0b1220;
+  --text: #a8b3c7;
 }
 
 html, body, #__next { height: 100%; }
-body { background: #0a0f1c; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
 
 .bg-sigmet {
   background-image: radial-gradient(1200px 800px at 20% -20%, rgba(255,255,255,0.06), transparent 40%),
@@ -43,7 +51,7 @@ body { background: #0a0f1c; }
 
 /* Gradient text utility for brand accents */
 .gradient-text {
-  background-image: linear-gradient(90deg, #58a6ff, #3fb950);
+  background-image: linear-gradient(90deg, #00ffc8, #7affc0);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
