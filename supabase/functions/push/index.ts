@@ -28,6 +28,26 @@ serve(async (req: Request): Promise<Response> => {
   const { toUserId, title, body, url } = payload;
   console.log("[edge-function:push]", { toUserId, title, body, url });
 
+  // Best-effort analytics: push_sent via PostHog HTTP API
+  try {
+    const token = Deno.env.get("POSTHOG_SERVER_KEY") || Deno.env.get("POSTHOG_KEY") || Deno.env.get("POSTHOG_API_KEY");
+    const host = Deno.env.get("POSTHOG_HOST") || "https://app.posthog.com";
+    if (token) {
+      await fetch(`${host}/capture/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: token,
+          event: "push_sent",
+          distinct_id: toUserId,
+          properties: { to_user_id: toUserId, url: url ?? null },
+        }),
+      });
+    }
+  } catch (_) {
+    // ignore analytics errors
+  }
+
   return new Response(JSON.stringify({ ok: true }), {
     headers: { "Content-Type": "application/json" },
   });

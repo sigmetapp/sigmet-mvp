@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import { captureServerEvent } from '@/lib/analytics';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
@@ -32,6 +33,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .eq('user_id', user.id);
 
     if (error) return res.status(400).json({ ok: false, error: error.message });
+
+    if (muted) {
+      void captureServerEvent({
+        distinctId: user.id,
+        event: 'notifications_muted_thread_on',
+        properties: { thread_id: threadId },
+      });
+    }
 
     return res.status(200).json({ ok: true });
   } catch (e: any) {

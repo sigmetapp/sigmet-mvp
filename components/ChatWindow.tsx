@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { initAnalyticsClient, trackClient } from '@/lib/analytics';
 import { uploadAttachment, getSignedUrlForAttachment, type DmAttachment } from '@/lib/dm/attachments';
 
 type Receipt = { user_id: string; status: 'delivered' | 'read'; updated_at?: string };
@@ -67,6 +68,11 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
   // Load messages for active thread (if provided)
   useEffect(() => {
     if (!threadId) return;
+    // Track thread opened (best-effort)
+    (async () => {
+      await initAnalyticsClient();
+      trackClient('dm_thread_opened', { thread_id: threadId });
+    })();
     let aborted = false;
     (async () => {
       try {

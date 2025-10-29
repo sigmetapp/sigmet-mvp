@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import { captureServerEvent } from '@/lib/analytics';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
@@ -62,6 +63,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .eq('status', 'delivered')
         .in('message_id', idList);
     }
+
+    // Best-effort analytics: messages read
+    void captureServerEvent({
+      distinctId: user.id,
+      event: 'dm_message_read',
+      properties: {
+        thread_id: threadId,
+        up_to_message_id: nextId,
+        read_count: idList.length,
+      },
+    });
 
     return res.status(200).json({ ok: true, last_read_message_id: nextId });
   } catch (e: any) {

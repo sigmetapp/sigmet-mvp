@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import { captureServerEvent } from '@/lib/analytics';
 
 // Simple in-memory rate limiter for development only.
 // For production, use a centralized store like Redis (INCR + EXPIRE)
@@ -103,6 +104,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .single();
       if (enriched) messageWithReceipts = enriched as typeof message & { receipts?: any[] };
     } catch {}
+
+    // Best-effort analytics: message sent
+    void captureServerEvent({
+      distinctId: user.id,
+      event: 'dm_message_sent',
+      properties: {
+        thread_id: threadId,
+        message_id: message.id,
+        attachments_count: Array.isArray(attachments) ? attachments.length : 0,
+        has_body: Boolean(body && String(body).trim().length > 0),
+        recipients_count: otherIds.length,
+      },
+    });
 
     // Push notifications (when recipient tab is not active):
     // For each user in `otherIds`, call Edge Function `push` with

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import { captureServerEvent } from '@/lib/analytics';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ ok: false, error: 'Method not allowed' });
@@ -42,6 +43,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { data: messages, error } = await q;
     if (error) return res.status(400).json({ ok: false, error: error.message });
+
+    // Best-effort analytics: messages received (fetched)
+    try {
+      const countOther = (messages || []).filter((m: any) => m?.sender_id !== user.id).length;
+      if (countOther > 0) {
+        void captureServerEvent({
+          distinctId: user.id,
+          event: 'dm_message_received',
+          properties: {
+            thread_id: threadId,
+            received_count: countOther,
+            returned_count: messages?.length || 0,
+          },
+        });
+      }
+    } catch {}
 
     return res.status(200).json({ ok: true, messages });
   } catch (e: any) {
