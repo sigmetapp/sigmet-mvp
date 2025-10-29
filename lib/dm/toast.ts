@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import Toast, { ToastAction } from '@/components/dm/Toast';
+import { initAnalyticsClient, trackClient } from '@/lib/analytics';
 
 export type ShowToastOptions = {
   avatar?: string | null;
@@ -114,5 +115,10 @@ export function showToast(opts: ShowToastOptions): string | null {
   toasts = [...toasts, toast];
   render();
   scheduleAutoDismiss(id, toast.durationMs ?? 7000);
+  // Best-effort analytics: toast shown
+  (async () => {
+    await initAnalyticsClient();
+    trackClient('toast_shown', { title: toast.title });
+  })();
   return id;
 }

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import { captureServerEvent } from '@/lib/analytics';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
@@ -33,6 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       const { data, error } = await client.rpc('ensure_1on1_thread', { a, b }).maybeSingle();
       if (error) return res.status(400).json({ ok: false, error: error.message });
+      // We don't know if it was newly created or existing; count as opened on client.
       return res.status(200).json({ ok: true, thread: data });
     }
 
@@ -52,6 +54,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { error: partErr } = await client.from('dms_thread_participants').insert(rows);
     if (partErr) return res.status(400).json({ ok: false, error: partErr.message });
+
+    // Best-effort analytics: thread created (group)
+    void captureServerEvent({
+      distinctId: user.id,
+      event: 'dm_thread_created',
+      properties: { thread_id: thread.id, is_group: true, participants_count: participantIds.length },
+    });
 
     return res.status(200).json({ ok: true, thread });
   } catch (e: any) {
