@@ -8,7 +8,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { client, user } = await getAuthedClient(req);
 
     const input = req.body || {};
-    const allowed = ['dms_privacy', 'push_enabled', 'email_enabled', 'mute_unknown'] as const;
+    const allowed = [
+      'dms_privacy',
+      'push_enabled',
+      'email_enabled',
+      'mute_unknown',
+      // notifications page fields
+      'global_mute',
+      'dnd_start',
+      'dnd_end',
+      'timezone',
+      'sound_enabled',
+    ] as const;
     const payload: Record<string, any> = { user_id: user.id, updated_at: new Date().toISOString() };
     for (const key of allowed) {
       if (key in input) payload[key] = input[key];
