@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "icon";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "icon" | "orange";
 type ButtonSize = "sm" | "md" | "lg";
 
 type CommonProps = {
@@ -48,6 +48,8 @@ const variantClasses: Record<ButtonVariant, string> = {
     "bg-transparent text-[var(--accent)] hover:text-white hover:[text-shadow:0_0_12px_rgba(122,255,192,0.6)] focus-visible:ring-2 focus-visible:ring-[rgba(122,255,192,0.25)]",
   icon:
     "text-[var(--text)]/80 bg-white/0 border border-white/15 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-[rgba(122,255,192,0.25)]",
+  orange:
+    "text-[#0b1220] bg-[linear-gradient(90deg,#ffd48a,#ff9b4a)] shadow-[0_0_0_0_rgba(0,0,0,0)] hover:shadow-[0_0_24px_0_rgba(255,155,74,0.35)] focus-visible:ring-2 focus-visible:ring-[rgba(255,155,74,0.45)]",
 };
 
 export function Button(props: ButtonProps) {

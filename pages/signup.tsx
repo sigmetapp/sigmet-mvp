@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabaseClient';
+import Button from '@/components/Button';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -187,12 +188,12 @@ export default function SignupPage() {
               )}
 
               <div className="actions">
-                <button className="btnPrimary" disabled={loading}>
+                <Button type="submit" disabled={loading} variant="primary">
                   {loading ? 'Creating...' : 'Create account'}
-                </button>
-                <Link className="btnSecondary" href="/login">
+                </Button>
+                <Button href="/login" variant="orange">
                   I already have an account
-                </Link>
+                </Button>
               </div>
             </form>
 

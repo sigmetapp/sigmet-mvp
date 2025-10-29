@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabaseClient';
+import Button from '@/components/Button';
 
 type Mode = 'login' | 'signup';
 
@@ -154,16 +155,7 @@ export default function LoginPage() {
           {error && <div className="text-red-400 text-sm">{error}</div>}
           {notice && <div className="text-white/80 text-sm">{notice}</div>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full relative inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5
-                       bg-gradient-to-r from-white to-white/90 text-black
-                       shadow-[0_8px_24px_rgba(255,255,255,0.25)]
-                       hover:shadow-[0_10px_36px_rgba(255,255,255,0.35)]
-                       hover:translate-y-[-1px] active:translate-y-0 transition
-                       disabled:opacity-60"
-          >
+          <Button type="submit" disabled={loading} variant="primary" className="w-full">
             {loading
               ? mode === 'login'
                 ? 'Logging in...'
@@ -171,8 +163,7 @@ export default function LoginPage() {
               : mode === 'login'
               ? 'Log in'
               : 'Sign up'}
-            <span className="absolute inset-0 rounded-2xl ring-1 ring-white/30 pointer-events-none" />
-          </button>
+          </Button>
         </form>
 
         <div className="mt-4 text-sm text-white/70">
@@ -228,13 +219,9 @@ export default function LoginPage() {
               />
             </label>
             {forgotMsg && <div className="text-white/80 text-sm">{forgotMsg}</div>}
-            <button
-              type="submit"
-              disabled={forgotPending}
-              className="w-full relative inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 bg-gradient-to-r from-white to-white/90 text-black disabled:opacity-60"
-            >
+            <Button type="submit" disabled={forgotPending} variant="primary" className="w-full">
               {forgotPending ? 'Sending...' : 'Reset Password'}
-            </button>
+            </Button>
           </form>
         )}
       </div>
