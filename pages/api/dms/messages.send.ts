@@ -1,11 +1,36 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
 
+// Simple in-memory rate limiter for development only.
+// For production, use a centralized store like Redis (INCR + EXPIRE)
+// or a Postgres table with composite key (user_id, window_start) and a unique constraint,
+// to reliably enforce limits across instances and restarts.
+const devRateLimits = new Map<string, { count: number; resetAt: number }>();
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
   try {
     const { client, user } = await getAuthedClient(req);
+
+    // Development-only rate limit: 20 messages per 30 seconds per user
+    if (process.env.NODE_ENV !== 'production') {
+      const windowMs = 30_000;
+      const limit = 20;
+      const key = `user:${user.id}`;
+      const now = Date.now();
+      const entry = devRateLimits.get(key) || { count: 0, resetAt: now + windowMs };
+      if (now > entry.resetAt) {
+        entry.count = 0;
+        entry.resetAt = now + windowMs;
+      }
+      entry.count += 1;
+      devRateLimits.set(key, entry);
+      if (entry.count > limit) {
+        const retryAfter = Math.max(0, Math.ceil((entry.resetAt - now) / 1000));
+        return res.status(429).json({ ok: false, error: 'rate_limited', retry_after: retryAfter });
+      }
+    }
 
     const threadId = Number(req.body?.thread_id);
     const body = (req.body?.body as string | undefined) ?? null;

@@ -16,10 +16,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: 'participant_ids required' });
     }
 
-    // 1-on-1: use RPC ensure_1on1_thread(a,b)
+    // 1-on-1: block if either side has blocked the other; otherwise use RPC ensure_1on1_thread(a,b)
     if (otherParticipantIds.length === 1) {
       const a = user.id;
       const b = otherParticipantIds[0]!;
+      // Prevent creating a 1:1 thread if blocked in either direction
+      const { data: blocks, error: blocksErr } = await client
+        .from('dms_blocks')
+        .select('blocker, blocked')
+        .in('blocker', [a, b])
+        .in('blocked', [a, b])
+        .limit(1);
+      if (blocksErr) return res.status(400).json({ ok: false, error: blocksErr.message });
+      if (blocks && blocks.length > 0) {
+        return res.status(403).json({ ok: false, error: 'blocked' });
+      }
       const { data, error } = await client.rpc('ensure_1on1_thread', { a, b }).maybeSingle();
       if (error) return res.status(400).json({ ok: false, error: error.message });
       return res.status(200).json({ ok: true, thread: data });
