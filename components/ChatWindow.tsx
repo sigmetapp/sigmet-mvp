@@ -19,15 +19,18 @@ type DmMessage = {
 type Props = {
   threadId?: number;
   currentUserId?: string;
+  // Optional explicit DM partner user id for 1:1 threads
+  targetUserId?: string;
 };
 
-export default function ChatWindow({ threadId, currentUserId }: Props) {
+export default function ChatWindow({ threadId, currentUserId, targetUserId: explicitTargetUserId }: Props) {
   const [text, setText] = useState('');
   const [log, setLog] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<DmAttachment[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [messages, setMessages] = useState<DmMessage[]>([]);
   const lastReadUpToRef = useRef<number | null>(null);
+  const [targetUserId, setTargetUserId] = useState<string | null>(explicitTargetUserId ?? null);
 
   const refreshPreview = useCallback(async (att: DmAttachment) => {
     try {
@@ -80,6 +83,33 @@ export default function ChatWindow({ threadId, currentUserId }: Props) {
     };
   }, [threadId]);
 
+  // Resolve target user id for 1:1 threads if not explicitly provided
+  useEffect(() => {
+    if (explicitTargetUserId) {
+      setTargetUserId(explicitTargetUserId);
+      return;
+    }
+    if (!threadId || !currentUserId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch(`/api/dms/thread.participants?thread_id=${threadId}`);
+        const json = await resp.json();
+        if (!json?.ok || cancelled) return;
+        const ids: string[] = json.participants || [];
+        if (ids.length === 2) {
+          const other = ids.find((id) => id !== currentUserId) || null;
+          setTargetUserId(other ?? null);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [explicitTargetUserId, threadId, currentUserId]);
+
   // After render of an active, open thread, mark messages as read up to the latest
   useEffect(() => {
     if (!threadId || messages.length === 0) return;
@@ -129,6 +159,38 @@ export default function ChatWindow({ threadId, currentUserId }: Props) {
     setPreviews({});
     // NOTE: Wire to /api/dms/messages.send with thread_id when available.
     // await fetch('/api/dms/messages.send', { method: 'POST', body: JSON.stringify({ thread_id, body: text, attachments }) })
+  }
+
+  async function blockUser() {
+    if (!targetUserId) return;
+    try {
+      const resp = await fetch('/api/dms/block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: targetUserId }),
+      });
+      const json = await resp.json();
+      if (json?.ok) setLog((prev) => [...prev, `You blocked user ${targetUserId}`]);
+      else setLog((prev) => [...prev, `Block failed: ${json?.error || 'unknown error'}`]);
+    } catch (e) {
+      setLog((prev) => [...prev, 'Block failed: network error']);
+    }
+  }
+
+  async function unblockUser() {
+    if (!targetUserId) return;
+    try {
+      const resp = await fetch('/api/dms/unblock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: targetUserId }),
+      });
+      const json = await resp.json();
+      if (json?.ok) setLog((prev) => [...prev, `You unblocked user ${targetUserId}`]);
+      else setLog((prev) => [...prev, `Unblock failed: ${json?.error || 'unknown error'}`]);
+    } catch (e) {
+      setLog((prev) => [...prev, 'Unblock failed: network error']);
+    }
   }
 
   return (
@@ -196,6 +258,12 @@ export default function ChatWindow({ threadId, currentUserId }: Props) {
         />
         <button className="btn" onClick={send}>
           Send
+        </button>
+        <button className="btn btn-outline" onClick={blockUser} disabled={!targetUserId} title={!targetUserId ? 'Select a user' : ''}>
+          Block
+        </button>
+        <button className="btn btn-outline" onClick={unblockUser} disabled={!targetUserId} title={!targetUserId ? 'Select a user' : ''}>
+          Unblock
         </button>
       </div>
     </div>
