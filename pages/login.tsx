@@ -15,6 +15,10 @@ export default function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showForgot, setShowForgot] = useState(false);
+  const [identifier, setIdentifier] = useState('');
+  const [forgotPending, setForgotPending] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -40,7 +44,14 @@ export default function LoginPage() {
           password,
         });
         if (signInErr) throw signInErr;
-        router.replace('/feed');
+        // Enforce password change if flagged
+        const { data } = await supabase.auth.getUser();
+        const mustChange = Boolean((data.user as any)?.user_metadata?.must_change_password);
+        if (mustChange) {
+          router.replace('/auth/reset');
+        } else {
+          router.replace('/feed');
+        }
       } else {
         const origin = process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin;
         const { error: signUpErr } = await supabase.auth.signUp({
@@ -58,24 +69,36 @@ export default function LoginPage() {
     }
   }
 
-  async function onForgot() {
+  async function onForgotClick() {
+    setShowForgot((s) => !s);
+    setForgotMsg(null);
     setError(null);
-    if (!email || !email.includes('@')) {
-      setError('Enter your email above to reset your password.');
+  }
+
+  async function submitTempPasswordRequest(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotMsg(null);
+    setError(null);
+    if (!identifier.trim()) {
+      setForgotMsg('Please enter your email or username.');
       return;
     }
-    setLoading(true);
+    setForgotPending(true);
     try {
-      const origin = window.location.origin;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${origin}/auth/reset`,
+      const resp = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: identifier.trim() }),
       });
-      if (error) throw error;
-      alert('Check your inbox for the password reset link.');
+      const json = await resp.json();
+      if (!resp.ok || json?.ok === false) {
+        throw new Error(json?.message || 'Failed to reset password');
+      }
+      setForgotMsg('If the account exists, a temporary password has been emailed.');
     } catch (e: any) {
-      setError(e?.message || 'Failed to send reset email.');
+      setForgotMsg(e?.message || 'Failed to reset password');
     } finally {
-      setLoading(false);
+      setForgotPending(false);
     }
   }
 
@@ -186,11 +209,34 @@ export default function LoginPage() {
           <button
             type="button"
             className="underline hover:no-underline"
-            onClick={onForgot}
+            onClick={onForgotClick}
           >
             Forgot password?
           </button>
         </div>
+
+        {showForgot && (
+          <form onSubmit={submitTempPasswordRequest} className="mt-4 space-y-3">
+            <label className="block">
+              <span className="text-sm text-white/70">Email or username</span>
+              <input
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="mt-1 w-full rounded-xl bg-transparent border border-white/10 px-3 py-2 outline-none placeholder-white/40 text-white"
+                placeholder="you@example.com or your_nickname"
+              />
+            </label>
+            {forgotMsg && <div className="text-white/80 text-sm">{forgotMsg}</div>}
+            <button
+              type="submit"
+              disabled={forgotPending}
+              className="w-full relative inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 bg-gradient-to-r from-white to-white/90 text-black disabled:opacity-60"
+            >
+              {forgotPending ? 'Sending...' : 'Reset Password'}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
