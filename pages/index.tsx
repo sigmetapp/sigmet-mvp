@@ -1,203 +1,83 @@
 // pages/index.tsx
-import Head from 'next/head';
-import Link from 'next/link';
-import React from 'react';
+import Head from "next/head";
+import Link from "next/link";
 
 export default function Home() {
-  const colors = {
-    bg: '#0d1117',
-    surface: '#161b22',
-    text: '#c9d1d9',
-    muted: '#8b949e',
-    border: '#30363d',
-    primary: '#2ea043',
-    primaryHover: '#3fb950',
-    accent: '#58a6ff',
-  };
-
-  const container: React.CSSProperties = {
-    maxWidth: '1200px',
-    margin: '0 auto',
-    padding: '40px 24px',
-  };
-
-  const card: React.CSSProperties = {
-    backgroundColor: colors.surface,
-    border: `1px solid ${colors.border}`,
-    borderRadius: 12,
-    padding: 24,
-    boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
-    transition: 'transform .2s ease, box-shadow .2s ease',
-  };
-
-  const list: React.CSSProperties = {
-    color: colors.muted,
-    lineHeight: 1.8,
-    paddingLeft: 20,
-  };
-
   return (
-    <div style={{ backgroundColor: colors.bg, minHeight: '100vh', color: colors.text }}>
+    <>
       <Head>
         <title>Sigmet</title>
         <meta name="description" content="Sigmet social network" />
       </Head>
 
-      <main style={container}>
-        {/* HERO */}
-        <section className="hero">
-          <div className="hero-grid">
+      <section className="relative overflow-hidden">
+        {/* ambient color wash */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              "radial-gradient(600px 300px at 10% -10%, rgba(88,166,255,.5), transparent), radial-gradient(600px 300px at 90% -10%, rgba(46,160,67,.5), transparent)",
+          }}
+        />
+
+        <div className="relative max-w-7xl mx-auto px-4 py-16 md:py-24">
+          <div className="grid md:grid-cols-2 gap-10 items-center">
             <div>
-              <h1 className="title">
-                Build your <span className="accent">social weight</span> with real progress
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 mb-4">
+                New: Faster feed and analytics
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
+                Build your <span className="gradient-text">social weight</span> with real progress
               </h1>
-              <p className="subtitle">
+              <p className="mt-4 text-white/70 text-lg">
                 Sigmet helps you grow with purpose. Share content, track goals, and see your evolution through data.
               </p>
-              <div className="cta">
-                <Link href="/feed" className="btnPrimary">Go to feed</Link>
-                <Link href="/docs" className="btnSecondary">Learn more</Link>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link href="/feed" className="btn btn-primary">Go to feed</Link>
+                <Link href="/signup" className="btn border border-white/20 text-white/80 hover:bg-white/10">Create account</Link>
               </div>
             </div>
 
             <div>
-              <div style={card} className="hoverCard">
-                <h3 style={{ marginTop: 0 }}>Quick start</h3>
-                <ol style={list}>
+              <div className="card p-6 md:p-8">
+                <h3 className="text-white text-xl font-semibold">Quick start</h3>
+                <ol className="mt-4 space-y-2 text-white/70 list-decimal list-inside">
                   <li>Sign up and confirm your email</li>
                   <li>Set your profile and avatar</li>
                   <li>Select 3 key growth directions</li>
                   <li>Start sharing and tracking progress</li>
                 </ol>
-                <Link href="/signup" className="btnPrimary sm">Create account</Link>
+                <Link href="/signup" className="btn btn-primary mt-4">Get started</Link>
               </div>
             </div>
           </div>
-        </section>
 
-        {/* FEATURES */}
-        <section className="features">
-          <div style={card} className="hoverCard">
-            <h3>🎯 Purpose-driven communities</h3>
-            <p style={{ color: colors.muted }}>
-              Focus on what matters. Join groups that align with your goals — less noise, more meaning.
-            </p>
+          <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="card p-6 transition-shadow hover:shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+              <h3 className="text-white font-semibold text-lg">🎯 Purpose-driven communities</h3>
+              <p className="mt-2 text-white/70">Focus on what matters. Join groups that align with your goals — less noise, more meaning.</p>
+            </div>
+            <div className="card p-6 transition-shadow hover:shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+              <h3 className="text-white font-semibold text-lg">⚖️ Transparent social weight</h3>
+              <p className="mt-2 text-white/70">Reputation built from verified activity, contributions, and learning.</p>
+            </div>
+            <div className="card p-6 transition-shadow hover:shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+              <h3 className="text-white font-semibold text-lg">🪶 Creator-first ecosystem</h3>
+              <p className="mt-2 text-white/70">Full analytics, fair authorship, and visibility for every creator.</p>
+            </div>
           </div>
 
-          <div style={card} className="hoverCard">
-            <h3>⚖️ Transparent social weight</h3>
-            <p style={{ color: colors.muted }}>
-              Reputation built from verified activity, contributions, and learning.
-            </p>
+          <div className="mt-16 card p-6 md:p-8">
+            <h3 className="text-white text-xl font-semibold">📢 Latest updates</h3>
+            <ul className="mt-3 text-white/70 list-disc list-inside space-y-1">
+              <li>New profile dashboard with analytics</li>
+              <li>Faster content loading in feed</li>
+              <li>Improved onboarding flow</li>
+            </ul>
           </div>
-
-          <div style={card} className="hoverCard">
-            <h3>🪶 Creator-first ecosystem</h3>
-            <p style={{ color: colors.muted }}>
-              Full analytics, fair authorship, and visibility for every creator.
-            </p>
-          </div>
-        </section>
-
-        {/* UPDATES */}
-        <section style={{ ...card, marginTop: 40 }} className="hoverCard">
-          <h3>📢 Latest updates</h3>
-          <ul style={list}>
-            <li>New profile dashboard with analytics</li>
-            <li>Faster content loading in feed</li>
-            <li>Improved onboarding flow</li>
-          </ul>
-          <Link href="/changelog" className="btnSecondary sm">View changelog</Link>
-        </section>
-      </main>
-
-      <style jsx>{`
-        .hero-grid {
-          display: grid;
-          grid-template-columns: 1.2fr 1fr;
-          gap: 32px;
-        }
-        .title {
-          font-size: 36px;
-          font-weight: 700;
-          margin: 0;
-          line-height: 1.25;
-        }
-        .accent {
-          color: ${colors.accent};
-        }
-        .subtitle {
-          color: ${colors.muted};
-          margin-top: 12px;
-          font-size: 17px;
-          line-height: 1.7;
-        }
-        .cta {
-          display: flex;
-          gap: 16px;
-          margin-top: 24px;
-        }
-        .btnPrimary {
-          background: ${colors.primary};
-          border: none;
-          color: #fff;
-          font-weight: 600;
-          border-radius: 8px;
-          padding: 12px 20px;
-          text-decoration: none;
-          transition: background .2s ease, transform .2s ease;
-        }
-        .btnPrimary:hover {
-          background: ${colors.primaryHover};
-          transform: translateY(-1px);
-        }
-        .btnSecondary {
-          background: rgba(88,166,255,0.1);
-          border: 1px solid ${colors.accent};
-          color: ${colors.accent};
-          font-weight: 500;
-          border-radius: 8px;
-          padding: 12px 20px;
-          text-decoration: none;
-          transition: background .2s ease, transform .2s ease;
-        }
-        .btnSecondary:hover {
-          background: rgba(88,166,255,0.15);
-          transform: translateY(-1px);
-        }
-        .btnPrimary.sm, .btnSecondary.sm {
-          padding: 8px 14px;
-          margin-top: 14px;
-        }
-        .features {
-          margin-top: 48px;
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
-          gap: 24px;
-        }
-        .hoverCard:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-          .hero-grid {
-            grid-template-columns: 1fr;
-          }
-          .features {
-            grid-template-columns: 1fr 1fr;
-          }
-        }
-        @media (max-width: 640px) {
-          .features {
-            grid-template-columns: 1fr;
-          }
-          .title {
-            font-size: 28px;
-          }
-        }
-      `}</style>
-    </div>
+        </div>
+      </section>
+    </>
   );
 }
