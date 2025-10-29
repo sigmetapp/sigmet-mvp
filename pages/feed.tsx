@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { RequireAuth } from "@/components/RequireAuth";
 
@@ -33,13 +33,13 @@ function FeedInner() {
   const [text, setText] = useState("");
   const [img, setImg] = useState<File | null>(null);
   const [vid, setVid] = useState<File | null>(null);
-  const imgRef = useRef<HTMLInputElement>(null);
-  const vidRef = useRef<HTMLInputElement>(null);
+  const unifiedFileRef = useRef<HTMLInputElement>(null);
 
   const [uid, setUid] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBody, setEditBody] = useState<string>("");
@@ -50,10 +50,48 @@ function FeedInner() {
   const [likedByMe, setLikedByMe] = useState<Set<number>>(new Set());
   const viewedOnce = useRef<Set<number>>(new Set());
 
+  // Directions toggle (from profile selections)
+  const GROWTH_AREAS = useMemo(
+    () => [
+      { id: "health", emoji: "💚", title: "Health" },
+      { id: "thinking", emoji: "🧠", title: "Thinking" },
+      { id: "learning", emoji: "📚", title: "Learning" },
+      { id: "career", emoji: "🧩", title: "Career" },
+      { id: "finance", emoji: "💰", title: "Finance" },
+      { id: "relationships", emoji: "🤝", title: "Relationships" },
+      { id: "creativity", emoji: "🎨", title: "Creativity" },
+      { id: "sport", emoji: "🏃‍♂️", title: "Sport" },
+      { id: "habits", emoji: "⏱️", title: "Habits" },
+      { id: "emotions", emoji: "🌿", title: "Emotions" },
+      { id: "meaning", emoji: "✨", title: "Meaning" },
+      { id: "community", emoji: "🏙️", title: "Community" },
+    ],
+    []
+  );
+  const [myDirections, setMyDirections] = useState<string[]>([]);
+  const [activeDirection, setActiveDirection] = useState<string | null>(null);
+
   // page mount
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
     loadFeed();
+  }, []);
+
+  // Load selected directions from profile (up to 3)
+  useEffect(() => {
+    (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const userId = auth.user?.id;
+      if (!userId) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("directions_selected")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const dirs = (data?.directions_selected as string[] | undefined) || [];
+      setMyDirections(dirs.slice(0, 3));
+      setActiveDirection(dirs[0] ?? null);
+    })();
   }, []);
 
   async function loadFeed() {
@@ -125,6 +163,7 @@ function FeedInner() {
       setText("");
       setImg(null);
       setVid(null);
+      setComposerOpen(false);
     } catch (err: any) {
       alert(err.message || "Publish error");
     } finally {
@@ -290,61 +329,29 @@ function FeedInner() {
   return (
     <div className="min-h-[100dvh] bg-[radial-gradient(1200px_600px_at_50%_-10%,rgba(255,255,255,0.08),transparent),linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]">
       <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-6">
-        {/* Composer */}
-        <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md p-4 md:p-6 shadow-[0_8px_40px_rgba(0,0,0,0.25)] space-y-4">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="What do you want to share?"
-            className="w-full bg-transparent outline-none placeholder-white/40 min-h-[88px] text-base md:text-lg"
-          />
-          <div className="flex items-center gap-3">
-            <input
-              ref={imgRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => setImg(e.target.files?.[0] || null)}
-            />
-            <input
-              ref={vidRef}
-              type="file"
-              accept="video/*"
-              className="hidden"
-              onChange={(e) => setVid(e.target.files?.[0] || null)}
-            />
-
-            <button
-              onClick={() => imgRef.current?.click()}
-              className="h-11 w-11 grid place-items-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
-              title="Upload photo"
-            >
-              📷
-            </button>
-            <button
-              onClick={() => vidRef.current?.click()}
-              className="h-11 w-11 grid place-items-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
-              title="Upload video"
-            >
-              🎥
-            </button>
-
-            <div className="ml-auto">
-              <button
-                onClick={onPublish}
-                disabled={publishing}
-                className="relative inline-flex items-center gap-2 rounded-2xl px-5 py-2.5
-                           bg-gradient-to-r from-white to-white/90 text-black
-                           shadow-[0_8px_24px_rgba(255,255,255,0.25)] hover:shadow-[0_10px_36px_rgba(255,255,255,0.35)]
-                           hover:translate-y-[-1px] active:translate-y-0 transition
-                           disabled:opacity-60"
-              >
-                {publishing ? "Publishing…" : "Publish"}
-                <span className="absolute inset-0 rounded-2xl ring-1 ring-white/30 pointer-events-none" />
-              </button>
-            </div>
+        {/* Directions toggle (selected in profile) */}
+        {myDirections.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {myDirections.map((id) => {
+              const meta = GROWTH_AREAS.find((a) => a.id === id);
+              const label = meta ? `${meta.emoji} ${meta.title}` : id;
+              const active = activeDirection === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActiveDirection(id)}
+                  className={`px-3 py-1.5 rounded-full text-sm transition border ${
+                    active
+                      ? "bg-white text-black border-white"
+                      : "text-white/80 border-white/20 hover:bg-white/10"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
-        </div>
+        )}
 
         {/* Feed */}
         {loading ? (
@@ -436,24 +443,42 @@ function FeedInner() {
                   <span className="text-sm">{p.views ?? 0}</span>
                 </div>
 
-                <button
-                  onClick={() => toggleLike(p)}
-                  className={`inline-flex items-center gap-1 hover:text-white ${
-                    likedByMe.has(p.id) ? "text-red-500" : ""
-                  }`}
-                  title={likedByMe.has(p.id) ? "Unlike" : "Like"}
-                  aria-pressed={likedByMe.has(p.id)}
-                >
-                  <svg viewBox="0 0 24 24" className="h-5 w-5">
-                    <path
-                      d="M12 21s-7-4.4-9.2-8.1C1.5 9.6 3.6 6 7.3 6c2.1 0 3.3 1 4.7 2 1.4-1 2.6-2 4.7-2 3.7 0 5.8 3.6 4.5 6.9C19 16.6 12 21 12 21Z"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      fill={likedByMe.has(p.id) ? "currentColor" : "none"}
-                    />
-                  </svg>
-                  <span className="text-sm">{p.likes_count ?? 0}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleLike(p)}
+                    className={`px-2 py-1 rounded-lg text-sm border transition ${
+                      likedByMe.has(p.id)
+                        ? "border-white bg-white text-black"
+                        : "border-white/20 hover:bg-white/10"
+                    }`}
+                    title="Growth"
+                  >
+                    🌱 Growth
+                  </button>
+                  <button
+                    onClick={() => toggleLike(p)}
+                    className={`px-2 py-1 rounded-lg text-sm border transition ${
+                      likedByMe.has(p.id)
+                        ? "border-white bg-white text-black"
+                        : "border-white/20 hover:bg-white/10"
+                    }`}
+                    title="Value"
+                  >
+                    💎 Value
+                  </button>
+                  <button
+                    onClick={() => toggleLike(p)}
+                    className={`px-2 py-1 rounded-lg text-sm border transition ${
+                      likedByMe.has(p.id)
+                        ? "border-white bg-white text-black"
+                        : "border-white/20 hover:bg-white/10"
+                    }`}
+                    title="With You"
+                  >
+                    🤝 With You
+                  </button>
+                </div>
+                <span className="text-sm text-white/60">{p.likes_count ?? 0}</span>
 
                 <button
                   className="ml-auto text-sm underline hover:no-underline"
@@ -508,6 +533,80 @@ function FeedInner() {
               )}
             </div>
           ))
+        )}
+
+        {/* Floating Post button */}
+        <button
+          type="button"
+          onClick={() => setComposerOpen(true)}
+          className="fixed right-6 bottom-6 btn btn-primary shadow-lg"
+        >
+          Post
+        </button>
+
+        {/* Composer modal */}
+        {composerOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={() => !publishing && setComposerOpen(false)}
+            />
+            <div className="relative z-10 w-full max-w-xl mx-auto p-4">
+              <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md p-4 md:p-6 shadow-[0_8px_40px_rgba(0,0,0,0.45)] space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-white/80 font-medium">Create post</div>
+                  <button
+                    onClick={() => !publishing && setComposerOpen(false)}
+                    className="text-white/60 hover:text-white"
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="What do you want to share?"
+                  className="w-full bg-transparent outline-none placeholder-white/40 min-h-[120px] text-base md:text-lg text-white"
+                />
+                <input
+                  ref={unifiedFileRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    if (!file) { setImg(null); setVid(null); return; }
+                    if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
+                    else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
+                    else { setImg(null); setVid(null); }
+                  }}
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => unifiedFileRef.current?.click()}
+                    className="px-3 py-2 rounded-xl border border-white/20 text-white/80 hover:bg-white/10 text-sm"
+                  >
+                    📎 Media
+                  </button>
+                  {(img || vid) && (
+                    <span className="text-white/60 text-sm">
+                      {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
+                    </span>
+                  )}
+                  <div className="ml-auto">
+                    <button
+                      onClick={onPublish}
+                      disabled={publishing}
+                      className="btn btn-primary"
+                    >
+                      {publishing ? "Publishing…" : "Publish"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
