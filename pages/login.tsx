@@ -99,7 +99,7 @@ export default function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full rounded-xl bg-transparent border border-white/10 px-3 py-2 outline-none placeholder-white/40"
+              className="mt-1 w-full rounded-xl bg-transparent border border-white/10 px-3 py-2 outline-none placeholder-white/40 text-white"
               placeholder="you@example.com"
             />
           </label>
@@ -114,7 +114,7 @@ export default function LoginPage() {
                 }
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl bg-transparent border border-white/10 px-3 py-2 pr-10 outline-none placeholder-white/40"
+                className="w-full rounded-xl bg-transparent border border-white/10 px-3 py-2 pr-10 outline-none placeholder-white/40 text-white"
                 placeholder="••••••••"
               />
               <button
