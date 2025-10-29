@@ -68,6 +68,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .update({ last_message_id: message.id, last_message_at: message.created_at, updated_at: new Date().toISOString() })
       .eq('id', threadId);
 
+    // Push notifications (when recipient tab is not active):
+    // For each user in `otherIds`, call Edge Function `push` with
+    // { toUserId, title, body, url } to deliver a notification.
+    // Example (pseudo):
+    // await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/push`, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceRoleKey}` },
+    //   body: JSON.stringify({ toUserId, title, body, url }),
+    // });
+
     return res.status(200).json({ ok: true, message });
   } catch (e: any) {
     const status = e?.status || 500;
