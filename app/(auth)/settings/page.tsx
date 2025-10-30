@@ -19,6 +19,8 @@ function SettingsInner() {
   const [continents, setContinents] = useState<string[]>(Array.isArray(allowed_continents) ? allowed_continents! : []);
   const [users, setUsers] = useState<any[] | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [stats, setStats] = useState<any | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -122,6 +124,20 @@ function SettingsInner() {
     }
   }
 
+  async function loadStats() {
+    setLoadingStats(true);
+    try {
+      const resp = await fetch('/api/admin/stats');
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.error || 'Failed to load stats');
+      setStats(json);
+    } catch (e) {
+      setStats(null);
+    } finally {
+      setLoadingStats(false);
+    }
+  }
+
   if (isAdmin === null) return null;
   if (!isAdmin) return null;
 
@@ -219,7 +235,15 @@ function SettingsInner() {
             {users.map((u) => (
               <div key={u.id} className="flex items-center justify-between px-3 py-2">
                 <div className="text-white/80 text-sm">
-                  <div>{u.email || '(no email)'}</div>
+                  <div>
+                    <a
+                      href={`/u/${u.id}`}
+                      className="text-white/90 hover:underline hover:text-white"
+                      title="Open profile"
+                    >
+                      {u.email || '(no email)'}
+                    </a>
+                  </div>
                   <div className="text-white/50 text-xs">{new Date(u.created_at).toLocaleString()}</div>
                 </div>
                 <button onClick={() => deleteUser(u.id)} className="h-8 px-3 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10">
@@ -227,6 +251,57 @@ function SettingsInner() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-white/90 font-medium">Social network stats</h2>
+          <button onClick={loadStats} className="h-9 px-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10">
+            {loadingStats ? 'Loading…' : 'Refresh stats'}
+          </button>
+        </div>
+        {stats && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-xl border border-white/10 p-3">
+              <div className="text-white/60 text-xs">Total users</div>
+              <div className="text-white text-lg font-medium">{stats.total_profiles ?? '—'}</div>
+            </div>
+            <div className="rounded-xl border border-white/10 p-3">
+              <div className="text-white/60 text-xs">New users (24h)</div>
+              <div className="text-white text-lg font-medium">{stats.new_profiles_24h ?? '—'}</div>
+            </div>
+            <div className="rounded-xl border border-white/10 p-3">
+              <div className="text-white/60 text-xs">Posts total</div>
+              <div className="text-white text-lg font-medium">{stats.posts_total ?? '—'}</div>
+            </div>
+            <div className="rounded-xl border border-white/10 p-3">
+              <div className="text-white/60 text-xs">Posts (24h)</div>
+              <div className="text-white text-lg font-medium">{stats.posts_24h ?? '—'}</div>
+            </div>
+            <div className="rounded-xl border border-white/10 p-3">
+              <div className="text-white/60 text-xs">Comments total</div>
+              <div className="text-white text-lg font-medium">{stats.comments_total ?? '—'}</div>
+            </div>
+            <div className="rounded-xl border border-white/10 p-3">
+              <div className="text-white/60 text-xs">DM threads</div>
+              <div className="text-white text-lg font-medium">{stats.dms_threads_total ?? '—'}</div>
+            </div>
+            <div className="rounded-xl border border-white/10 p-3">
+              <div className="text-white/60 text-xs">DM messages (24h)</div>
+              <div className="text-white text-lg font-medium">{stats.dms_messages_24h ?? '—'}</div>
+            </div>
+            {typeof stats.follows_total === 'number' && (
+              <div className="rounded-xl border border-white/10 p-3">
+                <div className="text-white/60 text-xs">Follows total</div>
+                <div className="text-white text-lg font-medium">{stats.follows_total}</div>
+              </div>
+            )}
+            <div className="rounded-xl border border-white/10 p-3 sm:col-span-2">
+              <div className="text-white/60 text-xs">Active users (24h)</div>
+              <div className="text-white text-lg font-medium">{stats.active_users_24h ?? '—'}</div>
+            </div>
           </div>
         )}
       </div>
