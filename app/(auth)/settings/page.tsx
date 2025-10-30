@@ -1,25 +1,22 @@
-import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { RequireAuth } from "@/components/RequireAuth";
-import { useSiteSettings } from "@/components/SiteSettingsContext";
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useSiteSettings } from '@/components/SiteSettingsContext';
 
 export default function SettingsPage() {
-  return (
-    <RequireAuth>
-      <SettingsInner />
-    </RequireAuth>
-  );
+  return <SettingsInner />;
 }
 
 function SettingsInner() {
   const { site_name, logo_url } = useSiteSettings();
-  const [name, setName] = useState(site_name || "");
+  const [name, setName] = useState(site_name || '');
   const [logo, setLogo] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(logo_url || null);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setName(site_name || ""); }, [site_name]);
+  useEffect(() => { setName(site_name || ''); }, [site_name]);
   useEffect(() => { setPreview(logo_url || null); }, [logo_url]);
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -30,49 +27,44 @@ function SettingsInner() {
   }
 
   async function uploadLogo(file: File) {
-    const ext = file.name.split(".").pop() || "png";
+    const ext = file.name.split('.').pop() || 'png';
     const path = `logos/site-${Date.now()}.${ext}`;
-    const bucket = supabase.storage.from("assets");
-    const { error } = await bucket.upload(path, file, { upsert: true, contentType: file.type || "image/png" });
+    const bucket = supabase.storage.from('assets');
+    const { error } = await bucket.upload(path, file, { upsert: true, contentType: file.type || 'image/png' });
     if (error) throw error;
     const { data } = bucket.getPublicUrl(path);
     return data.publicUrl as string;
   }
 
- async function save() {
-  setSaving(true);
-  try {
-    let newLogoUrl = logo_url || null;
-    if (logo) newLogoUrl = await uploadLogo(logo);
+  async function save() {
+    setSaving(true);
+    try {
+      let newLogoUrl = logo_url || null;
+      if (logo) newLogoUrl = await uploadLogo(logo);
 
-    // Получим uid для обновления updated_by (опционально)
-    const { data: u } = await supabase.auth.getUser();
-    const uid = u?.user?.id ?? null;
+      const { data: u } = await supabase.auth.getUser();
+      const uid = u?.user?.id ?? null;
 
-    const payload = {
-      id: 1,
-      site_name: name || null,
-      logo_url: newLogoUrl,
-      updated_by: uid,
-      updated_at: new Date().toISOString(),
-    };
+      const payload = {
+        id: 1,
+        site_name: name || null,
+        logo_url: newLogoUrl,
+        updated_by: uid,
+        updated_at: new Date().toISOString(),
+      };
 
-    // ВАЖНО: onConflict:'id', без .eq()
-    const { error } = await supabase
-      .from("site_settings")
-      .upsert(payload, { onConflict: "id" });
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert(payload, { onConflict: 'id' });
 
-    if (error) throw error;
-
-    // Обновим UI (проще всего перезагрузить)
-    window.location.reload();
-  } catch (e: any) {
-    alert(e?.message || "Save failed");
-  } finally {
-    setSaving(false);
+      if (error) throw error;
+      window.location.reload();
+    } catch (e: any) {
+      alert(e?.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
   }
-}
-
 
   return (
     <div className="max-w-xl mx-auto p-6 space-y-6">
@@ -117,7 +109,7 @@ function SettingsInner() {
                        hover:translate-y-[-1px] active:translate-y-0 transition
                        disabled:opacity-60"
           >
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? 'Saving…' : 'Save changes'}
             <span className="absolute inset-0 rounded-2xl ring-1 ring-white/30 pointer-events-none" />
           </button>
         </div>
