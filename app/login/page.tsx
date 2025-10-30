@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
 
@@ -177,15 +178,9 @@ export default function LoginPage() {
           {mode === 'login' ? (
             <>
               Don’t have an account?{' '}
-              <button
-                className="underline hover:no-underline"
-                onClick={() => {
-                  setMode('signup');
-                  setError(null);
-                }}
-              >
+              <Link href="/signup" className="underline hover:no-underline">
                 Sign up
-              </button>
+              </Link>
             </>
           ) : (
             <>
