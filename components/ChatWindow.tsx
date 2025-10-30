@@ -190,37 +190,7 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
     }
   }
 
-  async function blockUser() {
-    if (!targetUserId) return;
-    try {
-      const resp = await fetch('/api/dms/block', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: targetUserId }),
-      });
-      const json = await resp.json();
-      if (json?.ok) setLog((prev) => [...prev, `You blocked user ${targetUserId}`]);
-      else setLog((prev) => [...prev, `Block failed: ${json?.error || 'unknown error'}`]);
-    } catch (e) {
-      setLog((prev) => [...prev, 'Block failed: network error']);
-    }
-  }
-
-  async function unblockUser() {
-    if (!targetUserId) return;
-    try {
-      const resp = await fetch('/api/dms/unblock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: targetUserId }),
-      });
-      const json = await resp.json();
-      if (json?.ok) setLog((prev) => [...prev, `You unblocked user ${targetUserId}`]);
-      else setLog((prev) => [...prev, `Unblock failed: ${json?.error || 'unknown error'}`]);
-    } catch (e) {
-      setLog((prev) => [...prev, 'Unblock failed: network error']);
-    }
-  }
+  // Block/Unblock controls moved to the profile sidebar
 
   return (
     <div className="card grid gap-3">
@@ -301,12 +271,6 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
         />
         <button className="btn" onClick={send}>
           Send
-        </button>
-        <button className="btn btn-outline" onClick={blockUser} disabled={!targetUserId} title={!targetUserId ? 'Select a user' : ''}>
-          Block
-        </button>
-        <button className="btn btn-outline" onClick={unblockUser} disabled={!targetUserId} title={!targetUserId ? 'Select a user' : ''}>
-          Unblock
         </button>
         {showEmojiPicker && (
           <div className="absolute bottom-full mb-2 left-0 z-10 p-2 rounded-xl border border-white/10 bg-black/80 backdrop-blur min-w-[240px] shadow-lg">

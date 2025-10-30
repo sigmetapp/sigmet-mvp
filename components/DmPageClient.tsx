@@ -25,6 +25,8 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const [threads, setThreads] = useState<ThreadListItem[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
+  const [selectedPartnerProfile, setSelectedPartnerProfile] = useState<SimpleProfile | null>(null);
   const [creatingUserId, setCreatingUserId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +62,42 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
     void loadThreads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load selected thread partner and profile
+  useEffect(() => {
+    (async () => {
+      setSelectedPartnerId(null);
+      setSelectedPartnerProfile(null);
+      if (!selectedThreadId || !currentUserId) return;
+      try {
+        const resp = await fetch(`/api/dms/thread.participants?thread_id=${selectedThreadId}`);
+        const json = await resp.json();
+        if (!json?.ok) return;
+        const ids: string[] = json.participants || [];
+        if (ids.length === 2) {
+          const other = ids.find((id) => id !== currentUserId) || null;
+          setSelectedPartnerId(other ?? null);
+          if (other) {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('user_id, username, full_name, avatar_url')
+              .eq('user_id', other)
+              .maybeSingle();
+            if (prof) {
+              setSelectedPartnerProfile({
+                user_id: (prof as any).user_id,
+                username: (prof as any).username ?? null,
+                full_name: (prof as any).full_name ?? null,
+                avatar_url: (prof as any).avatar_url ?? null,
+              });
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, [selectedThreadId, currentUserId]);
 
   // Load my username for connection discovery
   useEffect(() => {
@@ -217,9 +255,40 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
     }
   }
 
+  async function blockUser() {
+    if (!selectedPartnerId) return;
+    try {
+      const resp = await fetch('/api/dms/block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: selectedPartnerId }),
+      });
+      const json = await resp.json();
+      if (!json?.ok) throw new Error(json?.error || 'Block failed');
+    } catch {
+      // ignore
+    }
+  }
+
+  async function unblockUser() {
+    if (!selectedPartnerId) return;
+    try {
+      const resp = await fetch('/api/dms/unblock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: selectedPartnerId }),
+      });
+      const json = await resp.json();
+      if (!json?.ok) throw new Error(json?.error || 'Unblock failed');
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <div className="grid grid-cols-12 gap-4">
-      <div className="col-span-4">
+      {/* Threads list */}
+      <div className="col-span-12 md:col-span-3">
         <div className="card p-3 grid gap-3">
           <div className="flex gap-2">
             <input
@@ -254,12 +323,38 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
           </div>
         </div>
       </div>
-      <div className="col-span-8">
+      {/* Chat window */}
+      <div className="col-span-12 md:col-span-6">
         {selectedThreadId ? (
-          <ChatWindow threadId={selectedThreadId} currentUserId={currentUserId} />
+          <ChatWindow threadId={selectedThreadId} currentUserId={currentUserId} targetUserId={selectedPartnerId ?? undefined} />
         ) : (
           <div className="card p-4 text-white/70">Select a conversation or create a new one.</div>
         )}
+      </div>
+      {/* Profile sidebar */}
+      <div className="col-span-12 md:col-span-3">
+        <div className="card p-3 grid gap-3">
+          <div className="text-white/80 font-medium">Conversation</div>
+          {selectedPartnerProfile ? (
+            <div className="flex flex-col items-center text-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={selectedPartnerProfile.avatar_url || AVATAR_FALLBACK}
+                alt=""
+                className="h-20 w-20 rounded-full object-cover border border-white/10"
+              />
+              <div className="text-lg text-white truncate max-w-full">
+                {selectedPartnerProfile.full_name || selectedPartnerProfile.username || selectedPartnerProfile.user_id.slice(0, 8)}
+              </div>
+              <div className="flex gap-2">
+                <button className="btn btn-outline" onClick={blockUser} disabled={!selectedPartnerId}>Block</button>
+                <button className="btn btn-outline" onClick={unblockUser} disabled={!selectedPartnerId}>Unblock</button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-white/60 text-sm">Select a 1:1 chat to view profile</div>
+          )}
+        </div>
       </div>
       {/* Quick contacts row – following + connections */}
       <div className="col-span-12">

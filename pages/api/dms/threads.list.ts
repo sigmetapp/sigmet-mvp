@@ -47,6 +47,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
+    // Sort by last_message_at desc (nulls last), then created_at desc as fallback
+    result.sort((a, b) => {
+      const ax = a.thread?.last_message_at ? new Date(a.thread.last_message_at).getTime() : 0;
+      const bx = b.thread?.last_message_at ? new Date(b.thread.last_message_at).getTime() : 0;
+      if (ax !== bx) return bx - ax;
+      const ac = a.thread?.created_at ? new Date(a.thread.created_at).getTime() : 0;
+      const bc = b.thread?.created_at ? new Date(b.thread.created_at).getTime() : 0;
+      return bc - ac;
+    });
+
     return res.status(200).json({ ok: true, threads: result });
   } catch (e: any) {
     const status = e?.status || 500;
