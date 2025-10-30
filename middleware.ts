@@ -44,6 +44,7 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/sw') ||
     pathname.startsWith('/growth-directions') ||
     pathname.startsWith('/invite') ||
+    pathname.startsWith('/settings') ||
     pathname.startsWith('/profile')
   );
 
@@ -70,6 +71,7 @@ export const config = {
     '/sw/:path*',
     '/growth-directions/:path*',
     '/invite/:path*',
+    '/settings/:path*',
     '/profile/:path*',
     // Allow other paths to pass (no-op)
   ],
