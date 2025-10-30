@@ -486,7 +486,7 @@ export default function PublicProfilePage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Profile header */}
-      <div className="card p-4 md:p-6 relative">
+      <div className="card card-glow p-4 md:p-6 relative">
         {/* Top-right Edit link to settings */}
         {(!loadingProfile && profile && isMe) && (
           <Link href="/profile" className="absolute top-3 right-3 text-sm text-white/80 hover:text-white underline">
@@ -498,12 +498,12 @@ export default function PublicProfilePage() {
         ) : !profile ? (
           <div className="text-white/70">Profile not found</div>
         ) : (
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-5">
             <div className="relative">
               <img
                 src={profile.avatar_url || AVATAR_FALLBACK}
                 alt="avatar"
-                className="h-16 w-16 rounded-full object-cover border border-white/10"
+                className="h-40 w-40 rounded-full object-cover border border-white/10"
               />
               {isMe && (
                 <>
@@ -535,7 +535,7 @@ export default function PublicProfilePage() {
                     }}
                   />
                   <button
-                    className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-xs border border-white/20 bg-black/50 backdrop-blur hover:bg-black/70"
+                    className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs border border-white/20 bg-black/60 backdrop-blur hover:bg-black/70"
                     onClick={() => avatarInputRef.current?.click()}
                     disabled={avatarUploading}
                     title="Edit avatar"
@@ -579,7 +579,7 @@ export default function PublicProfilePage() {
                     <div>75/100</div>
                   </div>
                   <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full w-[75%] bg-white/80"></div>
+                    <div className="h-full w-[75%] bg-[linear-gradient(90deg,#00ffc8,#7affc0)]"></div>
                   </div>
                   <div className="mt-2 text-xs text-white/60">This metric is in development and will be available soon</div>
                 </div>
@@ -606,16 +606,42 @@ export default function PublicProfilePage() {
 
       {/* Info block */}
       {!loadingProfile && profile && (
-        <div className="card p-4 md:p-6">
+        <div className="card card-glow p-4 md:p-6">
           <div className="grid md:grid-cols-2 gap-4 text-white/90">
             <div className="space-y-2">
               <div className="text-white/60 text-sm">Bio</div>
               <div>{profile.bio || '—'}</div>
             </div>
-            <div className="space-y-2">
-              <div className="text-white/60 text-sm">City / Country</div>
-              <div>{profile.country || '—'}</div>
-            </div>
+            {(() => {
+              const raw = String(profile.country || '').trim();
+              const parts = raw.split(',');
+              const city = (parts[0] || '').trim();
+              const country = (parts.slice(1).join(',') || '').trim();
+              return (
+                <>
+                  <div className="space-y-2">
+                    <div className="text-white/60 text-sm">City</div>
+                    <div>
+                      {city ? (
+                        <Link href={`/u?city=${encodeURIComponent(city)}`} className="text-white hover:underline">{city}</Link>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-white/60 text-sm">Country</div>
+                    <div>
+                      {country || (!city && raw) ? (
+                        <Link href={`/u?country=${encodeURIComponent(country || raw)}`} className="text-white hover:underline">{country || raw}</Link>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
             <div className="space-y-2">
               <div className="text-white/60 text-sm">Website / Social</div>
               <div>
@@ -638,7 +664,7 @@ export default function PublicProfilePage() {
 
       {/* Social block */}
       {!loadingProfile && profile && (
-        <div className="card p-4 md:p-6">
+        <div className="card card-glow p-4 md:p-6">
           <div className="flex flex-col md:flex-row md:items-start gap-6">
             <div className="flex flex-wrap items-center gap-6">
               <div>
