@@ -68,6 +68,13 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Refresh thread list on external events (e.g., mute toggled in ChatWindow)
+  useEffect(() => {
+    const onRefresh = () => { void loadThreads(); };
+    window.addEventListener('dm:threads:refresh', onRefresh as any);
+    return () => { window.removeEventListener('dm:threads:refresh', onRefresh as any); };
+  }, []);
+
   // Load selected thread partner and profile
   useEffect(() => {
     (async () => {
@@ -456,7 +463,7 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
                     </div>
                     <div className="text-xs text-white/60 truncate">{meta?.lastText || 'Без сообщений'}</div>
                   </div>
-                  {item.unread_count > 0 && (
+                  {item.unread_count > 0 && !item.participant?.notifications_muted && (
                     <span className="text-xs bg-blue-500/90 text-white rounded-full px-2 py-0.5">{item.unread_count}</span>
                   )}
                 </button>

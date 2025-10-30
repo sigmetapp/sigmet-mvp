@@ -32,7 +32,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .from('dms_messages')
       .select('*, receipts:dms_message_receipts(user_id, status, updated_at)')
       .eq('thread_id', threadId)
-      .is('deleted_at', null)
       .order('id', { ascending: false })
       .limit(limit);
 
