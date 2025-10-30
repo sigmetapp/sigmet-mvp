@@ -106,3 +106,21 @@ alter table public.profiles enable row level security;
 create policy if not exists "read profiles" on public.profiles for select using (true);
 create policy if not exists "own profile" on public.profiles for update using (auth.uid() = user_id);
 create policy if not exists "insert own profile" on public.profiles for insert with check (auth.uid() = user_id);
+
+-- Site-wide settings (single-row table)
+create table if not exists public.site_settings (
+  id int primary key default 1,
+  site_name text,
+  logo_url text,
+  invites_only boolean not null default false,
+  allowed_continents text[] not null default '{}'::text[],
+  updated_by uuid references auth.users(id),
+  updated_at timestamptz default now(),
+  constraint site_settings_singleton check (id = 1)
+);
+
+alter table public.site_settings enable row level security;
+-- Anyone can read settings
+create policy if not exists "read site_settings" on public.site_settings for select using (true);
+-- Updates typically happen via service role in server API; allow authenticated users noop by default
+create policy if not exists "update site_settings_via_service" on public.site_settings for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
