@@ -11,6 +11,14 @@
   --text: #a8b3c7;
 }
 
+/* Light theme overrides */
+html.theme-light {
+  --bg-grad-from: #ffffff;
+  --bg-grad-to: #f5f7fb;
+  --bg: #ffffff;
+  --text: #0e1526;
+}
+
 html, body, #__next { height: 100%; }
 body {
   background: var(--bg);
@@ -33,6 +41,9 @@ body {
 
 .card {
   @apply bg-white/5 border border-white/10 rounded-2xl;
+}
+html.theme-light .card {
+  @apply bg-black/5 border border-black/10;
 }
 .card-glow {
   position: relative;
@@ -59,11 +70,17 @@ body {
 .input {
   @apply w-full rounded-xl bg-white/10 text-white px-3 py-3 outline-none focus:ring-2 focus:ring-white/30;
 }
+html.theme-light .input {
+  @apply bg-black/5 text-black focus:ring-black/20;
+}
 .label {
   @apply block text-white/80 text-sm mb-2;
 }
+html.theme-light .label { @apply text-black/70; }
 .text-muted { @apply text-white/70; }
 .text-dim { @apply text-white/50; }
+html.theme-light .text-muted { @apply text-black/60; }
+html.theme-light .text-dim { @apply text-black/40; }
 
 /* Gradient text utility for brand accents */
 .gradient-text {
