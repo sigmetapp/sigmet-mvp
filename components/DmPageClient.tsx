@@ -135,7 +135,7 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
         setConnectionIds(connIds);
 
         // Load profiles for union of following + connections
-        const unionIds = Array.from(new Set([...connIds, ...(((await (async () => followingIds)) as any) || followingIds)]));
+        const unionIds = Array.from(new Set([...connIds, ...followingIds]));
         const idsToLoad = unionIds.slice(0, 50); // cap for UI
         if (idsToLoad.length > 0) {
           const { data: profs } = await supabase
@@ -164,12 +164,33 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
   }, [currentUserId, myUsername]);
 
   const quickContactIds = useMemo(() => {
-    return Array.from(new Set([...followingIds, ...connectionIds]));
-  }, [followingIds, connectionIds]);
+    const merged = Array.from(new Set([...followingIds, ...connectionIds]));
+    return merged.filter((id) => id && id !== currentUserId);
+  }, [followingIds, connectionIds, currentUserId]);
+
+  async function createThreadWithUser(targetUserId: string) {
+    if (!targetUserId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const resp = await fetch('/api/dms/threads.create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participant_ids: [targetUserId] }),
+      });
+      const json = await resp.json();
+      if (!json?.ok) throw new Error(json?.error || 'Failed to create thread');
+      await loadThreads();
+      setSelectedThreadId(json.thread?.id || null);
+    } catch (e: any) {
+      setError(e?.message || 'Network error');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function onQuickMessage(targetUserId: string) {
-    setCreatingUserId(targetUserId);
-    void onCreateThread();
+    void createThreadWithUser(targetUserId);
   }
 
   async function onCreateThread() {
