@@ -20,6 +20,8 @@ function ProfileSettings() {
   const [profile, setProfile] = useState<any>(null);
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState<string>();
+  const [city, setCity] = useState<string>('');
+  const [countryName, setCountryName] = useState<string>('');
 
   useEffect(() => {
     (async () => {
@@ -42,13 +44,30 @@ function ProfileSettings() {
           directions_selected: [],
         }
       );
+      // Parse City, Country from single field into two inputs for editing
+      try {
+        const raw = String((data as any)?.country || '').trim();
+        const parts = raw.split(',');
+        const parsedCity = (parts[0] || '').trim();
+        const parsedCountry = (parts.slice(1).join(',') || '').trim();
+        setCity(parsedCity);
+        setCountryName(parsedCountry);
+      } catch {
+        setCity('');
+        setCountryName('');
+      }
       setLoading(false);
     })();
   }, []);
 
   async function saveProfile() {
     if (!profile) return;
-    const { error } = await supabase.from('profiles').upsert(profile, { onConflict: 'user_id' });
+    const composedCountry = [city, countryName].filter((s) => String(s || '').trim() !== '').join(', ');
+    const payload = { ...profile, country: composedCountry };
+    const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'user_id' });
+    if (!error) {
+      setProfile(payload);
+    }
     setNote(error ? error.message : 'Profile saved');
   }
 
@@ -118,14 +137,25 @@ function ProfileSettings() {
           />
         </div>
 
-        <div>
-          <label className="label">City / Country</label>
-          <input
-            className="input"
-            value={profile.country || ''}
-            onChange={e => setProfile({ ...profile, country: e.target.value })}
-            placeholder="City, Country"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="label">City</label>
+            <input
+              className="input"
+              value={city}
+              onChange={e => setCity(e.target.value)}
+              placeholder="City"
+            />
+          </div>
+          <div>
+            <label className="label">Country</label>
+            <input
+              className="input"
+              value={countryName}
+              onChange={e => setCountryName(e.target.value)}
+              placeholder="Country"
+            />
+          </div>
         </div>
 
         <div>
