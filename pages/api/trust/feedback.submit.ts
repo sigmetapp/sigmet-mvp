@@ -1,13 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import { getServerSession } from '@/lib/auth/getServerSession';
+import { getAuthedClient } from '@/lib/dm/supabaseServer';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
   try {
-    const { user } = await getServerSession();
-    if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    const { user } = await getAuthedClient(req);
 
     const target_user_id = String(req.body?.target_user_id || '').trim();
     const valueRaw = String(req.body?.value || '').trim();
