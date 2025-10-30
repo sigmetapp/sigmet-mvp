@@ -225,7 +225,17 @@ export default function PublicProfilePage() {
                 <Link href={`/u/${encodeURIComponent(profile.username || profile.user_id)}`} className="hover:underline">
                   @{profile.username || profile.user_id.slice(0, 8)}
                 </Link>
-                {profile.country && <span>• {profile.country}</span>}
+                {profile.country && (() => {
+                  const city = String(profile.country).split(",")[0].trim();
+                  return (
+                    <>
+                      <span>•</span>
+                      <Link href={`/city/${encodeURIComponent(city)}`} className="hover:underline">
+                        {profile.country}
+                      </Link>
+                    </>
+                  );
+                })()}
               </div>
               {!isMe && (
                 <div className="mt-2 text-white/70 text-xs flex items-center gap-2">
@@ -271,8 +281,21 @@ export default function PublicProfilePage() {
               <div>{profile.bio || '—'}</div>
             </div>
             <div className="space-y-2">
-              <div className="text-white/60 text-sm">City / Country</div>
-              <div>{profile.country || '—'}</div>
+              <div className="text-white/60 text-sm">Страна — Город</div>
+              <div>
+                {profile.country ? (
+                  (() => {
+                    const city = String(profile.country).split(",")[0].trim();
+                    return (
+                      <Link href={`/city/${encodeURIComponent(city)}`} className="hover:underline">
+                        {profile.country}
+                      </Link>
+                    );
+                  })()
+                ) : (
+                  '—'
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <div className="text-white/60 text-sm">Website / Social</div>

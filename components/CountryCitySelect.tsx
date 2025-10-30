@@ -3,29 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Country, City } from "country-state-city";
 
-export type CountryCityValue = {
-  countryName?: string;
-  countryCode?: string;
-  cityName?: string;
-};
+type Suggestion = { city: string; countryCode: string; country: string };
 
-function parseCombined(value?: string): CountryCityValue {
+function parseCombined(value?: string): { city?: string; country?: string } {
   if (!value) return {};
   const parts = value.split(",").map((p) => p.trim()).filter(Boolean);
   if (parts.length === 0) return {};
-  if (parts.length === 1) {
-    return { countryName: parts[0] };
-  }
-  const cityName = parts.slice(0, parts.length - 1).join(", ");
-  const countryName = parts[parts.length - 1];
-  return { cityName, countryName };
+  if (parts.length === 1) return { city: parts[0] };
+  return { city: parts.slice(0, -1).join(", "), country: parts[parts.length - 1] };
 }
 
-function toCombined(v: CountryCityValue): string {
-  const pieces: string[] = [];
-  if (v.cityName) pieces.push(v.cityName);
-  if (v.countryName) pieces.push(v.countryName);
-  return pieces.join(", ");
+function combine(city?: string, country?: string) {
+  return [city, country].filter(Boolean).join(", ");
 }
 
 export default function CountryCitySelect({
@@ -36,157 +25,97 @@ export default function CountryCitySelect({
   onChange: (combined: string) => void;
 }) {
   const initial = useMemo(() => parseCombined(value), [value]);
-  const countries = useMemo(() => Country.getAllCountries(), []);
-  const [countryQuery, setCountryQuery] = useState<string>(initial.countryName || "");
-  const [cityQuery, setCityQuery] = useState<string>(initial.cityName || "");
-  const [selectedCountryCode, setSelectedCountryCode] = useState<string | undefined>(undefined);
-  const [countryOpen, setCountryOpen] = useState(false);
-  const [cityOpen, setCityOpen] = useState(false);
-
+  const [query, setQuery] = useState<string>(combine(initial.city, initial.country));
+  const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Initialize selected country code from name (best-effort)
-  useEffect(() => {
-    if (!initial.countryName) return;
-    const match = countries.find(
-      (c) => c.name.toLowerCase() === initial.countryName!.toLowerCase()
-    );
-    if (match) {
-      setSelectedCountryCode(match.isoCode);
-    }
-    // cityQuery set from initial already
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const countries = useMemo(() => Country.getAllCountries(), []);
+  const countryNameByIso = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of countries) map.set(c.isoCode, c.name);
+    return map;
   }, [countries]);
 
-  // Close dropdowns on outside click
+  // Build a lazy cache of all cities once (acceptable size for MVP)
+  const [allCities, setAllCities] = useState<Suggestion[] | null>(null);
+  useEffect(() => {
+    if (!open || allCities) return;
+    const list = City.getAllCities()?.slice(0) || [];
+    const suggestions: Suggestion[] = list
+      .map((c) => ({
+        city: c.name,
+        countryCode: c.countryCode,
+        country: countryNameByIso.get(c.countryCode) || c.countryCode,
+      }))
+      .filter((v, i, arr) => arr.findIndex((x) => x.city === v.city && x.countryCode === v.countryCode) === i);
+    setAllCities(suggestions);
+  }, [open, allCities, countryNameByIso]);
+
+  // Close on outside click
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (!containerRef.current) return;
-      if (!containerRef.current.contains(e.target as Node)) {
-        setCountryOpen(false);
-        setCityOpen(false);
-      }
+      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, []);
 
-  const filteredCountries = useMemo(() => {
-    const q = countryQuery.trim().toLowerCase();
-    if (!q) return countries.slice(0, 20);
-    return countries
-      .filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.isoCode.toLowerCase().includes(q)
-      )
-      .slice(0, 20);
-  }, [countries, countryQuery]);
+  const filtered: Suggestion[] = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!allCities || q.length === 0) return [];
+    const results = allCities.filter(
+      (s) => s.city.toLowerCase().includes(q) || s.country.toLowerCase().includes(q)
+    );
+    results.sort((a, b) => {
+      const aStarts = a.city.toLowerCase().startsWith(q) ? 0 : 1;
+      const bStarts = b.city.toLowerCase().startsWith(q) ? 0 : 1;
+      if (aStarts !== bStarts) return aStarts - bStarts;
+      return a.city.localeCompare(b.city);
+    });
+    return results.slice(0, 30);
+  }, [allCities, query]);
 
-  const cities = useMemo(() => {
-    if (!selectedCountryCode) return [] as ReturnType<typeof City.getCitiesOfCountry>;
-    return City.getCitiesOfCountry(selectedCountryCode) || [];
-  }, [selectedCountryCode]);
-
-  const filteredCities = useMemo(() => {
-    const q = cityQuery.trim().toLowerCase();
-    if (!q) return cities.slice(0, 20);
-    return cities
-      .filter((c) => c.name.toLowerCase().includes(q))
-      .slice(0, 20);
-  }, [cities, cityQuery]);
-
-  function selectCountry(code: string, name: string) {
-    setSelectedCountryCode(code);
-    setCountryQuery(name);
-    setCountryOpen(false);
-    // Reset city when country changes
-    setCityQuery("");
-    emitChange(name, "");
-  }
-
-  function selectCity(name: string) {
-    setCityQuery(name);
-    setCityOpen(false);
-    emitChange(countryQuery, name);
-  }
-
-  function emitChange(countryName: string, cityName: string) {
-    const combined = toCombined({ countryName, cityName });
+  function select(s: Suggestion) {
+    const combined = combine(s.city, s.country);
+    setQuery(combined);
+    setOpen(false);
     onChange(combined);
   }
 
   return (
-    <div ref={containerRef} className="grid gap-3">
-      <div className="grid gap-1">
-        <label className="label">Country</label>
-        <div className="relative">
-          <input
-            className="input"
-            value={countryQuery}
-            onChange={(e) => {
-              setCountryQuery(e.target.value);
-              setSelectedCountryCode(undefined);
-              setCountryOpen(true);
-            }}
-            onFocus={() => setCountryOpen(true)}
-            placeholder="Search country"
-          />
-          {countryOpen && (
-            <div className="absolute z-10 mt-1 w-full max-h-64 overflow-auto rounded-md bg-[#0b0b0b] border border-white/10 shadow-lg">
-              {filteredCountries.length === 0 && (
-                <div className="px-3 py-2 text-sm text-white/60">No results</div>
-              )}
-              {filteredCountries.map((c) => (
+    <div ref={containerRef} className="grid gap-1">
+      <div className="relative">
+        <input
+          className="input"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder="Type your city…"
+        />
+        {open && (
+          <div className="absolute z-10 mt-1 w-full max-h-72 overflow-auto rounded-md bg-[#0b0b0b] border border-white/10 shadow-lg">
+            {!allCities ? (
+              <div className="px-3 py-2 text-sm text-white/60">Loading cities…</div>
+            ) : filtered.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-white/60">No results</div>
+            ) : (
+              filtered.map((s, idx) => (
                 <button
-                  key={c.isoCode}
+                  key={`${s.city}-${s.countryCode}-${idx}`}
                   type="button"
                   className="w-full text-left px-3 py-2 text-sm hover:bg-white/5"
-                  onClick={() => selectCountry(c.isoCode, c.name)}
+                  onClick={() => select(s)}
                 >
-                  {c.name} <span className="text-white/40">({c.isoCode})</span>
+                  {s.city}, <span className="text-white/80">{s.country}</span>
                 </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-1">
-        <label className="label">City</label>
-        <div className="relative">
-          <input
-            className="input"
-            value={cityQuery}
-            onChange={(e) => {
-              setCityQuery(e.target.value);
-              setCityOpen(true);
-            }}
-            onFocus={() => setCityOpen(true)}
-            placeholder={selectedCountryCode ? "Search city" : "Select country first"}
-            disabled={!selectedCountryCode}
-          />
-          {cityOpen && selectedCountryCode && (
-            <div className="absolute z-10 mt-1 w-full max-h-64 overflow-auto rounded-md bg-[#0b0b0b] border border-white/10 shadow-lg">
-              {filteredCities.length === 0 && (
-                <div className="px-3 py-2 text-sm text-white/60">No results</div>
-              )}
-              {filteredCities.map((c) => (
-                <button
-                  key={`${c.name}-${c.stateCode}`}
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-white/5"
-                  onClick={() => selectCity(c.name)}
-                >
-                  {c.name}
-                  {c.stateCode ? (
-                    <span className="text-white/40">, {c.stateCode}</span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
