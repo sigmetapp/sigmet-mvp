@@ -421,10 +421,10 @@ export default function PublicProfilePage() {
           <div className="grid md:grid-cols-2 gap-4 text-white/90">
             <div className="space-y-2">
               <div className="text-white/60 text-sm">Bio</div>
-              <div>{profile.bio || '—'}</div>
+              <div>{profile.bio || '-'}</div>
             </div>
             <div className="space-y-2">
-              <div className="text-white/60 text-sm">Страна — Город</div>
+              <div className="text-white/60 text-sm">Country - City</div>
               <div>
                 {profile.country ? (
                   (() => {
@@ -436,7 +436,7 @@ export default function PublicProfilePage() {
                     );
                   })()
                 ) : (
-                  '—'
+                  '-'
                 )}
               </div>
             </div>
@@ -448,13 +448,13 @@ export default function PublicProfilePage() {
                     {profile.website_url}
                   </a>
                 ) : (
-                  '—'
+                  '-'
                 )}
               </div>
             </div>
             <div className="space-y-2">
               <div className="text-white/60 text-sm">Joined</div>
-              <div>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}</div>
+              <div>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '-'}</div>
             </div>
           </div>
         </div>
@@ -480,9 +480,9 @@ export default function PublicProfilePage() {
 
           {/* Recent social actions */}
           <div className="mt-4">
-            <div className="text-white/70 text-sm mb-2">Последние действия (5)</div>
+            <div className="text-white/70 text-sm mb-2">Recent activity (5)</div>
             {recentSocial.length === 0 ? (
-              <div className="text-white/50 text-sm">Нет последних действий</div>
+              <div className="text-white/50 text-sm">No recent activity</div>
             ) : (
               <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
                 {recentSocial.map((ev, i) => (
@@ -575,9 +575,9 @@ function RecentSocialItem({ event }: { event: { kind: 'in' | 'out'; otherUserId:
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={avatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10" />
       {event.kind === 'in' ? (
-        <span className="text-white/80">Новый фолловер: <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link></span>
+        <span className="text-white/80">New follower: <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link></span>
       ) : (
-        <span className="text-white/80">Вы подписались на <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link></span>
+        <span className="text-white/80">You followed <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link></span>
       )}
       <span className="ml-auto text-white/40">{event.created_at ? new Date(event.created_at).toLocaleString() : ''}</span>
     </li>
