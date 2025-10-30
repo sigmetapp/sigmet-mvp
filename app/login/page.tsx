@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
@@ -10,6 +10,7 @@ type Mode = 'login' | 'signup';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,11 +23,19 @@ export default function LoginPage() {
   const [forgotPending, setForgotPending] = useState(false);
   const [forgotMsg, setForgotMsg] = useState<string | null>(null);
 
+  function getRedirectTarget(): string {
+    const raw = searchParams?.get('redirect') || '/feed';
+    // Prevent open redirects; only allow same-origin absolute paths
+    if (raw.startsWith('/')) return raw;
+    return '/feed';
+  }
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) router.replace('/feed');
+      if (data.user) router.replace(getRedirectTarget());
     });
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, searchParams]);
 
   async function handleAuth(e: React.FormEvent) {
     e.preventDefault();
@@ -59,7 +68,7 @@ export default function LoginPage() {
         if (mustChange) {
           router.replace('/auth/reset');
         } else {
-          router.replace('/feed');
+          router.replace(getRedirectTarget());
         }
       } else {
         const origin = process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin;
