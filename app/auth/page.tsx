@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
 
 export default function AuthPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,6 +17,12 @@ export default function AuthPage() {
   const [identifier, setIdentifier] = useState('');
   const [forgotPending, setForgotPending] = useState(false);
   const [forgotMsg, setForgotMsg] = useState<string | null>(null);
+
+  function getRedirectTarget(): string {
+    const raw = searchParams?.get('redirect') || '/feed';
+    if (raw.startsWith('/')) return raw;
+    return '/feed';
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,9 +41,21 @@ export default function AuthPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        // Mirror session into HTTP-only cookies for SSR/middleware
+        const { data: sessionData } = await supabase.auth.getSession();
+        await fetch('/api/auth/set-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ event: 'SIGNED_IN', session: sessionData.session ?? null }),
+        });
         const { data } = await supabase.auth.getUser();
         const mustChange = Boolean((data.user as any)?.user_metadata?.must_change_password);
-        window.location.href = mustChange ? '/auth/reset' : '/';
+        if (mustChange) {
+          router.replace('/auth/reset');
+        } else {
+          router.replace(getRedirectTarget());
+        }
       }
     } catch (err: any) {
       setMsg(err.message || 'Auth error');
