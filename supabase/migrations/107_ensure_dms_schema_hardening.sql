@@ -17,19 +17,55 @@ create table if not exists public.dms_threads (
 create index if not exists dms_threads_creator_idx on public.dms_threads(created_by);
 create index if not exists dms_threads_last_message_at_idx on public.dms_threads(last_message_at desc);
 
--- Ensure last_message_id exists and is linked
-alter table if exists public.dms_threads add column if not exists last_message_id bigint;
-create index if not exists dms_threads_last_message_id_idx on public.dms_threads(last_message_id);
+-- Ensure last_message_id exists with the SAME TYPE as dms_messages.id (uuid or bigint)
+do $$
+declare
+  msg_id_type regtype;
+  thread_col_type regtype;
+begin
+  -- Determine the data type of public.dms_messages.id
+  select a.atttypid::regtype into msg_id_type
+  from pg_attribute a
+  join pg_class c on c.oid = a.attrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relname = 'dms_messages'
+    and a.attname = 'id'
+    and a.attnum > 0
+    and not a.attisdropped;
 
--- Add FK if missing
-do $$ begin
+  -- Default to bigint if table/column is missing (fresh env)
+  if msg_id_type is null then
+    msg_id_type := 'bigint'::regtype;
+  end if;
+
+  -- Add column with the matching type if it doesn't exist yet
   if not exists (
-    select 1 from pg_constraint
-    where conname = 'dms_threads_last_message_fk'
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'dms_threads' and column_name = 'last_message_id'
   ) then
-    alter table public.dms_threads
-      add constraint dms_threads_last_message_fk
-      foreign key (last_message_id) references public.dms_messages(id) on delete set null;
+    execute format('alter table public.dms_threads add column last_message_id %s', msg_id_type::text);
+  end if;
+
+  -- Ensure index exists regardless of type
+  execute 'create index if not exists dms_threads_last_message_id_idx on public.dms_threads(last_message_id)';
+
+  -- Read the current type of last_message_id
+  select a.atttypid::regtype into thread_col_type
+  from pg_attribute a
+  join pg_class c on c.oid = a.attrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relname = 'dms_threads'
+    and a.attname = 'last_message_id'
+    and a.attnum > 0
+    and not a.attisdropped;
+
+  -- Only add the FK when the types are compatible
+  if thread_col_type = msg_id_type and not exists (
+    select 1 from pg_constraint where conname = 'dms_threads_last_message_fk'
+  ) then
+    execute 'alter table public.dms_threads add constraint dms_threads_last_message_fk foreign key (last_message_id) references public.dms_messages(id) on delete set null';
   end if;
 end $$;
 
