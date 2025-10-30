@@ -2,10 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
-const ADMIN_EMAILS = new Set<string>([
-  'seosashagmail.com',
-  'seosasha@gmail.com',
-]);
+const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
 
 function getAccessTokenFromRequest(req: NextApiRequest): string | undefined {
   const cookie = req.headers.cookie || '';

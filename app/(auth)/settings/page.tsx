@@ -36,7 +36,7 @@ function SettingsInner() {
     (async () => {
       const { data } = await supabase.auth.getUser();
       const email = data?.user?.email || '';
-      const allowed = email === 'seosashagmail.com' || email === 'seosasha@gmail.com';
+      const allowed = email === 'seosasha@gmail.com';
       setIsAdmin(!!allowed);
       if (!allowed && typeof window !== 'undefined') {
         // redirect non-admins
