@@ -150,15 +150,30 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
 
   async function send() {
     if (!text.trim() && attachments.length === 0) return;
-    setLog((prev) => [
-      ...prev,
-      `me: ${text.trim() || '(no text)'}${attachments.length ? ` [${attachments.length} attachment(s)]` : ''}`,
-    ]);
+    const bodyText = text.trim();
     setText('');
+    const sendAttachments = attachments.slice();
     setAttachments([]);
     setPreviews({});
-    // NOTE: Wire to /api/dms/messages.send with thread_id when available.
-    // await fetch('/api/dms/messages.send', { method: 'POST', body: JSON.stringify({ thread_id, body: text, attachments }) })
+    if (!threadId) {
+      setLog((prev) => [...prev, `me: ${bodyText || '(no text)'}${sendAttachments.length ? ` [${sendAttachments.length} attachment(s)]` : ''}`]);
+      return;
+    }
+    try {
+      const resp = await fetch('/api/dms/messages.send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thread_id: threadId, body: bodyText || null, attachments: sendAttachments }),
+      });
+      const json = await resp.json();
+      if (json?.ok && json.message) {
+        setMessages((prev) => [...prev, json.message]);
+      } else {
+        setLog((prev) => [...prev, `Send failed: ${json?.error || 'unknown error'}`]);
+      }
+    } catch {
+      setLog((prev) => [...prev, 'Send failed: network error']);
+    }
   }
 
   async function blockUser() {

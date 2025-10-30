@@ -6,6 +6,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { client, user } = await getAuthedClient(req);
+    const execOrFetch = async (q: any): Promise<{ data: any; error: any }> => {
+      if (typeof q?.exec === 'function') return await q.exec();
+      return await q;
+    };
     const rawParticipants = (req.body?.participant_ids as string[] | undefined) || [];
     const title = (req.body?.title as string | undefined) || null;
 
@@ -21,12 +25,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const a = user.id;
       const b = otherParticipantIds[0]!;
       // Prevent creating a 1:1 thread if blocked in either direction
-      const { data: blocks, error: blocksErr } = await client
-        .from('dms_blocks')
-        .select('blocker, blocked')
-        .in('blocker', [a, b])
-        .in('blocked', [a, b])
-        .limit(1);
+      const { data: blocks, error: blocksErr } = await execOrFetch(
+        client
+          .from('dms_blocks')
+          .select('blocker, blocked')
+          .in('blocker', [a, b])
+          .in('blocked', [a, b])
+          .limit(1)
+      );
       if (blocksErr) return res.status(400).json({ ok: false, error: blocksErr.message });
       if (blocks && blocks.length > 0) {
         return res.status(403).json({ ok: false, error: 'blocked' });
