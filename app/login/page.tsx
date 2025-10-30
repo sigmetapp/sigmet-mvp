@@ -45,6 +45,14 @@ export default function LoginPage() {
           password,
         });
         if (signInErr) throw signInErr;
+        // Ensure server cookies are set before redirect
+        const { data: sessionData } = await supabase.auth.getSession();
+        await fetch('/api/auth/set-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ event: 'SIGNED_IN', session: sessionData.session ?? null }),
+        });
         const { data } = await supabase.auth.getUser();
         const mustChange = Boolean((data.user as any)?.user_metadata?.must_change_password);
         if (mustChange) {

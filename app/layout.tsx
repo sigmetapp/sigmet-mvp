@@ -1,6 +1,7 @@
 import "../styles/globals.css";
 import type { Metadata } from "next";
 import PostHogInit from "@/components/PostHogInit";
+import SupabaseAuthSync from "@/components/SupabaseAuthSync";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -11,6 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <PostHogInit />
+        <SupabaseAuthSync />
         {children}
       </body>
     </html>
