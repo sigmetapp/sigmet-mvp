@@ -16,6 +16,7 @@ type DmMessage = {
   attachments: unknown[];
   created_at: string;
   edited_at?: string | null;
+  deleted_at?: string | null;
   receipts?: Receipt[];
 };
 
@@ -41,6 +42,11 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [partner, setPartner] = useState<{ user_id: string; name: string; avatar: string | null } | null>(null);
   const [isOnline, setIsOnline] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [lastReadId, setLastReadId] = useState<number | null>(null);
+  const [muted, setMuted] = useState<boolean>(false);
   const emojiChoices = useMemo(
     () => [
       '😀','😁','😂','🤣','😊','😍','😎','🤔','😅','🙂',
@@ -92,25 +98,86 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
     if (!threadId) return;
     let aborted = false;
     (async () => {
+      setIsLoading(true);
       try {
-        const resp = await fetch(`/api/dms/messages.list?thread_id=${threadId}`);
+        const resp = await fetch(`/api/dms/messages.list?thread_id=${threadId}&limit=30`);
         const json = await resp.json();
         if (!json?.ok || aborted) return;
-        // Server returns newest first; display oldest first
         const list: DmMessage[] = (json.messages || []).slice().reverse();
         setMessages(list);
-      } catch {}
+        setHasMore((json.messages || []).length >= 30);
+      } catch {
+        setMessages([]);
+        setHasMore(false);
+      } finally {
+        setIsLoading(false);
+      }
     })();
     return () => {
       aborted = true;
     };
   }, [threadId]);
 
+  // Load my participant state (last_read_message_id and mute)
+  useEffect(() => {
+    (async () => {
+      if (!threadId || !currentUserId) { setLastReadId(null); setMuted(false); return; }
+      try {
+        const { data } = await supabase
+          .from('dms_thread_participants')
+          .select('last_read_message_id, notifications_muted')
+          .eq('thread_id', threadId)
+          .eq('user_id', currentUserId)
+          .maybeSingle();
+        setLastReadId(((data as any)?.last_read_message_id as number | null) ?? null);
+        setMuted(Boolean((data as any)?.notifications_muted));
+      } catch {
+        setLastReadId(null);
+        setMuted(false);
+      }
+    })();
+  }, [threadId, currentUserId]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages.length]);
+
+  // Infinite scroll: load older when scrolled to top
+  const oldestMessageId = useMemo(() => (messages.length > 0 ? messages[0]!.id : null), [messages]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !threadId) return;
+    const onScroll = async () => {
+      if (el.scrollTop <= 32 && !isLoadingMore && hasMore) {
+        setIsLoadingMore(true);
+        try {
+          const resp = await fetch(`/api/dms/messages.list?thread_id=${threadId}&before=${oldestMessageId}&limit=30`);
+          const json = await resp.json();
+          if (json?.ok) {
+            const batch: DmMessage[] = (json.messages || []).slice().reverse();
+            if (batch.length > 0) {
+              const prevHeight = el.scrollHeight;
+              setMessages((prev) => [...batch, ...prev]);
+              // allow DOM to render then adjust scroll to keep viewport stable
+              setTimeout(() => {
+                const newHeight = el.scrollHeight;
+                el.scrollTop = newHeight - prevHeight;
+              }, 0);
+            }
+            setHasMore((json.messages || []).length >= 30);
+          }
+        } catch {
+          // ignore
+        } finally {
+          setIsLoadingMore(false);
+        }
+      }
+    };
+    el.addEventListener('scroll', onScroll);
+    return () => { el.removeEventListener('scroll', onScroll); };
+  }, [threadId, hasMore, isLoadingMore, oldestMessageId]);
 
   // Resolve target user id for 1:1 threads if not explicitly provided
   useEffect(() => {
@@ -193,6 +260,7 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ thread_id: threadId, up_to_message_id: latestId }),
         });
+        setLastReadId((prev) => (prev && prev > latestId ? prev : latestId));
       } catch {}
     })();
   }, [threadId, messages]);
@@ -218,14 +286,15 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
     return <span className="text-green-500">✓✓</span>;
   };
 
-  // Realtime channel: new messages and typing indicators
+  // Realtime channel: new messages, edits, deletes, receipts, typing indicators
   useEffect(() => {
     if (!threadId) return;
     openThreadChannel(threadId);
     void subscribe(
       (change) => {
+        const row = (change.payload as any)?.new;
+        if (!row) return;
         if (change.type === 'message.insert') {
-          const row = change.payload.new as any;
           const msg: DmMessage = {
             id: row.id,
             thread_id: row.thread_id,
@@ -234,12 +303,28 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
             body: row.body,
             attachments: row.attachments || [],
             created_at: row.created_at,
+            edited_at: row.edited_at || null,
+            deleted_at: row.deleted_at || null,
             receipts: [],
           };
           setMessages((prev) => [...prev, msg]);
+        } else if (change.type === 'message.update') {
+          setMessages((prev) => prev.map((m) => (m.id === row.id ? { ...m, body: row.body, edited_at: row.edited_at, deleted_at: row.deleted_at } : m)));
         }
       },
-      undefined,
+      // receipt updates
+      (receiptChange) => {
+        const r = (receiptChange.payload as any)?.new;
+        if (!r) return;
+        setMessages((prev) => prev.map((m) => {
+          if (m.id !== r.message_id) return m;
+          const receipts = Array.isArray(m.receipts) ? [...m.receipts] : [];
+          const idx = receipts.findIndex((x) => x.user_id === r.user_id);
+          const next: Receipt = { user_id: r.user_id, status: r.status, updated_at: r.updated_at };
+          if (idx >= 0) receipts[idx] = next; else receipts.push(next);
+          return { ...m, receipts };
+        }));
+      },
       (evt) => {
         if (!evt) return;
         if (evt.userId && evt.userId !== currentUserId) {
@@ -295,6 +380,65 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
     }
   }
 
+  // Mute/unmute current thread
+  async function toggleMute() {
+    if (!threadId) return;
+    try {
+      const next = !muted;
+      setMuted(next);
+      await fetch('/api/dms/thread.mute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thread_id: threadId, muted: next }),
+      });
+      // Notify thread list to refresh
+      try { window.dispatchEvent(new CustomEvent('dm:threads:refresh')); } catch {}
+    } catch {
+      // rollback UI on error
+      setMuted((v) => !v);
+    }
+  }
+
+  // Edit and delete actions (last message only for simplicity)
+  const canEditOrDelete = useMemo(() => {
+    if (!currentUserId || messages.length === 0) return false;
+    const last = messages[messages.length - 1]!;
+    return last.sender_id === currentUserId && !last.deleted_at;
+  }, [messages, currentUserId]);
+
+  async function onEditLast() {
+    const last = messages[messages.length - 1];
+    if (!last) return;
+    const nextBody = prompt('Изменить сообщение:', last.body || '');
+    if (nextBody == null) return;
+    try {
+      const resp = await fetch('/api/dms/messages.edit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: last.id, body: nextBody })
+      });
+      const json = await resp.json();
+      if (json?.ok && json.message) {
+        setMessages((prev) => prev.map((m) => (m.id === last.id ? json.message : m)));
+      }
+    } catch {}
+  }
+
+  async function onDeleteLast() {
+    const last = messages[messages.length - 1];
+    if (!last) return;
+    if (!confirm('Удалить сообщение для всех участников?')) return;
+    try {
+      const resp = await fetch('/api/dms/messages.delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: last.id, mode: 'everyone' })
+      });
+      const json = await resp.json();
+      if (json?.ok) {
+        setMessages((prev) => prev.map((m) => (m.id === last.id ? { ...m, deleted_at: new Date().toISOString(), body: null, attachments: [] } : m)));
+      }
+    } catch {}
+  }
+
   // Block/Unblock controls moved to the profile sidebar
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -327,20 +471,64 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
             </div>
           </div>
         </div>
-        <button type="button" className="btn btn-ghost px-2 py-1 text-white/70 hover:text-white" aria-label="More">⋯</button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className={`btn btn-ghost px-2 py-1 ${muted ? 'text-white/40' : 'text-white/80'} hover:text-white`}
+            title={muted ? 'Включить уведомления' : 'Выключить уведомления'}
+            onClick={toggleMute}
+          >🔔</button>
+          {canEditOrDelete && (
+            <>
+              <button type="button" className="btn btn-ghost px-2 py-1 text-white/70 hover:text-white" title="Редактировать последнее" onClick={onEditLast}>✏️</button>
+              <button type="button" className="btn btn-ghost px-2 py-1 text-white/70 hover:text-white" title="Удалить последнее" onClick={onDeleteLast}>🗑️</button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto smooth-scroll px-3 py-4 bg-gradient-to-b from-white/0 to-white/0">
         {threadId ? (
           <div className="space-y-3">
-            {messages.map((m) => {
+            {/* Skeletons while loading */}
+            {isLoading && (
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className={`flex ${i % 2 ? 'justify-end' : 'justify-start'}`}>
+                    <div className="h-6 w-40 bg-white/10 rounded-xl" />
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Older loader marker */}
+            {isLoadingMore && (
+              <div className="text-center text-xs text-white/50 py-1">Загрузка…</div>
+            )}
+            {messages.map((m, idx) => {
               const mine = m.sender_id === currentUserId;
               const status = computeStatus(m);
               const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const thisDateKey = new Date(m.created_at).toDateString();
+              const prevDateKey = idx > 0 ? new Date(messages[idx - 1]!.created_at).toDateString() : '';
+              const showDateHeader = thisDateKey !== prevDateKey;
+              const d = new Date(m.created_at);
+              const now = new Date();
+              const isToday = d.toDateString() === now.toDateString();
+              const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+              const isYesterday = d.toDateString() === yesterday.toDateString();
+              const dateLabel = isToday ? 'Сегодня' : isYesterday ? 'Вчера' : d.toLocaleDateString();
+              const showNewDivider = lastReadId != null && m.id > lastReadId && (idx === 0 || messages[idx - 1]!.id <= lastReadId);
               return (
-                <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`group max-w-[78%] ${mine ? 'items-end' : 'items-start'} flex flex-col`}>
+                <div key={m.id}>
+                  {showDateHeader && (
+                    <div className="text-center text-xs text-white/50 py-2">{dateLabel}</div>
+                  )}
+                  {showNewDivider && (
+                    <div className="text-center text-[11px] text-white/70 py-1">New messages</div>
+                  )}
+                  <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`group max-w-[78%] ${mine ? 'items-end' : 'items-start'} flex flex-col`}>
                     <div
                       className={
                         'relative px-4 py-2 rounded-2xl shadow-sm ' +
@@ -349,7 +537,37 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
                           : 'bg-white/8 text-white rounded-bl-sm backdrop-blur border border-white/10')
                       }
                     >
-                      <div className="whitespace-pre-wrap leading-relaxed">{m.body || ''}</div>
+                      {m.deleted_at ? (
+                        <div className="italic text-white/60">Сообщение удалено</div>
+                      ) : (
+                        <>
+                          {m.body && <div className="whitespace-pre-wrap leading-relaxed">{m.body}</div>}
+                          {/* Render attachments if any */}
+                          {Array.isArray(m.attachments) && m.attachments.length > 0 && (
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                              {m.attachments.map((att: any, i: number) => {
+                                const key = att?.path as string | undefined;
+                                const url = key ? previews[key] : undefined;
+                                if (key && !url) { void (async () => { try { const u = await getSignedUrlForAttachment({ path: key }, 60); setPreviews((prev) => ({ ...prev, [key]: u })); } catch {} })(); }
+                                return (
+                                  <div key={key || i} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                                    {att?.type === 'image' ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img alt={key || ''} src={url} className="object-cover w-full h-40" />
+                                    ) : url ? (
+                                      <a href={url} target="_blank" rel="noreferrer" className="text-xs underline block px-2 py-2">
+                                        {att?.mime || 'attachment'}
+                                      </a>
+                                    ) : (
+                                      <div className="h-10" />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
                       {/* Quick reactions on hover */}
                       <div className="absolute -bottom-7 opacity-0 group-hover:opacity-100 transition-opacity duration-200 left-2 flex gap-2">
                         {['👍','❤️','😂'].map((e) => (
