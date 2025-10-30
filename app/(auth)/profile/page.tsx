@@ -120,11 +120,8 @@ function ProfileSettings() {
         </div>
 
         <div>
-          <label className="label">City / Country</label>
-          {/* Country & City searchable selector updates profile.country as "City, Country" */}
-          {/** Using a client component for search UX **/}
-          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-          {/* @ts-ignore - dynamic import type resolution is fine here */}
+          <label className="label">Страна — Город</label>
+          {/* Single searchable field that stores value as "City, Country" */}
           <CountryCitySelect
             value={profile.country || ''}
             onChange={(combined: string) => setProfile({ ...profile, country: combined })}
