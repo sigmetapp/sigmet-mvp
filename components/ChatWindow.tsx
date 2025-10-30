@@ -447,6 +447,12 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
                 void send();
               }
             }}
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            autoFocus={Boolean(threadId)}
             placeholder="Напишите сообщение…"
           />
           <div className="relative">
