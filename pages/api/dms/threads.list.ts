@@ -26,22 +26,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (!error) {
         rows = data || [];
-      } else if (String(error.message || '').toLowerCase().includes('last_read_message_id')) {
-        const { data: data2, error: err2 } = await client
-          .from('dms_thread_participants')
-          .select(`
-            thread_id,
-            role,
-            notifications_muted,
-            thread:dms_threads(
-              id, created_by, is_group, title, created_at, last_message_at
-            )
-          `)
-          .eq('user_id', user.id);
-        if (err2) return res.status(400).json({ ok: false, error: err2.message });
-        rows = data2 || [];
       } else {
-        return res.status(400).json({ ok: false, error: error.message });
+        const msg = String(error.message || '').toLowerCase();
+        if (msg.includes('notifications_muted')) {
+          // Fallback: older schemas may not have notifications_muted
+          const { data: data2, error: err2 } = await client
+            .from('dms_thread_participants')
+            .select(`
+              thread_id,
+              role,
+              last_read_message_id,
+              thread:dms_threads(
+                id, created_by, is_group, title, created_at, last_message_at
+              )
+            `)
+            .eq('user_id', user.id);
+          if (err2) return res.status(400).json({ ok: false, error: err2.message });
+          rows = data2 || [];
+        } else if (msg.includes('last_read_message_id')) {
+          // Fallback: older schemas may not have last_read_message_id
+          const { data: data3, error: err3 } = await client
+            .from('dms_thread_participants')
+            .select(`
+              thread_id,
+              role,
+              notifications_muted,
+              thread:dms_threads(
+                id, created_by, is_group, title, created_at, last_message_at
+              )
+            `)
+            .eq('user_id', user.id);
+          if (err3) return res.status(400).json({ ok: false, error: err3.message });
+          rows = data3 || [];
+        } else {
+          return res.status(400).json({ ok: false, error: error.message });
+        }
       }
     }
 
@@ -93,7 +112,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           thread_id: r.thread_id,
           role: r.role,
           last_read_message_id: r.last_read_message_id,
-          notifications_muted: r.notifications_muted,
+          notifications_muted: r.notifications_muted ?? false,
         },
         unread_count: unreadCount,
       });
