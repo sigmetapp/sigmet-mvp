@@ -4,6 +4,7 @@ import PostHogInit from "@/components/PostHogInit";
 import SupabaseAuthSync from "@/components/SupabaseAuthSync";
 import Layout from "@/components/Layout";
 import { SiteSettingsProvider } from "@/components/SiteSettingsContext";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -15,9 +16,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <PostHogInit />
         <SupabaseAuthSync />
-        <SiteSettingsProvider>
-          <Layout>{children}</Layout>
-        </SiteSettingsProvider>
+        <ThemeProvider>
+          <SiteSettingsProvider>
+            <Layout>{children}</Layout>
+          </SiteSettingsProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

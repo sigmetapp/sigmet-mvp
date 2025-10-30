@@ -27,7 +27,7 @@ export default function Sidebar({ user }: SidebarProps) {
   return (
     <aside className="flex h-full w-64 flex-col border-r border-white/10 bg-[#0b1220] text-[#e5edf7]">
       <div className="px-3 py-3">
-        <div className="text-sm font-semibold tracking-wide text-white/70">SIGMET</div>
+        <div className="text-sm font-semibold tracking-wide text-white/70">Menu</div>
       </div>
       <nav className="px-2">
         <ul className="space-y-1">
