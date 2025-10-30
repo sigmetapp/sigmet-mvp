@@ -49,6 +49,15 @@ export default function PublicProfilePage() {
   const [recentSocial, setRecentSocial] = useState<
     { kind: 'in' | 'out'; otherUserId: string; created_at?: string }[]
   >([]);
+  // Trust Flow state (basic default 80%)
+  const [trustScore, setTrustScore] = useState<number>(80);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackPending, setFeedbackPending] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyItems, setHistoryItems] = useState<
+    { author_id: string | null; value: number; comment: string | null; created_at?: string }[]
+  >([]);
 
   // comment/reaction stats for posts
   type ReactionKind = 'growth' | 'value' | 'with_you';
@@ -287,6 +296,59 @@ export default function PublicProfilePage() {
     }
   }
 
+  function trustBarStyleFor(value: number): React.CSSProperties {
+    const v = Math.max(0, Math.min(value, 120));
+    let background = 'linear-gradient(90deg,#00ffc8,#7affc0)'; // brand
+    if (value < 60) background = 'linear-gradient(90deg,#ff9aa2,#ff6677)';
+    if (value > 100) background = 'linear-gradient(90deg,#60a5fa,#c084fc)';
+    return { width: `${Math.min(v, 100)}%`, background };
+  }
+
+  async function submitFeedback(kind: 'up' | 'down') {
+    if (!profile?.user_id) return;
+    setFeedbackPending(true);
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const me = auth.user?.id || null;
+      // Best-effort insert; table may not exist in all envs
+      try {
+        await supabase.from('trust_feedback').insert({
+          target_user_id: profile.user_id,
+          author_id: me,
+          comment: feedbackText || null,
+          value: kind === 'up' ? 1 : -1,
+        });
+      } catch {}
+      setFeedbackOpen(false);
+      setFeedbackText('');
+      // optimistic: adjust local score slightly
+      setTrustScore((s) => Math.max(0, Math.min(120, s + (kind === 'up' ? 2 : -2))));
+    } finally {
+      setFeedbackPending(false);
+    }
+  }
+
+  async function openHistory() {
+    if (!isMe || !profile?.user_id) return;
+    setHistoryOpen(true);
+    try {
+      const { data } = await supabase
+        .from('trust_feedback')
+        .select('author_id, value, comment, created_at')
+        .eq('target_user_id', profile.user_id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      setHistoryItems(((data as any[]) || []).map((r) => ({
+        author_id: (r.author_id as string) || null,
+        value: Number(r.value) || 0,
+        comment: (r.comment as string) || null,
+        created_at: r.created_at as string | undefined,
+      })));
+    } catch {
+      setHistoryItems([]);
+    }
+  }
+
   const GROWTH_AREAS = useMemo(
     () => [
       { id: 'health', emoji: '💚', title: 'Health' },
@@ -494,6 +556,100 @@ export default function PublicProfilePage() {
         </div>
       )}
 
+      {/* Trust Flow */}
+      {!loadingProfile && profile && (
+        <div className="card p-4 md:p-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg text-white/90">Trust Flow</h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setFeedbackOpen(true)}
+                className="px-3 py-1.5 rounded-lg border border-white/20 text-white/80 hover:bg-white/10 text-sm"
+              >
+                Leave opinion
+              </button>
+              {isMe && (
+                <button
+                  onClick={openHistory}
+                  className="px-3 py-1.5 rounded-lg border border-white/20 text-white/80 hover:bg-white/10 text-sm"
+                >
+                  Change history
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-white/80 text-sm">
+            <span>Rating</span>
+            <span>{trustScore}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full" style={trustBarStyleFor(trustScore)} />
+          </div>
+        </div>
+      )}
+
+      {/* Feedback modal */}
+      {feedbackOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/80" onClick={() => !feedbackPending && setFeedbackOpen(false)} />
+          <div className="relative z-10 w-full max-w-md mx-auto p-4">
+            <div className="card p-4 md:p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-white/90 font-medium">Leave opinion</div>
+                <button onClick={() => !feedbackPending && setFeedbackOpen(false)} className="text-white/60 hover:text-white">✕</button>
+              </div>
+              <textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="Write why you vote up or down (optional)"
+                className="w-full bg-transparent border border-white/10 rounded-2xl p-3 outline-none text-white min-h-[120px]"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => submitFeedback('up')}
+                  disabled={feedbackPending}
+                  className="px-3 py-2 rounded-xl border border-emerald-300 text-emerald-300 hover:bg-emerald-300/10"
+                >
+                  UP
+                </button>
+                <button
+                  onClick={() => submitFeedback('down')}
+                  disabled={feedbackPending}
+                  className="px-3 py-2 rounded-xl border border-rose-300 text-rose-300 hover:bg-rose-300/10"
+                >
+                  Down
+                </button>
+                <div className="ml-auto text-sm text-white/60">This helps adjust Trust Flow</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* History modal (owner only) */}
+      {historyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/80" onClick={() => setHistoryOpen(false)} />
+          <div className="relative z-10 w-full max-w-xl mx-auto p-4">
+            <div className="card p-4 md:p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-white/90 font-medium">Change history</div>
+                <button onClick={() => setHistoryOpen(false)} className="text-white/60 hover:text-white">✕</button>
+              </div>
+              {historyItems.length === 0 ? (
+                <div className="text-white/60 text-sm">No history yet</div>
+              ) : (
+                <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
+                  {historyItems.map((it, idx) => (
+                    <HistoryRow key={idx} item={it} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Posts */}
       <div className="space-y-4">
         <h2 className="text-lg text-white/90">Posts</h2>
@@ -519,7 +675,7 @@ export default function PublicProfilePage() {
                   <span>🌱 {reactionsByPostId[p.id]?.growth ?? 0}</span>
                   <span>💎 {reactionsByPostId[p.id]?.value ?? 0}</span>
                   <span>🤝 {reactionsByPostId[p.id]?.with_you ?? 0}</span>
-                  <span className="ml-auto">Комментарии: {commentCounts[p.id] ?? 0}</span>
+                  <span className="ml-auto">Comments: {commentCounts[p.id] ?? 0}</span>
                 </div>
               </div>
             ) : (
@@ -540,7 +696,7 @@ export default function PublicProfilePage() {
                   <span>🌱 {reactionsByPostId[p.id]?.growth ?? 0}</span>
                   <span>💎 {reactionsByPostId[p.id]?.value ?? 0}</span>
                   <span>🤝 {reactionsByPostId[p.id]?.with_you ?? 0}</span>
-                  <span className="ml-auto">Комментарии: {commentCounts[p.id] ?? 0}</span>
+                  <span className="ml-auto">Comments: {commentCounts[p.id] ?? 0}</span>
                 </div>
               </div>
             )
@@ -580,6 +736,42 @@ function RecentSocialItem({ event }: { event: { kind: 'in' | 'out'; otherUserId:
         <span className="text-white/80">You followed <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link></span>
       )}
       <span className="ml-auto text-white/40">{event.created_at ? new Date(event.created_at).toLocaleString() : ''}</span>
+    </li>
+  );
+}
+
+function HistoryRow({ item }: { item: { author_id: string | null; value: number; comment: string | null; created_at?: string } }) {
+  const [user, setUser] = useState<{ username: string | null; avatar_url: string | null } | null>(null);
+  useEffect(() => {
+    (async () => {
+      if (!item.author_id) { setUser({ username: null, avatar_url: null }); return; }
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('user_id', item.author_id)
+          .maybeSingle();
+        setUser((data as any) || { username: null, avatar_url: null });
+      } catch {
+        setUser({ username: null, avatar_url: null });
+      }
+    })();
+  }, [item.author_id]);
+  const u = user?.username || (item.author_id ? item.author_id.slice(0, 8) : 'Anon');
+  const avatar = user?.avatar_url ||
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><rect width='100%' height='100%' fill='%23222'/></svg>";
+  const positive = (item.value || 0) > 0;
+  return (
+    <li className="flex items-center gap-3 px-3 py-2 text-sm">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={avatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10" />
+      <span className="text-white/80 truncate">
+        <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link>
+        {': '}
+        {positive ? 'UP' : 'Down'}
+      </span>
+      {item.comment && <span className="text-white/60 truncate"> - {item.comment}</span>}
+      <span className="ml-auto text-white/40">{item.created_at ? new Date(item.created_at).toLocaleString() : ''}</span>
     </li>
   );
 }

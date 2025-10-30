@@ -120,7 +120,7 @@ function ProfileSettings() {
         </div>
 
         <div>
-          <label className="label">Country — City</label>
+          <label className="label">Country - City</label>
           {/* Single searchable field that stores value as "City, Country" */}
           <CountryCitySelect
             value={profile.country || ''}
