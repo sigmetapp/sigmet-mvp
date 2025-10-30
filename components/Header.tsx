@@ -1,6 +1,6 @@
+"use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { supabase } from "@/lib/supabaseClient";
@@ -15,19 +15,22 @@ const navLinks = [
 export default function Header() {
   const { logo_url, site_name } = useSiteSettings();
   const [user, setUser] = useState<any>(null);
-  const router = useRouter();
+  const [pathname, setPathname] = useState<string>("");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
     const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null);
     });
+    setPathname(typeof window !== "undefined" ? window.location.pathname : "");
     return () => listener.subscription.unsubscribe();
   }, []);
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    router.push("/login");
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
   }
 
   return (
@@ -54,7 +57,7 @@ export default function Header() {
         {/* MAIN NAV */}
         <nav className="ml-auto flex items-center gap-1">
           {navLinks.map((l) => {
-            const active = router.pathname === l.href;
+            const active = pathname === l.href;
             return (
               <Link
                 key={l.href}
