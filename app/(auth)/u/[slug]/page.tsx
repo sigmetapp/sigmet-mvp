@@ -34,6 +34,9 @@ export default function PublicProfilePage() {
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [iFollow, setIFollow] = useState<boolean>(false);
+  const [followsMe, setFollowsMe] = useState<boolean>(false);
+  const [updatingFollow, setUpdatingFollow] = useState(false);
 
   const isMe = useMemo(() => {
     if (!viewerId || !profile) return false;
@@ -88,6 +91,43 @@ export default function PublicProfilePage() {
     })();
   }, [profile?.user_id]);
 
+  useEffect(() => {
+    if (!viewerId || !profile?.user_id || viewerId === profile.user_id) return;
+    (async () => {
+      try {
+        const [{ data: f1 }, { data: f2 }] = await Promise.all([
+          supabase.from('follows').select('followee_id').eq('follower_id', viewerId).eq('followee_id', profile.user_id).limit(1),
+          supabase.from('follows').select('follower_id').eq('followee_id', viewerId).eq('follower_id', profile.user_id).limit(1),
+        ]);
+        setIFollow(!!(f1 && (f1 as any[]).length > 0));
+        setFollowsMe(!!(f2 && (f2 as any[]).length > 0));
+      } catch {
+        setIFollow(false);
+        setFollowsMe(false);
+      }
+    })();
+  }, [viewerId, profile?.user_id]);
+
+  async function toggleFollow() {
+    if (!viewerId || !profile?.user_id || viewerId === profile.user_id) return;
+    setUpdatingFollow(true);
+    try {
+      if (!iFollow) {
+        const { error } = await supabase.from('follows').insert({ follower_id: viewerId, followee_id: profile.user_id });
+        if (!error) setIFollow(true);
+      } else {
+        const { error } = await supabase
+          .from('follows')
+          .delete()
+          .eq('follower_id', viewerId)
+          .eq('followee_id', profile.user_id);
+        if (!error) setIFollow(false);
+      }
+    } finally {
+      setUpdatingFollow(false);
+    }
+  }
+
   const GROWTH_AREAS = useMemo(
     () => [
       { id: 'health', emoji: '💚', title: 'Health' },
@@ -129,13 +169,21 @@ export default function PublicProfilePage() {
                 {!isMe && (
                   <div className="ml-auto flex gap-2">
                     <Button variant="secondary">Connections</Button>
-                    <Button variant="primary">Follow</Button>
+                    <Button variant={iFollow ? 'secondary' : 'primary'} onClick={toggleFollow} disabled={updatingFollow}>
+                      {iFollow ? 'Following' : 'Follow'}
+                    </Button>
                   </div>
                 )}
               </div>
               <div className="text-white/70 text-sm mt-1">
                 @{profile.username || profile.user_id.slice(0, 8)}{profile.country ? ` • ${profile.country}` : ''}
               </div>
+              {!isMe && (
+                <div className="mt-2 text-white/70 text-xs flex items-center gap-2">
+                  {followsMe && <span className="px-2 py-0.5 rounded-full border border-white/20">follows you</span>}
+                  {iFollow && <span className="px-2 py-0.5 rounded-full border border-white/20">you follow</span>}
+                </div>
+              )}
               {profile.bio && <p className="mt-3 text-white/90 leading-relaxed">{profile.bio}</p>}
 
               {!!profile.directions_selected?.length && (
