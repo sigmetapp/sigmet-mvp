@@ -160,14 +160,14 @@ begin
 
   -- Create table if missing (use detected type)
   if to_regclass('public.dms_message_receipts') is null then
-    execute format($$create table public.dms_message_receipts (
+    execute format($fmt$create table public.dms_message_receipts (
       message_id %s not null,
       user_id uuid not null references auth.users(id) on delete cascade,
       status text not null,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now(),
       primary key (message_id, user_id)
-    )$$, msg_id_type::text);
+    )$fmt$, msg_id_type::text);
   end if;
 
   -- Ensure message_id column exists with correct type if absent
