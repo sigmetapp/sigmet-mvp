@@ -124,7 +124,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       await client
         .from('dms_threads')
-        .update({ last_message_id: message.id, last_message_at: message.created_at, updated_at: new Date().toISOString() })
+        .update({ last_message_id: message.id, updated_at: new Date().toISOString() })
         .eq('id', threadId);
     } catch {}
 
