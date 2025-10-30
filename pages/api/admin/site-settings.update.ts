@@ -78,16 +78,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (Array.isArray(allowed_continents)) payload.allowed_continents = allowed_continents;
     if (logo_url !== undefined) payload.logo_url = logo_url;
 
-    // Try upsert; if the deployment's schema lacks new columns (like allowed_continents),
-    // Supabase can return a schema cache error. In that case, retry without that field.
+    // Try upsert; if the deployment's schema lacks new columns (like
+    // allowed_continents/invites_only), Supabase can return a schema cache error.
+    // In that case, retry without the missing fields for forward-compatibility.
     let { error: dbErr } = await admin.from('site_settings').upsert(payload, { onConflict: 'id' });
     if (dbErr) {
-      const message = dbErr?.message || '';
-      const mentionsMissingAllowedContinents =
-        message.includes("'allowed_continents'") && message.toLowerCase().includes('schema cache');
-      if (mentionsMissingAllowedContinents && 'allowed_continents' in payload) {
-        const retryPayload = { ...payload };
-        delete (retryPayload as any).allowed_continents;
+      const message = (dbErr?.message || '').toLowerCase();
+
+      const missingCols: string[] = [];
+      const candidates = ["allowed_continents", "invites_only"] as const;
+      for (const col of candidates) {
+        if (message.includes(`'${col}'`) && message.includes('schema cache') && col in payload) {
+          missingCols.push(col);
+        }
+      }
+
+      if (missingCols.length > 0) {
+        const retryPayload = { ...payload } as Record<string, any>;
+        for (const col of missingCols) delete retryPayload[col];
         const { error: retryErr } = await admin.from('site_settings').upsert(retryPayload, { onConflict: 'id' });
         if (retryErr) throw retryErr;
       } else {
