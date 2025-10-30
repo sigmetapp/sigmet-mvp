@@ -89,3 +89,37 @@ html.theme-light .text-dim { @apply text-black/40; }
   background-clip: text;
   color: transparent;
 }
+
+/*
+  Light theme overrides for legacy white-tailwind utilities
+  This ensures existing pages with text-white/bg-white/border-white remain readable on white background
+*/
+html.theme-light [class*="text-white"] {
+  color: rgb(14 21 38) !important; /* #0e1526 */
+}
+/* Preserve different opacities when possible */
+html.theme-light .text-white\/90 { color: rgb(0 0 0 / 0.90) !important; }
+html.theme-light .text-white\/80 { color: rgb(0 0 0 / 0.80) !important; }
+html.theme-light .text-white\/70 { color: rgb(0 0 0 / 0.70) !important; }
+html.theme-light .text-white\/60 { color: rgb(0 0 0 / 0.60) !important; }
+html.theme-light .text-white\/50 { color: rgb(0 0 0 / 0.50) !important; }
+
+/* Background tints */
+html.theme-light .bg-white\/5  { background-color: rgb(0 0 0 / 0.05) !important; }
+html.theme-light .bg-white\/10 { background-color: rgb(0 0 0 / 0.10) !important; }
+html.theme-light .hover\:bg-white\/10:hover { background-color: rgb(0 0 0 / 0.10) !important; }
+
+/* Borders */
+html.theme-light .border-white\/10 { border-color: rgb(0 0 0 / 0.10) !important; }
+html.theme-light .border-white\/20 { border-color: rgb(0 0 0 / 0.20) !important; }
+html.theme-light .border-white\/30 { border-color: rgb(0 0 0 / 0.30) !important; }
+
+/* Placeholders */
+html.theme-light .placeholder-white\/40::placeholder { color: rgb(0 0 0 / 0.40) !important; }
+
+/* Specific hardcoded dark surfaces used in menus/popovers */
+html.theme-light .bg-\[\#0f1628\] { background-color: #ffffff !important; }
+html.theme-light .text-\[\#0f1628\] { color: rgb(14 21 38) !important; }
+html.theme-light .bg-\[\#0b1220\] { background-color: #ffffff !important; }
+html.theme-light .text-\[\#e5edf7\] { color: rgb(14 21 38) !important; }
+
