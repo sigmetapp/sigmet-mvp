@@ -1,6 +1,5 @@
 "use client";
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { supabase } from "@/lib/supabaseClient";
@@ -39,7 +38,8 @@ export default function Header() {
         {/* LOGO + TITLE */}
         <Link href="/" className="flex items-center gap-2 group">
           {logo_url ? (
-            <Image
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
               src={logo_url}
               alt="Logo"
               width={36}

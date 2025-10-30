@@ -88,24 +88,25 @@ export default function LoginPage() {
     e.preventDefault();
     setForgotMsg(null);
     setError(null);
-    if (!identifier.trim()) {
-      setForgotMsg('Please enter your email or username.');
+    const value = identifier.trim();
+    if (!value) {
+      setForgotMsg('Please enter your email.');
+      return;
+    }
+    if (!value.includes('@')) {
+      setForgotMsg('Please enter the email associated with your account.');
       return;
     }
     setForgotPending(true);
     try {
-      const resp = await fetch('/api/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: identifier.trim() }),
+      const origin = process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin;
+      const { error } = await supabase.auth.resetPasswordForEmail(value, {
+        redirectTo: `${origin}/auth/reset`,
       });
-      const json = await resp.json();
-      if (!resp.ok || json?.ok === false) {
-        throw new Error(json?.message || 'Failed to reset password');
-      }
-      setForgotMsg('If the account exists, a temporary password has been emailed.');
+      if (error) throw error;
+      setForgotMsg('If the account exists, a reset link has been sent.');
     } catch (e: any) {
-      setForgotMsg(e?.message || 'Failed to reset password');
+      setForgotMsg(e?.message || 'Failed to send reset link');
     } finally {
       setForgotPending(false);
     }
