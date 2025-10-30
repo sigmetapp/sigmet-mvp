@@ -35,6 +35,8 @@ type Comment = {
 };
 
 function FeedInner() {
+  const AVATAR_FALLBACK =
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const [text, setText] = useState("");
   const [img, setImg] = useState<File | null>(null);
   const [vid, setVid] = useState<File | null>(null);
@@ -636,7 +638,7 @@ function FeedInner() {
                 <div className="flex items-center gap-3 min-w-0">
                   {(() => {
                     const prof = p.user_id ? profilesByUserId[p.user_id] : undefined;
-                    const avatar = prof?.avatar_url || "/avatar-fallback.png";
+                    const avatar = prof?.avatar_url || AVATAR_FALLBACK;
                     const username = prof?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
                     return (
                       <>
@@ -807,7 +809,7 @@ function FeedInner() {
                               <div className="flex items-center gap-2 min-w-0">
                                 {(() => {
                                   const prof = c.user_id ? commenterProfiles[c.user_id] : undefined;
-                                  const avatar = prof?.avatar_url || "/avatar-fallback.png";
+                                  const avatar = prof?.avatar_url || AVATAR_FALLBACK;
                                   const username = prof?.username || (c.user_id ? c.user_id.slice(0, 8) : "Anon");
                                   return (
                                     <>

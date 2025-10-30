@@ -14,6 +14,8 @@ export default function ProfilePage() {
 }
 
 function ProfileSettings() {
+  const AVATAR_FALLBACK =
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -57,10 +59,18 @@ function ProfileSettings() {
     const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
     if (upErr) { setNote(upErr.message); return; }
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-    setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }));
+    // Persist to DB immediately so other pages (public profile, feed, comments) see it
+    try {
+      await supabase.from('profiles').upsert({ user_id: user.id, avatar_url: data.publicUrl }, { onConflict: 'user_id' });
+      setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }));
+      setNote('Avatar updated');
+    } catch (e: any) {
+      setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }));
+      setNote('Avatar uploaded, but failed to save profile');
+    }
   }
 
-  if (loading) return <div className="p-6 text.white/70">Loading...</div>;
+  if (loading) return <div className="p-6 text-white/70">Loading...</div>;
 
   return (
     <main className="max-w-2xl mx-auto p-6">
@@ -69,7 +79,7 @@ function ProfileSettings() {
 
         <div className="flex items-center gap-4">
           <img
-            src={profile.avatar_url || '/avatar-fallback.png'}
+            src={profile.avatar_url || AVATAR_FALLBACK}
             className="w-16 h-16 rounded-full object-cover"
             alt="avatar"
           />

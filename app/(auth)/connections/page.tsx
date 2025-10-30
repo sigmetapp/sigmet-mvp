@@ -34,6 +34,8 @@ export default function ConnectionsPage() {
 }
 
 function ConnectionsInner() {
+  const AVATAR_FALLBACK =
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const [meId, setMeId] = useState<string | null>(null);
   const [meUsername, setMeUsername] = useState<string | null>(null);
 
@@ -226,7 +228,7 @@ function ConnectionsInner() {
             const p = profiles[c.userId];
             const displayName = p?.full_name || p?.username || c.userId.slice(0, 8);
             const username = p?.username || c.userId.slice(0, 8);
-            const avatar = p?.avatar_url || "/avatar-fallback.png";
+            const avatar = p?.avatar_url || AVATAR_FALLBACK;
             const strength = c.mentionsInPosts + (c.mentionsInProfile ? 1 : 0);
             const percent = Math.max(8, Math.round((strength / maxStrength) * 100));
             const iFollow = myFollowing.has(c.userId);
@@ -280,7 +282,7 @@ function ConnectionsInner() {
               <div className="flex flex-wrap gap-2">
                 {Array.from(myFollowers).slice(0, 12).map((uid) => {
                   const p = profiles[uid];
-                  const avatar = p?.avatar_url || "/avatar-fallback.png";
+                  const avatar = p?.avatar_url || AVATAR_FALLBACK;
                   return <img key={uid} src={avatar} alt="" className="h-8 w-8 rounded-full border border-white/10" />;
                 })}
               </div>
@@ -294,7 +296,7 @@ function ConnectionsInner() {
               <div className="flex flex-wrap gap-2">
                 {Array.from(myFollowing).slice(0, 12).map((uid) => {
                   const p = profiles[uid];
-                  const avatar = p?.avatar_url || "/avatar-fallback.png";
+                  const avatar = p?.avatar_url || AVATAR_FALLBACK;
                   return <img key={uid} src={avatar} alt="" className="h-8 w-8 rounded-full border border-white/10" />;
                 })}
               </div>

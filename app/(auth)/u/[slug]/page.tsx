@@ -28,6 +28,8 @@ type Post = {
 };
 
 export default function PublicProfilePage() {
+  const AVATAR_FALLBACK =
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const params = useParams<{ slug: string }>();
   const slug = params?.slug as string;
   const router = useRouter();
@@ -201,7 +203,7 @@ export default function PublicProfilePage() {
         ) : (
           <div className="flex items-start gap-4">
             <img
-              src={profile.avatar_url || '/avatar-fallback.png'}
+              src={profile.avatar_url || AVATAR_FALLBACK}
               alt="avatar"
               className="h-16 w-16 rounded-full object-cover border border-white/10"
             />

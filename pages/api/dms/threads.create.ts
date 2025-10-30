@@ -38,8 +38,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ ok: false, error: 'blocked' });
       }
       const { data, error } = await client.rpc('ensure_1on1_thread', { a, b }).maybeSingle();
-      if (error) return res.status(400).json({ ok: false, error: error.message });
-      return res.status(200).json({ ok: true, thread: data });
+      if (!error) return res.status(200).json({ ok: true, thread: data });
+
+      // Fallback path if RPC is missing in the database
+      // Postgres undefined_function code is 42883; also match message text just in case
+      const errMsg = (error.message || '').toLowerCase();
+      const looksMissing = (error as any)?.code === '42883' || errMsg.includes('ensure_1on1_thread');
+      if (looksMissing) {
+        // Try to find an existing 1:1 thread by intersecting participant thread ids
+        const [aList, bList] = await Promise.all([
+          execOrFetch(client.from('dms_thread_participants').select('thread_id').eq('user_id', a)),
+          execOrFetch(client.from('dms_thread_participants').select('thread_id').eq('user_id', b)),
+        ]);
+        const aIds = new Set(((aList.data as any[]) || []).map((r) => Number(r.thread_id)));
+        const bIds = new Set(((bList.data as any[]) || []).map((r) => Number(r.thread_id)));
+        const both: number[] = [];
+        for (const id of aIds) if (bIds.has(id)) both.push(id);
+        if (both.length > 0) {
+          const { data: existing } = await client
+            .from('dms_threads')
+            .select('*')
+            .in('id', both)
+            .eq('is_group', false)
+            .order('id', { ascending: false })
+            .maybeSingle();
+          if (existing) return res.status(200).json({ ok: true, thread: existing });
+        }
+
+        // Create new thread and add participants
+        const { data: thread, error: tErr } = await client
+          .from('dms_threads')
+          .insert({ created_by: a, is_group: false })
+          .select('*')
+          .single();
+        if (tErr || !thread) return res.status(400).json({ ok: false, error: tErr?.message || 'Failed to create thread' });
+
+        const rows = [
+          { thread_id: thread.id, user_id: a, role: 'owner' },
+          { thread_id: thread.id, user_id: b, role: 'member' },
+        ];
+        const { error: pErr } = await client.from('dms_thread_participants').insert(rows);
+        if (pErr) return res.status(400).json({ ok: false, error: pErr.message });
+
+        return res.status(200).json({ ok: true, thread });
+      }
+
+      return res.status(400).json({ ok: false, error: error.message });
     }
 
     // Group thread creation
