@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
@@ -46,6 +46,21 @@ export default function PublicProfilePage() {
   const [followersCount, setFollowersCount] = useState<number>(0);
   const [followingCount, setFollowingCount] = useState<number>(0);
   const [referralsCount, setReferralsCount] = useState<number>(0);
+  const [recentSocial, setRecentSocial] = useState<
+    { kind: 'in' | 'out'; otherUserId: string; created_at?: string }[]
+  >([]);
+
+  // comment/reaction stats for posts
+  type ReactionKind = 'growth' | 'value' | 'with_you';
+  const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
+  const [reactionsByPostId, setReactionsByPostId] = useState<
+    Record<number, { growth: number; value: number; with_you: number }>
+  >({});
+  const [viewsByPostId, setViewsByPostId] = useState<Record<number, number>>({});
+
+  // avatar upload (own profile)
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const isMe = useMemo(() => {
     if (!viewerId || !profile) return false;
@@ -105,6 +120,80 @@ export default function PublicProfilePage() {
       setLoadingPosts(false);
     })();
   }, [profile?.user_id]);
+
+  // Load recent follow actions (last 5)
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('follows')
+          .select('follower_id, followee_id, created_at')
+          .or(`follower_id.eq.${profile.user_id},followee_id.eq.${profile.user_id}`)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        const rows = (data as any[]) || [];
+        const mapped: { kind: 'in' | 'out'; otherUserId: string; created_at?: string }[] = [];
+        for (const r of rows) {
+          if (r.followee_id === profile.user_id) {
+            mapped.push({ kind: 'in', otherUserId: r.follower_id as string, created_at: r.created_at });
+          } else if (r.follower_id === profile.user_id) {
+            mapped.push({ kind: 'out', otherUserId: r.followee_id as string, created_at: r.created_at });
+          }
+        }
+        setRecentSocial(mapped);
+      } catch {
+        setRecentSocial([]);
+      }
+    })();
+  }, [profile?.user_id]);
+
+  // Load engagement stats for visible posts
+  useEffect(() => {
+    if (posts.length === 0) return;
+    (async () => {
+      try {
+        const ids = posts.map((p) => p.id);
+        // comments
+        try {
+          const { data } = await supabase.from('comments').select('post_id').in('post_id', ids);
+          const counts: Record<number, number> = {};
+          for (const row of ((data as any[]) || [])) {
+            const pid = row.post_id as number;
+            counts[pid] = (counts[pid] || 0) + 1;
+          }
+          setCommentCounts(counts);
+        } catch {
+          // ignore
+        }
+
+        // reactions
+        try {
+          const { data } = await supabase
+            .from('post_reactions')
+            .select('post_id, kind')
+            .in('post_id', ids);
+          const counts: Record<number, { growth: number; value: number; with_you: number }> = {};
+          for (const r of ((data as any[]) || [])) {
+            const pid = r.post_id as number;
+            const kind = r.kind as ReactionKind;
+            if (!counts[pid]) counts[pid] = { growth: 0, value: 0, with_you: 0 };
+            if (kind in counts[pid]) (counts[pid] as any)[kind] += 1;
+          }
+          setReactionsByPostId(counts);
+        } catch {
+          // ignore
+        }
+
+        // views (if present on posts rows)
+        const vmap: Record<number, number> = {};
+        for (const p of posts) vmap[p.id] = (p as any).views ?? 0;
+        setViewsByPostId(vmap);
+      } catch {
+        // ignore all
+      }
+    })();
+  }, [posts]);
 
   useEffect(() => {
     if (!viewerId || !profile?.user_id || viewerId === profile.user_id) return;
@@ -174,6 +263,30 @@ export default function PublicProfilePage() {
     }
   }
 
+  async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !isMe) return;
+    setAvatarUploading(true);
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const me = auth.user?.id;
+      if (!me) return;
+      const path = `${me}/avatar.png`;
+      const bucket = supabase.storage.from('avatars');
+      const { error: upErr } = await bucket.upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data } = bucket.getPublicUrl(path);
+      const url = data.publicUrl;
+      await supabase.from('profiles').upsert({ user_id: me, avatar_url: url }, { onConflict: 'user_id' });
+      setProfile((p) => (p ? { ...p, avatar_url: url } : p));
+    } catch (e) {
+      // no-op
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  }
+
   const GROWTH_AREAS = useMemo(
     () => [
       { id: 'health', emoji: '💚', title: 'Health' },
@@ -202,17 +315,43 @@ export default function PublicProfilePage() {
           <div className="text-white/70">Profile not found</div>
         ) : (
           <div className="flex items-start gap-4">
-            <img
-              src={profile.avatar_url || AVATAR_FALLBACK}
-              alt="avatar"
-              className="h-16 w-16 rounded-full object-cover border border-white/10"
-            />
+            <div className="relative">
+              <img
+                src={profile.avatar_url || AVATAR_FALLBACK}
+                alt="avatar"
+                className="h-16 w-16 rounded-full object-cover border border-white/10"
+              />
+              {isMe && (
+                <>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={onPickAvatar}
+                  />
+                  <button
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="absolute -bottom-1 -right-1 h-7 px-2 rounded-full text-xs border border-white/20 bg-white/10 hover:bg-white/20 backdrop-blur"
+                    disabled={avatarUploading}
+                  >
+                    {avatarUploading ? '...' : 'Edit'}
+                  </button>
+                </>
+              )}
+            </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl font-semibold text-white truncate">
                   {profile.full_name || profile.username || profile.user_id.slice(0, 8)}
                 </h1>
-                {!isMe && (
+                {isMe ? (
+                  <div className="ml-auto">
+                    <Link href="/profile" className="px-3 py-1.5 rounded-lg text-sm border border-white/20 text-white/80 hover:bg-white/10">
+                      Edit
+                    </Link>
+                  </div>
+                ) : (
                   <div className="ml-auto flex gap-2">
                     <Button variant="secondary">Connections</Button>
                     <Button variant={iFollow ? 'secondary' : 'primary'} onClick={toggleFollow} disabled={updatingFollow}>
@@ -245,23 +384,27 @@ export default function PublicProfilePage() {
               )}
               {/* SW indicator */}
               <div className="mt-4">
-                <div className="flex items-center justify-between text-white/80 text-sm mb-1">
-                  <div>Social Weight</div>
-                  <div>75/100</div>
-                </div>
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full w-[75%] bg-white/70"></div>
+                <div className="rounded-2xl border border-white/15 bg-white/5 p-3">
+                  <div className="flex items-center justify-between text-white/80 text-sm mb-2">
+                    <div className="font-medium">Social Weight</div>
+                    <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80">75/100</div>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full w-[75%] bg-gradient-to-r from-white to-white/70"></div>
+                  </div>
+                  <div className="mt-2 text-xs text-white/60">В разработке — вскоре будет работать</div>
                 </div>
               </div>
 
-              {/* Selected directions: icons */}
+              {/* Selected directions: icons + labels */}
               {!!profile.directions_selected?.length && (
-                <div className="mt-4 flex items-center gap-3">
+                <div className="mt-4 flex items-center gap-3 flex-wrap">
                   {profile.directions_selected.slice(0, 3).map((id) => {
                     const meta = GROWTH_AREAS.find((a) => a.id === id);
+                    const label = meta ? `${meta.emoji} ${meta.title}` : id;
                     return (
-                      <span key={id} className="text-2xl" aria-label={meta?.title || id} title={meta?.title || id}>
-                        {meta?.emoji || '⭐'}
+                      <span key={id} className="px-3 py-1.5 rounded-full text-sm border border-white/20 text-white/90">
+                        {label}
                       </span>
                     );
                   })}
@@ -320,7 +463,7 @@ export default function PublicProfilePage() {
       {/* Social block */}
       {!loadingProfile && profile && (
         <div className="card p-4 md:p-6">
-          <div className="flex flex-wrap items-center gap-6">
+          <div className="flex flex-wrap items-start gap-6">
             <div>
               <div className="text-white/60 text-sm">Following</div>
               <div className="text-white text-lg font-medium">{followingCount}</div>
@@ -334,6 +477,20 @@ export default function PublicProfilePage() {
               <div className="text-white text-lg font-medium">{referralsCount}</div>
             </div>
           </div>
+
+          {/* Recent social actions */}
+          <div className="mt-4">
+            <div className="text-white/70 text-sm mb-2">Последние действия (5)</div>
+            {recentSocial.length === 0 ? (
+              <div className="text-white/50 text-sm">Нет последних действий</div>
+            ) : (
+              <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
+                {recentSocial.map((ev, i) => (
+                  <RecentSocialItem key={i} event={ev} />
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 
@@ -346,23 +503,83 @@ export default function PublicProfilePage() {
           <div className="text-white/70">No posts yet</div>
         ) : (
           posts.map((p) => (
-            <div key={p.id} className="card p-4 md:p-5 space-y-3">
-              <div className="text-xs text-white/60">
-                {new Date(p.created_at).toLocaleString()}
+            isMe ? (
+              // My page: compact post with stats summary
+              <div key={p.id} className="card p-4 md:p-5 space-y-3">
+                <div className="text-xs text-white/60">{new Date(p.created_at).toLocaleString()}</div>
+                {p.body && <div className="text-white/90 whitespace-pre-wrap">{p.body}</div>}
+                {p.image_url && <img src={p.image_url} alt="" className="rounded-2xl border border-white/10" />}
+                {p.video_url && (
+                  <video controls className="w-full rounded-2xl border border-white/10">
+                    <source src={p.video_url} />
+                  </video>
+                )}
+                <div className="flex items-center gap-4 text-sm text-white/70 pt-1">
+                  <span>👁️ {viewsByPostId[p.id] ?? 0}</span>
+                  <span>🌱 {reactionsByPostId[p.id]?.growth ?? 0}</span>
+                  <span>💎 {reactionsByPostId[p.id]?.value ?? 0}</span>
+                  <span>🤝 {reactionsByPostId[p.id]?.with_you ?? 0}</span>
+                  <span className="ml-auto">Комментарии: {commentCounts[p.id] ?? 0}</span>
+                </div>
               </div>
-              {p.body && <div className="text-white/90 whitespace-pre-wrap">{p.body}</div>}
-              {p.image_url && (
-                <img src={p.image_url} alt="" className="rounded-2xl border border-white/10" />
-              )}
-              {p.video_url && (
-                <video controls className="w-full rounded-2xl border border-white/10">
-                  <source src={p.video_url} />
-                </video>
-              )}
-            </div>
+            ) : (
+              // Others' page: feed-like card
+              <div key={p.id} className="card card-glow p-4 md:p-6 space-y-4">
+                <div className="flex items-center justify-between text-xs text-white/60">
+                  <span>{new Date(p.created_at).toLocaleString()}</span>
+                  <span className="flex items-center gap-1">👁️ {viewsByPostId[p.id] ?? 0}</span>
+                </div>
+                {p.body && <div className="text-white/90 whitespace-pre-wrap">{p.body}</div>}
+                {p.image_url && <img src={p.image_url} alt="" className="rounded-2xl border border-white/10" />}
+                {p.video_url && (
+                  <video controls className="w-full rounded-2xl border border-white/10">
+                    <source src={p.video_url} />
+                  </video>
+                )}
+                <div className="flex items-center gap-3 text-sm text-white/80">
+                  <span>🌱 {reactionsByPostId[p.id]?.growth ?? 0}</span>
+                  <span>💎 {reactionsByPostId[p.id]?.value ?? 0}</span>
+                  <span>🤝 {reactionsByPostId[p.id]?.with_you ?? 0}</span>
+                  <span className="ml-auto">Комментарии: {commentCounts[p.id] ?? 0}</span>
+                </div>
+              </div>
+            )
           ))
         )}
       </div>
     </div>
+  );
+}
+
+function RecentSocialItem({ event }: { event: { kind: 'in' | 'out'; otherUserId: string; created_at?: string } }) {
+  const [profile, setProfile] = useState<{ username: string | null; avatar_url: string | null } | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('user_id', event.otherUserId)
+          .maybeSingle();
+        setProfile((data as any) || { username: null, avatar_url: null });
+      } catch {
+        setProfile({ username: null, avatar_url: null });
+      }
+    })();
+  }, [event.otherUserId]);
+  const u = profile?.username || event.otherUserId.slice(0, 8);
+  const avatar = profile?.avatar_url ||
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><rect width='100%' height='100%' fill='%23222'/></svg>";
+  return (
+    <li className="flex items-center gap-3 px-3 py-2 text-sm">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={avatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10" />
+      {event.kind === 'in' ? (
+        <span className="text-white/80">Новый фолловер: <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link></span>
+      ) : (
+        <span className="text-white/80">Вы подписались на <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link></span>
+      )}
+      <span className="ml-auto text-white/40">{event.created_at ? new Date(event.created_at).toLocaleString() : ''}</span>
+    </li>
   );
 }
