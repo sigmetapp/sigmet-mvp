@@ -6,7 +6,7 @@ export default async function MessagesPage() {
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-white">Сообщения</h1>
+        <h1 className="text-2xl font-semibold text-white">Messages</h1>
       </div>
       <DmPageClient currentUserId={user?.id || ''} />
     </div>

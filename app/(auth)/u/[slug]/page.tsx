@@ -581,7 +581,7 @@ export default function PublicProfilePage() {
                   <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                     <div className="h-full w-[75%] bg-white/80"></div>
                   </div>
-                  <div className="mt-2 text-xs text-white/60">Показатель в разработке, вскоре будет работать</div>
+                  <div className="mt-2 text-xs text-white/60">This metric is in development and will be available soon</div>
                 </div>
               </div>
 
@@ -655,18 +655,18 @@ export default function PublicProfilePage() {
               </div>
             </div>
             <div className="flex-1 min-w-[200px]">
-              <div className="text-white/70 text-sm mb-2">Последние действия</div>
+              <div className="text-white/70 text-sm mb-2">Recent activity</div>
               {recentActivities.length === 0 ? (
-                <div className="text-white/50 text-sm">Нет недавней активности</div>
+                <div className="text-white/50 text-sm">No recent activity</div>
               ) : (
                 <ul className="space-y-1">
                   {recentActivities.map((a, idx) => (
                     <li key={idx} className="text-white/80 text-sm flex items-center justify-between">
                       <span>
                         {a.kind === 'in' ? (
-                          <>Новый подписчик: <span className="text-white">{a.otherName}</span></>
+                          <>New follower: <span className="text-white">{a.otherName}</span></>
                         ) : (
-                          <>Вы подписались на <span className="text-white">{a.otherName}</span></>
+                          <>You followed <span className="text-white">{a.otherName}</span></>
                         )}
                       </span>
                       <span className="text-white/40 text-xs">{new Date(a.created_at).toLocaleString()}</span>
@@ -703,9 +703,9 @@ export default function PublicProfilePage() {
                   </video>
                 )}
                 <div className="pt-2 flex items-center gap-5 text-white/80">
-                  <div className="text-sm">Просмотры: <span className="text-white">{p.views ?? 0}</span></div>
-                  <div className="text-sm">Реакции: <span className="text-white">{reactionsTotal}</span></div>
-                  <div className="text-sm">Комментарии: <span className="text-white">{commentsTotal}</span></div>
+                  <div className="text-sm">Views: <span className="text-white">{p.views ?? 0}</span></div>
+                  <div className="text-sm">Reactions: <span className="text-white">{reactionsTotal}</span></div>
+                  <div className="text-sm">Comments: <span className="text-white">{commentsTotal}</span></div>
                 </div>
               </div>
             );
@@ -795,7 +795,7 @@ export default function PublicProfilePage() {
                     }
                   }}
                 >
-                  Комментарии ({commentCounts[p.id] ?? 0})
+                  Comments ({commentCounts[p.id] ?? 0})
                 </button>
               </div>
 

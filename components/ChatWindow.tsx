@@ -323,7 +323,7 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
             <div className="text-xs text-white/60 flex items-center gap-2">
               <span className={`inline-block h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-white/30'}`} />
               {isOnline ? 'online' : 'offline'}
-              {isTypingOther && <span className="ml-2 text-white/70">печатает…</span>}
+              {isTypingOther && <span className="ml-2 text-white/70">is typing…</span>}
             </div>
           </div>
         </div>
@@ -431,7 +431,7 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
           <button
             type="button"
             className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10"
-            title="Прикрепить фото/видео"
+            title="Attach image/video"
             onClick={() => fileInputRef.current?.click()}
           >
             📎
@@ -447,13 +447,13 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
                 void send();
               }
             }}
-            placeholder="Напишите сообщение…"
+            placeholder="Write a message…"
           />
           <div className="relative">
             <button
               type="button"
               className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10"
-              title="Эмодзи"
+              title="Emoji"
               onClick={() => setShowEmojiPicker((v) => !v)}
             >
               😀
@@ -478,7 +478,7 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
           <button
             className="btn btn-primary rounded-xl px-3 py-2"
             onClick={send}
-            title="Отправить"
+            title="Send"
           >
             ✈️
           </button>
