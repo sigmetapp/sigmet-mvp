@@ -319,7 +319,7 @@ export default function PublicProfilePage() {
               <img
                 src={profile.avatar_url || AVATAR_FALLBACK}
                 alt="avatar"
-                className="h-16 w-16 rounded-full object-cover border border-white/10"
+                className="h-40 w-40 rounded-full object-cover border border-white/10"
               />
               {isMe && (
                 <>
@@ -390,9 +390,9 @@ export default function PublicProfilePage() {
                     <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80">75/100</div>
                   </div>
                   <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full w-[75%] bg-gradient-to-r from-white to-white/70"></div>
+                    <div className="h-full w-[75%]" style={{ background: 'linear-gradient(90deg,#00ffc8,#7affc0)' }}></div>
                   </div>
-                  <div className="mt-2 text-xs text-white/60">В разработке — вскоре будет работать</div>
+                  <div className="mt-2 text-xs text-white/60">In development, coming soon</div>
                 </div>
               </div>
 
