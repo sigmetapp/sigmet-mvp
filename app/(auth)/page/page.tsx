@@ -7,10 +7,8 @@ export default async function MyPage() {
   // Layout already enforces auth, but double-guard
   if (!user) redirect('/login');
 
-  // Try to resolve profile username; fall back to metadata or user id
-  let slug: string =
-    (user.user_metadata as any)?.username || user.email || user.id;
-
+  // Resolve profile username; if missing, send user to profile setup
+  let username: string | null = null;
   try {
     const admin = supabaseAdmin();
     const { data } = await admin
@@ -18,11 +16,14 @@ export default async function MyPage() {
       .select('username')
       .eq('user_id', user.id)
       .maybeSingle();
-    if (data?.username) slug = data.username;
-    else if (!slug) slug = user.id;
+    if (data?.username && String(data.username).trim() !== '') username = data.username as string;
   } catch {
-    // ignore and use fallback slug
+    // ignore
   }
 
-  redirect(`/u/${encodeURIComponent(slug)}`);
+  if (!username) {
+    redirect('/profile');
+  }
+
+  redirect(`/u/${encodeURIComponent(username!)}`);
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
 
@@ -27,6 +27,7 @@ type Post = {
 export default function PublicProfilePage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug as string;
+  const router = useRouter();
 
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -52,29 +53,35 @@ export default function PublicProfilePage() {
     if (!slug) return;
     (async () => {
       setLoadingProfile(true);
-      // Try by username first
-      let target: Profile | null = null;
-      {
+      // If slug looks like a UUID, resolve by id and redirect to username
+      const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slug);
+      if (uuidLike) {
         const { data } = await supabase
           .from('profiles')
-          .select('user_id, username, full_name, bio, country, avatar_url, directions_selected')
-          .eq('username', slug)
-          .maybeSingle();
-        if (data) target = data as unknown as Profile;
-      }
-      // Fallback by user_id
-      if (!target) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('user_id, username, full_name, bio, country, avatar_url, directions_selected')
+          .select('user_id, username')
           .eq('user_id', slug)
           .maybeSingle();
-        if (data) target = data as unknown as Profile;
+        const prof = (data as unknown as Profile) || null;
+        if (prof?.username && prof.username.trim() !== '') {
+          router.replace(`/u/${encodeURIComponent(prof.username)}`);
+          return; // keep loading until navigation
+        }
+        // No username – treat as not found
+        setProfile(null);
+        setLoadingProfile(false);
+        return;
       }
-      setProfile(target);
+
+      // Otherwise, resolve strictly by username
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id, username, full_name, bio, country, avatar_url, directions_selected')
+        .eq('username', slug)
+        .maybeSingle();
+      setProfile(((data as unknown) as Profile) || null);
       setLoadingProfile(false);
     })();
-  }, [slug]);
+  }, [slug, router]);
 
   useEffect(() => {
     if (!profile?.user_id) return;
