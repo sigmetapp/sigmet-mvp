@@ -10,7 +10,12 @@ alter table if exists public.dms_messages_2
 
 -- Backfill nulls to 'text' to satisfy not-null
 update public.dms_messages set kind = 'text' where kind is null;
-update public.dms_messages_2 set kind = 'text' where kind is null;
+do $$
+begin
+  if to_regclass('public.dms_messages_2') is not null then
+    update public.dms_messages_2 set kind = 'text' where kind is null;
+  end if;
+end$$;
 
 -- Enforce not-null and default
 alter table if exists public.dms_messages
