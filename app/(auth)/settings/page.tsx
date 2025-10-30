@@ -19,6 +19,7 @@ function SettingsInner() {
   const [continents, setContinents] = useState<string[]>(Array.isArray(allowed_continents) ? allowed_continents! : []);
   const [users, setUsers] = useState<any[] | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [usernames, setUsernames] = useState<Record<string, string>>({});
   const [stats, setStats] = useState<any | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -101,7 +102,29 @@ function SettingsInner() {
       const resp = await fetch('/api/admin/users.list');
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Failed to load users');
-      setUsers(json.users || []);
+      const list = json.users || [];
+      setUsers(list);
+      // Load usernames for these users so we can link to /u/{username}
+      try {
+        const ids: string[] = list.map((u: any) => u.id).filter(Boolean);
+        if (ids.length > 0) {
+          const { data } = await supabase
+            .from('profiles')
+            .select('user_id, username')
+            .in('user_id', ids);
+          const map: Record<string, string> = {};
+          for (const row of ((data as any[]) || [])) {
+            if (row?.user_id && row?.username && String(row.username).trim() !== '') {
+              map[row.user_id as string] = row.username as string;
+            }
+          }
+          setUsernames(map);
+        } else {
+          setUsernames({});
+        }
+      } catch {
+        setUsernames({});
+      }
     } catch (e) {
       setUsers([]);
     } finally {
@@ -236,13 +259,17 @@ function SettingsInner() {
               <div key={u.id} className="flex items-center justify-between px-3 py-2">
                 <div className="text-white/80 text-sm">
                   <div>
-                    <a
-                      href={`/u/${u.id}`}
-                      className="text-white/90 hover:underline hover:text-white"
-                      title="Open profile"
-                    >
-                      {u.email || '(no email)'}
-                    </a>
+                    {usernames[u.id] ? (
+                      <a
+                        href={`/u/${usernames[u.id]}`}
+                        className="text-white/90 hover:underline hover:text-white"
+                        title="Open profile"
+                      >
+                        {u.email || '(no email)'}
+                      </a>
+                    ) : (
+                      <span className="text-white/90">{u.email || '(no email)'}</span>
+                    )}
                   </div>
                   <div className="text-white/50 text-xs">{new Date(u.created_at).toLocaleString()}</div>
                 </div>
