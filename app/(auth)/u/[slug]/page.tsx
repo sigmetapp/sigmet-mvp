@@ -130,6 +130,24 @@ export default function PublicProfilePage() {
     })();
   }, [profile?.user_id]);
 
+  // Load Trust Flow score based on feedback logs
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('trust_feedback')
+          .select('value')
+          .eq('target_user_id', profile.user_id);
+        const sum = ((data as any[]) || []).reduce((acc, r) => acc + (Number(r.value) || 0), 0);
+        const rating = Math.max(0, Math.min(120, 80 + sum * 2));
+        setTrustScore(rating);
+      } catch {
+        setTrustScore(80);
+      }
+    })();
+  }, [profile?.user_id]);
+
   // Load recent follow actions (last 5)
   useEffect(() => {
     if (!profile?.user_id) return;
@@ -321,8 +339,16 @@ export default function PublicProfilePage() {
       } catch {}
       setFeedbackOpen(false);
       setFeedbackText('');
-      // optimistic: adjust local score slightly
-      setTrustScore((s) => Math.max(0, Math.min(120, s + (kind === 'up' ? 2 : -2))));
+      // recompute from DB
+      try {
+        const { data } = await supabase
+          .from('trust_feedback')
+          .select('value')
+          .eq('target_user_id', profile.user_id);
+        const sum = ((data as any[]) || []).reduce((acc, r) => acc + (Number(r.value) || 0), 0);
+        const rating = Math.max(0, Math.min(120, 80 + sum * 2));
+        setTrustScore(rating);
+      } catch {}
     } finally {
       setFeedbackPending(false);
     }

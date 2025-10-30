@@ -125,3 +125,18 @@ alter table public.site_settings enable row level security;
 create policy if not exists "read site_settings" on public.site_settings for select using (true);
 -- Updates typically happen via service role in server API; allow authenticated users noop by default
 create policy if not exists "update site_settings_via_service" on public.site_settings for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+
+-- Trust Flow feedback logs
+create table if not exists public.trust_feedback (
+  id bigserial primary key,
+  target_user_id uuid not null references auth.users(id) on delete cascade,
+  author_id uuid references auth.users(id) on delete set null,
+  value int not null check (value in (-1, 1)),
+  comment text,
+  created_at timestamptz default now()
+);
+create index if not exists trust_feedback_target_created_idx on public.trust_feedback(target_user_id, created_at desc);
+
+alter table public.trust_feedback enable row level security;
+create policy if not exists "read trust_feedback" on public.trust_feedback for select using (true);
+create policy if not exists "insert trust_feedback" on public.trust_feedback for insert with check (auth.uid() is not null);
