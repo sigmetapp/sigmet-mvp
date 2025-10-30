@@ -59,9 +59,13 @@ export default function UsersSearchPage() {
         <h1 className="text-2xl font-semibold text-white">{title}</h1>
         {(qCity || qCountry) && (
           <div className="text-white/60 text-sm mt-1">
-            {qCity && <>City: <span className=\"text-white\">{qCity}</span></>}
-            {qCity && qCountry && <span className=\"mx-2\">•</span>}
-            {qCountry && <>Country: <span className=\"text-white\">{qCountry}</span></>}
+            {qCity && (
+              <>City: <span className="text-white">{qCity}</span></>
+            )}
+            {qCity && qCountry && <span className="mx-2">•</span>}
+            {qCountry && (
+              <>Country: <span className="text-white">{qCountry}</span></>
+            )}
           </div>
         )}
       </div>
