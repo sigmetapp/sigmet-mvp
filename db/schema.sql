@@ -8,6 +8,7 @@ create table if not exists public.profiles (
   bio text,
   country text,
   avatar_url text,
+  website_url text,
   directions_selected text[] default '{}'::text[],
   created_at timestamptz default now()
 );

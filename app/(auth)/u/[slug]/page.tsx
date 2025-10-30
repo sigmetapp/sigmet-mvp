@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
@@ -11,8 +12,10 @@ type Profile = {
   full_name: string | null;
   bio: string | null;
   country: string | null;
+  website_url?: string | null;
   avatar_url: string | null;
   directions_selected: string[] | null;
+  created_at?: string;
 };
 
 type Post = {
@@ -38,6 +41,9 @@ export default function PublicProfilePage() {
   const [iFollow, setIFollow] = useState<boolean>(false);
   const [followsMe, setFollowsMe] = useState<boolean>(false);
   const [updatingFollow, setUpdatingFollow] = useState(false);
+  const [followersCount, setFollowersCount] = useState<number>(0);
+  const [followingCount, setFollowingCount] = useState<number>(0);
+  const [referralsCount, setReferralsCount] = useState<number>(0);
 
   const isMe = useMemo(() => {
     if (!viewerId || !profile) return false;
@@ -75,7 +81,7 @@ export default function PublicProfilePage() {
       // Otherwise, resolve strictly by username
       const { data } = await supabase
         .from('profiles')
-        .select('user_id, username, full_name, bio, country, avatar_url, directions_selected')
+        .select('user_id, username, full_name, bio, country, website_url, avatar_url, directions_selected, created_at')
         .eq('username', slug)
         .maybeSingle();
       setProfile(((data as unknown) as Profile) || null);
@@ -114,6 +120,37 @@ export default function PublicProfilePage() {
       }
     })();
   }, [viewerId, profile?.user_id]);
+
+  // Load social counts
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    (async () => {
+      try {
+        const [followersRes, followingRes, referralsRes] = await Promise.all([
+          supabase
+            .from('follows')
+            .select('follower_id', { count: 'exact', head: true })
+            .eq('followee_id', profile.user_id),
+          supabase
+            .from('follows')
+            .select('followee_id', { count: 'exact', head: true })
+            .eq('follower_id', profile.user_id),
+          supabase
+            .from('invites')
+            .select('code', { count: 'exact', head: true })
+            .eq('creator', profile.user_id)
+            .gt('uses', 0),
+        ]);
+        setFollowersCount(followersRes.count || 0);
+        setFollowingCount(followingRes.count || 0);
+        setReferralsCount(referralsRes.count || 0);
+      } catch {
+        setFollowersCount(0);
+        setFollowingCount(0);
+        setReferralsCount(0);
+      }
+    })();
+  }, [profile?.user_id]);
 
   async function toggleFollow() {
     if (!viewerId || !profile?.user_id || viewerId === profile.user_id) return;
@@ -182,8 +219,11 @@ export default function PublicProfilePage() {
                   </div>
                 )}
               </div>
-              <div className="text-white/70 text-sm mt-1">
-                @{profile.username || profile.user_id.slice(0, 8)}{profile.country ? ` • ${profile.country}` : ''}
+              <div className="text-white/70 text-sm mt-1 flex flex-wrap items-center gap-2">
+                <Link href={`/u/${encodeURIComponent(profile.username || profile.user_id)}`} className="hover:underline">
+                  @{profile.username || profile.user_id.slice(0, 8)}
+                </Link>
+                {profile.country && <span>• {profile.country}</span>}
               </div>
               {!isMe && (
                 <div className="mt-2 text-white/70 text-xs flex items-center gap-2">
@@ -191,19 +231,25 @@ export default function PublicProfilePage() {
                   {iFollow && <span className="px-2 py-0.5 rounded-full border border-white/20">you follow</span>}
                 </div>
               )}
-              {profile.bio && <p className="mt-3 text-white/90 leading-relaxed">{profile.bio}</p>}
+              {/* SW indicator */}
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-white/80 text-sm mb-1">
+                  <div>Social Weight</div>
+                  <div>75/100</div>
+                </div>
+                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-full w-[75%] bg-white/70"></div>
+                </div>
+              </div>
 
+              {/* Selected directions: icons */}
               {!!profile.directions_selected?.length && (
-                <div className="mt-4 flex flex-wrap items-center gap-2">
+                <div className="mt-4 flex items-center gap-3">
                   {profile.directions_selected.slice(0, 3).map((id) => {
                     const meta = GROWTH_AREAS.find((a) => a.id === id);
-                    const label = meta ? `${meta.emoji} ${meta.title}` : id;
                     return (
-                      <span
-                        key={id}
-                        className="px-3 py-1.5 rounded-full text-sm border border-white/20 text-white/80"
-                      >
-                        {label}
+                      <span key={id} className="text-2xl" aria-label={meta?.title || id} title={meta?.title || id}>
+                        {meta?.emoji || '⭐'}
                       </span>
                     );
                   })}
@@ -213,6 +259,58 @@ export default function PublicProfilePage() {
           </div>
         )}
       </div>
+
+      {/* Info block */}
+      {!loadingProfile && profile && (
+        <div className="card p-4 md:p-6">
+          <div className="grid md:grid-cols-2 gap-4 text-white/90">
+            <div className="space-y-2">
+              <div className="text-white/60 text-sm">Bio</div>
+              <div>{profile.bio || '—'}</div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-white/60 text-sm">City / Country</div>
+              <div>{profile.country || '—'}</div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-white/60 text-sm">Website / Social</div>
+              <div>
+                {profile.website_url ? (
+                  <a href={profile.website_url} target="_blank" rel="noopener noreferrer" className="text-white hover:underline break-all">
+                    {profile.website_url}
+                  </a>
+                ) : (
+                  '—'
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-white/60 text-sm">Joined</div>
+              <div>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Social block */}
+      {!loadingProfile && profile && (
+        <div className="card p-4 md:p-6">
+          <div className="flex flex-wrap items-center gap-6">
+            <div>
+              <div className="text-white/60 text-sm">Following</div>
+              <div className="text-white text-lg font-medium">{followingCount}</div>
+            </div>
+            <div>
+              <div className="text-white/60 text-sm">Followers</div>
+              <div className="text-white text-lg font-medium">{followersCount}</div>
+            </div>
+            <div>
+              <div className="text-white/60 text-sm">Referrals</div>
+              <div className="text-white text-lg font-medium">{referralsCount}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Posts */}
       <div className="space-y-4">
