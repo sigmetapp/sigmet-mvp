@@ -78,8 +78,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (Array.isArray(allowed_continents)) payload.allowed_continents = allowed_continents;
     if (logo_url !== undefined) payload.logo_url = logo_url;
 
-    const { error: dbErr } = await admin.from('site_settings').upsert(payload, { onConflict: 'id' });
-    if (dbErr) throw dbErr;
+    // Try upsert; if the deployment's schema lacks new columns (like allowed_continents),
+    // Supabase can return a schema cache error. In that case, retry without that field.
+    let { error: dbErr } = await admin.from('site_settings').upsert(payload, { onConflict: 'id' });
+    if (dbErr) {
+      const message = dbErr?.message || '';
+      const mentionsMissingAllowedContinents =
+        message.includes("'allowed_continents'") && message.toLowerCase().includes('schema cache');
+      if (mentionsMissingAllowedContinents && 'allowed_continents' in payload) {
+        const retryPayload = { ...payload };
+        delete (retryPayload as any).allowed_continents;
+        const { error: retryErr } = await admin.from('site_settings').upsert(retryPayload, { onConflict: 'id' });
+        if (retryErr) throw retryErr;
+      } else {
+        throw dbErr;
+      }
+    }
 
     return res.status(200).json({ ok: true, settings: payload });
   } catch (e: any) {
