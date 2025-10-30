@@ -31,6 +31,15 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
   const [messages, setMessages] = useState<DmMessage[]>([]);
   const lastReadUpToRef = useRef<number | null>(null);
   const [targetUserId, setTargetUserId] = useState<string | null>(explicitTargetUserId ?? null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiChoices = useMemo(
+    () => [
+      '😀','😁','😂','🤣','😊','😍','😎','🤔','😅','🙂',
+      '🙃','😉','😭','👍','👎','🙏','👏','🔥','💯','🎉',
+      '❤️','💜','💙','💚','💛','🧡','✨','🌟','⭐','🤝'
+    ],
+    []
+  );
 
   const refreshPreview = useCallback(async (att: DmAttachment) => {
     try {
@@ -62,6 +71,11 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
     }
     // reset input to allow re-selecting same file
     e.target.value = '';
+  }
+
+  function onPickEmoji(e: string) {
+    setText((prev) => `${prev}${e}`);
+    // keep the picker open for multiple inserts
   }
 
   // Load messages for active thread (if provided)
@@ -258,17 +272,31 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
           ))}
         </div>
       )}
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-2 items-center relative">
         <input
           type="file"
           multiple
           onChange={onSelectFiles}
           className="file:mr-3 file:btn file:btn-sm"
         />
+        <button
+          type="button"
+          className="btn btn-ghost"
+          title="Emoji"
+          onClick={() => setShowEmojiPicker((v) => !v)}
+        >
+          🙂
+        </button>
         <input
           className="input flex-1"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
           placeholder="Write a message"
         />
         <button className="btn" onClick={send}>
@@ -280,6 +308,22 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
         <button className="btn btn-outline" onClick={unblockUser} disabled={!targetUserId} title={!targetUserId ? 'Select a user' : ''}>
           Unblock
         </button>
+        {showEmojiPicker && (
+          <div className="absolute bottom-full mb-2 left-0 z-10 p-2 rounded-xl border border-white/10 bg-black/80 backdrop-blur min-w-[240px] shadow-lg">
+            <div className="grid grid-cols-10 gap-1">
+              {emojiChoices.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  className="hover:bg-white/10 rounded text-lg leading-none p-1"
+                  onClick={() => onPickEmoji(e)}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

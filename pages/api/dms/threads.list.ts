@@ -15,8 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         last_read_message_id,
         notifications_muted,
         thread:dms_threads(
-          id, created_by, is_group, title, created_at, last_message_id,
-          last_message:dms_messages(id, thread_id, sender_id, kind, body, attachments, created_at, edited_at)
+          id, created_by, is_group, title, created_at, last_message_at
         )
       `)
       .eq('user_id', user.id);
