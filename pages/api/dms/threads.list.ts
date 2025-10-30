@@ -7,33 +7,85 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { client, user } = await getAuthedClient(req);
 
-    const { data: rows, error } = await client
-      .from('dms_thread_participants')
-      .select(`
-        thread_id,
-        role,
-        last_read_message_id,
-        notifications_muted,
-        thread:dms_threads(
-          id, created_by, is_group, title, created_at, last_message_at
-        )
-      `)
-      .eq('user_id', user.id);
+    // Try to select with last_read_message_id; if the column doesn't exist in DB,
+    // fall back to a selection without it to remain compatible with older schemas.
+    let rows: any[] | null = null;
+    {
+      const { data, error } = await client
+        .from('dms_thread_participants')
+        .select(`
+          thread_id,
+          role,
+          last_read_message_id,
+          notifications_muted,
+          thread:dms_threads(
+            id, created_by, is_group, title, created_at, last_message_at
+          )
+        `)
+        .eq('user_id', user.id);
 
-    if (error) return res.status(400).json({ ok: false, error: error.message });
+      if (!error) {
+        rows = data || [];
+      } else if (String(error.message || '').toLowerCase().includes('last_read_message_id')) {
+        const { data: data2, error: err2 } = await client
+          .from('dms_thread_participants')
+          .select(`
+            thread_id,
+            role,
+            notifications_muted,
+            thread:dms_threads(
+              id, created_by, is_group, title, created_at, last_message_at
+            )
+          `)
+          .eq('user_id', user.id);
+        if (err2) return res.status(400).json({ ok: false, error: err2.message });
+        rows = data2 || [];
+      } else {
+        return res.status(400).json({ ok: false, error: error.message });
+      }
+    }
 
-    // Compute unread counts per thread using last_read_message_id
+    // Compute unread counts per thread. Prefer last_read_message_id when available;
+    // otherwise fall back to counting 'delivered' receipts for this user in the thread.
     const result = [] as any[];
     for (const r of rows || []) {
       const thread = r.thread;
       if (!thread) continue;
-      const lastReadId: number = r.last_read_message_id ?? 0;
-      const { count } = await client
-        .from('dms_messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('thread_id', thread.id)
-        .gt('id', lastReadId)
-        .neq('sender_id', user.id);
+      let unreadCount = 0;
+      if (typeof r.last_read_message_id === 'number') {
+        const lastReadId: number = r.last_read_message_id ?? 0;
+        const { count } = await client
+          .from('dms_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('thread_id', thread.id)
+          .gt('id', lastReadId)
+          .neq('sender_id', user.id);
+        unreadCount = count ?? 0;
+      } else {
+        // Fallback path when last_read_message_id column is missing: count
+        // delivered receipts for this user for messages in this thread.
+        try {
+          const { data: ids } = await client
+            .from('dms_messages')
+            .select('id')
+            .eq('thread_id', thread.id)
+            .limit(1000);
+          const messageIds: number[] = (ids || []).map((x: any) => x.id);
+          if (messageIds.length > 0) {
+            const { count } = await client
+              .from('dms_message_receipts')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .eq('status', 'delivered')
+              .in('message_id', messageIds);
+            unreadCount = count ?? 0;
+          } else {
+            unreadCount = 0;
+          }
+        } catch {
+          unreadCount = 0;
+        }
+      }
 
       result.push({
         thread,
@@ -43,7 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           last_read_message_id: r.last_read_message_id,
           notifications_muted: r.notifications_muted,
         },
-        unread_count: count ?? 0,
+        unread_count: unreadCount,
       });
     }
 

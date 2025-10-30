@@ -29,6 +29,8 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
   const [selectedPartnerProfile, setSelectedPartnerProfile] = useState<SimpleProfile | null>(null);
   const [creatingUserId, setCreatingUserId] = useState('');
+  const [searchResults, setSearchResults] = useState<SimpleProfile[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [showListOnMobile, setShowListOnMobile] = useState(true);
   const [threadMeta, setThreadMeta] = useState<Record<number, { name: string; avatar: string | null; lastText: string; online: boolean }>>({});
   const [loading, setLoading] = useState(false);
@@ -289,10 +291,21 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
     setLoading(true);
     setError(null);
     try {
+      // Resolve username to user_id
+      let targetUserId = creatingUserId.trim();
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('user_id, username')
+          .ilike('username', creatingUserId.trim())
+          .limit(1)
+          .maybeSingle();
+        if (prof?.user_id) targetUserId = (prof as any).user_id as string;
+      } catch {}
       const resp = await fetch('/api/dms/threads.create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participant_ids: [creatingUserId.trim()] }),
+        body: JSON.stringify({ participant_ids: [targetUserId] }),
       });
       const json = await resp.json();
       if (!json?.ok) throw new Error(json?.error || 'Failed to create thread');
@@ -305,6 +318,48 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
       setLoading(false);
     }
   }
+
+  // Live search by username with suggestions
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const q = creatingUserId.trim();
+      if (q.length < 2) { setSearchResults([]); return; }
+      setSearchLoading(true);
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('user_id, username, full_name, avatar_url')
+          .ilike('username', `%${q}%`)
+          .limit(10);
+        if (!cancelled) {
+          const rows: SimpleProfile[] = ((data as any[]) || []).map((p) => ({
+            user_id: p.user_id,
+            username: p.username ?? null,
+            full_name: p.full_name ?? null,
+            avatar_url: p.avatar_url ?? null,
+          }));
+          // Prioritize quick contacts (following/connection) first
+          const priority = new Set(quickContactIds);
+          rows.sort((a, b) => {
+            const pa = priority.has(a.user_id) ? 0 : 1;
+            const pb = priority.has(b.user_id) ? 0 : 1;
+            if (pa !== pb) return pa - pb;
+            const ax = (a.full_name || a.username || '').toLowerCase();
+            const bx = (b.full_name || b.username || '').toLowerCase();
+            return ax.localeCompare(bx);
+          });
+          setSearchResults(rows);
+        }
+      } catch {
+        if (!cancelled) setSearchResults([]);
+      } finally {
+        if (!cancelled) setSearchLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [creatingUserId, quickContactIds.join(',')]);
 
   async function blockUser() {
     if (!selectedPartnerId) return;
@@ -345,7 +400,7 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
             <div className="flex gap-2">
               <input
                 className="input flex-1"
-                placeholder="ID пользователя для нового диалога"
+                placeholder="Ник пользователя (username) для нового диалога"
                 value={creatingUserId}
                 onChange={(e) => setCreatingUserId(e.target.value)}
               />
@@ -354,6 +409,31 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
               </button>
             </div>
             {error && <div className="text-red-400 text-sm mt-2">{error}</div>}
+            {/* Suggestions under search */}
+            {creatingUserId.trim().length >= 2 && (
+              <div className="mt-2 space-y-1 max-h-56 overflow-y-auto">
+                {searchLoading && <div className="text-xs text-white/60">Поиск…</div>}
+                {!searchLoading && searchResults.length === 0 && (
+                  <div className="text-xs text-white/50">Ничего не найдено</div>
+                )}
+                {searchResults.map((p) => (
+                  <div key={p.user_id} className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.avatar_url || AVATAR_FALLBACK} alt="" className="h-6 w-6 rounded-full border border-white/10" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white/90 text-sm truncate">{p.full_name || p.username || p.user_id.slice(0, 8)}</div>
+                      <div className="text-white/50 text-xs truncate">@{p.username || '—'}</div>
+                    </div>
+                    <button
+                      className="text-xs px-2 py-1 rounded-lg bg-white/90 text-black hover:bg-white"
+                      onClick={() => onQuickMessage(p.user_id)}
+                    >
+                      Написать
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto smooth-scroll p-2">
             {threads.map((item) => {

@@ -18,15 +18,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: 'Invalid input' });
     }
 
-    // Ensure membership and get current last_read
-    const { data: participant, error: partErr } = await client
-      .from('dms_thread_participants')
-      .select('thread_id, last_read_message_id')
-      .eq('thread_id', threadId)
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (partErr) return res.status(400).json({ ok: false, error: partErr.message });
+    // Ensure membership and get current last_read where supported. If the
+    // column does not exist in the database, fall back to a membership-only check.
+    let participant: any | null = null;
+    {
+      const { data, error } = await client
+        .from('dms_thread_participants')
+        .select('thread_id, last_read_message_id')
+        .eq('thread_id', threadId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (!error) {
+        participant = data;
+      } else if (String(error.message || '').toLowerCase().includes('last_read_message_id')) {
+        const { data: data2, error: err2 } = await client
+          .from('dms_thread_participants')
+          .select('thread_id')
+          .eq('thread_id', threadId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (err2) return res.status(400).json({ ok: false, error: err2.message });
+        participant = data2 ? { ...data2, last_read_message_id: null } : null;
+      } else {
+        return res.status(400).json({ ok: false, error: error.message });
+      }
+    }
     if (!participant) return res.status(403).json({ ok: false, error: 'Forbidden' });
 
     // Ensure up_to is a message in this thread
@@ -48,7 +64,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .update({ last_read_message_id: nextId, last_read_at: new Date().toISOString() })
           .eq('thread_id', threadId)
           .eq('user_id', user.id);
-      } catch {}
+      } catch {
+        // Column may not exist; ignore update failure in that case
+      }
     }
 
     // Best-effort: mark receipts up to nextId as read
