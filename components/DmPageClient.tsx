@@ -21,6 +21,8 @@ type ThreadListItem = {
 };
 
 export default function DmPageClient({ currentUserId }: { currentUserId: string }) {
+  const AVATAR_FALLBACK =
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const [threads, setThreads] = useState<ThreadListItem[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
   const [creatingUserId, setCreatingUserId] = useState('');
@@ -273,7 +275,7 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
               {quickContactIds.slice(0, 24).map((uid) => {
                 const p = profiles[uid];
                 const name = p?.full_name || p?.username || uid.slice(0, 8);
-                const avatar = p?.avatar_url || '/avatar-fallback.png';
+                const avatar = p?.avatar_url || AVATAR_FALLBACK;
                 return (
                   <div key={uid} className="flex items-center gap-2 px-2 py-1.5 rounded-xl border border-white/10 bg-white/5">
                     <img src={avatar} alt="" className="h-7 w-7 rounded-full object-cover border border-white/10" />
