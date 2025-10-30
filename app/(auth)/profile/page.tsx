@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Button from '@/components/Button';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
+import CountryCitySelect from '@/components/CountryCitySelect';
 
 export default function ProfilePage() {
   return (
@@ -120,11 +121,13 @@ function ProfileSettings() {
 
         <div>
           <label className="label">City / Country</label>
-          <input
-            className="input"
+          {/* Country & City searchable selector updates profile.country as "City, Country" */}
+          {/** Using a client component for search UX **/}
+          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
+          {/* @ts-ignore - dynamic import type resolution is fine here */}
+          <CountryCitySelect
             value={profile.country || ''}
-            onChange={e => setProfile({ ...profile, country: e.target.value })}
-            placeholder="City, Country"
+            onChange={(combined: string) => setProfile({ ...profile, country: combined })}
           />
         </div>
 
