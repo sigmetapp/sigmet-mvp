@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import ChatWindow from '@/components/ChatWindow';
+import { getPresenceMap } from '@/lib/dm/presence';
 
 type ThreadListItem = {
   thread: {
@@ -28,6 +29,8 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
   const [selectedPartnerProfile, setSelectedPartnerProfile] = useState<SimpleProfile | null>(null);
   const [creatingUserId, setCreatingUserId] = useState('');
+  const [showListOnMobile, setShowListOnMobile] = useState(true);
+  const [threadMeta, setThreadMeta] = useState<Record<number, { name: string; avatar: string | null; lastText: string; online: boolean }>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,6 +101,54 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
       }
     })();
   }, [selectedThreadId, currentUserId]);
+
+  // Enrich thread list with avatar/name/last message/online
+  useEffect(() => {
+    (async () => {
+      if (!threads.length || !currentUserId) { setThreadMeta({}); return; }
+      const next: Record<number, { name: string; avatar: string | null; lastText: string; online: boolean }> = {};
+      const top = threads.slice(0, 20);
+      await Promise.all(top.map(async (item) => {
+        try {
+          // Find 1:1 partner when possible
+          const resp = await fetch(`/api/dms/thread.participants?thread_id=${item.thread.id}`);
+          const json = await resp.json();
+          let name = item.thread.title || (item.thread.is_group ? 'Group' : `Thread #${item.thread.id}`);
+          let avatar: string | null = null;
+          let online = false;
+          const ids: string[] = json?.participants || [];
+          const other = ids.length === 2 ? (ids.find((id) => id !== currentUserId) || null) : null;
+          if (other) {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('full_name, username, avatar_url')
+              .eq('user_id', other)
+              .maybeSingle();
+            if (prof) {
+              name = (prof as any).full_name || (prof as any).username || name;
+              avatar = (prof as any).avatar_url || null;
+            }
+            try {
+              const map = await getPresenceMap(other);
+              online = Object.keys(map || {}).length > 0;
+            } catch { online = false; }
+          }
+          // Last message snippet
+          let lastText = '';
+          try {
+            const r = await fetch(`/api/dms/messages.list?thread_id=${item.thread.id}&limit=1`);
+            const j = await r.json();
+            const last = (j?.messages || [])[0];
+            lastText = last?.body || '';
+          } catch { lastText = ''; }
+          next[item.thread.id] = { name, avatar, lastText, online };
+        } catch {
+          next[item.thread.id] = { name: item.thread.title || `Thread #${item.thread.id}`, avatar: null, lastText: '', online: false };
+        }
+      }));
+      setThreadMeta(next);
+    })();
+  }, [threads, currentUserId]);
 
   // Load my username for connection discovery
   useEffect(() => {
@@ -286,104 +337,97 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
   }
 
   return (
-    <div className="grid grid-cols-12 gap-4">
+    <div className="grid grid-cols-12 gap-4 h-[calc(100vh-220px)] md:h-[70vh]">
       {/* Threads list */}
-      <div className="col-span-12 md:col-span-3">
-        <div className="card p-3 grid gap-3">
-          <div className="flex gap-2">
-            <input
-              className="input flex-1"
-              placeholder="Start DM with user id"
-              value={creatingUserId}
-              onChange={(e) => setCreatingUserId(e.target.value)}
-            />
-            <button className="btn" onClick={onCreateThread} disabled={loading}>
-              Start
-            </button>
-          </div>
-          {error && <div className="text-red-400 text-sm">{error}</div>}
-          <div className="divide-y divide-white/10">
-            {threads.map((item) => (
-              <button
-                key={item.thread.id}
-                className={`w-full text-left py-2 px-2 hover:bg-white/5 rounded flex items-center justify-between ${selectedThreadId === item.thread.id ? 'bg-white/5' : ''}`}
-                onClick={() => setSelectedThreadId(item.thread.id)}
-              >
-                <span className="truncate">
-                  {item.thread.title || (item.thread.is_group ? 'Group' : `Thread #${item.thread.id}`)}
-                </span>
-                {item.unread_count > 0 && (
-                  <span className="text-xs bg-blue-500 text-white rounded px-1 py-0.5 ml-2">{item.unread_count}</span>
-                )}
+      <div className={`${selectedThreadId && !showListOnMobile ? 'hidden' : 'col-span-12'} md:col-span-4`}>
+        <div className="card card-glow h-full flex flex-col">
+          <div className="p-3 border-b border-white/10">
+            <div className="flex gap-2">
+              <input
+                className="input flex-1"
+                placeholder="ID пользователя для нового диалога"
+                value={creatingUserId}
+                onChange={(e) => setCreatingUserId(e.target.value)}
+              />
+              <button className="btn btn-primary" onClick={onCreateThread} disabled={loading}>
+                Начать
               </button>
-            ))}
+            </div>
+            {error && <div className="text-red-400 text-sm mt-2">{error}</div>}
+          </div>
+          <div className="flex-1 overflow-y-auto smooth-scroll p-2">
+            {threads.map((item) => {
+              const meta = threadMeta[item.thread.id];
+              return (
+                <button
+                  key={item.thread.id}
+                  className={`w-full text-left p-2 rounded-xl flex items-center gap-3 hover:bg-white/5 transition ${selectedThreadId === item.thread.id ? 'bg-white/5' : ''}`}
+                  onClick={() => {
+                    setSelectedThreadId(item.thread.id);
+                    setShowListOnMobile(false);
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={meta?.avatar || AVATAR_FALLBACK} alt="" className="h-10 w-10 rounded-full object-cover border border-white/10" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-white/90 font-medium truncate">{meta?.name || item.thread.title || (item.thread.is_group ? 'Group' : `Thread #${item.thread.id}`)}</span>
+                      <span className={`h-2 w-2 rounded-full ${meta?.online ? 'bg-emerald-400' : 'bg-white/30'}`} />
+                    </div>
+                    <div className="text-xs text-white/60 truncate">{meta?.lastText || 'Без сообщений'}</div>
+                  </div>
+                  {item.unread_count > 0 && (
+                    <span className="text-xs bg-blue-500/90 text-white rounded-full px-2 py-0.5">{item.unread_count}</span>
+                  )}
+                </button>
+              );
+            })}
             {threads.length === 0 && !loading && (
-              <div className="text-sm text-white/60 py-2">No conversations yet.</div>
+              <div className="text-sm text-white/60 py-2">Пока нет диалогов.</div>
+            )}
+          </div>
+          {/* Quick contacts */}
+          <div className="border-t border-white/10 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-white/80 font-medium">Быстрые контакты</div>
+              <div className="text-white/50 text-xs">Подписки и связи</div>
+            </div>
+            {quickContactIds.length === 0 ? (
+              <div className="text-white/60 text-sm">Нет предложений.</div>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {quickContactIds.slice(0, 16).map((uid) => {
+                  const p = profiles[uid];
+                  const name = p?.full_name || p?.username || uid.slice(0, 8);
+                  const avatar = p?.avatar_url || AVATAR_FALLBACK;
+                  return (
+                    <div key={uid} className="flex items-center gap-2 px-2 py-1.5 rounded-xl border border-white/10 bg-white/5">
+                      <img src={avatar} alt="" className="h-7 w-7 rounded-full object-cover border border-white/10" />
+                      <div className="text-white/80 text-sm max-w-[120px] truncate">{name}</div>
+                      <button className="ml-1 text-xs px-2 py-1 rounded-lg bg-white/90 text-black hover:bg-white" onClick={() => onQuickMessage(uid)}>
+                        Написать
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
       </div>
+
       {/* Chat window */}
-      <div className="col-span-12 md:col-span-6">
+      <div className={`${selectedThreadId ? 'col-span-12' : 'col-span-12'} md:col-span-8`}>
         {selectedThreadId ? (
-          <ChatWindow threadId={selectedThreadId} currentUserId={currentUserId} targetUserId={selectedPartnerId ?? undefined} />
+          <ChatWindow
+            threadId={selectedThreadId}
+            currentUserId={currentUserId}
+            targetUserId={selectedPartnerId ?? undefined}
+            onBack={() => setShowListOnMobile(true)}
+          />
         ) : (
-          <div className="card p-4 text-white/70">Select a conversation or create a new one.</div>
+          <div className="card card-glow h-full flex items-center justify-center text-white/70">Выберите диалог или создайте новый.</div>
         )}
-      </div>
-      {/* Profile sidebar */}
-      <div className="col-span-12 md:col-span-3">
-        <div className="card p-3 grid gap-3">
-          <div className="text-white/80 font-medium">Conversation</div>
-          {selectedPartnerProfile ? (
-            <div className="flex flex-col items-center text-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={selectedPartnerProfile.avatar_url || AVATAR_FALLBACK}
-                alt=""
-                className="h-20 w-20 rounded-full object-cover border border-white/10"
-              />
-              <div className="text-lg text-white truncate max-w-full">
-                {selectedPartnerProfile.full_name || selectedPartnerProfile.username || selectedPartnerProfile.user_id.slice(0, 8)}
-              </div>
-              <div className="flex gap-2">
-                <button className="btn btn-outline" onClick={blockUser} disabled={!selectedPartnerId}>Block</button>
-                <button className="btn btn-outline" onClick={unblockUser} disabled={!selectedPartnerId}>Unblock</button>
-              </div>
-            </div>
-          ) : (
-            <div className="text-white/60 text-sm">Select a 1:1 chat to view profile</div>
-          )}
-        </div>
-      </div>
-      {/* Quick contacts row – following + connections */}
-      <div className="col-span-12">
-        <div className="card p-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-white/80 font-medium">Quick contacts</div>
-            <div className="text-white/50 text-xs">Following and connections</div>
-          </div>
-          {quickContactIds.length === 0 ? (
-            <div className="text-white/60 text-sm">No suggestions yet.</div>
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {quickContactIds.slice(0, 24).map((uid) => {
-                const p = profiles[uid];
-                const name = p?.full_name || p?.username || uid.slice(0, 8);
-                const avatar = p?.avatar_url || AVATAR_FALLBACK;
-                return (
-                  <div key={uid} className="flex items-center gap-2 px-2 py-1.5 rounded-xl border border-white/10 bg-white/5">
-                    <img src={avatar} alt="" className="h-7 w-7 rounded-full object-cover border border-white/10" />
-                    <div className="text-white/80 text-sm max-w-[140px] truncate">{name}</div>
-                    <button className="ml-1 text-xs px-2 py-1 rounded-lg bg-white/90 text-black hover:bg-white" onClick={() => onQuickMessage(uid)}>
-                      Message
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
