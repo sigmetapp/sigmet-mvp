@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useMemo, useState } from 'react';
 import Button from '@/components/Button';
 import { supabase } from '@/lib/supabaseClient';
@@ -68,7 +70,7 @@ function ProfileSettings() {
     setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }));
   }
 
-  if (loading) return <div className="p-6 text-white/70">Loading...</div>;
+  if (loading) return <div className="p-6 text.white/70">Loading...</div>;
 
   return (
     <main className="max-w-2xl mx-auto p-6">

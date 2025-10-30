@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
 
@@ -45,7 +45,6 @@ export default function LoginPage() {
           password,
         });
         if (signInErr) throw signInErr;
-        // Enforce password change if flagged
         const { data } = await supabase.auth.getUser();
         const mustChange = Boolean((data.user as any)?.user_metadata?.must_change_password);
         if (mustChange) {
@@ -228,4 +227,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

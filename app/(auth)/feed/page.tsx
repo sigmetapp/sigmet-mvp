@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useRef, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -308,28 +310,6 @@ function FeedInner() {
     }
   }
 
-  async function addComment(postId: number) {
-    if (!uid) return alert("Sign in required");
-    const body = (commentInput[postId] || "").trim();
-    if (!body) return;
-    const { data, error } = await supabase
-      .from("comments")
-      .insert({ post_id: postId, user_id: uid, body })
-      .select("*")
-      .single();
-    if (!error && data) {
-      setComments((prev) => ({
-        ...prev,
-        [postId]: [...(prev[postId] || []), data as Comment],
-      }));
-      setCommentCounts((prev) => ({
-        ...prev,
-        [postId]: (prev[postId] ?? 0) + 1,
-      }));
-      setCommentInput((prev) => ({ ...prev, [postId]: "" }));
-    }
-  }
-
   // icons
   const Eye = () => (
     <svg viewBox="0 0 24 24" className="h-5 w-5">
@@ -562,7 +542,7 @@ function FeedInner() {
               {openComments[p.id] && (
                 <div className="space-y-2">
                   {comments[p.id]?.map((c) => (
-                    <div key={c.id} className="rounded-xl bg-white/5 border border-white/10 p-2 text-sm">
+                    <div key={c.id} className="rounded-xl bg.white/5 border border-white/10 p-2 text-sm">
                       <div className="text-xs text-white/60 flex justify-between">
                         <span>{c.user_id?.slice(0, 8) || "Anon"}</span>
                         <span>{new Date(c.created_at).toLocaleString()}</span>
@@ -626,7 +606,7 @@ function FeedInner() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="What do you want to share?"
-                className="w-full bg-transparent outline-none placeholder-white/40 min-h-[120px] text-base md:text-lg text-white"
+                className="w-full bg-transparent outline-none placeholder-white/40 min-h-[120px] text.base md:text-lg text-white"
               />
               <input
                 ref={unifiedFileRef}

@@ -1,5 +1,7 @@
+'use client';
+
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function AuthCallbackPage() {
@@ -9,20 +11,17 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     let timeout: any;
 
-    // Listen for session being set from the URL token
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         router.replace('/feed');
       }
     });
 
-    // Fallback: check immediately (in case session is already set)
     (async () => {
       const { data } = await supabase.auth.getUser();
       if (data.user) {
         router.replace('/feed');
       } else {
-        // Give the library a couple seconds to process URL params
         timeout = setTimeout(async () => {
           const { data: again } = await supabase.auth.getUser();
           if (again.user) {

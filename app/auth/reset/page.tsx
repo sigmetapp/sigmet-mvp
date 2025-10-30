@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -15,7 +17,6 @@ export default function ResetPasswordPage() {
       if (!user) throw new Error('No user in session');
       const { error: updErr } = await supabase.auth.updateUser({ password });
       if (updErr) throw updErr;
-      // Clear enforcement flag if set
       await supabase.auth.updateUser({ data: { must_change_password: false } });
       setMsg('Password updated. You can continue.');
     } catch (err: any) { setMsg(err.message || 'Error'); }
