@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import DmsChatWindow from './DmsChatWindow';
@@ -20,10 +19,10 @@ type Profile = {
   username: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  messages24h?: number;
 };
 
 function DmsInner() {
-  const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [partners, setPartners] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,14 +89,53 @@ function DmsInner() {
           .limit(20);
 
         if (!cancelled && profiles) {
-          setPartners(
-            profiles.map((p) => ({
-              user_id: p.user_id,
-              username: p.username,
-              full_name: p.full_name,
-              avatar_url: p.avatar_url,
-            }))
+          // Load message counts for last 24 hours for each partner
+          const profilesWithCounts = await Promise.all(
+            profiles.map(async (p) => {
+              try {
+                // Find common thread between current user and partner
+                const { data: partnerThreads } = await supabase
+                  .from('dms_thread_participants')
+                  .select('thread_id')
+                  .eq('user_id', p.user_id)
+                  .in('thread_id', threadIds);
+                
+                if (partnerThreads && partnerThreads.length > 0) {
+                  // Get the first common thread
+                  const commonThreadId = partnerThreads[0].thread_id;
+                  const last24h = new Date();
+                  last24h.setHours(last24h.getHours() - 24);
+                  
+                  const { count } = await supabase
+                    .from('dms_messages')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('thread_id', commonThreadId)
+                    .in('sender_id', [currentUserId, p.user_id])
+                    .gte('created_at', last24h.toISOString());
+                  
+                  return {
+                    user_id: p.user_id,
+                    username: p.username,
+                    full_name: p.full_name,
+                    avatar_url: p.avatar_url,
+                    messages24h: count || 0,
+                  };
+                }
+              } catch (err) {
+                console.error('Error loading message count for partner:', err);
+              }
+              
+              return {
+                user_id: p.user_id,
+                username: p.username,
+                full_name: p.full_name,
+                avatar_url: p.avatar_url,
+                messages24h: 0,
+              };
+            })
           );
+          
+          setPartners(profilesWithCounts);
         }
       } catch (err) {
         console.error('Error loading partners:', err);
@@ -114,7 +152,7 @@ function DmsInner() {
 
   function handlePartnerClick(partnerId: string) {
     setSelectedPartnerId(partnerId);
-    router.push(`/dms/${partnerId}`);
+    // Don't change URL - keep it as /dms/ to avoid page reload
   }
 
   return (
@@ -162,12 +200,22 @@ function DmsInner() {
                         className="h-10 w-10 rounded-full object-cover border border-white/10 flex-shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="text-white/90 font-medium truncate">{name}</div>
-                        {partner.username && (
-                          <div className="text-white/60 text-sm truncate">
-                            @{partner.username}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-white/90 font-medium truncate">{name}</div>
+                            {partner.username && (
+                              <div className="text-white/60 text-sm truncate">
+                                @{partner.username}
+                              </div>
+                            )}
                           </div>
-                        )}
+                          {partner.messages24h !== undefined && partner.messages24h > 0 && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 whitespace-nowrap shrink-0">
+                              <span className="text-xs leading-none" role="img" aria-label="speech">??</span>
+                              {partner.messages24h}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </button>
                   );

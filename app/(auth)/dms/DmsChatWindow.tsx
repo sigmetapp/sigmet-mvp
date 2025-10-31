@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread } from '@/lib/dms';
 import { useDmRealtime } from '@/hooks/useDmRealtime';
 import EmojiPicker from '@/components/EmojiPicker';
+import { uploadAttachment, type DmAttachment } from '@/lib/dm/attachments';
 
 type Props = {
   partnerId: string;
@@ -23,18 +25,22 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [socialWeight, setSocialWeight] = useState<number>(75);
   const [trustFlow, setTrustFlow] = useState<number>(80);
+  const [daysStreak, setDaysStreak] = useState<number>(0);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastMessageIdRef = useRef<number | null>(null);
 
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [messages, setMessages] = useDmRealtime(thread?.id || null, initialMessages);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const presenceChannelRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -87,18 +93,21 @@ export default function DmsChatWindow({ partnerId }: Props) {
             .from('trust_feedback')
             .select('value')
             .eq('target_user_id', partnerId);
-          
+        
           const sum = ((feedback as any[]) || []).reduce((acc, r) => acc + (Number(r.value) || 0), 0);
           const rating = Math.max(0, Math.min(120, 80 + sum * 2));
           setTrustFlow(rating);
         } catch {
           setTrustFlow(80);
         }
+        
+        // Calculate days streak (consecutive days of communication)
+        // This will be calculated when thread is loaded
       } catch (err) {
         console.error('Error loading profile:', err);
       }
     })();
-  }, [partnerId]);
+  }, [partnerId, currentUserId]);
 
   // Subscribe to partner presence
   useEffect(() => {
@@ -154,10 +163,57 @@ export default function DmsChatWindow({ partnerId }: Props) {
         const messagesData = await listMessages(threadData.id, 50);
         if (cancelled) return;
 
-        // Reverse to show oldest first
-        const reversed = messagesData.reverse();
-        setInitialMessages(reversed);
-        setMessages(reversed);
+        // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
+        const sorted = messagesData.sort((a, b) => {
+          const timeA = new Date(a.created_at).getTime();
+          const timeB = new Date(b.created_at).getTime();
+          if (timeA !== timeB) return timeA - timeB;
+          return a.id - b.id;
+        });
+        setInitialMessages(sorted);
+        setMessages(sorted);
+        
+        // Calculate days streak after thread is loaded
+        try {
+          const { data: allMessages } = await supabase
+            .from('dms_messages')
+            .select('created_at')
+            .eq('thread_id', threadData.id)
+            .in('sender_id', [currentUserId, partnerId])
+            .order('created_at', { ascending: false })
+            .limit(100);
+          
+          if (allMessages && allMessages.length > 0) {
+            // Calculate consecutive days
+            let streak = 0;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const messageDates = new Set(
+              allMessages.map(m => {
+                const d = new Date(m.created_at);
+                d.setHours(0, 0, 0, 0);
+                return d.getTime();
+              })
+            );
+            
+            let currentDate = new Date(today);
+            while (messageDates.has(currentDate.getTime())) {
+              streak++;
+              currentDate.setDate(currentDate.getDate() - 1);
+            }
+            
+            if (!cancelled) {
+              setDaysStreak(streak);
+            }
+          } else if (!cancelled) {
+            setDaysStreak(0);
+          }
+        } catch {
+          if (!cancelled) {
+            setDaysStreak(0);
+          }
+        }
       } catch (err: any) {
         if (!cancelled) {
           console.error('Error loading thread/messages:', err);
@@ -185,21 +241,26 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages.length]);
 
-  // Play sound on new messages
+  // Play sound on new messages (from partner or own messages)
   useEffect(() => {
     if (messages.length === 0 || !currentUserId || !partnerId) return;
     
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage) return;
     
-    // Check if this is a new message from partner
-    if (
-      lastMessage.id !== lastMessageIdRef.current &&
-      lastMessage.sender_id !== currentUserId &&
-      lastMessage.sender_id === partnerId
-    ) {
+    // Check if this is a new message (from partner or own)
+    const isNewMessage = lastMessage.id !== lastMessageIdRef.current;
+    const isFromPartner = lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId;
+    const isOwnMessage = lastMessage.sender_id === currentUserId;
+    
+    if (isNewMessage && (isFromPartner || isOwnMessage)) {
       const prevLastId = lastMessageIdRef.current;
       lastMessageIdRef.current = lastMessage.id;
+      
+      // Skip sound for the first message when loading conversation
+      if (prevLastId === null) {
+        return;
+      }
       
       // Play notification sound
       try {
@@ -222,11 +283,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
       } catch (err) {
         console.error('Error playing sound:', err);
       }
-      
-      // If it was the first message, don't play sound
-      if (prevLastId === null) {
-        lastMessageIdRef.current = lastMessage.id;
-      }
     }
   }, [messages, currentUserId, partnerId]);
 
@@ -242,13 +298,51 @@ export default function DmsChatWindow({ partnerId }: Props) {
     setMessageText((prev) => prev + emoji);
   }
 
+  // Handle file selection
+  function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...files]);
+    }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+
+  // Handle file removal
+  function handleRemoveFile(index: number) {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   // Handle send message with optimistic update
   async function handleSend() {
-    if (!thread || !messageText.trim() || sending) return;
+    if (!thread || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
 
     const textToSend = messageText.trim();
     setMessageText('');
     setSending(true);
+    setUploadingAttachments(true);
+
+    let attachments: DmAttachment[] = [];
+
+    // Upload files if any
+    if (selectedFiles.length > 0) {
+      try {
+        attachments = await Promise.all(
+          selectedFiles.map((file) => uploadAttachment(file))
+        );
+        setSelectedFiles([]);
+      } catch (err: any) {
+        console.error('Error uploading attachments:', err);
+        setError(err?.message || 'Failed to upload attachments');
+        setSending(false);
+        setUploadingAttachments(false);
+        return;
+      }
+    }
+
+    setUploadingAttachments(false);
 
     // Optimistic update
     const optimisticMessage: Message = {
@@ -256,22 +350,35 @@ export default function DmsChatWindow({ partnerId }: Props) {
       thread_id: thread.id,
       sender_id: currentUserId!,
       kind: 'text',
-      body: textToSend,
-      attachments: [],
+      body: textToSend || null,
+      attachments: attachments as unknown[],
       created_at: new Date().toISOString(),
       edited_at: null,
       deleted_at: null,
     };
 
     const previousMessages = messages;
-    setMessages([...messages, optimisticMessage]);
+    // Add optimistic message sorted by time
+    const withOptimistic = [...messages, optimisticMessage].sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return a.id - b.id;
+    });
+    setMessages(withOptimistic);
 
     try {
-      const sentMessage = await sendMessage(thread.id, textToSend, []);
-      // Replace optimistic message with real one
-      setMessages((prev) =>
-        prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m))
-      );
+      const sentMessage = await sendMessage(thread.id, textToSend || null, attachments as unknown[]);
+      // Replace optimistic message with real one and ensure proper sorting
+      setMessages((prev) => {
+        const updated = prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m));
+        return updated.sort((a, b) => {
+          const timeA = new Date(a.created_at).getTime();
+          const timeB = new Date(b.created_at).getTime();
+          if (timeA !== timeB) return timeA - timeB;
+          return a.id - b.id;
+        });
+      });
     } catch (err: any) {
       console.error('Error sending message:', err);
       // Rollback on error
@@ -334,19 +441,60 @@ export default function DmsChatWindow({ partnerId }: Props) {
             alt={partnerName}
             className="h-10 w-10 rounded-full object-cover border border-white/10"
           />
-          <div className="min-w-0">
-            <div className="text-white text-sm font-medium truncate">{partnerName}</div>
-            <div className="text-xs text-white/60 flex items-center gap-1.5 flex-wrap">
+          <div className="min-w-0 flex-1">
+            {partnerProfile?.username ? (
+              <Link
+                href={`/u/${partnerProfile.username}`}
+                className="text-white text-sm font-medium truncate hover:text-white/80 transition"
+              >
+                {partnerName}
+              </Link>
+            ) : (
+              <div className="text-white text-sm font-medium truncate">{partnerName}</div>
+            )}
+            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+              {/* Online/Offline Badge */}
               <span
-                className={`inline-block h-2 w-2 rounded-full shrink-0 ${
-                  isOnline ? 'bg-emerald-400' : 'bg-white/30'
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-medium ${
+                  isOnline
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-white/10 text-white/60 border border-white/20'
                 }`}
-              />
-              <span className="whitespace-nowrap">{isOnline ? 'online' : 'offline'}</span>
-              <span className="text-white/50 shrink-0">?</span>
-              <span className="whitespace-nowrap">SW: {socialWeight}/100</span>
-              <span className="text-white/50 shrink-0">?</span>
-              <span className="whitespace-nowrap">TF: {trustFlow}%</span>
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    isOnline ? 'bg-emerald-400' : 'bg-white/40'
+                  }`}
+                />
+                {isOnline ? 'online' : 'offline'}
+              </span>
+              
+              {/* Social Weight Badge */}
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                title="Social Weight"
+              >
+                SW: {socialWeight}/100
+              </span>
+              
+              {/* Trust Flow Badge */}
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                title="Trust Flow"
+              >
+                TF: {trustFlow}%
+              </span>
+              
+              {/* Days Streak Badge */}
+              {daysStreak > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
+                  title="Days streak"
+                >
+                  <span className="text-xs leading-none" role="img" aria-label="fire">??</span>
+                  {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -375,6 +523,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
               const prevMsg = idx > 0 ? messages[idx - 1] : null;
               const showDate =
                 !prevMsg ||
+                formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
+              
+              // Show time only if minute is different from previous message
+              const showTime = !prevMsg || 
+                new Date(prevMsg.created_at).getMinutes() !== new Date(msg.created_at).getMinutes() ||
                 formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
 
               return (
@@ -410,13 +563,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
                           </div>
                         )}
                       </div>
-                      <div
-                        className={`text-[11px] text-white/60 mt-1 ${
-                          isMine ? 'text-right' : 'text-left'
-                        }`}
-                      >
-                        {formatTime(msg.created_at)}
-                      </div>
+                      {showTime && (
+                        <div
+                          className={`text-[11px] text-white/60 mt-1 ${
+                            isMine ? 'text-right' : 'text-left'
+                          }`}
+                        >
+                          {formatTime(msg.created_at)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -426,10 +581,85 @@ export default function DmsChatWindow({ partnerId }: Props) {
         )}
       </div>
 
+      {/* Selected files preview */}
+      {selectedFiles.length > 0 && (
+        <div className="px-3 pt-2 pb-1 border-t border-white/10">
+          <div className="flex flex-wrap gap-2">
+            {selectedFiles.map((file, index) => (
+              <div
+                key={index}
+                className="relative inline-flex items-center gap-2 px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-sm"
+              >
+                {file.type.startsWith('image/') ? (
+                  <span className="text-xs">???</span>
+                ) : file.type.startsWith('video/') ? (
+                  <span className="text-xs">??</span>
+                ) : (
+                  <span className="text-xs">??</span>
+                )}
+                <span className="text-white/90 truncate max-w-[150px]">{file.name}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFile(index)}
+                  className="text-white/60 hover:text-white/90 transition"
+                  title="Remove"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-white/10">
         <div className="relative flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-1.5">
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          {/* Attach button */}
+          <button
+            type="button"
+            className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 transition"
+            title="Attach file, photo, or video"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending || uploadingAttachments}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+              />
+            </svg>
+          </button>
           <input
             className="input flex-1 bg-transparent border-0 focus:ring-0 placeholder-white/40"
             value={messageText}
@@ -442,14 +672,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
             }}
             type="text"
             placeholder="Type a message..."
-            disabled={sending}
+            disabled={sending || uploadingAttachments}
           />
+          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           <button
             className="btn btn-primary rounded-xl px-3 py-2"
             onClick={handleSend}
-            disabled={!messageText.trim() || sending}
+            disabled={(!messageText.trim() && selectedFiles.length === 0) || sending || uploadingAttachments}
           >
-            {sending ? '...' : 'Send'}
+            {uploadingAttachments ? 'Uploading...' : sending ? '...' : 'Send'}
           </button>
         </div>
       </div>
