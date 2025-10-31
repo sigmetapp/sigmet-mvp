@@ -155,8 +155,10 @@ create table if not exists public.profile_changes (
 create index if not exists profile_changes_target_created_idx on public.profile_changes(target_user_id, created_at desc);
 
 alter table public.profile_changes enable row level security;
-create policy if not exists "read profile_changes" on public.profile_changes for select using (true);
-create policy if not exists "insert profile_changes" on public.profile_changes for insert with check (auth.uid() is not null);
+drop policy if exists "read profile_changes" on public.profile_changes;
+create policy "read profile_changes" on public.profile_changes for select using (true);
+drop policy if exists "insert profile_changes" on public.profile_changes;
+create policy "insert profile_changes" on public.profile_changes for insert with check (auth.uid() is not null);
 
 -- Function to track profile changes (trigger will be created in migration)
 create or replace function public.track_profile_change()

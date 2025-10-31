@@ -18,11 +18,13 @@ create index if not exists profile_changes_target_created_idx
 alter table public.profile_changes enable row level security;
 
 -- Anyone can read profile changes (for transparency)
-create policy if not exists "read profile_changes" 
+drop policy if exists "read profile_changes" on public.profile_changes;
+create policy "read profile_changes" 
   on public.profile_changes for select using (true);
 
 -- Only authenticated users can insert (when editing others' profiles)
-create policy if not exists "insert profile_changes" 
+drop policy if exists "insert profile_changes" on public.profile_changes;
+create policy "insert profile_changes" 
   on public.profile_changes for insert 
   with check (auth.uid() is not null);
 
