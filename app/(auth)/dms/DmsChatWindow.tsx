@@ -334,19 +334,19 @@ export default function DmsChatWindow({ partnerId }: Props) {
             alt={partnerName}
             className="h-10 w-10 rounded-full object-cover border border-white/10"
           />
-          <div>
-            <div className="text-white text-sm font-medium">{partnerName}</div>
-            <div className="text-xs text-white/60 flex items-center gap-2 flex-wrap">
+          <div className="min-w-0">
+            <div className="text-white text-sm font-medium truncate">{partnerName}</div>
+            <div className="text-xs text-white/60 flex items-center gap-1.5 flex-wrap">
               <span
-                className={`inline-block h-2 w-2 rounded-full ${
+                className={`inline-block h-2 w-2 rounded-full shrink-0 ${
                   isOnline ? 'bg-emerald-400' : 'bg-white/30'
                 }`}
               />
-              {isOnline ? 'online' : 'offline'}
-              <span className="text-white/50">?</span>
-              <span>SW: {socialWeight}/100</span>
-              <span className="text-white/50">?</span>
-              <span>TF: {trustFlow}%</span>
+              <span className="whitespace-nowrap">{isOnline ? 'online' : 'offline'}</span>
+              <span className="text-white/50 shrink-0">?</span>
+              <span className="whitespace-nowrap">SW: {socialWeight}/100</span>
+              <span className="text-white/50 shrink-0">?</span>
+              <span className="whitespace-nowrap">TF: {trustFlow}%</span>
             </div>
           </div>
         </div>
