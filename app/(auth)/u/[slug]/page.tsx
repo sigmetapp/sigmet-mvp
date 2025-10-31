@@ -337,6 +337,15 @@ export default function PublicProfilePage() {
     try {
       const { data: auth } = await supabase.auth.getUser();
       const me = auth.user?.id || null;
+      
+      // Prevent users from giving feedback to themselves
+      if (me === profile.user_id) {
+        setFeedbackPending(false);
+        setFeedbackOpen(false);
+        setFeedbackText('');
+        return;
+      }
+      
       // Best-effort insert; table may not exist in all envs
       try {
         await supabase.from('trust_feedback').insert({
@@ -627,12 +636,14 @@ export default function PublicProfilePage() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg text-white/90">Trust Flow</h2>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setFeedbackOpen(true)}
-                className="px-3 py-1.5 rounded-lg border border-white/20 text-white/80 hover:bg-white/10 text-sm"
-              >
-                Leave opinion
-              </button>
+              {!isMe && (
+                <button
+                  onClick={() => setFeedbackOpen(true)}
+                  className="px-3 py-1.5 rounded-lg border border-white/20 text-white/80 hover:bg-white/10 text-sm"
+                >
+                  Leave opinion
+                </button>
+              )}
               {isMe && (
                 <button
                   onClick={openHistory}

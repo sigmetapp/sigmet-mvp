@@ -138,8 +138,12 @@ create table if not exists public.trust_feedback (
 create index if not exists trust_feedback_target_created_idx on public.trust_feedback(target_user_id, created_at desc);
 
 alter table public.trust_feedback enable row level security;
-create policy if not exists "read trust_feedback" on public.trust_feedback for select using (true);
-create policy if not exists "insert trust_feedback" on public.trust_feedback for insert with check (auth.uid() is not null);
+drop policy if exists "read trust_feedback" on public.trust_feedback;
+create policy "read trust_feedback" on public.trust_feedback for select using (true);
+drop policy if exists "insert trust_feedback" on public.trust_feedback;
+-- Prevent users from giving feedback to themselves
+create policy "insert trust_feedback" on public.trust_feedback for insert 
+  with check (auth.uid() is not null and auth.uid() != target_user_id);
 
 -- Profile changes tracking for Trust Flow
 create table if not exists public.profile_changes (
