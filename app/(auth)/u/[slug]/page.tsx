@@ -101,52 +101,76 @@ export default function PublicProfilePage() {
 
     // Check if user wants to show online status
     const showStatus = profile.show_online_status !== false;
+    
+    console.log('[Online Status] Profile check:', {
+      userId: profile.user_id,
+      username: profile.username,
+      show_online_status: profile.show_online_status,
+      showStatus,
+    });
 
     if (!showStatus) {
       // User has privacy setting - show as "Private online"
+      console.log('[Online Status] Privacy setting enabled - showing "Private online"');
       setIsOnline(null);
       return;
     }
 
     // Subscribe to presence channel for this user
-    const channel = supabase.channel(`presence:${profile.user_id}`);
+    const channelName = `presence:${profile.user_id}`;
+    console.log('[Online Status] Subscribing to channel:', channelName);
+    const channel = supabase.channel(channelName);
     
     channel
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
+        console.log('[Online Status] Presence sync event:', { state });
         const hasOnline = Object.keys(state).length > 0 && 
           Object.values(state).some((presences: any[]) => 
             presences.some((p: any) => p.online === true)
           );
+        console.log('[Online Status] Sync result - hasOnline:', hasOnline);
         setIsOnline(hasOnline);
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        console.log('[Online Status] Presence join event:', { key, newPresences });
         const isUserOnline = newPresences.some((p: any) => p.online === true);
-        if (isUserOnline) setIsOnline(true);
+        if (isUserOnline) {
+          console.log('[Online Status] User joined as online');
+          setIsOnline(true);
+        }
       })
       .on('presence', { event: 'leave' }, () => {
+        console.log('[Online Status] Presence leave event');
         // Check if any presence remains
         const state = channel.presenceState();
         const hasOnline = Object.keys(state).length > 0 && 
           Object.values(state).some((presences: any[]) => 
             presences.some((p: any) => p.online === true)
           );
+        console.log('[Online Status] Leave result - hasOnline:', hasOnline);
         setIsOnline(hasOnline);
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[Online Status] Channel subscription status:', status);
+      });
 
     setPresenceChannel(channel);
 
     // Initial check
     (async () => {
       try {
+        console.log('[Online Status] Performing initial presence check');
         const state = await getPresenceMap(profile.user_id);
+        console.log('[Online Status] Initial presence state:', state);
         const hasOnline = Object.keys(state).length > 0 && 
           Object.values(state).some((presences: any[]) => 
             presences.some((p: any) => p.online === true)
           );
+        console.log('[Online Status] Initial check result - hasOnline:', hasOnline);
         setIsOnline(hasOnline);
-      } catch {
+      } catch (error) {
+        console.error('[Online Status] Initial check error:', error);
         setIsOnline(false);
       }
     })();

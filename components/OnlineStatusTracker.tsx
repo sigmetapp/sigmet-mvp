@@ -15,12 +15,21 @@ export default function OnlineStatusTracker() {
 
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !mounted) return;
+      if (!user || !mounted) {
+        console.log('[OnlineStatusTracker] No user or not mounted');
+        return;
+      }
       
       userId = user.id;
+      console.log('[OnlineStatusTracker] Setting user as online:', userId);
       
       // Set user as online
-      await setOnline(user.id, true);
+      try {
+        await setOnline(user.id, true);
+        console.log('[OnlineStatusTracker] Successfully set user as online');
+      } catch (error) {
+        console.error('[OnlineStatusTracker] Error setting user as online:', error);
+      }
     })();
 
     // Handle visibility change (tab switch, minimize, etc.)
