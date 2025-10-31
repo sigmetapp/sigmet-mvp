@@ -40,6 +40,7 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
   const [isTypingOther, setIsTypingOther] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [partner, setPartner] = useState<{ user_id: string; name: string; avatar: string | null } | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -440,8 +441,6 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
   }
 
   // Block/Unblock controls moved to the profile sidebar
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   return (
     <div className="card card-glow overflow-hidden flex flex-col h-full">
