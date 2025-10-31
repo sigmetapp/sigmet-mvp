@@ -23,7 +23,7 @@ export default function DmGlobalNotifications() {
   useEffect(() => {
     if (!currentUserId) return;
 
-    let cancelled = false;
+    cancelledRef.current = false;
 
     (async () => {
       try {
