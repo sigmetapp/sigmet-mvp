@@ -28,21 +28,26 @@ function getPresenceChannel(userId: string): RealtimeChannel {
  * Set user online/offline status
  */
 export async function setPresenceStatus(userId: string, online: boolean): Promise<void> {
-  const channel = getPresenceChannel(userId);
-  
-  // Ensure subscribed
-  const state = (channel as any).state;
-  if (state !== 'joined' && state !== 'joining') {
-    await channel.subscribe();
-  }
-  
-  if (online) {
-    await channel.track({
-      online: true,
-      last_seen: new Date().toISOString(),
-    });
-  } else {
-    await channel.untrack();
+  try {
+    const channel = getPresenceChannel(userId);
+    
+    // Ensure subscribed
+    const state = (channel as any).state;
+    if (state !== 'joined' && state !== 'joining') {
+      await channel.subscribe();
+    }
+    
+    if (online) {
+      await channel.track({
+        online: true,
+        last_seen: new Date().toISOString(),
+      });
+    } else {
+      await channel.untrack();
+    }
+  } catch (error) {
+    console.error('Error setting presence status:', error);
+    // Don't throw - presence failures are not critical
   }
 }
 
@@ -57,47 +62,63 @@ export async function subscribeToPresence(
   const cleanupMap = new Map<string, () => void>();
   
   for (const userId of userIds) {
-    const channel = getPresenceChannel(userId);
-    
-    // Subscribe to presence sync
-    const syncHandler = () => {
-      const state = channel.presenceState();
-      const presence = state[userId]?.[0];
-      onPresenceChange(userId, !!presence);
-    };
-    
-    // Subscribe to presence join/leave
-    const joinHandler = ({ key }: { key: string }) => {
-      if (key === userId) {
-        onPresenceChange(userId, true);
-      }
-    };
-    
-    const leaveHandler = ({ key }: { key: string }) => {
-      if (key === userId) {
-        onPresenceChange(userId, false);
-      }
-    };
-    
-    channel.on('presence', { event: 'sync' }, syncHandler);
-    channel.on('presence', { event: 'join' }, joinHandler);
-    channel.on('presence', { event: 'leave' }, leaveHandler);
-    
-    await channel.subscribe();
-    channels.push(channel);
-    
-    // Store cleanup function
-    cleanupMap.set(userId, () => {
-      channel.off('presence', { event: 'sync' }, syncHandler);
-      channel.off('presence', { event: 'join' }, joinHandler);
-      channel.off('presence', { event: 'leave' }, leaveHandler);
-    });
+    try {
+      const channel = getPresenceChannel(userId);
+      
+      // Subscribe to presence sync
+      const syncHandler = () => {
+        try {
+          const state = channel.presenceState();
+          const presence = state[userId]?.[0];
+          onPresenceChange(userId, !!presence);
+        } catch (error) {
+          console.error(`Error in presence sync handler for ${userId}:`, error);
+        }
+      };
+      
+      // Subscribe to presence join/leave
+      const joinHandler = ({ key }: { key: string }) => {
+        if (key === userId) {
+          onPresenceChange(userId, true);
+        }
+      };
+      
+      const leaveHandler = ({ key }: { key: string }) => {
+        if (key === userId) {
+          onPresenceChange(userId, false);
+        }
+      };
+      
+      channel.on('presence', { event: 'sync' }, syncHandler);
+      channel.on('presence', { event: 'join' }, joinHandler);
+      channel.on('presence', { event: 'leave' }, leaveHandler);
+      
+      await channel.subscribe();
+      channels.push(channel);
+      
+      // Store cleanup function
+      cleanupMap.set(userId, () => {
+        try {
+          channel.off('presence', { event: 'sync' }, syncHandler);
+          channel.off('presence', { event: 'join' }, joinHandler);
+          channel.off('presence', { event: 'leave' }, leaveHandler);
+        } catch (error) {
+          console.error(`Error cleaning up presence handlers for ${userId}:`, error);
+        }
+      });
+    } catch (error) {
+      console.error(`Error setting up presence for ${userId}:`, error);
+    }
   }
   
   // Return unsubscribe function
   return async () => {
     for (const channel of channels) {
-      await channel.unsubscribe();
+      try {
+        await channel.unsubscribe();
+      } catch (error) {
+        console.error('Error unsubscribing from presence channel:', error);
+      }
     }
     for (const cleanup of cleanupMap.values()) {
       cleanup();
@@ -109,9 +130,14 @@ export async function subscribeToPresence(
  * Get current presence state for a user
  */
 export function getPresenceState(userId: string): boolean {
-  const channel = presenceChannels.get(userId);
-  if (!channel) return false;
-  
-  const state = channel.presenceState();
-  return !!state[userId]?.[0];
+  try {
+    const channel = presenceChannels.get(userId);
+    if (!channel) return false;
+    
+    const state = channel.presenceState();
+    return !!state[userId]?.[0];
+  } catch (error) {
+    console.error(`Error getting presence state for ${userId}:`, error);
+    return false;
+  }
 }
