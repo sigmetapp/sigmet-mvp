@@ -85,6 +85,11 @@ export default function PublicProfilePage() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
+  // Badges state
+  const [displayedBadges, setDisplayedBadges] = useState<
+    Array<{ id: string; name: string; emoji: string; description: string }>
+  >([]);
+
   const isMe = useMemo(() => {
     if (!viewerId || !profile) return false;
     return viewerId === profile.user_id;
@@ -366,6 +371,51 @@ export default function PublicProfilePage() {
         setFollowersCount(0);
         setFollowingCount(0);
         setReferralsCount(0);
+      }
+    })();
+  }, [profile?.user_id]);
+
+  // Load displayed badges
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    (async () => {
+      try {
+        // Get display preferences for this user
+        const { data: displayPrefs } = await supabase
+          .from('badge_display_preferences')
+          .select('displayed_badges')
+          .eq('user_id', profile.user_id)
+          .maybeSingle();
+
+        const displayedBadgeIds = displayPrefs?.displayed_badges || [];
+
+        if (displayedBadgeIds.length === 0) {
+          setDisplayedBadges([]);
+          return;
+        }
+
+        // Get badge types for displayed badges
+        const { data: badgeTypes } = await supabase
+          .from('badge_types')
+          .select('id, name, emoji, description')
+          .in('id', displayedBadgeIds)
+          .order('sort_order', { ascending: true });
+
+        // Verify these badges are actually earned by this user
+        const { data: earnedBadges } = await supabase
+          .from('user_badges')
+          .select('badge_id')
+          .eq('user_id', profile.user_id)
+          .in('badge_id', displayedBadgeIds);
+
+        const earnedBadgeIds = new Set((earnedBadges || []).map((b) => b.badge_id));
+
+        // Filter to only show earned badges
+        const filtered = (badgeTypes || []).filter((bt) => earnedBadgeIds.has(bt.id));
+
+        setDisplayedBadges(filtered);
+      } catch {
+        setDisplayedBadges([]);
       }
     })();
   }, [profile?.user_id]);
@@ -710,6 +760,25 @@ export default function PublicProfilePage() {
               <div className="text-white/60 text-sm">Joined</div>
               <div>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '-'}</div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Badges block */}
+      {!loadingProfile && profile && displayedBadges.length > 0 && (
+        <div className="card p-4 md:p-6">
+          <h2 className="text-lg font-medium text-white/90 mb-4">Badges</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            {displayedBadges.map((badge) => (
+              <div
+                key={badge.id}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/15 transition"
+                title={`${badge.name}: ${badge.description}`}
+              >
+                <span className="text-xl leading-none">{badge.emoji}</span>
+                <span className="text-white/90 text-sm font-medium">{badge.name}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
