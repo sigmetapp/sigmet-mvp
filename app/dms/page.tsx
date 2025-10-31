@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
+import DmsChatWindow from './DmsChatWindow';
 
 export default function DmsPage() {
   return (
@@ -21,9 +23,11 @@ type Profile = {
 };
 
 function DmsInner() {
+  const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [partners, setPartners] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -108,55 +112,85 @@ function DmsInner() {
     };
   }, [currentUserId]);
 
-  return (
-    <div className="max-w-4xl mx-auto p-4 md:p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-white">Messages</h1>
-      </div>
+  function handlePartnerClick(partnerId: string) {
+    setSelectedPartnerId(partnerId);
+    router.push(`/dms/${partnerId}`);
+  }
 
-      {loading ? (
-        <div className="card card-glow p-6 flex items-center justify-center">
-          <div className="text-white/70">Loading conversations...</div>
-        </div>
-      ) : partners.length === 0 ? (
-        <div className="card card-glow p-6">
-          <div className="text-white/70 text-center py-8">
-            No conversations yet. Start a conversation by visiting a user's profile.
+  return (
+    <div className="flex h-[calc(100vh-120px)] md:h-[80vh] gap-4">
+      {/* Partners list - left side */}
+      <div className="w-80 flex-shrink-0">
+        <div className="card card-glow h-full flex flex-col">
+          <div className="px-4 py-3 border-b border-white/10">
+            <h1 className="text-lg font-semibold text-white">Messages</h1>
+          </div>
+
+          <div className="flex-1 overflow-y-auto smooth-scroll p-2">
+            {loading ? (
+              <div className="text-white/70 text-sm py-4 text-center">
+                Loading conversations...
+              </div>
+            ) : partners.length === 0 ? (
+              <div className="text-white/70 text-sm py-8 text-center">
+                No conversations yet.
+                <br />
+                Start a conversation by visiting a user's profile.
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {partners.map((partner) => {
+                  const name =
+                    partner.full_name || partner.username || partner.user_id.slice(0, 8);
+                  const avatar = partner.avatar_url || AVATAR_FALLBACK;
+                  const isSelected = selectedPartnerId === partner.user_id;
+
+                  return (
+                    <button
+                      key={partner.user_id}
+                      onClick={() => handlePartnerClick(partner.user_id)}
+                      className={`w-full text-left p-3 rounded-xl flex items-center gap-3 transition ${
+                        isSelected
+                          ? 'bg-white/10 border border-white/20'
+                          : 'hover:bg-white/5 border border-transparent'
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={avatar}
+                        alt={name}
+                        className="h-10 w-10 rounded-full object-cover border border-white/10 flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white/90 font-medium truncate">{name}</div>
+                        {partner.username && (
+                          <div className="text-white/60 text-sm truncate">
+                            @{partner.username}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
-      ) : (
-        <div className="card card-glow p-4 space-y-2">
-          {partners.map((partner) => {
-            const name =
-              partner.full_name || partner.username || partner.user_id.slice(0, 8);
-            const avatar = partner.avatar_url || AVATAR_FALLBACK;
+      </div>
 
-            return (
-              <Link
-                key={partner.user_id}
-                href={`/dms/${partner.user_id}`}
-                className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={avatar}
-                  alt={name}
-                  className="h-12 w-12 rounded-full object-cover border border-white/10"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-white/90 font-medium truncate">{name}</div>
-                  {partner.username && (
-                    <div className="text-white/60 text-sm truncate">
-                      @{partner.username}
-                    </div>
-                  )}
-                </div>
-                <div className="text-white/40">→</div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      {/* Chat window - right side */}
+      <div className="flex-1 min-w-0">
+        {selectedPartnerId ? (
+          <DmsChatWindow partnerId={selectedPartnerId} />
+        ) : (
+          <div className="card card-glow h-full flex items-center justify-center">
+            <div className="text-white/70 text-center">
+              <div className="text-lg mb-2">Select a conversation</div>
+              <div className="text-sm">Choose a user from the list to start messaging</div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
