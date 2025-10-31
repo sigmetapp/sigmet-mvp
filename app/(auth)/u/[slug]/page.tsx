@@ -56,7 +56,16 @@ export default function PublicProfilePage() {
   const [feedbackPending, setFeedbackPending] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState<
-    { author_id: string | null; value: number; comment: string | null; created_at?: string }[]
+    Array<{
+      type: 'feedback' | 'profile_change';
+      author_id: string | null;
+      value?: number;
+      field_name?: string;
+      old_value?: string | null;
+      new_value?: string | null;
+      comment: string | null;
+      created_at?: string;
+    }>
   >([]);
 
   // comment/reaction stats for posts
@@ -358,18 +367,48 @@ export default function PublicProfilePage() {
     if (!isMe || !profile?.user_id) return;
     setHistoryOpen(true);
     try {
-      const { data } = await supabase
-        .from('trust_feedback')
-        .select('author_id, value, comment, created_at')
-        .eq('target_user_id', profile.user_id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      setHistoryItems(((data as any[]) || []).map((r) => ({
+      // Load both feedback and profile changes
+      const [feedbackRes, changesRes] = await Promise.all([
+        supabase
+          .from('trust_feedback')
+          .select('author_id, value, comment, created_at')
+          .eq('target_user_id', profile.user_id)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase
+          .from('profile_changes')
+          .select('editor_id, field_name, old_value, new_value, comment, created_at')
+          .eq('target_user_id', profile.user_id)
+          .order('created_at', { ascending: false })
+          .limit(50),
+      ]);
+
+      const feedbackItems = ((feedbackRes.data as any[]) || []).map((r) => ({
+        type: 'feedback' as const,
         author_id: (r.author_id as string) || null,
         value: Number(r.value) || 0,
         comment: (r.comment as string) || null,
         created_at: r.created_at as string | undefined,
-      })));
+      }));
+
+      const changeItems = ((changesRes.data as any[]) || []).map((r) => ({
+        type: 'profile_change' as const,
+        author_id: (r.editor_id as string) || null,
+        field_name: (r.field_name as string) || null,
+        old_value: r.old_value,
+        new_value: r.new_value,
+        comment: (r.comment as string) || null,
+        created_at: r.created_at as string | undefined,
+      }));
+
+      // Combine and sort by date
+      const allItems = [...feedbackItems, ...changeItems].sort((a, b) => {
+        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      setHistoryItems(allItems.slice(0, 50));
     } catch {
       setHistoryItems([]);
     }
@@ -766,7 +805,20 @@ function RecentSocialItem({ event }: { event: { kind: 'in' | 'out'; otherUserId:
   );
 }
 
-function HistoryRow({ item }: { item: { author_id: string | null; value: number; comment: string | null; created_at?: string } }) {
+function HistoryRow({ 
+  item 
+}: { 
+  item: {
+    type: 'feedback' | 'profile_change';
+    author_id: string | null;
+    value?: number;
+    field_name?: string;
+    old_value?: string | null;
+    new_value?: string | null;
+    comment: string | null;
+    created_at?: string;
+  };
+}) {
   const [user, setUser] = useState<{ username: string | null; avatar_url: string | null } | null>(null);
   useEffect(() => {
     (async () => {
@@ -786,18 +838,76 @@ function HistoryRow({ item }: { item: { author_id: string | null; value: number;
   const u = user?.username || (item.author_id ? item.author_id.slice(0, 8) : 'Anon');
   const avatar = user?.avatar_url ||
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><rect width='100%' height='100%' fill='%23222'/></svg>";
-  const positive = (item.value || 0) > 0;
-  return (
-    <li className="flex items-center gap-3 px-3 py-2 text-sm">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={avatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10" />
-      <span className="text-white/80 truncate">
-        <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link>
-        {': '}
-        {positive ? 'UP' : 'Down'}
-      </span>
-      {item.comment && <span className="text-white/60 truncate"> - {item.comment}</span>}
-      <span className="ml-auto text-white/40">{item.created_at ? new Date(item.created_at).toLocaleString() : ''}</span>
-    </li>
-  );
+  
+  const getFieldLabel = (field: string) => {
+    const labels: Record<string, string> = {
+      username: 'Username',
+      full_name: 'Full Name',
+      bio: 'Bio',
+      country: 'Country',
+      website_url: 'Website',
+      avatar_url: 'Avatar',
+      directions_selected: 'Directions',
+    };
+    return labels[field] || field;
+  };
+
+  if (item.type === 'feedback') {
+    const positive = (item.value || 0) > 0;
+    return (
+      <li className="flex items-start gap-3 px-3 py-2 text-sm">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={avatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <span className="text-white/80">
+            <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link>
+            {' '}
+            {positive ? <span className="text-emerald-300">UP</span> : <span className="text-rose-300">Down</span>}
+          </span>
+          {item.comment && (
+            <div className="text-white/60 text-xs mt-1 whitespace-pre-wrap break-words">{item.comment}</div>
+          )}
+        </div>
+        <span className="ml-auto text-white/40 text-xs flex-shrink-0">
+          {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
+        </span>
+      </li>
+    );
+  } else {
+    // Profile change
+    return (
+      <li className="flex items-start gap-3 px-3 py-2 text-sm">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={avatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <span className="text-white/80">
+            <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link>
+            {' '}changed <span className="text-blue-300">{getFieldLabel(item.field_name || '')}</span>
+          </span>
+          <div className="text-white/60 text-xs mt-1 space-y-1">
+            {item.old_value && (
+              <div>
+                <span className="text-rose-300">-</span> {item.old_value.length > 100 
+                  ? item.old_value.substring(0, 100) + '...' 
+                  : item.old_value}
+              </div>
+            )}
+            {item.new_value && (
+              <div>
+                <span className="text-emerald-300">+</span> {item.new_value.length > 100 
+                  ? item.new_value.substring(0, 100) + '...' 
+                  : item.new_value}
+              </div>
+            )}
+            {item.comment && (
+              <div className="text-white/50 italic mt-1">{item.comment}</div>
+            )}
+          </div>
+        </div>
+        <span className="ml-auto text-white/40 text-xs flex-shrink-0">
+          {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
+        </span>
+      </li>
+    );
+  }
 }
