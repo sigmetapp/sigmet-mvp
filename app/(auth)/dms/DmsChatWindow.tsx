@@ -154,10 +154,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
         const messagesData = await listMessages(threadData.id, 50);
         if (cancelled) return;
 
-        // Reverse to show oldest first
-        const reversed = messagesData.reverse();
-        setInitialMessages(reversed);
-        setMessages(reversed);
+        // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
+        const sorted = messagesData.sort((a, b) => {
+          const timeA = new Date(a.created_at).getTime();
+          const timeB = new Date(b.created_at).getTime();
+          if (timeA !== timeB) return timeA - timeB;
+          return a.id - b.id;
+        });
+        setInitialMessages(sorted);
+        setMessages(sorted);
       } catch (err: any) {
         if (!cancelled) {
           console.error('Error loading thread/messages:', err);
@@ -185,21 +190,26 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages.length]);
 
-  // Play sound on new messages
+  // Play sound on new messages (from partner or own messages)
   useEffect(() => {
     if (messages.length === 0 || !currentUserId || !partnerId) return;
     
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage) return;
     
-    // Check if this is a new message from partner
-    if (
-      lastMessage.id !== lastMessageIdRef.current &&
-      lastMessage.sender_id !== currentUserId &&
-      lastMessage.sender_id === partnerId
-    ) {
+    // Check if this is a new message (from partner or own)
+    const isNewMessage = lastMessage.id !== lastMessageIdRef.current;
+    const isFromPartner = lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId;
+    const isOwnMessage = lastMessage.sender_id === currentUserId;
+    
+    if (isNewMessage && (isFromPartner || isOwnMessage)) {
       const prevLastId = lastMessageIdRef.current;
       lastMessageIdRef.current = lastMessage.id;
+      
+      // Skip sound for the first message when loading conversation
+      if (prevLastId === null) {
+        return;
+      }
       
       // Play notification sound
       try {
@@ -221,11 +231,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
         oscillator.stop(audioContext.currentTime + 0.3);
       } catch (err) {
         console.error('Error playing sound:', err);
-      }
-      
-      // If it was the first message, don't play sound
-      if (prevLastId === null) {
-        lastMessageIdRef.current = lastMessage.id;
       }
     }
   }, [messages, currentUserId, partnerId]);
@@ -264,14 +269,27 @@ export default function DmsChatWindow({ partnerId }: Props) {
     };
 
     const previousMessages = messages;
-    setMessages([...messages, optimisticMessage]);
+    // Add optimistic message sorted by time
+    const withOptimistic = [...messages, optimisticMessage].sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return a.id - b.id;
+    });
+    setMessages(withOptimistic);
 
     try {
       const sentMessage = await sendMessage(thread.id, textToSend, []);
-      // Replace optimistic message with real one
-      setMessages((prev) =>
-        prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m))
-      );
+      // Replace optimistic message with real one and ensure proper sorting
+      setMessages((prev) => {
+        const updated = prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m));
+        return updated.sort((a, b) => {
+          const timeA = new Date(a.created_at).getTime();
+          const timeB = new Date(b.created_at).getTime();
+          if (timeA !== timeB) return timeA - timeB;
+          return a.id - b.id;
+        });
+      });
     } catch (err: any) {
       console.error('Error sending message:', err);
       // Rollback on error
@@ -334,19 +352,40 @@ export default function DmsChatWindow({ partnerId }: Props) {
             alt={partnerName}
             className="h-10 w-10 rounded-full object-cover border border-white/10"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="text-white text-sm font-medium truncate">{partnerName}</div>
-            <div className="text-xs text-white/60 flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+              {/* Online/Offline Badge */}
               <span
-                className={`inline-block h-2 w-2 rounded-full shrink-0 ${
-                  isOnline ? 'bg-emerald-400' : 'bg-white/30'
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-medium ${
+                  isOnline
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-white/10 text-white/60 border border-white/20'
                 }`}
-              />
-              <span className="whitespace-nowrap">{isOnline ? 'online' : 'offline'}</span>
-              <span className="text-white/50 shrink-0">?</span>
-              <span className="whitespace-nowrap">SW: {socialWeight}/100</span>
-              <span className="text-white/50 shrink-0">?</span>
-              <span className="whitespace-nowrap">TF: {trustFlow}%</span>
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    isOnline ? 'bg-emerald-400' : 'bg-white/40'
+                  }`}
+                />
+                {isOnline ? 'online' : 'offline'}
+              </span>
+              
+              {/* Social Weight Badge */}
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                title="Social Weight"
+              >
+                SW: {socialWeight}/100
+              </span>
+              
+              {/* Trust Flow Badge */}
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                title="Trust Flow"
+              >
+                TF: {trustFlow}%
+              </span>
             </div>
           </div>
         </div>

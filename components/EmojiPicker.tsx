@@ -101,7 +101,7 @@ export default function EmojiPicker({ onEmojiSelect }: Props) {
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-full right-0 mb-2 w-96 h-96 bg-[#0f1628] border border-white/20 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col">
+        <div className="fixed bottom-20 right-4 w-96 h-96 bg-[#0f1628] border border-white/20 rounded-2xl shadow-2xl z-[100] overflow-hidden flex flex-col">
           <div className="flex-1 overflow-y-auto p-3">
             {allCategories.map((category) => (
               category.emojis.length > 0 && (

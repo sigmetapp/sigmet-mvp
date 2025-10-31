@@ -80,7 +80,14 @@ export function useDmRealtime(
               if (prev.some((m) => m.id === newMessage.id)) {
                 return prev;
               }
-              return [...prev, newMessage];
+              // Insert message in correct position sorted by created_at and id
+              const sorted = [...prev, newMessage].sort((a, b) => {
+                const timeA = new Date(a.created_at).getTime();
+                const timeB = new Date(b.created_at).getTime();
+                if (timeA !== timeB) return timeA - timeB;
+                return a.id - b.id;
+              });
+              return sorted;
             });
           } else if (payload.eventType === 'UPDATE' && row) {
             setMessages((prev) =>
