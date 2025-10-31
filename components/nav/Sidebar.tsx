@@ -11,7 +11,7 @@ const menu = [
   { label: 'Feeds', href: '/feed', icon: '📜' },
   { label: 'Page', href: '/page', icon: '👤' },
   { label: 'Connections/Follow', href: '/connections', icon: '🔗' },
-  { label: 'Messages', href: '/dm', icon: '✉️', badgeKey: 'unreadDM' as const },
+  { label: 'Messages', href: '/dms', icon: '✉️', badgeKey: 'unreadDM' as const },
   { label: 'SW', href: '/sw', icon: '⚖️' },
   { label: '12 Growth Directions', href: '/growth-directions', icon: '🌱' },
   { label: 'Badges/Rewards', href: '/badges', icon: '🏅' },

@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { getServerSession } from '@/lib/auth/getServerSession';
 import SidebarShell from '@/components/nav/SidebarShell';
 import OnlineStatusTracker from '@/components/OnlineStatusTracker';
+import DmGlobalNotifications from '@/components/DmGlobalNotifications';
 
 export const metadata: Metadata = {
   title: 'App',
@@ -18,6 +19,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   return (
     <>
       <OnlineStatusTracker />
+      <DmGlobalNotifications />
       <SidebarShell user={user}>{children}</SidebarShell>
     </>
   );
