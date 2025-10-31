@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import ChatWindow from '@/components/ChatWindow';
-import { subscribeToPresence } from '@/lib/dm/presence';
 
 type Thread = {
   id: number;
@@ -40,7 +39,6 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Thread metadata (name, avatar, online status, last message)
   const [threadMeta, setThreadMeta] = useState<Record<number, {
     name: string;
     avatar: string | null;
@@ -49,7 +47,6 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
     partnerId: string | null;
   }>>({});
   
-  // Online status for all partners
   const [onlineStatus, setOnlineStatus] = useState<Record<string, boolean>>({});
   
   const [showListOnMobile, setShowListOnMobile] = useState(true);
@@ -62,6 +59,12 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
     setError(null);
     try {
       const resp = await fetch('/api/dms/threads.list');
+      
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(errorText || 'Failed to load threads');
+      }
+      
       const json = await resp.json();
       
       if (!json?.ok) {
@@ -76,6 +79,7 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
         setSelectedThreadId(loadedThreads[0]!.thread.id);
       }
     } catch (e: any) {
+      console.error('Error loading threads:', e);
       setError(e?.message || 'Network error');
     } finally {
       setLoading(false);
@@ -94,7 +98,7 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
     };
   }, []);
 
-  // Load thread metadata (partner info, last message, online status)
+  // Load thread metadata
   useEffect(() => {
     if (!threads.length || !currentUserId) {
       setThreadMeta({});
@@ -132,18 +136,18 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
                 partnerIds.add(otherId);
                 
                 try {
-                  const { data: prof } = await supabase
+                  const { data: prof, error: profError } = await supabase
                     .from('profiles')
                     .select('full_name, username, avatar_url')
                     .eq('user_id', otherId)
                     .maybeSingle();
                   
-                  if (prof) {
-                    name = (prof as any).full_name || (prof as any).username || name;
-                    avatar = (prof as any).avatar_url || null;
+                  if (!profError && prof) {
+                    name = prof.full_name || prof.username || name;
+                    avatar = prof.avatar_url || null;
                   }
-                } catch {
-                  // ignore
+                } catch (err) {
+                  console.error('Error loading profile:', err);
                 }
               }
             }
@@ -155,18 +159,19 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
               const j = await r.json();
               const last = (j?.messages || [])[0];
               lastText = last?.body || '';
-            } catch {
-              // ignore
+            } catch (err) {
+              console.error('Error loading last message:', err);
             }
             
             meta[item.thread.id] = {
               name,
               avatar,
               lastText,
-              online: false, // Will be updated by presence subscription
+              online: false,
               partnerId,
             };
-          } catch {
+          } catch (err) {
+            console.error('Error loading thread metadata:', err);
             meta[item.thread.id] = {
               name: item.thread.title || `Thread #${item.thread.id}`,
               avatar: null,
@@ -188,12 +193,12 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
     };
   }, [threads, currentUserId]);
 
-  // Presence subscription management
+  // Simple online status via presence
   useEffect(() => {
     if (!threads.length || !currentUserId) return;
     
     let cancelled = false;
-    let unsubscribePresence: (() => void) | null = null;
+    const channels: any[] = [];
     
     (async () => {
       const partnerIds = new Set<string>();
@@ -215,31 +220,87 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
         }
       }
       
-      if (partnerIds.size > 0 && !cancelled) {
-        unsubscribePresence = await subscribeToPresence(Array.from(partnerIds), (userId, online) => {
-          if (!cancelled) {
-            setOnlineStatus((prev) => ({ ...prev, [userId]: online }));
-            
-            // Update thread meta
-            setThreadMeta((prev) => {
-              const updated = { ...prev };
-              for (const [threadId, meta] of Object.entries(updated)) {
-                if (meta.partnerId === userId) {
-                  updated[Number(threadId)] = { ...meta, online };
+      // Subscribe to presence for partners
+      const userIds = Array.from(partnerIds);
+      if (userIds.length === 0 || cancelled) return;
+      
+      for (const userId of userIds) {
+        try {
+          const channel = supabase.channel(`presence:${userId}`, {
+            config: { presence: { key: userId } },
+          });
+          
+          channel.on('presence', { event: 'sync' }, () => {
+            if (cancelled) return;
+            const state = channel.presenceState();
+            const isOnline = !!state[userId]?.[0];
+            setOnlineStatus(prev => {
+              const updated = { ...prev, [userId]: isOnline };
+              // Update thread meta
+              setThreadMeta(prevMeta => {
+                const updatedMeta = { ...prevMeta };
+                for (const [threadId, meta] of Object.entries(updatedMeta)) {
+                  if (meta.partnerId === userId) {
+                    updatedMeta[Number(threadId)] = { ...meta, online: isOnline };
+                  }
                 }
-              }
+                return updatedMeta;
+              });
               return updated;
             });
-          }
-        });
+          });
+          
+          channel.on('presence', { event: 'join' }, () => {
+            if (cancelled) return;
+            setOnlineStatus(prev => {
+              const updated = { ...prev, [userId]: true };
+              setThreadMeta(prevMeta => {
+                const updatedMeta = { ...prevMeta };
+                for (const [threadId, meta] of Object.entries(updatedMeta)) {
+                  if (meta.partnerId === userId) {
+                    updatedMeta[Number(threadId)] = { ...meta, online: true };
+                  }
+                }
+                return updatedMeta;
+              });
+              return updated;
+            });
+          });
+          
+          channel.on('presence', { event: 'leave' }, () => {
+            if (cancelled) return;
+            setOnlineStatus(prev => {
+              const updated = { ...prev, [userId]: false };
+              setThreadMeta(prevMeta => {
+                const updatedMeta = { ...prevMeta };
+                for (const [threadId, meta] of Object.entries(updatedMeta)) {
+                  if (meta.partnerId === userId) {
+                    updatedMeta[Number(threadId)] = { ...meta, online: false };
+                  }
+                }
+                return updatedMeta;
+              });
+              return updated;
+            });
+          });
+          
+          await channel.subscribe();
+          channels.push(channel);
+        } catch (err) {
+          console.error(`Error setting up presence for ${userId}:`, err);
+        }
       }
     })();
     
     return () => {
       cancelled = true;
-      if (unsubscribePresence) {
-        unsubscribePresence();
-      }
+      channels.forEach(ch => {
+        try {
+          ch.unsubscribe();
+        } catch (err) {
+          console.error('Error unsubscribing from presence channel:', err);
+        }
+      });
     };
   }, [threads, currentUserId]);
 
@@ -254,23 +315,26 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
 
     (async () => {
       try {
-        const { data } = await supabase
+        const { data, error: searchError } = await supabase
           .from('profiles')
           .select('user_id, username, full_name, avatar_url')
           .ilike('username', `%${searchQuery}%`)
           .limit(10);
         
-        if (!cancelled && data) {
+        if (!cancelled && !searchError && data) {
           setSearchResults(
-            (data as any[]).map((p) => ({
+            data.map((p: any) => ({
               user_id: p.user_id,
               username: p.username ?? null,
               full_name: p.full_name ?? null,
               avatar_url: p.avatar_url ?? null,
             }))
           );
+        } else if (!cancelled) {
+          setSearchResults([]);
         }
-      } catch {
+      } catch (err) {
+        console.error('Error searching:', err);
         if (!cancelled) setSearchResults([]);
       }
     })();
@@ -290,6 +354,11 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
         body: JSON.stringify({ participant_ids: [userId] }),
       });
       
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(errorText || 'Failed to create thread');
+      }
+      
       const json = await resp.json();
       if (!json?.ok) {
         throw new Error(json?.error || 'Failed to create thread');
@@ -300,6 +369,7 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
       setSearchQuery('');
       setShowListOnMobile(false);
     } catch (e: any) {
+      console.error('Error creating thread:', e);
       setError(e?.message || 'Network error');
     } finally {
       setLoading(false);
@@ -359,7 +429,7 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
                           createThreadWithUser(p.user_id);
                         }}
                       >
-                        ????????
+                        ???????
                       </button>
                     </div>
                   ))
@@ -373,7 +443,7 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
             {loading ? (
               <div className="text-sm text-white/60 py-2">????????...</div>
             ) : threads.length === 0 ? (
-              <div className="text-sm text-white/60 py-2">???? ??? ????????.</div>
+              <div className="text-sm text-white/60 py-2">??? ?????????.</div>
             ) : (
               threads.map((item) => {
                 const meta = threadMeta[item.thread.id];
@@ -436,7 +506,7 @@ export default function DmPageClient({ currentUserId }: { currentUserId: string 
           />
         ) : (
           <div className="card card-glow h-full flex items-center justify-center text-white/70">
-            ???????? ?????? ??? ???????? ?????.
+            ???????? ??? ??? ?????? ???????.
           </div>
         )}
       </div>

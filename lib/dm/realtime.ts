@@ -74,12 +74,24 @@ export async function subscribeToThread(
     });
   }
   
-  await channel.subscribe();
+  try {
+    const status = await channel.subscribe();
+    if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR') {
+      console.log(`Subscribed to thread ${threadId}, status:`, status);
+    }
+  } catch (error) {
+    console.error('Error subscribing to thread:', error);
+    throw error;
+  }
   
   // Return unsubscribe function
   return async () => {
-    await channel.unsubscribe();
-    activeChannels.delete(threadId);
+    try {
+      await channel.unsubscribe();
+      activeChannels.delete(threadId);
+    } catch (error) {
+      console.error('Error unsubscribing from thread:', error);
+    }
   };
 }
 
@@ -91,12 +103,24 @@ export async function sendTypingIndicator(
   userId: string,
   typing: boolean
 ): Promise<void> {
-  const channel = getThreadChannel(threadId);
-  await channel.send({
-    type: 'broadcast',
-    event: 'typing',
-    payload: { userId, typing },
-  });
+  try {
+    const channel = getThreadChannel(threadId);
+    
+    // Ensure channel is subscribed
+    const state = (channel as any).state;
+    if (state !== 'joined' && state !== 'joining') {
+      await channel.subscribe();
+    }
+    
+    await channel.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { userId, typing },
+    });
+  } catch (error) {
+    console.error('Error sending typing indicator:', error);
+    // Don't throw - typing indicator failures are not critical
+  }
 }
 
 /**
@@ -104,7 +128,11 @@ export async function sendTypingIndicator(
  */
 export async function cleanupChannels(): Promise<void> {
   for (const [threadId, channel] of activeChannels) {
-    await channel.unsubscribe();
+    try {
+      await channel.unsubscribe();
+    } catch (error) {
+      console.error(`Error unsubscribing from thread ${threadId}:`, error);
+    }
   }
   activeChannels.clear();
 }

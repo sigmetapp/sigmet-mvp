@@ -46,6 +46,7 @@ export default function ChatWindow({
   const [isTyping, setIsTyping] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [lastReadId, setLastReadId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,11 +61,23 @@ export default function ChatWindow({
     
     (async () => {
       setIsLoading(true);
+      setError(null);
       try {
         const resp = await fetch(`/api/dms/messages.list?thread_id=${threadId}&limit=30`);
+        
+        if (!resp.ok) {
+          const errorText = await resp.text();
+          throw new Error(errorText || 'Failed to load messages');
+        }
+        
         const json = await resp.json();
         
-        if (!json?.ok || cancelled) return;
+        if (!json?.ok || cancelled) {
+          if (!cancelled) {
+            setError(json?.error || 'Failed to load messages');
+          }
+          return;
+        }
         
         const loadedMessages = (json.messages || []).slice().reverse();
         setMessages(loadedMessages);
@@ -78,6 +91,9 @@ export default function ChatWindow({
         }
       } catch (error) {
         console.error('Failed to load messages:', error);
+        if (!cancelled) {
+          setError((error as Error).message || 'Failed to load messages');
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -92,16 +108,18 @@ export default function ChatWindow({
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await supabase
+        const { data, error: muteError } = await supabase
           .from('dms_thread_participants')
           .select('notifications_muted')
           .eq('thread_id', threadId)
           .eq('user_id', currentUserId)
           .maybeSingle();
         
-        setIsMuted(Boolean(data?.notifications_muted));
-      } catch {
-        // ignore
+        if (!muteError && data) {
+          setIsMuted(Boolean(data.notifications_muted));
+        }
+      } catch (err) {
+        console.error('Error loading mute status:', err);
       }
     })();
   }, [threadId, currentUserId]);
@@ -111,67 +129,75 @@ export default function ChatWindow({
     let cancelled = false;
     
     (async () => {
-      const unsubscribe = await subscribeToThread(threadId, {
-        onMessage: (change) => {
-          if (cancelled) return;
-          
-          const row = change.payload.new || change.payload.old;
-          
-          if (change.type === 'INSERT' && row) {
-            const newMessage: Message = {
-              id: row.id,
-              thread_id: row.thread_id,
-              sender_id: row.sender_id,
-              kind: row.kind,
-              body: row.body,
-              attachments: row.attachments || [],
-              created_at: row.created_at,
-              edited_at: row.edited_at,
-              deleted_at: row.deleted_at,
-            };
-            setMessages((prev) => [...prev, newMessage]);
+      try {
+        const unsubscribe = await subscribeToThread(threadId, {
+          onMessage: (change) => {
+            if (cancelled) return;
             
-            // Mark as read if it's from someone else
-            if (newMessage.sender_id !== currentUserId) {
-              void markAsRead(newMessage.id);
+            const row = change.payload.new || change.payload.old;
+            
+            if (change.type === 'INSERT' && row) {
+              const newMessage: Message = {
+                id: row.id,
+                thread_id: row.thread_id,
+                sender_id: row.sender_id,
+                kind: row.kind,
+                body: row.body,
+                attachments: row.attachments || [],
+                created_at: row.created_at,
+                edited_at: row.edited_at,
+                deleted_at: row.deleted_at,
+              };
+              setMessages((prev) => [...prev, newMessage]);
+              
+              // Mark as read if it's from someone else
+              if (newMessage.sender_id !== currentUserId) {
+                void markAsRead(newMessage.id);
+              }
+            } else if (change.type === 'UPDATE' && row) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === row.id
+                    ? {
+                        ...m,
+                        body: row.body,
+                        edited_at: row.edited_at,
+                        deleted_at: row.deleted_at,
+                      }
+                    : m
+                )
+              );
+            } else if (change.type === 'DELETE' && row) {
+              setMessages((prev) => prev.filter((m) => m.id !== row.id));
             }
-          } else if (change.type === 'UPDATE' && row) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === row.id
-                  ? {
-                      ...m,
-                      body: row.body,
-                      edited_at: row.edited_at,
-                      deleted_at: row.deleted_at,
-                    }
-                  : m
-              )
-            );
-          } else if (change.type === 'DELETE' && row) {
-            setMessages((prev) => prev.filter((m) => m.id !== row.id));
-          }
-        },
-        onTyping: (event) => {
-          if (event.userId !== currentUserId) {
-            setIsTyping(event.typing);
-            if (typingTimeoutRef.current) {
-              clearTimeout(typingTimeoutRef.current);
+          },
+          onTyping: (event) => {
+            if (event.userId !== currentUserId && !cancelled) {
+              setIsTyping(event.typing);
+              if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+              }
+              if (event.typing) {
+                typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000);
+              }
             }
-            if (event.typing) {
-              typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000);
-            }
-          }
-        },
-      });
-      
-      unsubscribeRef.current = unsubscribe;
+          },
+        });
+        
+        unsubscribeRef.current = unsubscribe;
+      } catch (err) {
+        console.error('Error subscribing to thread:', err);
+        setError('Failed to connect to chat');
+      }
     })();
     
     return () => {
       cancelled = true;
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
       }
     };
   }, [threadId, currentUserId]);
@@ -194,6 +220,11 @@ export default function ChatWindow({
         try {
           const oldestId = messages[0]!.id;
           const resp = await fetch(`/api/dms/messages.list?thread_id=${threadId}&before=${oldestId}&limit=30`);
+          
+          if (!resp.ok) {
+            throw new Error('Failed to load more messages');
+          }
+          
           const json = await resp.json();
           
           if (json?.ok && json.messages?.length > 0) {
@@ -230,8 +261,8 @@ export default function ChatWindow({
           try {
             const url = await getSignedUrlForAttachment({ path: att.path }, 60);
             setPreviews((prev) => ({ ...prev, [att.path]: url }));
-          } catch {
-            // ignore
+          } catch (err) {
+            console.error('Error loading attachment preview:', err);
           }
         })();
       }
@@ -240,14 +271,17 @@ export default function ChatWindow({
 
   async function markAsRead(messageId: number) {
     try {
-      await fetch('/api/dms/messages.read', {
+      const resp = await fetch('/api/dms/messages.read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ thread_id: threadId, up_to_message_id: messageId }),
       });
-      setLastReadId((prev) => (prev && prev > messageId ? prev : messageId));
-    } catch {
-      // ignore
+      
+      if (resp.ok) {
+        setLastReadId((prev) => (prev && prev > messageId ? prev : messageId));
+      }
+    } catch (err) {
+      console.error('Error marking as read:', err);
     }
   }
 
@@ -260,6 +294,7 @@ export default function ChatWindow({
     setText('');
     setAttachments([]);
     setPreviews({});
+    setError(null);
     
     try {
       const resp = await fetch('/api/dms/messages.send', {
@@ -272,15 +307,18 @@ export default function ChatWindow({
         }),
       });
       
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(errorText || 'Failed to send message');
+      }
+      
       const json = await resp.json();
       if (!json?.ok) {
-        // Restore on error
-        setText(bodyText);
-        setAttachments(sendAttachments);
-        console.error('Failed to send message:', json.error);
+        throw new Error(json?.error || 'Failed to send message');
       }
     } catch (error) {
-      console.error('Network error:', error);
+      console.error('Failed to send message:', error);
+      setError((error as Error).message || 'Failed to send message');
       // Restore on error
       setText(bodyText);
       setAttachments(sendAttachments);
@@ -291,12 +329,15 @@ export default function ChatWindow({
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     
+    setError(null);
+    
     for (const file of files) {
       try {
         const att = await uploadAttachment(file);
         setAttachments((prev) => [...prev, att]);
       } catch (error) {
         console.error('Upload failed:', error);
+        setError((error as Error).message || 'Failed to upload file');
       }
     }
     
@@ -320,15 +361,20 @@ export default function ChatWindow({
     setIsMuted(newMuted);
     
     try {
-      await fetch('/api/dms/thread.mute', {
+      const resp = await fetch('/api/dms/thread.mute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ thread_id: threadId, muted: newMuted }),
       });
       
+      if (!resp.ok) {
+        throw new Error('Failed to update mute status');
+      }
+      
       // Notify thread list to refresh
       window.dispatchEvent(new CustomEvent('dm:threads:refresh'));
-    } catch {
+    } catch (err) {
+      console.error('Error toggling mute:', err);
       setIsMuted(!newMuted);
     }
   }
@@ -343,8 +389,8 @@ export default function ChatWindow({
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
     
-    if (d.toDateString() === now.toDateString()) return 'Сегодня';
-    if (d.toDateString() === yesterday.toDateString()) return 'Вчера';
+    if (d.toDateString() === now.toDateString()) return '???????';
+    if (d.toDateString() === yesterday.toDateString()) return '?????';
     return d.toLocaleDateString();
   }
 
@@ -358,7 +404,7 @@ export default function ChatWindow({
             className="md:hidden btn btn-ghost px-2 py-1 text-white/70 hover:text-white"
             onClick={onBack}
           >
-            ←
+            ?
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -371,7 +417,7 @@ export default function ChatWindow({
             <div className="text-xs text-white/60 flex items-center gap-2">
               <span className={`inline-block h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-white/30'}`} />
               {isOnline ? 'online' : 'offline'}
-              {isTyping && <span className="ml-2 text-white/70">печатает…</span>}
+              {isTyping && <span className="ml-2 text-white/70">?????????</span>}
             </div>
           </div>
         </div>
@@ -379,11 +425,18 @@ export default function ChatWindow({
           type="button"
           className={`btn btn-ghost px-2 py-1 ${isMuted ? 'text-white/40' : 'text-white/80'} hover:text-white`}
           onClick={toggleMute}
-          title={isMuted ? 'Включить уведомления' : 'Выключить уведомления'}
+          title={isMuted ? '???????? ???????????' : '????????? ???????????'}
         >
-          🔔
+          ??
         </button>
       </div>
+
+      {/* Error message */}
+      {error && (
+        <div className="px-4 py-2 bg-red-500/20 text-red-400 text-sm border-b border-red-500/30">
+          {error}
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto smooth-scroll px-3 py-4">
@@ -398,7 +451,7 @@ export default function ChatWindow({
         ) : (
           <div className="space-y-3">
             {isLoadingMore && (
-              <div className="text-center text-xs text-white/50 py-1">Загрузка…</div>
+              <div className="text-center text-xs text-white/50 py-1">?????????</div>
             )}
             
             {messages.map((msg, idx) => {
@@ -424,7 +477,7 @@ export default function ChatWindow({
                         }`}
                       >
                         {msg.deleted_at ? (
-                          <div className="italic text-white/60">Сообщение удалено</div>
+                          <div className="italic text-white/60">????????? ???????</div>
                         ) : (
                           <>
                             {msg.body && (
@@ -441,7 +494,9 @@ export default function ChatWindow({
                                       try {
                                         const signed = await getSignedUrlForAttachment({ path: key }, 60);
                                         setPreviews((prev) => ({ ...prev, [key]: signed }));
-                                      } catch {}
+                                      } catch (err) {
+                                        console.error('Error loading attachment:', err);
+                                      }
                                     })();
                                   }
                                   
@@ -521,9 +576,9 @@ export default function ChatWindow({
             type="button"
             className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10"
             onClick={() => fileInputRef.current?.click()}
-            title="Прикрепить файл"
+            title="?????????? ????"
           >
-            📎
+            ??
           </button>
           <input
             className="input flex-1 bg-transparent border-0 focus:ring-0 placeholder-white/40"
@@ -539,14 +594,14 @@ export default function ChatWindow({
               }
             }}
             type="text"
-            placeholder="Напишите сообщение…"
+            placeholder="???????? ??????????"
           />
           <button
             className="btn btn-primary rounded-xl px-3 py-2"
             onClick={handleSend}
             disabled={!text.trim() && attachments.length === 0}
           >
-            ✈️
+            ??
           </button>
         </div>
       </div>
