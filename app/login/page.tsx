@@ -1,16 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
 
 type Mode = 'login' | 'signup';
 
+function getRedirectParam(): string {
+  if (typeof window === 'undefined') return '/feed';
+  const params = new URLSearchParams(window.location.search);
+  return params.get('redirect') || '/feed';
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,11 +31,11 @@ export default function LoginPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
-        const redirect = searchParams.get('redirect') || '/feed';
+        const redirect = getRedirectParam();
         router.replace(redirect);
       }
     });
-  }, [router, searchParams]);
+  }, [router]);
 
   async function handleAuth(e: React.FormEvent) {
     e.preventDefault();
@@ -63,7 +68,7 @@ export default function LoginPage() {
         if (mustChange) {
           router.replace('/auth/reset');
         } else {
-          const redirect = searchParams.get('redirect') || '/feed';
+          const redirect = getRedirectParam();
           router.replace(redirect);
         }
       } else {
