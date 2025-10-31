@@ -1,92 +1,117 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-const channelsByUserId = new Map<string, RealtimeChannel>();
-let cachedPresenceKey: string | null = null;
+// Presence channels by user ID
+const presenceChannels = new Map<string, RealtimeChannel>();
 
-async function getPresenceKey(): Promise<string> {
-  if (cachedPresenceKey) return cachedPresenceKey;
-  try {
-    const { data } = await supabase.auth.getUser();
-    cachedPresenceKey = data.user?.id ?? `anon-${cryptoRandom()}`;
-  } catch {
-    cachedPresenceKey = `anon-${cryptoRandom()}`;
+/**
+ * Get or create presence channel for a user
+ */
+function getPresenceChannel(userId: string): RealtimeChannel {
+  let channel = presenceChannels.get(userId);
+  
+  if (!channel) {
+    channel = supabase.channel(`presence:${userId}`, {
+      config: {
+        presence: {
+          key: userId,
+        },
+      },
+    });
+    presenceChannels.set(userId, channel);
   }
-  return cachedPresenceKey;
-}
-
-function cryptoRandom(): string {
-  try {
-    const bytes = new Uint8Array(8);
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    (globalThis.crypto || (globalThis as any).msCrypto).getRandomValues(bytes);
-    return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
-  } catch {
-    return Math.random().toString(16).slice(2);
-  }
-}
-
-async function getOrCreatePresenceChannel(userId: string): Promise<RealtimeChannel> {
-  const existing = channelsByUserId.get(userId);
-  if (existing) {
-    console.log('[presence.getOrCreatePresenceChannel] Using existing channel for:', userId);
-    return existing;
-  }
-
-  const key = await getPresenceKey();
-  const channelName = `presence:${userId}`;
-  console.log('[presence.getOrCreatePresenceChannel] Creating new channel:', channelName, 'with key:', key);
-  const channel = supabase.channel(channelName, { config: { presence: { key } } });
-  channelsByUserId.set(userId, channel);
+  
   return channel;
 }
 
-async function ensureSubscribed(channel: RealtimeChannel): Promise<void> {
-  // Subscribe if not already joined
-  // RealtimeChannel has a state property but not typed; use as any to read
-  const state = (channel as any).state as string | undefined;
-  console.log('[presence.ensureSubscribed] Channel state:', state);
+/**
+ * Set user online/offline status
+ */
+export async function setPresenceStatus(userId: string, online: boolean): Promise<void> {
+  const channel = getPresenceChannel(userId);
+  
+  // Ensure subscribed
+  const state = (channel as any).state;
   if (state !== 'joined' && state !== 'joining') {
-    console.log('[presence.ensureSubscribed] Subscribing to channel');
-    const status = await channel.subscribe();
-    console.log('[presence.ensureSubscribed] Subscription status:', status);
-  } else {
-    console.log('[presence.ensureSubscribed] Already subscribed or joining');
+    await channel.subscribe();
   }
-}
-
-/** Update the presence payload for a user channel to reflect online/offline. */
-export async function setOnline(userId: string, online: boolean): Promise<void> {
-  console.log('[presence.setOnline]', { userId, online });
-  const channel = await getOrCreatePresenceChannel(userId);
-  await ensureSubscribed(channel);
+  
   if (online) {
-    const payload = { online: true, typing: false, updated_at: new Date().toISOString() };
-    console.log('[presence.setOnline] Tracking with payload:', payload);
-    await channel.track(payload);
-    console.log('[presence.setOnline] Successfully tracked');
+    await channel.track({
+      online: true,
+      last_seen: new Date().toISOString(),
+    });
   } else {
-    console.log('[presence.setOnline] Untracking');
-    try { await channel.untrack(); } catch (error) {
-      console.error('[presence.setOnline] Error untracking:', error);
-    }
+    await channel.untrack();
   }
 }
 
-/** Update the typing flag in the presence payload for a user channel. */
-export async function setTyping(userId: string, typing: boolean): Promise<void> {
-  const channel = await getOrCreatePresenceChannel(userId);
-  await ensureSubscribed(channel);
-  await channel.track({ online: true, typing, updated_at: new Date().toISOString() });
+/**
+ * Subscribe to presence changes for multiple users
+ */
+export async function subscribeToPresence(
+  userIds: string[],
+  onPresenceChange: (userId: string, online: boolean) => void
+): Promise<() => void> {
+  const channels: RealtimeChannel[] = [];
+  const cleanupMap = new Map<string, () => void>();
+  
+  for (const userId of userIds) {
+    const channel = getPresenceChannel(userId);
+    
+    // Subscribe to presence sync
+    const syncHandler = () => {
+      const state = channel.presenceState();
+      const presence = state[userId]?.[0];
+      onPresenceChange(userId, !!presence);
+    };
+    
+    // Subscribe to presence join/leave
+    const joinHandler = ({ key }: { key: string }) => {
+      if (key === userId) {
+        onPresenceChange(userId, true);
+      }
+    };
+    
+    const leaveHandler = ({ key }: { key: string }) => {
+      if (key === userId) {
+        onPresenceChange(userId, false);
+      }
+    };
+    
+    channel.on('presence', { event: 'sync' }, syncHandler);
+    channel.on('presence', { event: 'join' }, joinHandler);
+    channel.on('presence', { event: 'leave' }, leaveHandler);
+    
+    await channel.subscribe();
+    channels.push(channel);
+    
+    // Store cleanup function
+    cleanupMap.set(userId, () => {
+      channel.off('presence', { event: 'sync' }, syncHandler);
+      channel.off('presence', { event: 'join' }, joinHandler);
+      channel.off('presence', { event: 'leave' }, leaveHandler);
+    });
+  }
+  
+  // Return unsubscribe function
+  return async () => {
+    for (const channel of channels) {
+      await channel.unsubscribe();
+    }
+    for (const cleanup of cleanupMap.values()) {
+      cleanup();
+    }
+  };
 }
 
-/** Return the raw presence map for a user's presence channel. */
-export async function getPresenceMap(userId: string): Promise<Record<string, any[]>> {
-  console.log('[presence.getPresenceMap]', { userId });
-  const channel = await getOrCreatePresenceChannel(userId);
-  await ensureSubscribed(channel);
+/**
+ * Get current presence state for a user
+ */
+export function getPresenceState(userId: string): boolean {
+  const channel = presenceChannels.get(userId);
+  if (!channel) return false;
+  
   const state = channel.presenceState();
-  console.log('[presence.getPresenceMap] State:', state);
-  return state;
+  return !!state[userId]?.[0];
 }
