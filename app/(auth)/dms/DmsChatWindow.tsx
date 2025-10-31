@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread } from '@/lib/dms';
 import { useDmRealtime } from '@/hooks/useDmRealtime';
+import EmojiPicker from '@/components/EmojiPicker';
 
 type Props = {
   partnerId: string;
@@ -20,6 +21,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
     avatar_url: string | null;
   } | null>(null);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
+  const [socialWeight, setSocialWeight] = useState<number>(75);
+  const [trustFlow, setTrustFlow] = useState<number>(80);
+  
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastMessageIdRef = useRef<number | null>(null);
 
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
@@ -43,7 +49,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     })();
   }, []);
 
-  // Load partner profile
+  // Load partner profile with SW and Trust Flow
   useEffect(() => {
     if (!partnerId) return;
     (async () => {
@@ -65,6 +71,28 @@ export default function DmsChatWindow({ partnerId }: Props) {
             full_name: data.full_name,
             avatar_url: data.avatar_url,
           });
+        }
+
+        // Load Social Weight (default 75)
+        try {
+          // For now, default value. Replace with actual query when SW table exists
+          setSocialWeight(75);
+        } catch {
+          setSocialWeight(75);
+        }
+
+        // Load Trust Flow
+        try {
+          const { data: feedback } = await supabase
+            .from('trust_feedback')
+            .select('value')
+            .eq('target_user_id', partnerId);
+          
+          const sum = ((feedback as any[]) || []).reduce((acc, r) => acc + (Number(r.value) || 0), 0);
+          const rating = Math.max(0, Math.min(120, 80 + sum * 2));
+          setTrustFlow(rating);
+        } catch {
+          setTrustFlow(80);
         }
       } catch (err) {
         console.error('Error loading profile:', err);
@@ -147,12 +175,72 @@ export default function DmsChatWindow({ partnerId }: Props) {
     };
   }, [currentUserId, partnerId]);
 
+  // Initialize last message ID
+  useEffect(() => {
+    if (messages.length > 0 && !lastMessageIdRef.current) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg) {
+        lastMessageIdRef.current = lastMsg.id;
+      }
+    }
+  }, [messages.length]);
+
+  // Play sound on new messages
+  useEffect(() => {
+    if (messages.length === 0 || !currentUserId || !partnerId) return;
+    
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage) return;
+    
+    // Check if this is a new message from partner
+    if (
+      lastMessage.id !== lastMessageIdRef.current &&
+      lastMessage.sender_id !== currentUserId &&
+      lastMessage.sender_id === partnerId
+    ) {
+      const prevLastId = lastMessageIdRef.current;
+      lastMessageIdRef.current = lastMessage.id;
+      
+      // Play notification sound
+      try {
+        // Create audio context for beep sound
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.3);
+      } catch (err) {
+        console.error('Error playing sound:', err);
+      }
+      
+      // If it was the first message, don't play sound
+      if (prevLastId === null) {
+        lastMessageIdRef.current = lastMessage.id;
+      }
+    }
+  }, [messages, currentUserId, partnerId]);
+
   // Scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages.length]);
+
+  // Handle emoji selection
+  function handleEmojiSelect(emoji: string) {
+    setMessageText((prev) => prev + emoji);
+  }
 
   // Handle send message with optimistic update
   async function handleSend() {
@@ -248,13 +336,17 @@ export default function DmsChatWindow({ partnerId }: Props) {
           />
           <div>
             <div className="text-white text-sm font-medium">{partnerName}</div>
-            <div className="text-xs text-white/60 flex items-center gap-2">
+            <div className="text-xs text-white/60 flex items-center gap-2 flex-wrap">
               <span
                 className={`inline-block h-2 w-2 rounded-full ${
                   isOnline ? 'bg-emerald-400' : 'bg-white/30'
                 }`}
               />
               {isOnline ? 'online' : 'offline'}
+              <span className="text-white/50">?</span>
+              <span>SW: {socialWeight}/100</span>
+              <span className="text-white/50">?</span>
+              <span>TF: {trustFlow}%</span>
             </div>
           </div>
         </div>
@@ -337,6 +429,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-white/10">
         <div className="relative flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-1.5">
+          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           <input
             className="input flex-1 bg-transparent border-0 focus:ring-0 placeholder-white/40"
             value={messageText}
