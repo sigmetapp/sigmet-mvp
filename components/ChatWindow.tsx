@@ -512,13 +512,24 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
               const thisDateKey = new Date(m.created_at).toDateString();
               const prevDateKey = idx > 0 ? new Date(messages[idx - 1]!.created_at).toDateString() : '';
               const showDateHeader = thisDateKey !== prevDateKey;
-              const d = new Date(m.created_at);
+              const createdAtDate = new Date(m.created_at);
               const now = new Date();
-              const isToday = d.toDateString() === now.toDateString();
-              const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-              const isYesterday = d.toDateString() === yesterday.toDateString();
-              const dateLabel = isToday ? 'Сегодня' : isYesterday ? 'Вчера' : d.toLocaleDateString();
+              const isToday = createdAtDate.toDateString() === now.toDateString();
+              const yesterday = new Date(now);
+              yesterday.setDate(now.getDate() - 1);
+              const isYesterday = createdAtDate.toDateString() === yesterday.toDateString();
+              const dateLabel = isToday ? 'Сегодня' : isYesterday ? 'Вчера' : createdAtDate.toLocaleDateString();
               const showNewDivider = lastReadId != null && m.id > lastReadId && (idx === 0 || messages[idx - 1]!.id <= lastReadId);
+
+              const messageContainerClass = `group max-w-[78%] flex flex-col ${mine ? 'items-end' : 'items-start'}`;
+              const bubbleClass =
+                'relative px-4 py-2 rounded-2xl shadow-sm ' +
+                (mine
+                  ? 'bg-gradient-to-br from-sky-500/80 to-fuchsia-500/80 text-white rounded-br-sm'
+                  : 'bg-white/8 text-white rounded-bl-sm backdrop-blur border border-white/10');
+              const metaRowClass = `flex items-center gap-2 mt-1 ${mine ? 'justify-end' : 'justify-start'} text-[11px] text-white/60`;
+              const reactionsRowClass = `flex gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`;
+
               return (
                 <div key={m.id}>
                   {showDateHeader && (
@@ -528,75 +539,79 @@ export default function ChatWindow({ threadId, currentUserId, targetUserId: expl
                     <div className="text-center text-[11px] text-white/70 py-1">New messages</div>
                   )}
                   <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`group max-w-[78%] ${mine ? 'items-end' : 'items-start'} flex flex-col`}>
-                    <div
-                      className={
-                        'relative px-4 py-2 rounded-2xl shadow-sm ' +
-                        (mine
-                          ? 'bg-gradient-to-br from-sky-500/80 to-fuchsia-500/80 text-white rounded-br-sm'
-                          : 'bg-white/8 text-white rounded-bl-sm backdrop-blur border border-white/10')
-                      }
-                    >
-                      {m.deleted_at ? (
-                        <div className="italic text-white/60">Сообщение удалено</div>
-                      ) : (
-                        <>
-                          {m.body && <div className="whitespace-pre-wrap leading-relaxed">{m.body}</div>}
-                          {/* Render attachments if any */}
-                          {Array.isArray(m.attachments) && m.attachments.length > 0 && (
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                              {m.attachments.map((att: any, i: number) => {
-                                const key = att?.path as string | undefined;
-                                const url = key ? previews[key] : undefined;
-                                if (key && !url) { void (async () => { try { const u = await getSignedUrlForAttachment({ path: key }, 60); setPreviews((prev) => ({ ...prev, [key]: u })); } catch {} })(); }
-                                return (
-                                  <div key={key || i} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
-                                    {att?.type === 'image' ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img alt={key || ''} src={url} className="object-cover w-full h-40" />
-                                    ) : url ? (
-                                      <a href={url} target="_blank" rel="noreferrer" className="text-xs underline block px-2 py-2">
-                                        {att?.mime || 'attachment'}
-                                      </a>
-                                    ) : (
-                                      <div className="h-10" />
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {/* Quick reactions on hover */}
-                      <div className="absolute -bottom-7 opacity-0 group-hover:opacity-100 transition-opacity duration-200 left-2 flex gap-2">
-                        {['👍','❤️','😂'].map((e) => (
-                          <button
-                            key={e}
-                            type="button"
-                            className="text-xs bg-white/10 hover:bg-white/20 rounded-full px-2 py-0.5"
-                            onClick={() => addReaction(m.id, e)}
-                          >
-                            {e}
-                          </button>
-                        ))}
+                    <div className={messageContainerClass}>
+                      <div className={bubbleClass}>
+                        {m.deleted_at ? (
+                          <div className="italic text-white/60">Сообщение удалено</div>
+                        ) : (
+                          <>
+                            {m.body && <div className="whitespace-pre-wrap leading-relaxed">{m.body}</div>}
+                            {Array.isArray(m.attachments) && m.attachments.length > 0 && (
+                              <div className="mt-2 grid grid-cols-2 gap-2">
+                                {m.attachments.map((att: any, i: number) => {
+                                  const key = att?.path as string | undefined;
+                                  const url = key ? previews[key] : undefined;
+                                  if (key && !url) {
+                                    void (async () => {
+                                      try {
+                                        const signed = await getSignedUrlForAttachment({ path: key }, 60);
+                                        setPreviews((prev) => ({ ...prev, [key]: signed }));
+                                      } catch {}
+                                    })();
+                                  }
+
+                                  return (
+                                    <div key={key || i} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                                      {att?.type === 'image' ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img alt={key || ''} src={url} className="object-cover w-full h-40" />
+                                      ) : url ? (
+                                        <a href={url} target="_blank" rel="noreferrer" className="text-xs underline block px-2 py-2">
+                                          {att?.mime || 'attachment'}
+                                        </a>
+                                      ) : (
+                                        <div className="h-10" />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        )}
+                        <div className="absolute -bottom-7 opacity-0 group-hover:opacity-100 transition-opacity duration-200 left-2 flex gap-2">
+                          {['👍', '❤️', '😂'].map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              className="text-xs bg-white/10 hover:bg-white/20 rounded-full px-2 py-0.5"
+                              onClick={() => addReaction(m.id, emoji)}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                    <div className={`flex items-center gap-2 mt-1 ${mine ? 'justify-end' : 'justify-start'} text-[11px] text-white/60`}>
-                      <span>{time}</span>
-                      {mine && status && (
-                        <span className="ml-1"><StatusChecks status={status} /></span>
-                      )}
-                    </div>
-                    {reactions[m.id] && (
-                      <div className={`flex gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
-                        {Object.entries(reactions[m.id]).map(([emoji, count]) => (
-                          <span key={emoji} className="text-xs px-1.5 py-0.5 rounded-full bg-white/10">
-                            {emoji} {count}
+
+                      <div className={metaRowClass}>
+                        <span>{time}</span>
+                        {mine && status && (
+                          <span className="ml-1">
+                            <StatusChecks status={status} />
                           </span>
-                        ))}
+                        )}
                       </div>
-                    )}
+
+                      {reactions[m.id] && (
+                        <div className={reactionsRowClass}>
+                          {Object.entries(reactions[m.id]).map(([emoji, count]) => (
+                            <span key={emoji} className="text-xs px-1.5 py-0.5 rounded-full bg-white/10">
+                              {emoji} {count}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
