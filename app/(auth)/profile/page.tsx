@@ -41,6 +41,7 @@ function ProfileSettings() {
           country: '',
           website_url: '',
           directions_selected: [],
+          show_online_status: true,
         }
       );
       setLoading(false);
@@ -136,6 +137,32 @@ function ProfileSettings() {
             onChange={e => setProfile({ ...profile, website_url: e.target.value })}
             placeholder="https://example.com"
           />
+        </div>
+
+        <div>
+          <label className="label">Online Status</label>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="online_status"
+                checked={profile.show_online_status !== false}
+                onChange={() => setProfile({ ...profile, show_online_status: true })}
+                className="text-white"
+              />
+              <span className="text-white/90">Show online</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="online_status"
+                checked={profile.show_online_status === false}
+                onChange={() => setProfile({ ...profile, show_online_status: false })}
+                className="text-white"
+              />
+              <span className="text-white/90">Don't show online</span>
+            </label>
+          </div>
         </div>
 
         {note && <div className="text-white/70 text-sm">{note}</div>}

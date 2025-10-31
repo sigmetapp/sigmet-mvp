@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
+import { getPresenceMap } from '@/lib/dm/presence';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 type Profile = {
   user_id: string;
@@ -15,6 +17,7 @@ type Profile = {
   website_url?: string | null;
   avatar_url: string | null;
   directions_selected: string[] | null;
+  show_online_status?: boolean | null;
   created_at?: string;
 };
 
@@ -67,6 +70,8 @@ export default function PublicProfilePage() {
       created_at?: string;
     }>
   >([]);
+  const [isOnline, setIsOnline] = useState<boolean | null>(null);
+  const [presenceChannel, setPresenceChannel] = useState<RealtimeChannel | null>(null);
 
   // comment/reaction stats for posts
   type ReactionKind = 'growth' | 'value' | 'with_you';
@@ -89,6 +94,68 @@ export default function PublicProfilePage() {
     // resolve viewer id
     supabase.auth.getUser().then(({ data }) => setViewerId(data.user?.id ?? null));
   }, []);
+
+  // Track online status for the viewed profile
+  useEffect(() => {
+    if (!profile?.user_id) return;
+
+    // Check if user wants to show online status
+    const showStatus = profile.show_online_status !== false;
+
+    if (!showStatus) {
+      // User has privacy setting - show as "Private online"
+      setIsOnline(null);
+      return;
+    }
+
+    // Subscribe to presence channel for this user
+    const channel = supabase.channel(`presence:${profile.user_id}`);
+    
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const hasOnline = Object.keys(state).length > 0 && 
+          Object.values(state).some((presences: any[]) => 
+            presences.some((p: any) => p.online === true)
+          );
+        setIsOnline(hasOnline);
+      })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        const isUserOnline = newPresences.some((p: any) => p.online === true);
+        if (isUserOnline) setIsOnline(true);
+      })
+      .on('presence', { event: 'leave' }, () => {
+        // Check if any presence remains
+        const state = channel.presenceState();
+        const hasOnline = Object.keys(state).length > 0 && 
+          Object.values(state).some((presences: any[]) => 
+            presences.some((p: any) => p.online === true)
+          );
+        setIsOnline(hasOnline);
+      })
+      .subscribe();
+
+    setPresenceChannel(channel);
+
+    // Initial check
+    (async () => {
+      try {
+        const state = await getPresenceMap(profile.user_id);
+        const hasOnline = Object.keys(state).length > 0 && 
+          Object.values(state).some((presences: any[]) => 
+            presences.some((p: any) => p.online === true)
+          );
+        setIsOnline(hasOnline);
+      } catch {
+        setIsOnline(false);
+      }
+    })();
+
+    return () => {
+      channel.unsubscribe();
+      setPresenceChannel(null);
+    };
+  }, [profile?.user_id, profile?.show_online_status]);
 
   useEffect(() => {
     if (!slug) return;
@@ -116,7 +183,7 @@ export default function PublicProfilePage() {
       // Otherwise, resolve strictly by username
       const { data } = await supabase
         .from('profiles')
-        .select('user_id, username, full_name, bio, country, website_url, avatar_url, directions_selected, created_at')
+        .select('user_id, username, full_name, bio, country, website_url, avatar_url, directions_selected, show_online_status, created_at')
         .eq('username', slug)
         .maybeSingle();
       setProfile(((data as unknown) as Profile) || null);
@@ -478,9 +545,36 @@ export default function PublicProfilePage() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-semibold text-white truncate">
-                  {profile.full_name || profile.username || profile.user_id.slice(0, 8)}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-semibold text-white truncate">
+                    {profile.full_name || profile.username || profile.user_id.slice(0, 8)}
+                  </h1>
+                  {(() => {
+                    const showStatus = profile.show_online_status !== false;
+                    if (!showStatus) {
+                      return (
+                        <span className="px-2 py-1 rounded-full text-xs border border-white/20 bg-white/10 text-white/80">
+                          Private online
+                        </span>
+                      );
+                    }
+                    if (isOnline === true) {
+                      return (
+                        <span className="px-2 py-1 rounded-full text-xs border border-emerald-500/50 bg-emerald-500/20 text-emerald-300">
+                          Online
+                        </span>
+                      );
+                    }
+                    if (isOnline === false) {
+                      return (
+                        <span className="px-2 py-1 rounded-full text-xs border border-white/20 bg-white/10 text-white/60">
+                          Offline
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
                 {isMe ? (
                   <div className="ml-auto">
                     <Link href="/profile" className="px-3 py-1.5 rounded-lg text-sm border border-white/20 text-white/80 hover:bg-white/10">
