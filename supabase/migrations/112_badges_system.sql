@@ -50,24 +50,30 @@ alter table public.user_badges enable row level security;
 alter table public.badge_display_preferences enable row level security;
 
 -- Anyone can read badge types
-create policy if not exists "read badge_types" on public.badge_types for select using (true);
+drop policy if exists "read badge_types" on public.badge_types;
+create policy "read badge_types" on public.badge_types for select using (true);
 
 -- Users can read their own badges and badges of others
-create policy if not exists "read user_badges" on public.user_badges for select using (true);
+drop policy if exists "read user_badges" on public.user_badges;
+create policy "read user_badges" on public.user_badges for select using (true);
 
 -- Users can only insert their own badges (awarded by system)
-create policy if not exists "insert own badges" on public.user_badges for insert 
+drop policy if exists "insert own badges" on public.user_badges;
+create policy "insert own badges" on public.user_badges for insert 
   with check (auth.uid() = user_id);
 
 -- Users can read display preferences
-create policy if not exists "read badge_display_preferences" on public.badge_display_preferences for select using (true);
+drop policy if exists "read badge_display_preferences" on public.badge_display_preferences;
+create policy "read badge_display_preferences" on public.badge_display_preferences for select using (true);
 
 -- Users can update their own display preferences
-create policy if not exists "update own badge_display_preferences" on public.badge_display_preferences 
+drop policy if exists "update own badge_display_preferences" on public.badge_display_preferences;
+create policy "update own badge_display_preferences" on public.badge_display_preferences 
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- Users can insert their own display preferences
-create policy if not exists "insert own badge_display_preferences" on public.badge_display_preferences 
+drop policy if exists "insert own badge_display_preferences" on public.badge_display_preferences;
+create policy "insert own badge_display_preferences" on public.badge_display_preferences 
   for insert with check (auth.uid() = user_id);
 
 commit;
