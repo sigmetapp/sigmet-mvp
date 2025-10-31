@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread } from '@/lib/dms';
 import { useDmRealtime } from '@/hooks/useDmRealtime';
@@ -353,7 +354,16 @@ export default function DmsChatWindow({ partnerId }: Props) {
             className="h-10 w-10 rounded-full object-cover border border-white/10"
           />
           <div className="min-w-0 flex-1">
-            <div className="text-white text-sm font-medium truncate">{partnerName}</div>
+            {partnerProfile?.username ? (
+              <Link
+                href={`/u/${partnerProfile.username}`}
+                className="text-white text-sm font-medium truncate hover:text-white/80 transition"
+              >
+                {partnerName}
+              </Link>
+            ) : (
+              <div className="text-white text-sm font-medium truncate">{partnerName}</div>
+            )}
             <div className="flex items-center gap-1.5 flex-wrap mt-1">
               {/* Online/Offline Badge */}
               <span

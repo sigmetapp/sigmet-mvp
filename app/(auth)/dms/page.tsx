@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import DmsChatWindow from './DmsChatWindow';
@@ -23,7 +22,6 @@ type Profile = {
 };
 
 function DmsInner() {
-  const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [partners, setPartners] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +112,7 @@ function DmsInner() {
 
   function handlePartnerClick(partnerId: string) {
     setSelectedPartnerId(partnerId);
-    router.push(`/dms/${partnerId}`);
+    // Don't change URL - keep it as /dms/ to avoid page reload
   }
 
   return (
