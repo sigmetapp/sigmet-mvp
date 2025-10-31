@@ -54,6 +54,7 @@ export default function PublicProfilePage() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackPending, setFeedbackPending] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState<
     { author_id: string | null; value: number; comment: string | null; created_at?: string }[]
@@ -326,17 +327,22 @@ export default function PublicProfilePage() {
     if (!profile?.user_id) return;
     setFeedbackPending(true);
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      const me = auth.user?.id || null;
-      // Best-effort insert; table may not exist in all envs
-      try {
-        await supabase.from('trust_feedback').insert({
+      setFeedbackError(null);
+      // Submit via server API (service role)
+      const resp = await fetch('/api/trust/feedback.submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
           target_user_id: profile.user_id,
-          author_id: me,
+          value: kind,
           comment: feedbackText || null,
-          value: kind === 'up' ? 1 : -1,
-        });
-      } catch {}
+        }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || json?.ok === false) {
+        throw new Error(json?.error || 'Failed to submit');
+      }
       setFeedbackOpen(false);
       setFeedbackText('');
       // recompute from DB
@@ -349,6 +355,8 @@ export default function PublicProfilePage() {
         const rating = Math.max(0, Math.min(120, 80 + sum * 2));
         setTrustScore(rating);
       } catch {}
+    } catch (e: any) {
+      setFeedbackError(e?.message || 'Failed to submit');
     } finally {
       setFeedbackPending(false);
     }
@@ -358,13 +366,14 @@ export default function PublicProfilePage() {
     if (!isMe || !profile?.user_id) return;
     setHistoryOpen(true);
     try {
-      const { data } = await supabase
-        .from('trust_feedback')
-        .select('author_id, value, comment, created_at')
-        .eq('target_user_id', profile.user_id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      setHistoryItems(((data as any[]) || []).map((r) => ({
+      const resp = await fetch(`/api/trust/feedback.history?target_user_id=${encodeURIComponent(profile.user_id)}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      const json = await resp.json();
+      if (!resp.ok || json?.ok === false) throw new Error(json?.error || 'Failed to load');
+      const rows = (json?.items as any[]) || [];
+      setHistoryItems(rows.map((r) => ({
         author_id: (r.author_id as string) || null,
         value: Number(r.value) || 0,
         comment: (r.comment as string) || null,
@@ -630,6 +639,9 @@ export default function PublicProfilePage() {
                 placeholder="Write why you vote up or down (optional)"
                 className="w-full bg-transparent border border-white/10 rounded-2xl p-3 outline-none text-white min-h-[120px]"
               />
+              {feedbackError && (
+                <div className="text-rose-300 text-sm">{feedbackError}</div>
+              )}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => submitFeedback('up')}
