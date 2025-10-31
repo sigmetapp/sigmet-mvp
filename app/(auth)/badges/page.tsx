@@ -5,11 +5,15 @@ import { supabase } from '@/lib/supabaseClient';
 import Badge, { type BadgeData } from '@/components/Badge';
 import Button from '@/components/Button';
 
+const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
+
 export default function BadgesPage() {
   const [loading, setLoading] = useState(true);
   const [badges, setBadges] = useState<BadgeData[]>([]);
   const [note, setNote] = useState<string | undefined>();
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [grantingBadges, setGrantingBadges] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -18,6 +22,7 @@ export default function BadgesPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
+      setUserEmail(user.email || null);
 
       // Load all badge types
       const { data: badgeTypes } = await supabase
@@ -117,16 +122,64 @@ export default function BadgesPage() {
     setNote(error ? error.message : 'Saved');
   }
 
+  async function grantAllBadgesToAllUsers() {
+    if (!userEmail || !ADMIN_EMAILS.has(userEmail)) {
+      setNote('Only admins can grant badges');
+      return;
+    }
+
+    setGrantingBadges(true);
+    setNote(undefined);
+
+    try {
+      const response = await fetch('/api/admin/badges.grant-all', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setNote(data.error || 'Failed to grant badges');
+      } else {
+        setNote(`Success! ${data.badgesGranted} badges granted to ${data.users} users. Display preferences updated for ${data.displayPreferencesUpdated} users.`);
+        // Reload badges to reflect changes
+        window.location.reload();
+      }
+    } catch (error: any) {
+      setNote(error.message || 'Failed to grant badges');
+    } finally {
+      setGrantingBadges(false);
+    }
+  }
+
   const earnedCount = badges.filter((b) => b.earned).length;
   const displayedCount = badges.filter((b) => b.displayed).length;
+  const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Badges & Rewards</h1>
-        <p className="text-white/70 text-sm mt-2">
-          Earn badges for your achievements and choose which ones to display on your profile.
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">Badges & Rewards</h1>
+            <p className="text-white/70 text-sm mt-2">
+              Earn badges for your achievements and choose which ones to display on your profile.
+            </p>
+          </div>
+          {isAdmin && (
+            <Button
+              onClick={grantAllBadgesToAllUsers}
+              variant="secondary"
+              disabled={grantingBadges}
+              className="ml-4 whitespace-nowrap"
+            >
+              {grantingBadges ? 'Granting...' : 'Grant All Badges'}
+            </Button>
+          )}
+        </div>
       </div>
 
       {loading ? (
