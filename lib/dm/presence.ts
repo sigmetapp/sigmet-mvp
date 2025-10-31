@@ -66,6 +66,17 @@ export async function setOnline(userId: string, online: boolean): Promise<void> 
     console.log('[presence.setOnline] Tracking with payload:', payload);
     await channel.track(payload);
     console.log('[presence.setOnline] Successfully tracked');
+    
+    // Update last_activity_at in database
+    try {
+      await supabase
+        .from('profiles')
+        .update({ last_activity_at: new Date().toISOString() })
+        .eq('user_id', userId);
+      console.log('[presence.setOnline] Updated last_activity_at in database');
+    } catch (error) {
+      console.error('[presence.setOnline] Error updating last_activity_at:', error);
+    }
   } else {
     console.log('[presence.setOnline] Untracking');
     try { await channel.untrack(); } catch (error) {
