@@ -58,19 +58,23 @@ export default function LoginPage() {
         if (signInErr) throw signInErr;
         // Ensure server cookies are set before redirect
         const { data: sessionData } = await supabase.auth.getSession();
-        await fetch('/api/auth/set-session', {
+        const response = await fetch('/api/auth/set-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ event: 'SIGNED_IN', session: sessionData.session ?? null }),
         });
+        
+        if (!response.ok) {
+          throw new Error('Failed to set session cookies');
+        }
+        
         const { data } = await supabase.auth.getUser();
         const mustChange = Boolean((data.user as any)?.user_metadata?.must_change_password);
-        if (mustChange) {
-          router.replace('/auth/reset');
-        } else {
-          router.replace(redirectTo ?? '/feed');
-        }
+        
+        // Use full page reload to ensure cookies are applied before navigation
+        const redirectPath = mustChange ? '/auth/reset' : (redirectTo ?? '/feed');
+        window.location.href = redirectPath;
       } else {
         const origin = process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin;
         const { error: signUpErr } = await supabase.auth.signUp({
