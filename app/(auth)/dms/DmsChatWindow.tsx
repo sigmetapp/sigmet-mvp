@@ -449,7 +449,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
                   title="Days streak"
                 >
-                  <span className="text-[10px]">??</span>
+                  <span className="text-xs leading-none" role="img" aria-label="fire">??</span>
                   {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
                 </span>
               )}
@@ -542,7 +542,31 @@ export default function DmsChatWindow({ partnerId }: Props) {
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-white/10">
         <div className="relative flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-1.5">
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+          {/* Attach button */}
+          <button
+            type="button"
+            className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 transition"
+            title="Attach file, photo, or video"
+            onClick={() => {
+              // TODO: Implement file attachment
+              alert('File attachment coming soon');
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+              />
+            </svg>
+          </button>
           <input
             className="input flex-1 bg-transparent border-0 focus:ring-0 placeholder-white/40"
             value={messageText}
@@ -557,6 +581,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
             placeholder="Type a message..."
             disabled={sending}
           />
+          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           <button
             className="btn btn-primary rounded-xl px-3 py-2"
             onClick={handleSend}
