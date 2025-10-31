@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread } from '@/lib/dms';
 import { useDmRealtime } from '@/hooks/useDmRealtime';
 import EmojiPicker from '@/components/EmojiPicker';
+import { uploadAttachment, type DmAttachment } from '@/lib/dm/attachments';
 
 type Props = {
   partnerId: string;
@@ -31,12 +32,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [messages, setMessages] = useDmRealtime(thread?.id || null, initialMessages);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const presenceChannelRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -294,13 +298,51 @@ export default function DmsChatWindow({ partnerId }: Props) {
     setMessageText((prev) => prev + emoji);
   }
 
+  // Handle file selection
+  function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...files]);
+    }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+
+  // Handle file removal
+  function handleRemoveFile(index: number) {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   // Handle send message with optimistic update
   async function handleSend() {
-    if (!thread || !messageText.trim() || sending) return;
+    if (!thread || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
 
     const textToSend = messageText.trim();
     setMessageText('');
     setSending(true);
+    setUploadingAttachments(true);
+
+    let attachments: DmAttachment[] = [];
+
+    // Upload files if any
+    if (selectedFiles.length > 0) {
+      try {
+        attachments = await Promise.all(
+          selectedFiles.map((file) => uploadAttachment(file))
+        );
+        setSelectedFiles([]);
+      } catch (err: any) {
+        console.error('Error uploading attachments:', err);
+        setError(err?.message || 'Failed to upload attachments');
+        setSending(false);
+        setUploadingAttachments(false);
+        return;
+      }
+    }
+
+    setUploadingAttachments(false);
 
     // Optimistic update
     const optimisticMessage: Message = {
@@ -308,8 +350,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
       thread_id: thread.id,
       sender_id: currentUserId!,
       kind: 'text',
-      body: textToSend,
-      attachments: [],
+      body: textToSend || null,
+      attachments: attachments as unknown[],
       created_at: new Date().toISOString(),
       edited_at: null,
       deleted_at: null,
@@ -326,7 +368,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     setMessages(withOptimistic);
 
     try {
-      const sentMessage = await sendMessage(thread.id, textToSend, []);
+      const sentMessage = await sendMessage(thread.id, textToSend || null, attachments as unknown[]);
       // Replace optimistic message with real one and ensure proper sorting
       setMessages((prev) => {
         const updated = prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m));
@@ -539,18 +581,69 @@ export default function DmsChatWindow({ partnerId }: Props) {
         )}
       </div>
 
+      {/* Selected files preview */}
+      {selectedFiles.length > 0 && (
+        <div className="px-3 pt-2 pb-1 border-t border-white/10">
+          <div className="flex flex-wrap gap-2">
+            {selectedFiles.map((file, index) => (
+              <div
+                key={index}
+                className="relative inline-flex items-center gap-2 px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-sm"
+              >
+                {file.type.startsWith('image/') ? (
+                  <span className="text-xs">???</span>
+                ) : file.type.startsWith('video/') ? (
+                  <span className="text-xs">??</span>
+                ) : (
+                  <span className="text-xs">??</span>
+                )}
+                <span className="text-white/90 truncate max-w-[150px]">{file.name}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFile(index)}
+                  className="text-white/60 hover:text-white/90 transition"
+                  title="Remove"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-white/10">
         <div className="relative flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-1.5">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
           {/* Attach button */}
           <button
             type="button"
             className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 transition"
             title="Attach file, photo, or video"
-            onClick={() => {
-              // TODO: Implement file attachment
-              alert('File attachment coming soon');
-            }}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending || uploadingAttachments}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -579,15 +672,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
             }}
             type="text"
             placeholder="Type a message..."
-            disabled={sending}
+            disabled={sending || uploadingAttachments}
           />
           <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           <button
             className="btn btn-primary rounded-xl px-3 py-2"
             onClick={handleSend}
-            disabled={!messageText.trim() || sending}
+            disabled={(!messageText.trim() && selectedFiles.length === 0) || sending || uploadingAttachments}
           >
-            {sending ? '...' : 'Send'}
+            {uploadingAttachments ? 'Uploading...' : sending ? '...' : 'Send'}
           </button>
         </div>
       </div>
