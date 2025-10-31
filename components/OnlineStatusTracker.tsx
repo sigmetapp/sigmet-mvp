@@ -61,11 +61,60 @@ export default function OnlineStatusTracker() {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
 
+    // Periodically update activity (every 2 minutes) to keep user marked as active
+    // This ensures that users who keep the tab open are considered online
+    const activityInterval = setInterval(async () => {
+      if (!mounted || !userId) return;
+      
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser && mounted && currentUser.id === userId) {
+          await setOnline(currentUser.id, true);
+          console.log('[OnlineStatusTracker] Periodic activity update');
+        }
+      } catch (error) {
+        console.error('[OnlineStatusTracker] Error in periodic activity update:', error);
+      }
+    }, 120000); // Update every 2 minutes
+
+    // Also update activity on user interactions (clicks, keypresses, scroll)
+    // This provides more responsive activity tracking
+    const updateActivity = async () => {
+      if (!mounted || !userId) return;
+      
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser && mounted && currentUser.id === userId) {
+          await setOnline(currentUser.id, true);
+        }
+      } catch (error) {
+        // Silently fail - don't spam console on every interaction
+      }
+    };
+
+    // Throttle activity updates to at most once per minute
+    let lastActivityUpdate = 0;
+    const throttledUpdateActivity = () => {
+      const now = Date.now();
+      if (now - lastActivityUpdate > 60000) { // 1 minute
+        lastActivityUpdate = now;
+        updateActivity();
+      }
+    };
+
+    document.addEventListener('click', throttledUpdateActivity, { passive: true });
+    document.addEventListener('keydown', throttledUpdateActivity, { passive: true });
+    document.addEventListener('scroll', throttledUpdateActivity, { passive: true });
+
     // Cleanup function
     return () => {
       mounted = false;
+      clearInterval(activityInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('click', throttledUpdateActivity);
+      document.removeEventListener('keydown', throttledUpdateActivity);
+      document.removeEventListener('scroll', throttledUpdateActivity);
       
       // Set offline when component unmounts
       if (userId) {

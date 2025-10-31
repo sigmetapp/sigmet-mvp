@@ -19,6 +19,7 @@ type Profile = {
   directions_selected: string[] | null;
   show_online_status?: boolean | null;
   created_at?: string;
+  last_activity_at?: string | null;
 };
 
 type Post = {
@@ -112,6 +113,7 @@ export default function PublicProfilePage() {
       username: profile.username,
       show_online_status: profile.show_online_status,
       showStatus,
+      last_activity_at: profile.last_activity_at,
     });
 
     if (!showStatus) {
@@ -121,40 +123,82 @@ export default function PublicProfilePage() {
       return;
     }
 
-    // Subscribe to presence channel for this user
+    // Helper function to check if user is online based on activity
+    // Standards: User is online if they have presence (real-time) OR 
+    // were active in last 5 minutes (activity implies authentication)
+    const checkOnlineStatus = async (): Promise<boolean> => {
+      // Check presence (real-time status - most accurate)
+      let hasPresence = false;
+      try {
+        const state = await getPresenceMap(profile.user_id);
+        hasPresence = Object.keys(state).length > 0 && 
+          Object.values(state).some((presences: any[]) => 
+            presences.some((p: any) => p.online === true)
+          );
+        console.log('[Online Status] Presence check:', { hasPresence, state });
+      } catch (error) {
+        console.error('[Online Status] Error checking presence:', error);
+      }
+
+      // Check activity: if last_activity_at is within last 5 minutes
+      // If user has activity, they must be authenticated and active
+      let isRecentlyActive = false;
+      if (profile.last_activity_at) {
+        const lastActivity = new Date(profile.last_activity_at);
+        const now = new Date();
+        const minutesSinceActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
+        isRecentlyActive = minutesSinceActivity <= 5;
+        
+        console.log('[Online Status] Activity check:', {
+          last_activity_at: profile.last_activity_at,
+          minutesSinceActivity: minutesSinceActivity.toFixed(2),
+          isRecentlyActive,
+        });
+      }
+
+      // User is online if:
+      // 1. They have presence (real-time connected) OR
+      // 2. They were active in last 5 minutes (activity implies authentication)
+      const isOnline = hasPresence || isRecentlyActive;
+      
+      console.log('[Online Status] Final status check:', {
+        hasPresence,
+        isRecentlyActive,
+        isOnline,
+      });
+
+      return isOnline;
+    };
+
+    // Subscribe to presence channel for this user (for real-time updates)
     const channelName = `presence:${profile.user_id}`;
     console.log('[Online Status] Subscribing to channel:', channelName);
     const channel = supabase.channel(channelName);
     
     channel
-      .on('presence', { event: 'sync' }, () => {
+      .on('presence', { event: 'sync' }, async () => {
         const state = channel.presenceState();
         console.log('[Online Status] Presence sync event:', { state });
-        const hasOnline = Object.keys(state).length > 0 && 
-          Object.values(state).some((presences: any[]) => 
-            presences.some((p: any) => p.online === true)
-          );
-        console.log('[Online Status] Sync result - hasOnline:', hasOnline);
-        setIsOnline(hasOnline);
+        const isOnline = await checkOnlineStatus();
+        console.log('[Online Status] Sync result - isOnline:', isOnline);
+        setIsOnline(isOnline);
       })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+      .on('presence', { event: 'join' }, async ({ key, newPresences }) => {
         console.log('[Online Status] Presence join event:', { key, newPresences });
         const isUserOnline = newPresences.some((p: any) => p.online === true);
         if (isUserOnline) {
           console.log('[Online Status] User joined as online');
           setIsOnline(true);
+        } else {
+          const isOnline = await checkOnlineStatus();
+          setIsOnline(isOnline);
         }
       })
-      .on('presence', { event: 'leave' }, () => {
+      .on('presence', { event: 'leave' }, async () => {
         console.log('[Online Status] Presence leave event');
-        // Check if any presence remains
-        const state = channel.presenceState();
-        const hasOnline = Object.keys(state).length > 0 && 
-          Object.values(state).some((presences: any[]) => 
-            presences.some((p: any) => p.online === true)
-          );
-        console.log('[Online Status] Leave result - hasOnline:', hasOnline);
-        setIsOnline(hasOnline);
+        const isOnline = await checkOnlineStatus();
+        console.log('[Online Status] Leave result - isOnline:', isOnline);
+        setIsOnline(isOnline);
       })
       .subscribe((status) => {
         console.log('[Online Status] Channel subscription status:', status);
@@ -165,26 +209,67 @@ export default function PublicProfilePage() {
     // Initial check
     (async () => {
       try {
-        console.log('[Online Status] Performing initial presence check');
-        const state = await getPresenceMap(profile.user_id);
-        console.log('[Online Status] Initial presence state:', state);
-        const hasOnline = Object.keys(state).length > 0 && 
-          Object.values(state).some((presences: any[]) => 
-            presences.some((p: any) => p.online === true)
-          );
-        console.log('[Online Status] Initial check result - hasOnline:', hasOnline);
-        setIsOnline(hasOnline);
+        console.log('[Online Status] Performing initial status check');
+        const isOnline = await checkOnlineStatus();
+        console.log('[Online Status] Initial check result - isOnline:', isOnline);
+        setIsOnline(isOnline);
       } catch (error) {
         console.error('[Online Status] Initial check error:', error);
         setIsOnline(false);
       }
     })();
 
+    // Set up periodic check every 30 seconds to refresh status based on activity
+    const intervalId = setInterval(async () => {
+      try {
+        // Refresh profile data to get updated last_activity_at
+        const { data: freshProfile } = await supabase
+          .from('profiles')
+          .select('last_activity_at')
+          .eq('user_id', profile.user_id)
+          .maybeSingle();
+        
+        if (freshProfile?.last_activity_at) {
+          // Update profile state with fresh activity data
+          setProfile((prevProfile) => {
+            if (!prevProfile) return prevProfile;
+            return { ...prevProfile, last_activity_at: freshProfile.last_activity_at };
+          });
+          
+          // Recalculate online status with fresh data
+          const updatedProfile = { ...profile, last_activity_at: freshProfile.last_activity_at };
+          // Use helper function but with updated profile data
+          const lastActivity = new Date(freshProfile.last_activity_at);
+          const now = new Date();
+          const minutesSinceActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
+          const isRecentlyActive = minutesSinceActivity <= 5;
+          
+          // Also check presence
+          let hasPresence = false;
+          try {
+            const state = await getPresenceMap(profile.user_id);
+            hasPresence = Object.keys(state).length > 0 && 
+              Object.values(state).some((presences: any[]) => 
+                presences.some((p: any) => p.online === true)
+              );
+          } catch (error) {
+            console.error('[Online Status] Periodic check - presence error:', error);
+          }
+          
+          const isOnline = hasPresence || isRecentlyActive;
+          setIsOnline(isOnline);
+        }
+      } catch (error) {
+        console.error('[Online Status] Periodic check error:', error);
+      }
+    }, 30000); // Check every 30 seconds
+
     return () => {
       channel.unsubscribe();
       setPresenceChannel(null);
+      clearInterval(intervalId);
     };
-  }, [profile?.user_id, profile?.show_online_status]);
+  }, [profile?.user_id, profile?.show_online_status, profile?.last_activity_at]);
 
   useEffect(() => {
     if (!slug) return;
@@ -203,7 +288,7 @@ export default function PublicProfilePage() {
           router.replace(`/u/${encodeURIComponent(prof.username)}`);
           return; // keep loading until navigation
         }
-        // No username – treat as not found
+        // No username ? treat as not found
         setProfile(null);
         setLoadingProfile(false);
         return;
@@ -212,7 +297,7 @@ export default function PublicProfilePage() {
       // Otherwise, resolve strictly by username
       const { data } = await supabase
         .from('profiles')
-        .select('user_id, username, full_name, bio, country, website_url, avatar_url, directions_selected, show_online_status, created_at')
+        .select('user_id, username, full_name, bio, country, website_url, avatar_url, directions_selected, show_online_status, created_at, last_activity_at')
         .eq('username', slug)
         .maybeSingle();
       setProfile(((data as unknown) as Profile) || null);
@@ -566,18 +651,18 @@ export default function PublicProfilePage() {
 
   const GROWTH_AREAS = useMemo(
     () => [
-      { id: 'health', emoji: '💚', title: 'Health' },
-      { id: 'thinking', emoji: '🧠', title: 'Thinking' },
-      { id: 'learning', emoji: '📚', title: 'Learning' },
-      { id: 'career', emoji: '🧩', title: 'Career' },
-      { id: 'finance', emoji: '💰', title: 'Finance' },
-      { id: 'relationships', emoji: '🤝', title: 'Relationships' },
-      { id: 'creativity', emoji: '🎨', title: 'Creativity' },
-      { id: 'sport', emoji: '🏃‍♂️', title: 'Sport' },
-      { id: 'habits', emoji: '⏱️', title: 'Habits' },
-      { id: 'emotions', emoji: '🌿', title: 'Emotions' },
-      { id: 'meaning', emoji: '✨', title: 'Meaning' },
-      { id: 'community', emoji: '🏙️', title: 'Community' },
+      { id: 'health', emoji: '??', title: 'Health' },
+      { id: 'thinking', emoji: '??', title: 'Thinking' },
+      { id: 'learning', emoji: '??', title: 'Learning' },
+      { id: 'career', emoji: '??', title: 'Career' },
+      { id: 'finance', emoji: '??', title: 'Finance' },
+      { id: 'relationships', emoji: '??', title: 'Relationships' },
+      { id: 'creativity', emoji: '??', title: 'Creativity' },
+      { id: 'sport', emoji: '?????', title: 'Sport' },
+      { id: 'habits', emoji: '??', title: 'Habits' },
+      { id: 'emotions', emoji: '??', title: 'Emotions' },
+      { id: 'meaning', emoji: '?', title: 'Meaning' },
+      { id: 'community', emoji: '???', title: 'Community' },
     ],
     []
   );
@@ -587,7 +672,7 @@ export default function PublicProfilePage() {
       {/* Profile header */}
       <div className="card p-4 md:p-6">
         {loadingProfile ? (
-          <div className="text-white/70">Loading profile…</div>
+          <div className="text-white/70">Loading profile?</div>
         ) : !profile ? (
           <div className="text-white/70">Profile not found</div>
         ) : (
@@ -672,7 +757,7 @@ export default function PublicProfilePage() {
                   const city = String(profile.country).split(",")[0].trim();
                   return (
                     <>
-                      <span>•</span>
+                      <span>?</span>
                       <Link href={`/city/${encodeURIComponent(city)}`} className="hover:underline">
                         {profile.country}
                       </Link>
@@ -859,7 +944,7 @@ export default function PublicProfilePage() {
             <div className="card p-4 md:p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-white/90 font-medium">Leave opinion</div>
-                <button onClick={() => !feedbackPending && setFeedbackOpen(false)} className="text-white/60 hover:text-white">✕</button>
+                <button onClick={() => !feedbackPending && setFeedbackOpen(false)} className="text-white/60 hover:text-white">?</button>
               </div>
               <textarea
                 value={feedbackText}
@@ -897,7 +982,7 @@ export default function PublicProfilePage() {
             <div className="card p-4 md:p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-white/90 font-medium">Change history</div>
-                <button onClick={() => setHistoryOpen(false)} className="text-white/60 hover:text-white">✕</button>
+                <button onClick={() => setHistoryOpen(false)} className="text-white/60 hover:text-white">?</button>
               </div>
               {historyItems.length === 0 ? (
                 <div className="text-white/60 text-sm">No history yet</div>
@@ -917,7 +1002,7 @@ export default function PublicProfilePage() {
       <div className="space-y-4">
         <h2 className="text-lg text-white/90">Posts</h2>
         {loadingPosts ? (
-          <div className="text-white/70">Loading posts…</div>
+          <div className="text-white/70">Loading posts?</div>
         ) : posts.length === 0 ? (
           <div className="text-white/70">No posts yet</div>
         ) : (
@@ -934,10 +1019,10 @@ export default function PublicProfilePage() {
                   </video>
                 )}
                 <div className="flex items-center gap-4 text-sm text-white/70 pt-1">
-                  <span>👁️ {viewsByPostId[p.id] ?? 0}</span>
-                  <span>🌱 {reactionsByPostId[p.id]?.growth ?? 0}</span>
-                  <span>💎 {reactionsByPostId[p.id]?.value ?? 0}</span>
-                  <span>🤝 {reactionsByPostId[p.id]?.with_you ?? 0}</span>
+                  <span>??? {viewsByPostId[p.id] ?? 0}</span>
+                  <span>?? {reactionsByPostId[p.id]?.growth ?? 0}</span>
+                  <span>?? {reactionsByPostId[p.id]?.value ?? 0}</span>
+                  <span>?? {reactionsByPostId[p.id]?.with_you ?? 0}</span>
                   <span className="ml-auto">Comments: {commentCounts[p.id] ?? 0}</span>
                 </div>
               </div>
@@ -946,7 +1031,7 @@ export default function PublicProfilePage() {
               <div key={p.id} className="card card-glow p-4 md:p-6 space-y-4">
                 <div className="flex items-center justify-between text-xs text-white/60">
                   <span>{new Date(p.created_at).toLocaleString()}</span>
-                  <span className="flex items-center gap-1">👁️ {viewsByPostId[p.id] ?? 0}</span>
+                  <span className="flex items-center gap-1">??? {viewsByPostId[p.id] ?? 0}</span>
                 </div>
                 {p.body && <div className="text-white/90 whitespace-pre-wrap">{p.body}</div>}
                 {p.image_url && <img src={p.image_url} alt="" className="rounded-2xl border border-white/10" />}
@@ -956,9 +1041,9 @@ export default function PublicProfilePage() {
                   </video>
                 )}
                 <div className="flex items-center gap-3 text-sm text-white/80">
-                  <span>🌱 {reactionsByPostId[p.id]?.growth ?? 0}</span>
-                  <span>💎 {reactionsByPostId[p.id]?.value ?? 0}</span>
-                  <span>🤝 {reactionsByPostId[p.id]?.with_you ?? 0}</span>
+                  <span>?? {reactionsByPostId[p.id]?.growth ?? 0}</span>
+                  <span>?? {reactionsByPostId[p.id]?.value ?? 0}</span>
+                  <span>?? {reactionsByPostId[p.id]?.with_you ?? 0}</span>
                   <span className="ml-auto">Comments: {commentCounts[p.id] ?? 0}</span>
                 </div>
               </div>
