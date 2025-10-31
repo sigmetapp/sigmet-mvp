@@ -114,7 +114,7 @@ function DmPageInner() {
   }, [currentUserId]);
 
   return (
-    <div className="flex h-[calc(100vh-120px)] md:h-[80vh] gap-4">
+    <div className="flex gap-4 h-[calc(100vh-120px)]">
       {/* Partners list - left side */}
       <div className="w-80 flex-shrink-0">
         <div className="card card-glow h-full flex flex-col">
