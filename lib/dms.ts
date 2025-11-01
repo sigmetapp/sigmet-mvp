@@ -86,7 +86,11 @@ export async function getOrCreateThread(
     .maybeSingle();
 
   if (!rpcError && rpcResult) {
-    return rpcResult as Thread;
+    // Ensure id is a number (bigint from database may be string)
+    return {
+      ...rpcResult,
+      id: Number(rpcResult.id)
+    } as Thread;
   }
 
   // Fallback: find existing 1:1 thread
@@ -135,7 +139,11 @@ export async function getOrCreateThread(
       throw new Error(threadError.message);
     }
     if (existingThread) {
-      return existingThread as Thread;
+      // Ensure id is a number (bigint from database may be string)
+      return {
+        ...existingThread,
+        id: Number(existingThread.id)
+      } as Thread;
     }
   }
 
@@ -153,19 +161,25 @@ export async function getOrCreateThread(
     throw new Error(createError?.message || 'Failed to create thread');
   }
 
+  // Ensure id is a number (bigint from database may be string)
+  const threadWithNumericId = {
+    ...newThread,
+    id: Number(newThread.id)
+  };
+
   // Add participants
   const { error: participantsError } = await supabase
     .from('dms_thread_participants')
     .insert([
-      { thread_id: newThread.id, user_id: currentUserId, role: 'owner' },
-      { thread_id: newThread.id, user_id: partnerId, role: 'member' },
+      { thread_id: threadWithNumericId.id, user_id: currentUserId, role: 'owner' },
+      { thread_id: threadWithNumericId.id, user_id: partnerId, role: 'member' },
     ]);
 
   if (participantsError) {
     throw new Error(participantsError.message);
   }
 
-  return newThread as Thread;
+  return threadWithNumericId as Thread;
 }
 
 /**
@@ -226,11 +240,15 @@ export async function listMessages(
  * Uses API endpoint to bypass RLS policies.
  */
 export async function sendMessage(
-  threadId: number,
+  threadId: number | string,
   body: string | null,
   attachments: unknown[] = []
 ): Promise<Message> {
-  if (!threadId || Number.isNaN(threadId)) {
+  // Convert to number if string (bigint from database)
+  const threadIdNum = typeof threadId === 'string' ? Number(threadId) : threadId;
+  
+  if (!threadIdNum || Number.isNaN(threadIdNum) || threadIdNum <= 0) {
+    console.error('Invalid thread_id:', threadId, typeof threadId);
     throw new Error('Invalid thread_id');
   }
 
@@ -257,11 +275,11 @@ export async function sendMessage(
     headers: {
       'Content-Type': 'application/json',
     },
-      body: JSON.stringify({
-        thread_id: threadId,
-        body: body || null, // API endpoint will handle empty body with attachments (uses zero-width space)
-        attachments: attachments.length > 0 ? attachments : [],
-      }),
+    body: JSON.stringify({
+      thread_id: threadIdNum, // Ensure it's a number
+      body: body || null, // API endpoint will handle empty body with attachments (uses zero-width space)
+      attachments: attachments.length > 0 ? attachments : [],
+    }),
   });
 
   if (!response.ok) {

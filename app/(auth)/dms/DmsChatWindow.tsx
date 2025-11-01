@@ -368,11 +368,18 @@ export default function DmsChatWindow({ partnerId }: Props) {
   useEffect(() => {
     if (!thread?.id || !currentUserId || !partnerId) return;
 
+    // Ensure thread.id is a valid number
+    const threadId = Number(thread.id);
+    if (!threadId || isNaN(threadId)) {
+      console.error('Invalid thread.id for typing indicators:', thread.id);
+      return;
+    }
+
     let unsubscribe: (() => void) | null = null;
 
     (async () => {
       try {
-        unsubscribe = await subscribeToThread(thread.id, {
+        unsubscribe = await subscribeToThread(threadId, {
           onTyping: (event) => {
             if (event.userId === partnerId) {
               setPartnerTyping(event.typing);
@@ -393,8 +400,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const handleTyping = useCallback(() => {
     if (!thread?.id || !currentUserId || isTyping) return;
 
+    const threadId = Number(thread.id);
+    if (!threadId || isNaN(threadId)) return;
+
     setIsTyping(true);
-    void sendTypingIndicator(thread.id, currentUserId, true);
+    void sendTypingIndicator(threadId, currentUserId, true);
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -403,7 +413,10 @@ export default function DmsChatWindow({ partnerId }: Props) {
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
       if (thread?.id && currentUserId) {
-        void sendTypingIndicator(thread.id, currentUserId, false);
+        const tid = Number(thread.id);
+        if (tid && !isNaN(tid)) {
+          void sendTypingIndicator(tid, currentUserId, false);
+        }
       }
     }, 3000);
   }, [thread?.id, currentUserId, isTyping]);
@@ -462,7 +475,14 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   // Handle send message with optimistic update
   async function handleSend() {
-    if (!thread || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
+    if (!thread || !thread.id || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
+
+    // Ensure thread.id is a valid number
+    const threadId = Number(thread.id);
+    if (!threadId || isNaN(threadId)) {
+      setError('Invalid thread ID');
+      return;
+    }
 
     const textToSend = messageText.trim();
     const replyToId = replyingTo?.id || null;
@@ -477,8 +497,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
-    if (thread.id && currentUserId) {
-      void sendTypingIndicator(thread.id, currentUserId, false);
+    if (threadId && currentUserId) {
+      void sendTypingIndicator(threadId, currentUserId, false);
     }
 
     let attachments: DmAttachment[] = [];
@@ -504,7 +524,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     // Optimistic update
     const optimisticMessage: Message = {
       id: Date.now(), // Temporary ID
-      thread_id: thread.id,
+      thread_id: threadId,
       sender_id: currentUserId!,
       kind: 'text',
       body: textToSend || null,
@@ -528,7 +548,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       // API endpoint will handle empty body with attachments automatically
       // It uses zero-width space character which is invisible
       const messageBody = textToSend || null;
-      const sentMessage = await sendMessage(thread.id, messageBody, attachments as unknown[]);
+      const sentMessage = await sendMessage(threadId, messageBody, attachments as unknown[]);
       // Replace optimistic message with real one and ensure proper sorting
       setMessages((prev) => {
         const updated = prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m));
@@ -658,7 +678,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
                   title="Days streak"
                 >
-                  <span className="text-xs leading-none" role="img" aria-label="fire">🔥</span>
+                  <span className="text-xs leading-none" role="img" aria-label="fire">??</span>
                   {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
                 </span>
               )}
