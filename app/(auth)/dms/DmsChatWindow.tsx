@@ -58,7 +58,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [trustFlow, setTrustFlow] = useState<number>(80);
   const [daysStreak, setDaysStreak] = useState<number>(0);
   
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const lastMessageIdRef = useRef<number | null>(null);
   const oldestMessageIdRef = useRef<number | null>(null);
   const isPreloadingOlderRef = useRef(false);
@@ -85,6 +85,71 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
+
+  const playBeep = useCallback(
+    async (frequency = 720, duration = 0.25) => {
+      try {
+        const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext) as
+          | typeof AudioContext
+          | undefined;
+        if (!AudioContextCtor) return;
+
+        if (!audioContextRef.current) {
+          audioContextRef.current = new AudioContextCtor();
+        }
+
+        const ctx = audioContextRef.current;
+        if (!ctx) return;
+
+        if (ctx.state === 'suspended') {
+          try {
+            await ctx.resume();
+          } catch (resumeErr) {
+            console.error('Error resuming audio context:', resumeErr);
+            return;
+          }
+        }
+
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        gainNode.gain.setValueAtTime(0.25, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + duration);
+      } catch (err) {
+        console.error('Error playing sound:', err);
+      }
+    },
+    []
+  );
+
+  const playSendConfirmation = useCallback(() => {
+    void playBeep(860, 0.2);
+  }, [playBeep]);
+
+  const playIncomingNotification = useCallback(() => {
+    void playBeep(640, 0.28);
+  }, [playBeep]);
+
+  function getAttachmentIcon(type?: DmAttachment['type']) {
+    switch (type) {
+      case 'image':
+        return '\uD83D\uDDBC';
+      case 'video':
+        return '\uD83C\uDFA5';
+      case 'audio':
+        return '\uD83C\uDFB5';
+      default:
+        return '\uD83D\uDCC4';
+    }
+  }
 
   // Attachment preview component
   function AttachmentPreview({ attachment }: { attachment: DmAttachment }) {
@@ -137,7 +202,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
     return (
       <div className="px-3 py-2 bg-white/5 rounded-lg border border-white/10 flex items-center gap-2 max-w-[280px]">
-        <span className="text-xl">??</span>
+        <span className="text-xl" role="img" aria-hidden="true">
+          {getAttachmentIcon(attachment.type)}
+        </span>
         <div className="flex-1 min-w-0">
           <div className="text-xs text-white/90 truncate">File</div>
           <div className="text-[10px] text-white/60">
@@ -426,50 +493,29 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages.length]);
 
-  // Play sound on new messages (from partner or own messages)
+  // Play sound on new messages (partner messages only)
   useEffect(() => {
     if (messages.length === 0 || !currentUserId || !partnerId) return;
-    
+
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage) return;
-    
-    // Check if this is a new message (from partner or own)
+
     const isNewMessage = lastMessage.id !== lastMessageIdRef.current;
     const isFromPartner = lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId;
-    const isOwnMessage = lastMessage.sender_id === currentUserId;
-    
-    if (isNewMessage && (isFromPartner || isOwnMessage)) {
+
+    if (isNewMessage) {
       const prevLastId = lastMessageIdRef.current;
       lastMessageIdRef.current = lastMessage.id;
-      
-      // Skip sound for the first message when loading conversation
+
       if (prevLastId === null) {
         return;
       }
-      
-      // Play notification sound
-      try {
-        // Create audio context for beep sound
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.3);
-      } catch (err) {
-        console.error('Error playing sound:', err);
+
+      if (isFromPartner) {
+        playIncomingNotification();
       }
     }
-  }, [messages, currentUserId, partnerId]);
+  }, [messages, currentUserId, partnerId, playIncomingNotification]);
 
   // Subscribe to typing indicators
   useEffect(() => {
@@ -578,11 +624,13 @@ export default function DmsChatWindow({ partnerId }: Props) {
     const threadId = thread.id;
 
     const textToSend = messageText.trim();
-    const replyToId = replyingTo?.id || null;
     setMessageText('');
     setReplyingTo(null);
     setSending(true);
-    setUploadingAttachments(true);
+    const hasAttachments = selectedFiles.length > 0;
+    if (hasAttachments) {
+      setUploadingAttachments(true);
+    }
     
     // Clear typing indicator
     setIsTyping(false);
@@ -597,7 +645,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     let attachments: DmAttachment[] = [];
 
     // Upload files if any
-    if (selectedFiles.length > 0) {
+    if (hasAttachments) {
       try {
         attachments = await Promise.all(
           selectedFiles.map((file) => uploadAttachment(file))
@@ -612,7 +660,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
       }
     }
 
-    setUploadingAttachments(false);
+    if (hasAttachments) {
+      setUploadingAttachments(false);
+    }
 
     // Optimistic update
     const optimisticMessage: Message = {
@@ -642,6 +692,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
         const updated = prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m));
         return sortMessagesChronologically(updated);
       });
+      playSendConfirmation();
       
       // Scroll to bottom after sending
       setTimeout(() => {
@@ -773,7 +824,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
                   title="Days streak"
                 >
-                  <span className="text-xs leading-none" role="img" aria-label="fire">??</span>
+                  <span className="text-xs leading-none" role="img" aria-hidden="true">
+                    {'\uD83D\uDD25'}
+                  </span>
                   {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
                 </span>
               )}
@@ -931,42 +984,48 @@ export default function DmsChatWindow({ partnerId }: Props) {
       {selectedFiles.length > 0 && (
         <div className="px-3 pt-2 pb-1 border-t border-white/10">
           <div className="flex flex-wrap gap-2">
-            {selectedFiles.map((file, index) => (
-              <div
-                key={index}
-                className="relative inline-flex items-center gap-2 px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-sm"
-              >
-                {file.type.startsWith('image/') ? (
-                  <span className="text-xs">??</span>
-                ) : file.type.startsWith('video/') ? (
-                  <span className="text-xs">??</span>
-                ) : (
-                  <span className="text-xs">??</span>
-                )}
-                <span className="text-white/90 truncate max-w-[150px]">{file.name}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveFile(index)}
-                  className="text-white/60 hover:text-white/90 transition"
-                  title="Remove"
+            {selectedFiles.map((file, index) => {
+              const icon = file.type.startsWith('image/')
+                ? '\uD83D\uDDBC'
+                : file.type.startsWith('video/')
+                ? '\uD83C\uDFA5'
+                : file.type.startsWith('audio/')
+                ? '\uD83C\uDFB5'
+                : '\uD83D\uDCC4';
+
+              return (
+                <div
+                  key={index}
+                  className="relative inline-flex items-center gap-2 px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-sm"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
+                  <span className="text-base" role="img" aria-hidden="true">
+                    {icon}
+                  </span>
+                  <span className="text-white/90 truncate max-w-[150px]">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveFile(index)}
+                    className="text-white/60 hover:text-white/90 transition"
+                    title="Remove"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </div>
-            ))}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1047,7 +1106,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
               }
             }}
             placeholder={replyingTo ? "Reply to message..." : "Type a message..."}
-            disabled={sending || uploadingAttachments}
+            disabled={uploadingAttachments}
             rows={1}
             style={{
               height: 'auto',
