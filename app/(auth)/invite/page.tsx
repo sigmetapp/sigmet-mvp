@@ -37,6 +37,42 @@ export default function InvitePage() {
     checkAdmin();
   }, []);
 
+  // Use admin function if user is admin, otherwise use regular function
+  const handleCreateInvite = async () => {
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+
+    try {
+      let result;
+      if (isAdmin) {
+        // Admin can create unlimited invites
+        const { data, error } = await supabase.rpc('admin_create_invite', {});
+        if (error) throw error;
+        result = data;
+      } else {
+        // Regular user has 3 invite limit
+        const { data, error } = await supabase.rpc('send_invite', {});
+        if (error) throw error;
+        result = data;
+      }
+
+      setSuccess('Invite code generated successfully!');
+      await loadInvites();
+      await loadStats();
+
+      // PostHog event
+      ph.capture('invite_sent', {
+        invite_id: result,
+        is_admin: isAdmin
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to create invite');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const checkAdmin = async () => {
     try {
       const { data, error } = await supabase.rpc('is_admin_uid');
@@ -81,35 +117,6 @@ export default function InvitePage() {
     }
   };
 
-  const handleCreateInvite = async () => {
-    setError(null);
-    setSuccess(null);
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.rpc('send_invite');
-
-      if (error) {
-        // Handle specific error messages
-        const errorMsg = error.message || 'Failed to create invite';
-        setError(errorMsg);
-        return;
-      }
-
-      setSuccess('Invite code generated successfully!');
-      await loadInvites();
-      await loadStats();
-
-      // PostHog event
-      ph.capture('invite_sent', {
-        invite_id: data
-      });
-    } catch (err: any) {
-      setError(err.message || 'Failed to create invite');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -144,13 +151,13 @@ export default function InvitePage() {
 
         {/* Admin Notice */}
         {isAdmin && (
-          <div className="mb-4 p-3 bg-blue-500/20 border border-blue-500/50 rounded-lg">
-            <p className="text-blue-300 text-sm">Admin mode: You can create invites without the 3 invite limit.</p>
+          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+            <p className="text-green-300 text-sm font-semibold">? Admin mode: You can generate unlimited invite codes without restrictions.</p>
           </div>
         )}
 
         {/* Stats Cards */}
-        {stats && (
+        {stats && !isAdmin && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-gray-800 p-4 rounded-lg">
               <div className="text-gray-400 text-sm mb-1">Total Sent</div>
