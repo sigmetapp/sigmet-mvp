@@ -5,9 +5,9 @@
 create or replace function public.insert_dms_message(
   p_thread_id bigint,
   p_sender_id uuid,
-  p_body text default null,
-  p_kind text default 'text',
-  p_attachments jsonb default '[]'::jsonb
+  p_body text,
+  p_kind text,
+  p_attachments jsonb
 )
 returns public.dms_messages
 language plpgsql
@@ -33,6 +33,7 @@ begin
   end if;
   
   -- Insert message (bypasses RLS due to SECURITY DEFINER)
+  -- Handle null body when attachments exist - use zero-width space
   insert into public.dms_messages (
     thread_id,
     sender_id,
@@ -43,9 +44,13 @@ begin
   ) values (
     p_thread_id,
     p_sender_id,
-    p_kind,
-    p_body,
-    p_attachments,
+    coalesce(p_kind, 'text'),
+    case 
+      when p_body is not null then p_body
+      when p_attachments is not null and jsonb_array_length(p_attachments) > 0 then chr(8203) -- Zero-width space (U+200B)
+      else null
+    end,
+    coalesce(p_attachments, '[]'::jsonb),
     now()
   )
   returning * into v_message;
