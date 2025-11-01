@@ -68,32 +68,18 @@ function DmsInner() {
 
         const threadIds = participants.map((p) => p.thread_id);
 
-        // Filter threads that have at least one message
-        const { data: messages } = await supabase
-          .from('dms_messages')
-          .select('thread_id')
-          .in('thread_id', threadIds);
+        // Normalize thread IDs for comparison
+        const normalizeThreadId = (id: number | string | null | undefined): number | null => {
+          if (id === null || id === undefined) return null;
+          const numId = typeof id === 'string' ? Number.parseInt(id, 10) : id;
+          return typeof numId === 'number' && Number.isFinite(numId) ? numId : null;
+        };
 
-        const threadsWithMessages = new Set(
-          (messages || []).map((msg) => msg.thread_id)
-        );
-
-        const validThreadIds = threadIds.filter((threadId) =>
-          threadsWithMessages.has(threadId)
-        );
-
-        if (cancelled || validThreadIds.length === 0) {
-          setPartners([]);
-          setSelectedPartnerId(null);
-          setLoading(false);
-          return;
-        }
-
-        // Get other participants from these threads (only threads with messages)
+        // Get other participants from all threads first
         const { data: otherParticipants } = await supabase
           .from('dms_thread_participants')
           .select('user_id, thread_id')
-          .in('thread_id', validThreadIds)
+          .in('thread_id', threadIds)
           .neq('user_id', currentUserId);
 
         if (cancelled || !otherParticipants || otherParticipants.length === 0) {
@@ -103,8 +89,52 @@ function DmsInner() {
           return;
         }
 
+        // Get all unique thread IDs from other participants
+        const allThreadIdsFromParticipants = Array.from(
+          new Set(otherParticipants.map((p) => p.thread_id))
+        );
+
+        // Check which threads have messages
+        const { data: messages, error: messagesError } = await supabase
+          .from('dms_messages')
+          .select('thread_id')
+          .in('thread_id', allThreadIdsFromParticipants);
+
+        if (messagesError) {
+          console.error('Error loading messages:', messagesError);
+        }
+
+        const threadsWithMessages = new Set(
+          (messages || [])
+            .map((msg) => normalizeThreadId(msg.thread_id))
+            .filter((id): id is number => id !== null)
+        );
+
+        console.log('[DMs] Debug:', {
+          totalThreadIds: threadIds.length,
+          totalOtherParticipants: otherParticipants.length,
+          totalThreadIdsFromParticipants: allThreadIdsFromParticipants.length,
+          messagesFound: messages?.length || 0,
+          threadsWithMessagesCount: threadsWithMessages.size,
+        });
+
+        // Filter participants to only include those from threads with messages
+        const validParticipants = otherParticipants.filter((participant) => {
+          const normalizedId = normalizeThreadId(participant.thread_id);
+          return normalizedId !== null && threadsWithMessages.has(normalizedId);
+        });
+
+        console.log('[DMs] Valid participants after filtering:', validParticipants.length);
+
+        if (cancelled || validParticipants.length === 0) {
+          setPartners([]);
+          setSelectedPartnerId(null);
+          setLoading(false);
+          return;
+        }
+
         const partnerThreadMap = new Map<string, number>();
-        for (const participant of otherParticipants) {
+        for (const participant of validParticipants) {
           const threadIdValue = participant.thread_id;
           const normalizedThreadId =
             typeof threadIdValue === 'string'
@@ -130,10 +160,12 @@ function DmsInner() {
           .limit(20);
 
         if (!cancelled && profiles) {
+          // Get thread IDs that have messages for metadata query
+          const threadIdsForMeta = Array.from(partnerThreadMap.values());
           const { data: threadMeta } = await supabase
             .from('dms_threads')
             .select('id, last_message_at, created_at')
-            .in('id', validThreadIds);
+            .in('id', threadIdsForMeta);
 
           const threadMetaMap = new Map<number, { last_message_at: string | null; created_at: string }>();
           for (const meta of threadMeta || []) {
