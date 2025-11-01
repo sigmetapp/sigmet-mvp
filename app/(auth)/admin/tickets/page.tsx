@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import { useTheme } from '@/components/ThemeProvider';
@@ -26,6 +26,8 @@ type Ticket = {
   updated_at: string;
   resolved_at: string | null;
   admin_notes: string | null;
+  image_urls?: string[];
+  video_urls?: string[];
 };
 
 function AdminTicketsInner() {
@@ -38,6 +40,13 @@ function AdminTicketsInner() {
   const [status, setStatus] = useState<string>('');
   const [adminNotes, setAdminNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messageBody, setMessageBody] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageImages, setMessageImages] = useState<File[]>([]);
+  const [messageVideos, setMessageVideos] = useState<File[]>([]);
+  const messageFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -72,12 +81,120 @@ function AdminTicketsInner() {
     setSelectedTicket(ticket);
     setStatus(ticket.status);
     setAdminNotes(ticket.admin_notes || '');
+    setMessageBody('');
+    setMessageImages([]);
+    setMessageVideos([]);
+    loadMessages(ticket.id);
   }
 
   function closeTicket() {
     setSelectedTicket(null);
     setStatus('');
     setAdminNotes('');
+    setMessages([]);
+    setMessageBody('');
+    setMessageImages([]);
+    setMessageVideos([]);
+  }
+
+  async function loadMessages(ticketId: number) {
+    setLoadingMessages(true);
+    try {
+      const resp = await fetch(`/api/tickets/messages.list?ticket_id=${ticketId}`);
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.error || 'Failed to load messages');
+      setMessages(json.messages || []);
+    } catch (e: any) {
+      console.error('Failed to load messages', e);
+      alert(e?.message || 'Failed to load messages');
+    } finally {
+      setLoadingMessages(false);
+    }
+  }
+
+  async function uploadMedia(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = (reader.result as string).split(',')[1];
+        try {
+          const resp = await fetch('/api/tickets/upload-media', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              file: base64,
+              fileName: file.name,
+              fileType: file.type,
+            }),
+          });
+          const json = await resp.json();
+          if (!resp.ok) throw new Error(json?.error || 'Upload failed');
+          resolve(json.url);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function sendAdminMessage() {
+    if (!selectedTicket) return;
+    if (!messageBody.trim() && messageImages.length === 0 && messageVideos.length === 0) {
+      alert('Please enter a message or attach media');
+      return;
+    }
+
+    setSendingMessage(true);
+    try {
+      const imageUrls: string[] = [];
+      const videoUrls: string[] = [];
+
+      for (const img of messageImages) {
+        const url = await uploadMedia(img);
+        imageUrls.push(url);
+      }
+
+      for (const vid of messageVideos) {
+        const url = await uploadMedia(vid);
+        videoUrls.push(url);
+      }
+
+      const resp = await fetch('/api/tickets/messages.create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticket_id: selectedTicket.id,
+          body: messageBody.trim() || '',
+          image_urls: imageUrls,
+          video_urls: videoUrls,
+        }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.error || 'Failed to send message');
+      setMessageBody('');
+      setMessageImages([]);
+      setMessageVideos([]);
+      await loadMessages(selectedTicket.id);
+      await loadTickets();
+    } catch (e: any) {
+      console.error('Failed to send message', e);
+      alert(e?.message || 'Failed to send message');
+    } finally {
+      setSendingMessage(false);
+    }
+  }
+
+  function handleMessageFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        setMessageImages((prev) => [...prev, file]);
+      } else if (file.type.startsWith('video/')) {
+        setMessageVideos((prev) => [...prev, file]);
+      }
+    }
   }
 
   async function saveTicket() {
@@ -356,24 +473,128 @@ function AdminTicketsInner() {
               </div>
             </div>
 
-            {selectedTicket.admin_notes && (
+            {(selectedTicket.image_urls && selectedTicket.image_urls.length > 0) ||
+             (selectedTicket.video_urls && selectedTicket.video_urls.length > 0) ? (
               <div>
-                <h3 className={`text-sm font-medium mb-2 ${
-                  isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'
-                }`}>
-                  Admin Response
+                <h3 className={`text-sm font-medium mb-2 ${isLight ? 'text-black/80' : 'text-white/80'}`}>
+                  Attachments
                 </h3>
-                <div className={`rounded-lg border p-4 ${
-                  isLight
-                    ? 'border-telegram-blue/20 bg-telegram-blue/5'
-                    : 'border-telegram-blue/30 bg-telegram-blue/10'
-                }`}>
-                  <p className={`whitespace-pre-wrap ${isLight ? 'text-black/90' : 'text-white/90'}`}>
-                    {selectedTicket.admin_notes}
-                  </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {selectedTicket.image_urls?.map((url, idx) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={idx} src={url} alt={`Attachment ${idx + 1}`} className="rounded-lg max-w-full" />
+                  ))}
+                  {selectedTicket.video_urls?.map((url, idx) => (
+                    <video key={idx} src={url} controls className="rounded-lg max-w-full" />
+                  ))}
                 </div>
               </div>
-            )}
+            ) : null}
+
+            <div>
+              <h3 className={`text-sm font-medium mb-2 ${isLight ? 'text-black/80' : 'text-white/80'}`}>
+                Messages
+              </h3>
+              {loadingMessages ? (
+                <div className={`text-center py-8 ${isLight ? 'text-black/60' : 'text-white/60'}`}>
+                  Loading messages...
+                </div>
+              ) : messages.length === 0 ? (
+                <div className={`text-center py-8 ${isLight ? 'text-black/60' : 'text-white/60'}`}>
+                  No messages yet.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`rounded-lg border p-4 ${
+                        msg.is_admin
+                          ? isLight
+                            ? 'border-telegram-blue/30 bg-telegram-blue/5'
+                            : 'border-telegram-blue/30 bg-telegram-blue/10'
+                          : isLight
+                          ? 'border-black/10 bg-black/5'
+                          : 'border-white/10 bg-white/5'
+                      }`}
+                    >
+                      <div className={`text-xs mb-2 ${
+                        msg.is_admin
+                          ? isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'
+                          : isLight ? 'text-black/60' : 'text-white/60'
+                      }`}>
+                        {msg.is_admin ? 'Admin' : 'User'} ? {new Date(msg.created_at).toLocaleString()}
+                      </div>
+                      <p className={`text-sm ${isLight ? 'text-black/90' : 'text-white/90'}`}>
+                        {msg.body}
+                      </p>
+                      {(msg.image_urls.length > 0 || msg.video_urls.length > 0) && (
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          {msg.image_urls.map((url, idx) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img key={idx} src={url} alt={`Attachment ${idx + 1}`} className="rounded-lg max-w-full" />
+                          ))}
+                          {msg.video_urls.map((url, idx) => (
+                            <video key={idx} src={url} controls className="rounded-lg max-w-full" />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className={`pt-4 mt-4 border-t space-y-3 ${isLight ? 'border-black/10' : 'border-white/10'}`}>
+                <textarea
+                  value={messageBody}
+                  onChange={(e) => setMessageBody(e.target.value)}
+                  placeholder="Write your response..."
+                  rows={3}
+                  className={`w-full rounded-xl border px-4 py-2 outline-none transition resize-none ${
+                    isLight
+                      ? 'border-black/10 bg-white placeholder-black/40 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/20'
+                      : 'border-white/10 bg-white/5 placeholder-white/40 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/30'
+                  }`}
+                />
+                <input
+                  ref={messageFileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  onChange={handleMessageFileSelect}
+                  className="hidden"
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => messageFileInputRef.current?.click()}
+                    className={`px-4 py-2 rounded-lg border text-sm ${
+                      isLight
+                        ? 'border-black/20 text-black/70 hover:bg-black/5'
+                        : 'border-white/20 text-white/70 hover:bg-white/5'
+                    }`}
+                  >
+                    Attach Media
+                  </button>
+                  {(messageImages.length > 0 || messageVideos.length > 0) && (
+                    <div className="flex items-center gap-2 text-sm">
+                      {messageImages.length > 0 && <span>{messageImages.length} image(s)</span>}
+                      {messageVideos.length > 0 && <span>{messageVideos.length} video(s)</span>}
+                    </div>
+                  )}
+                  <button
+                    onClick={sendAdminMessage}
+                    disabled={sendingMessage}
+                    className={`ml-auto px-6 py-2.5 rounded-xl font-medium transition ${
+                      isLight
+                        ? 'bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]'
+                        : 'bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]'
+                    } disabled:opacity-60`}
+                  >
+                    {sendingMessage ? 'Sending...' : 'Send Message'}
+                  </button>
+                </div>
+              </div>
+            </div>
 
             <div className={`pt-4 border-t space-y-4 ${
               isLight ? 'border-black/10' : 'border-white/10'
@@ -396,9 +617,12 @@ function AdminTicketsInner() {
                 >
                   <option value="open" className={isLight ? 'bg-white text-black' : 'bg-black text-white'}>Open</option>
                   <option value="in_progress" className={isLight ? 'bg-white text-black' : 'bg-black text-white'}>In Progress</option>
-                  <option value="resolved" className={isLight ? 'bg-white text-black' : 'bg-black text-white'}>Resolved</option>
-                  <option value="closed" className={isLight ? 'bg-white text-black' : 'bg-black text-white'}>Closed</option>
+                  <option value="resolved" className={isLight ? 'bg-white text-black' : 'bg-black text-white'}>Resolved (User/Admin can set)</option>
+                  <option value="closed" className={isLight ? 'bg-white text-black' : 'bg-black text-white'}>Closed (User/Admin can set)</option>
                 </select>
+                <p className={`text-xs mt-1 ${isLight ? 'text-black/50' : 'text-white/50'}`}>
+                  Note: Status "Resolved" or "Closed" prevents further messages
+                </p>
               </div>
 
               <div>

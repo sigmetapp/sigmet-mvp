@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabaseServer';
 
 function getAccessTokenFromRequest(req: NextApiRequest): string | undefined {
   const cookie = req.headers.cookie || '';
@@ -39,33 +40,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { title, description, image_urls, video_urls } = req.body;
-    if (!title || !description || typeof title !== 'string' || typeof description !== 'string') {
-      return res.status(400).json({ error: 'Title and description are required' });
+    const { file, fileName, fileType } = req.body;
+    if (!file || !fileName) {
+      return res.status(400).json({ error: 'File and fileName are required' });
     }
 
-    if (title.trim().length === 0 || description.trim().length === 0) {
-      return res.status(400).json({ error: 'Title and description cannot be empty' });
+    const isImage = fileType?.startsWith('image/');
+    const isVideo = fileType?.startsWith('video/');
+    if (!isImage && !isVideo) {
+      return res.status(400).json({ error: 'File must be an image or video' });
     }
 
-    const { data, error } = await supabase
-      .from('tickets')
-      .insert({
-        user_id: userData.user.id,
-        title: title.trim(),
-        description: description.trim(),
-        status: 'open',
-        image_urls: Array.isArray(image_urls) ? image_urls : [],
-        video_urls: Array.isArray(video_urls) ? video_urls : [],
-      })
-      .select()
-      .single();
+    const admin = supabaseAdmin();
+    const buf = Buffer.from(file, 'base64');
+    const ext = fileName.split('.').pop() || (isImage ? 'jpg' : 'mp4');
+    const folder = isImage ? 'tickets/images' : 'tickets/videos';
+    const path = `${folder}/${userData.user.id}/${Date.now()}.${ext}`;
 
-    if (error) throw error;
+    const { error: upErr } = await admin.storage.from('assets').upload(path, buf, {
+      upsert: false,
+      contentType: fileType || (isImage ? 'image/jpeg' : 'video/mp4'),
+    });
 
-    return res.status(201).json({ ticket: data });
+    if (upErr) throw upErr;
+
+    const { data: urlData } = admin.storage.from('assets').getPublicUrl(path);
+    return res.status(200).json({ url: urlData.publicUrl });
   } catch (e: any) {
-    console.error('tickets.create error', e);
+    console.error('tickets.upload-media error', e);
     return res.status(500).json({ error: e?.message || 'Internal error' });
   }
 }

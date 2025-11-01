@@ -39,33 +39,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { title, description, image_urls, video_urls } = req.body;
-    if (!title || !description || typeof title !== 'string' || typeof description !== 'string') {
-      return res.status(400).json({ error: 'Title and description are required' });
+    const { ticket_id, status } = req.body;
+    if (!ticket_id || typeof ticket_id !== 'number') {
+      return res.status(400).json({ error: 'Ticket ID is required' });
     }
 
-    if (title.trim().length === 0 || description.trim().length === 0) {
-      return res.status(400).json({ error: 'Title and description cannot be empty' });
+    const validStatuses = ['resolved', 'closed'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Status must be "resolved" or "closed"' });
+    }
+
+    // Check if ticket exists and belongs to user
+    const { data: ticket, error: ticketError } = await supabase
+      .from('tickets')
+      .select('id, user_id')
+      .eq('id', ticket_id)
+      .single();
+
+    if (ticketError || !ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    if (ticket.user_id !== userData.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const updateData: any = {
+      status,
+    };
+    if (status === 'resolved' || status === 'closed') {
+      updateData.resolved_at = new Date().toISOString();
     }
 
     const { data, error } = await supabase
       .from('tickets')
-      .insert({
-        user_id: userData.user.id,
-        title: title.trim(),
-        description: description.trim(),
-        status: 'open',
-        image_urls: Array.isArray(image_urls) ? image_urls : [],
-        video_urls: Array.isArray(video_urls) ? video_urls : [],
-      })
+      .update(updateData)
+      .eq('id', ticket_id)
       .select()
       .single();
 
     if (error) throw error;
 
-    return res.status(201).json({ ticket: data });
+    return res.status(200).json({ ticket: data });
   } catch (e: any) {
-    console.error('tickets.create error', e);
+    console.error('tickets.update-status error', e);
     return res.status(500).json({ error: e?.message || 'Internal error' });
   }
 }

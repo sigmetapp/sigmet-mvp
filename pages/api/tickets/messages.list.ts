@@ -23,7 +23,7 @@ function getAccessTokenFromRequest(req: NextApiRequest): string | undefined {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
@@ -39,33 +39,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { title, description, image_urls, video_urls } = req.body;
-    if (!title || !description || typeof title !== 'string' || typeof description !== 'string') {
-      return res.status(400).json({ error: 'Title and description are required' });
-    }
-
-    if (title.trim().length === 0 || description.trim().length === 0) {
-      return res.status(400).json({ error: 'Title and description cannot be empty' });
+    const ticket_id = req.query.ticket_id;
+    if (!ticket_id || typeof ticket_id !== 'string') {
+      return res.status(400).json({ error: 'Ticket ID is required' });
     }
 
     const { data, error } = await supabase
-      .from('tickets')
-      .insert({
-        user_id: userData.user.id,
-        title: title.trim(),
-        description: description.trim(),
-        status: 'open',
-        image_urls: Array.isArray(image_urls) ? image_urls : [],
-        video_urls: Array.isArray(video_urls) ? video_urls : [],
-      })
-      .select()
-      .single();
+      .from('ticket_messages')
+      .select('*')
+      .eq('ticket_id', parseInt(ticket_id))
+      .order('created_at', { ascending: true });
 
     if (error) throw error;
 
-    return res.status(201).json({ ticket: data });
+    return res.status(200).json({ messages: data || [] });
   } catch (e: any) {
-    console.error('tickets.create error', e);
+    console.error('tickets.messages.list error', e);
     return res.status(500).json({ error: e?.message || 'Internal error' });
   }
 }
