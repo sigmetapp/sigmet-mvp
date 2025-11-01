@@ -19,6 +19,7 @@ type Profile = {
   username: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  thread_id?: number | null;
   messages24h?: number;
 };
 
@@ -58,6 +59,7 @@ function DmsInner() {
 
         if (cancelled || !participants || participants.length === 0) {
           setPartners([]);
+          setSelectedPartnerId(null);
           setLoading(false);
           return;
         }
@@ -67,19 +69,35 @@ function DmsInner() {
         // Get other participants from these threads
         const { data: otherParticipants } = await supabase
           .from('dms_thread_participants')
-          .select('user_id')
+          .select('user_id, thread_id')
           .in('thread_id', threadIds)
           .neq('user_id', currentUserId);
 
         if (cancelled || !otherParticipants || otherParticipants.length === 0) {
           setPartners([]);
+          setSelectedPartnerId(null);
           setLoading(false);
           return;
         }
 
-        const partnerIds = Array.from(
-          new Set(otherParticipants.map((p) => p.user_id))
-        );
+        const partnerThreadMap = new Map<string, number>();
+        for (const participant of otherParticipants) {
+          const threadIdValue = participant.thread_id;
+          const normalizedThreadId =
+            typeof threadIdValue === 'string'
+              ? Number.parseInt(threadIdValue, 10)
+              : threadIdValue;
+
+          if (
+            typeof normalizedThreadId === 'number' &&
+            Number.isFinite(normalizedThreadId) &&
+            !partnerThreadMap.has(participant.user_id)
+          ) {
+            partnerThreadMap.set(participant.user_id, normalizedThreadId);
+          }
+        }
+
+        const partnerIds = Array.from(partnerThreadMap.keys());
 
         // Load profiles
         const { data: profiles } = await supabase
@@ -89,57 +107,93 @@ function DmsInner() {
           .limit(20);
 
         if (!cancelled && profiles) {
-          // Load message counts for last 24 hours for each partner
-          const profilesWithCounts = await Promise.all(
-            profiles.map(async (p) => {
-              try {
-                // Find common thread between current user and partner
-                const { data: partnerThreads } = await supabase
-                  .from('dms_thread_participants')
-                  .select('thread_id')
-                  .eq('user_id', p.user_id)
-                  .in('thread_id', threadIds);
-                
-                if (partnerThreads && partnerThreads.length > 0) {
-                  // Get the first common thread
-                  const commonThreadId = partnerThreads[0].thread_id;
-                  const last24h = new Date();
-                  last24h.setHours(last24h.getHours() - 24);
-                  
-                  const { count } = await supabase
-                    .from('dms_messages')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('thread_id', commonThreadId)
-                    .in('sender_id', [currentUserId, p.user_id])
-                    .gte('created_at', last24h.toISOString());
-                  
-                  return {
-                    user_id: p.user_id,
-                    username: p.username,
-                    full_name: p.full_name,
-                    avatar_url: p.avatar_url,
-                    messages24h: count || 0,
-                  };
-                }
-              } catch (err) {
-                console.error('Error loading message count for partner:', err);
-              }
-              
+          const { data: threadMeta } = await supabase
+            .from('dms_threads')
+            .select('id, last_message_at, created_at')
+            .in('id', threadIds);
+
+          const threadMetaMap = new Map<number, { last_message_at: string | null; created_at: string }>();
+          for (const meta of threadMeta || []) {
+            const metaId = typeof meta.id === 'string' ? Number.parseInt(meta.id, 10) : meta.id;
+            if (typeof metaId === 'number' && Number.isFinite(metaId)) {
+              threadMetaMap.set(metaId, {
+                last_message_at: meta.last_message_at ?? null,
+                created_at: meta.created_at,
+              });
+            }
+          }
+
+          const basePartners = profiles
+            .map((p) => {
+              const threadId = partnerThreadMap.get(p.user_id) ?? null;
+              const meta = threadId ? threadMetaMap.get(threadId) : null;
               return {
                 user_id: p.user_id,
                 username: p.username,
                 full_name: p.full_name,
                 avatar_url: p.avatar_url,
-                messages24h: 0,
+                thread_id: threadId,
+                messages24h: undefined,
+                last_message_at: meta?.last_message_at ?? null,
+                created_at: meta?.created_at ?? null,
               };
             })
-          );
-          
-          setPartners(profilesWithCounts);
+            .sort((a, b) => {
+              const lastA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+              const lastB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+              if (lastA !== lastB) return lastB - lastA;
+              const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
+              const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+              return createdB - createdA;
+            })
+            .map(({ last_message_at: _last, created_at: _created, ...rest }) => rest);
+
+          setPartners(basePartners);
+          setSelectedPartnerId((prev) => prev ?? basePartners[0]?.user_id ?? null);
+
+          const last24h = new Date();
+          last24h.setHours(last24h.getHours() - 24);
+
+          void Promise.all(
+            basePartners.map(async (partner) => {
+              const threadId = partner.thread_id;
+              if (!threadId) {
+                return { user_id: partner.user_id, count: 0 };
+              }
+              try {
+                const { count } = await supabase
+                  .from('dms_messages')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('thread_id', threadId)
+                  .in('sender_id', [currentUserId, partner.user_id])
+                  .gte('created_at', last24h.toISOString());
+
+                return { user_id: partner.user_id, count: count || 0 };
+              } catch (err) {
+                console.error('Error loading message count for partner:', err);
+                return { user_id: partner.user_id, count: 0 };
+              }
+            })
+          ).then((counts) => {
+            if (cancelled || !counts) return;
+            setPartners((prev) =>
+              prev.map((partner) => {
+                const match = counts.find((c) => c.user_id === partner.user_id);
+                if (!match) return partner;
+                return {
+                  ...partner,
+                  messages24h: match.count,
+                };
+              })
+            );
+          });
         }
       } catch (err) {
         console.error('Error loading partners:', err);
-        if (!cancelled) setPartners([]);
+        if (!cancelled) {
+          setPartners([]);
+          setSelectedPartnerId(null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -211,7 +265,7 @@ function DmsInner() {
                           </div>
                           {partner.messages24h !== undefined && partner.messages24h > 0 && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 whitespace-nowrap shrink-0">
-                              <span className="text-xs leading-none" role="img" aria-label="speech">💬</span>
+                              <span className="text-xs leading-none" role="img" aria-label="speech">{'\uD83D\uDCAC'}</span>
                               {partner.messages24h}
                             </span>
                           )}
