@@ -24,7 +24,6 @@ interface InviteStats {
 }
 
 export default function InvitePage() {
-  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -82,43 +81,31 @@ export default function InvitePage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateInvite = async () => {
     setError(null);
     setSuccess(null);
     setLoading(true);
 
-    // Client-side validation: reject any list-like patterns
-    if (email.includes(',') || email.includes(';') || email.includes(' ') || email.includes('\n') || email.includes('\t')) {
-      setError('Only single email allowed');
-      setLoading(false);
-      return;
-    }
-
     try {
-      const { data, error } = await supabase.rpc('send_invite', {
-        invitee_email: email.trim().toLowerCase()
-      });
+      const { data, error } = await supabase.rpc('send_invite');
 
       if (error) {
         // Handle specific error messages
-        const errorMsg = error.message || 'Failed to send invite';
+        const errorMsg = error.message || 'Failed to create invite';
         setError(errorMsg);
         return;
       }
 
-      setSuccess('Invite sent successfully!');
-      setEmail('');
+      setSuccess('Invite code generated successfully!');
       await loadInvites();
       await loadStats();
 
       // PostHog event
       ph.capture('invite_sent', {
-        invite_id: data,
-        invitee_email: email.trim().toLowerCase()
+        invite_id: data
       });
     } catch (err: any) {
-      setError(err.message || 'Failed to send invite');
+      setError(err.message || 'Failed to create invite');
     } finally {
       setLoading(false);
     }
@@ -180,49 +167,32 @@ export default function InvitePage() {
           </div>
         )}
 
-        {/* Send Invite Form */}
+        {/* Create Invite Form */}
         <div className="bg-gray-800 p-6 rounded-lg mb-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Send Invite</h2>
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                Email Address
-              </label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@example.com"
-                required
-                className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={loading}
-              />
-              <p className="mt-1 text-xs text-gray-400">
-                Only single email allowed. Batch invites are not permitted.
-              </p>
+          <h2 className="text-lg font-semibold text-white mb-4">Create Invite Code</h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Generate a unique invite code to share with friends. They can use it during registration.
+          </p>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+              <p className="text-red-300 text-sm">{error}</p>
             </div>
+          )}
 
-            {error && (
-              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
-                <p className="text-red-300 text-sm">{error}</p>
-              </div>
-            )}
+          {success && (
+            <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+              <p className="text-green-300 text-sm">{success}</p>
+            </div>
+          )}
 
-            {success && (
-              <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
-                <p className="text-green-300 text-sm">{success}</p>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading || !email.trim()}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              {loading ? 'Sending...' : 'Send Invite'}
-            </button>
-          </form>
+          <button
+            onClick={handleCreateInvite}
+            disabled={loading}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            {loading ? 'Creating...' : 'Generate Invite Code'}
+          </button>
         </div>
 
         {/* Invites List */}
@@ -235,32 +205,30 @@ export default function InvitePage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-700">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Email</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Invite Code</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Status</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Sent</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Created</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Accepted</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invites.map((invite) => (
                     <tr key={invite.id} className="border-b border-gray-700/50">
-                      <td className="py-3 px-4 text-sm text-white">{invite.invitee_email}</td>
                       <td className="py-3 px-4 text-sm">
                         {invite.invite_code ? (
                           <div className="flex items-center gap-2">
-                            <code className="px-2 py-1 bg-gray-700 text-blue-400 font-mono font-bold rounded text-sm">
+                            <code className="px-3 py-1.5 bg-gray-700 text-blue-400 font-mono font-bold rounded text-base">
                               {invite.invite_code}
                             </code>
                             <button
                               onClick={() => {
                                 navigator.clipboard.writeText(invite.invite_code!);
-                                alert('Invite code copied!');
+                                alert('Invite code copied to clipboard!');
                               }}
-                              className="text-xs text-gray-400 hover:text-white"
+                              className="px-2 py-1 text-xs text-gray-400 hover:text-white bg-gray-700 rounded transition"
                               title="Copy code"
                             >
-                              ??
+                              ?? Copy
                             </button>
                           </div>
                         ) : (
