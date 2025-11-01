@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { createClient } from '@supabase/supabase-js';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
 
 // Simple in-memory rate limiter for development only.
@@ -11,7 +12,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
   try {
-    const { client, user } = await getAuthedClient(req);
+    const { client: authedClient, user } = await getAuthedClient(req);
+    
+    // Create service role client to bypass RLS for message insertion
+    // We still verify user permissions above, but use service role for the insert
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const client = serviceRoleKey 
+      ? createClient(url, serviceRoleKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+      : authedClient; // Fallback to authed client if no service role key
     // Helper to support both real supabase-js and test doubles that expose `.exec()`
     const execOrFetch = async (q: any): Promise<{ data: any; error: any }> => {
       if (typeof q?.exec === 'function') {
@@ -56,7 +67,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Ensure membership first (use maybeSingle to be robust in tests)
-    const { data: membership, error: membershipErr } = await client
+    // Use authedClient for membership check (needs RLS access)
+    const { data: membership, error: membershipErr } = await authedClient
       .from('dms_thread_participants')
       .select('thread_id')
       .eq('thread_id', threadId)
@@ -68,7 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Attempt to load other participant ids (best-effort; tests may return undefined)
     let otherIds: string[] = [];
     try {
-      const { data: parts } = await client
+      const { data: parts } = await authedClient
         .from('dms_thread_participants')
         .select('user_id')
         .eq('thread_id', threadId);
@@ -78,9 +90,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Validate blocks with precise filters when participants are known; otherwise use a broad fallback for test doubles
+    // Use authedClient for checks (has RLS access), service role client only for insert
     if (otherIds.length > 0) {
       // Sender blocked recipient(s)
-      const q2 = client
+      const q2 = authedClient
         .from('dms_blocks')
         .select('blocker, blocked')
         .eq('blocker', user.id)
@@ -93,7 +106,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Recipient blocked sender
-      const q1 = client
+      const q1 = authedClient
         .from('dms_blocks')
         .select('blocker, blocked')
         .in('blocker', otherIds)
@@ -106,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     } else {
       const { data: anyBlocks, error: anyErr } = await execOrFetch(
-        client.from('dms_blocks').select('blocker, blocked').limit(1)
+        authedClient.from('dms_blocks').select('blocker, blocked').limit(1)
       );
       if (anyErr) return res.status(400).json({ ok: false, error: anyErr.message });
       if (anyBlocks && anyBlocks.length > 0) {
@@ -120,15 +133,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    // Use service role client for insert to bypass RLS, but verify permissions first
+    // We already verified membership and blocks above with authedClient
     const { data: message, error: msgErr } = await client
       .from('dms_messages')
-      .insert({ thread_id: threadId, sender_id: user.id, kind: 'text', body, attachments })
+      .insert({ 
+        thread_id: threadId, 
+        sender_id: user.id, 
+        kind: 'text', 
+        body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
+        attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : null
+      })
       .select('*')
       .single();
 
     if (msgErr || !message) return res.status(400).json({ ok: false, error: msgErr?.message || 'Failed to send' });
 
     // Update thread last message refs (best-effort)
+    // Use service role client for update to bypass RLS
     try {
       await client
         .from('dms_threads')

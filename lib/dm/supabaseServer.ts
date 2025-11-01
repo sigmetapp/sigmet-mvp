@@ -17,8 +17,16 @@ function getAccessTokenFromRequest(req: NextApiRequest): string | undefined {
   return cookieToken;
 }
 
-export function createSupabaseForRequest(req: NextApiRequest): SupabaseClient {
+export function createSupabaseForRequest(req: NextApiRequest, useServiceRole = false): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+  
+  // Use service role key to bypass RLS policies when needed
+  if (useServiceRole && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+  }
+  
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
   const accessToken = getAccessTokenFromRequest(req);
 
