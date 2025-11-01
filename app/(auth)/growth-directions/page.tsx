@@ -238,7 +238,11 @@ function GrowthDirectionsInner() {
   function openCheckInModal(userTaskId: string, task: Task) {
     setShowCheckInModal({ userTaskId, task });
     // Pre-fill post with task information
-    const taskInfo = `📋 Task: ${task.title}\n\n📝 Description: ${task.description}\n\n✅ Check-in progress`;
+    const taskInfo = `📋 Task: ${task.title}
+
+📝 Description: ${task.description}
+
+✅ Check-in progress`;
     setCheckInPostForm({ body: taskInfo, image: null, video: null });
   }
 
@@ -424,23 +428,23 @@ function GrowthDirectionsInner() {
                             {(() => {
                               // Fix emoji mapping if they come as ?? from DB
                               const emojiMap: Record<string, string> = {
-                                'learning': '??',
-                                'career': '??',
-                                'finance': '??',
-                                'health': '??',
-                                'relationships': '??',
-                                'community': '??',
-                                'creativity': '??',
-                                'mindfulness': '?????',
-                                'personal': '??',
-                                'digital': '??',
-                                'education': '??',
-                                'purpose': '???',
+                                'learning': '🧠',
+                                'career': '💼',
+                                'finance': '💰',
+                                'health': '💚',
+                                'relationships': '❤️',
+                                'community': '🌍',
+                                'creativity': '🎨',
+                                'mindfulness': '🧘‍♂️',
+                                'personal': '🌱',
+                                'digital': '🌐',
+                                'education': '📚',
+                                'purpose': '🕊️',
                               };
                               if (dir.emoji === '??' || dir.emoji === '???' || dir.emoji?.includes('?')) {
                                 return emojiMap[dir.slug] || dir.emoji;
                               }
-                              return dir.emoji || emojiMap[dir.slug] || '??';
+                              return dir.emoji || emojiMap[dir.slug] || '🌱';
                             })()}
                           </span>
                           <span className="font-medium text-sm">{dir.title}</span>
@@ -485,21 +489,21 @@ function GrowthDirectionsInner() {
                           // Always use emoji map by slug to ensure correct display
                           if (!currentDirection) return '';
                           const emojiMap: Record<string, string> = {
-                            'learning': '??',
-                            'career': '??',
-                            'finance': '??',
-                            'health': '??',
-                            'relationships': '??',
-                            'community': '??',
-                            'creativity': '??',
-                            'mindfulness': '?????',
-                            'personal': '??',
-                            'digital': '??',
-                            'education': '??',
-                            'purpose': '???',
+                            'learning': '🧠',
+                            'career': '💼',
+                            'finance': '💰',
+                            'health': '💚',
+                            'relationships': '❤️',
+                            'community': '🌍',
+                            'creativity': '🎨',
+                            'mindfulness': '🧘‍♂️',
+                            'personal': '🌱',
+                            'digital': '🌐',
+                            'education': '📚',
+                            'purpose': '🕊️',
                           };
                           // Always return emoji from map based on slug
-                          return emojiMap[currentDirection.slug] || currentDirection.emoji || '??';
+                          return emojiMap[currentDirection.slug] || currentDirection.emoji || '🌱';
                         })()}
                       </span>
                       <div>
@@ -842,7 +846,7 @@ function GrowthDirectionsInner() {
                         : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
                     }`}
                   >
-                    ?? Image
+                    📷 Image
                   </label>
                   
                   <input
@@ -865,7 +869,7 @@ function GrowthDirectionsInner() {
                         : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
                     }`}
                   >
-                    ?? Video
+                    🎥 Video
                   </label>
                   
                   {(checkInPostForm.image || checkInPostForm.video) && (
