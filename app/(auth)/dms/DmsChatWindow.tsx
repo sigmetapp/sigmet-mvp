@@ -180,6 +180,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
         // Reset scroll flag when loading new thread
         hasScrolledToBottomRef.current = false;
         
+        // Scroll to bottom after messages are loaded
+        // This will be handled by useEffect after render
+        
         // Calculate days streak after thread is loaded
         try {
           const { data: allMessages } = await supabase
@@ -337,16 +340,34 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   // Scroll to bottom on new messages or when dialog opens
   useEffect(() => {
-    if (scrollRef.current && messages.length > 0) {
-      // Use setTimeout to ensure DOM is updated
-      setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          hasScrolledToBottomRef.current = true;
-        }
-      }, 100);
-    }
-  }, [messages.length, thread?.id]);
+    if (!scrollRef.current || messages.length === 0 || !thread) return;
+    
+    // Use requestAnimationFrame with multiple frames to ensure DOM is fully updated
+    const scrollToBottom = () => {
+      if (scrollRef.current) {
+        const element = scrollRef.current;
+        // Force scroll to absolute bottom
+        element.scrollTop = element.scrollHeight;
+        hasScrolledToBottomRef.current = true;
+      }
+    };
+    
+    // Use multiple requestAnimationFrame calls to ensure DOM is fully rendered
+    // Wait a bit for images/attachments to load and affect scrollHeight
+    const timeoutId = setTimeout(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            scrollToBottom();
+            // One more check after a short delay for images
+            setTimeout(scrollToBottom, 100);
+          });
+        });
+      });
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [messages.length, thread?.id, attachmentUrls]);
 
   // Close emoji picker on outside click
   useEffect(() => {
