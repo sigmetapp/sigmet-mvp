@@ -25,10 +25,27 @@ export default function Footer() {
       <div className={`max-w-7xl mx-auto px-4 py-10 text-sm ${isLight ? "text-black/60" : "text-white/70"}`}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`h-8 w-8 rounded-md grid place-items-center border ${isLight ? "bg-black/5 border-black/10" : "bg-white/10 border-white/10"}`}>S</div>
-              <span className={`${isLight ? "text-black" : "text-white"} font-semibold tracking-tight`}>{site_name || "SIGMET"}</span>
-            </div>
+            <a href="https://sigmet.app" target="_blank" rel="noreferrer" className="flex items-center gap-2 mb-3">
+              {logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logo_url}
+                  alt="Logo"
+                  width={32}
+                  height={32}
+                  className="rounded-md"
+                />
+              ) : (
+                <div className={`h-8 w-8 rounded-md grid place-items-center border ${
+                  isLight 
+                    ? "bg-telegram-blue/10 border-telegram-blue/20 text-telegram-blue" 
+                    : "bg-telegram-blue/20 border-telegram-blue/30 text-telegram-blue-light"
+                }`}>
+                  S
+                </div>
+              )}
+              <span className={`${isLight ? "text-black" : "text-white"} font-semibold tracking-tight`}>Sigmet.app</span>
+            </a>
             <p className={`${isLight ? "text-black/50" : "text-white/50"} max-w-xs`}>
               Build your social weight with meaningful progress and transparent reputation.
             </p>
@@ -71,26 +88,8 @@ export default function Footer() {
                 <Link href="/settings#tickets" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Ticket Management</Link>
               </>
             )}
-            <a href="https://sigmet.app" target="_blank" rel="noreferrer" className={`flex items-center gap-2 ${isLight ? "hover:text-black" : "hover:text-white"}`}>
-              {logo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={logo_url}
-                  alt="Logo"
-                  width={20}
-                  height={20}
-                  className="rounded-md"
-                />
-              ) : (
-                <div className={`h-5 w-5 rounded-md grid place-items-center border text-xs ${
-                  isLight 
-                    ? "bg-black/5 border-black/10" 
-                    : "bg-white/10 border-white/10"
-                }`}>
-                  S
-                </div>
-              )}
-              <span>sigmet.app</span>
+            <a href="https://sigmet.app" target="_blank" rel="noreferrer" className={isLight ? "hover:text-black" : "hover:text-white"}>
+              sigmet.app
             </a>
           </div>
         </div>
