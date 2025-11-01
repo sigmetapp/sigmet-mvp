@@ -6,7 +6,7 @@ import { useTheme } from "@/components/ThemeProvider";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function Footer() {
-  const { site_name } = useSiteSettings();
+  const { site_name, logo_url } = useSiteSettings();
   const { theme } = useTheme();
   const isLight = theme === "light";
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
@@ -54,10 +54,9 @@ export default function Footer() {
           </div>
 
           <div>
-            <div className={`${isLight ? "text-black/80" : "text-white/80"} font-medium mb-3`}>Social</div>
+            <div className={`${isLight ? "text-black/80" : "text-white/80"} font-medium mb-3`}>Support</div>
             <ul className="space-y-2">
-              <li><a className={`${isLight ? "hover:text-black" : "hover:text-white"}`} href="https://twitter.com" target="_blank" rel="noreferrer">Twitter</a></li>
-              <li><a className={`${isLight ? "hover:text-black" : "hover:text-white"}`} href="https://github.com" target="_blank" rel="noreferrer">GitHub</a></li>
+              <li><Link className={`${isLight ? "hover:text-black" : "hover:text-white"}`} href="/tickets">Report Issue</Link></li>
             </ul>
           </div>
         </div>
@@ -66,9 +65,33 @@ export default function Footer() {
           <span>© {year} {site_name || "SIGMET"}. All rights reserved.</span>
           <div className="flex items-center gap-3">
             {isAdmin && (
-              <Link href="/settings" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Settings</Link>
+              <>
+                <Link href="/settings" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Settings</Link>
+                <span className={isLight ? "text-black/30" : "text-white/30"}>•</span>
+                <Link href="/settings#tickets" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Ticket Management</Link>
+              </>
             )}
-            <a href="https://sigmet.app" target="_blank" rel="noreferrer" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>sigmet.app</a>
+            <a href="https://sigmet.app" target="_blank" rel="noreferrer" className={`flex items-center gap-2 ${isLight ? "hover:text-black" : "hover:text-white"}`}>
+              {logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logo_url}
+                  alt="Logo"
+                  width={20}
+                  height={20}
+                  className="rounded-md"
+                />
+              ) : (
+                <div className={`h-5 w-5 rounded-md grid place-items-center border text-xs ${
+                  isLight 
+                    ? "bg-black/5 border-black/10" 
+                    : "bg-white/10 border-white/10"
+                }`}>
+                  S
+                </div>
+              )}
+              <span>sigmet.app</span>
+            </a>
           </div>
         </div>
       </div>
