@@ -555,7 +555,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
                   title="Days streak"
                 >
-                  <span className="text-xs leading-none" role="img" aria-label="fire">🔥</span>
+                  <span className="text-xs leading-none" role="img" aria-label="fire">??</span>
                   {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
                 </span>
               )}
@@ -574,7 +574,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto smooth-scroll px-3 py-4"
+        className="flex-1 min-h-0 overflow-y-auto smooth-scroll px-3 py-4"
       >
         {messages.length === 0 ? (
           <div className="text-center text-white/50 text-sm py-8">
@@ -681,7 +681,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                       download={fileName}
                                       className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition text-white/90"
                                     >
-                                      <span className="text-lg">📎</span>
+                                      <span className="text-lg">??</span>
                                       <div className="flex-1 min-w-0">
                                         <div className="text-sm font-medium truncate">{fileName}</div>
                                         {fileSize && (

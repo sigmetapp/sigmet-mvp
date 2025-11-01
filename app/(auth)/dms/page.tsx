@@ -227,7 +227,7 @@ function DmsInner() {
       </div>
 
       {/* Chat window - right side */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
         {selectedPartnerId ? (
           <DmsChatWindow partnerId={selectedPartnerId} />
         ) : (
