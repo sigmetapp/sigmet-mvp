@@ -67,6 +67,9 @@ function GrowthDirectionsInner() {
   const [showCheckInModal, setShowCheckInModal] = useState<{ userTaskId: string; task: Task } | null>(null);
   const [checkInPostForm, setCheckInPostForm] = useState({ body: '', image: null as File | null, video: null as File | null });
   const [publishingPost, setPublishingPost] = useState(false);
+  const [allActiveHabits, setAllActiveHabits] = useState<Task[]>([]);
+  const [allActiveGoals, setAllActiveGoals] = useState<Task[]>([]);
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
   useEffect(() => {
     loadDirections();
@@ -77,6 +80,12 @@ function GrowthDirectionsInner() {
       loadTasks(selectedDirection);
     }
   }, [selectedDirection]);
+
+  useEffect(() => {
+    if (directions.length > 0) {
+      loadSummary();
+    }
+  }, [directions]);
 
   async function loadDirections() {
     setLoading(true);
@@ -133,6 +142,66 @@ function GrowthDirectionsInner() {
     }
   }
 
+  async function loadSummary() {
+    setLoadingSummary(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Get all selected directions
+      const selectedDirs = directions.filter((d) => d.isSelected);
+      
+      if (selectedDirs.length === 0) {
+        setAllActiveHabits([]);
+        setAllActiveGoals([]);
+        return;
+      }
+
+      // Load tasks from all selected directions
+      const allHabits: Task[] = [];
+      const allGoals: Task[] = [];
+
+      for (const dir of selectedDirs) {
+        try {
+          const res = await fetch(`/api/growth/tasks.list?directionId=${dir.id}`, {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+
+          if (res.ok) {
+            const { habits, goals } = await res.json();
+            
+            // Filter only active tasks
+            const activeHabits = (habits || []).filter(
+              (h: Task) => h.isActivated && h.userTask?.status === 'active'
+            );
+            const activeGoals = (goals || []).filter(
+              (g: Task) => g.isActivated && g.userTask?.status === 'active'
+            );
+
+            // Add direction info to tasks
+            activeHabits.forEach((h: Task) => {
+              allHabits.push({ ...h, direction_id: dir.id });
+            });
+            activeGoals.forEach((g: Task) => {
+              allGoals.push({ ...g, direction_id: dir.id });
+            });
+          }
+        } catch (error) {
+          console.error(`Error loading tasks for direction ${dir.id}:`, error);
+        }
+      }
+
+      setAllActiveHabits(allHabits);
+      setAllActiveGoals(allGoals);
+    } catch (error: any) {
+      console.error('Error loading summary:', error);
+    } finally {
+      setLoadingSummary(false);
+    }
+  }
+
   async function toggleDirection(directionId: string) {
     if (toggling.has(directionId)) return;
     setToggling((prev) => new Set(prev).add(directionId));
@@ -155,6 +224,8 @@ function GrowthDirectionsInner() {
       }
 
       await loadDirections();
+      // Reload summary after toggling direction
+      setTimeout(() => loadSummary(), 500);
     } catch (error: any) {
       console.error('Error toggling direction:', error);
       alert(error.message || 'Failed to toggle direction');
@@ -189,6 +260,8 @@ function GrowthDirectionsInner() {
       }
 
       await loadTasks(selectedDirection!);
+      // Reload summary after activating task
+      await loadSummary();
     } catch (error: any) {
       console.error('Error activating task:', error);
       alert(error.message || 'Failed to activate task');
@@ -223,6 +296,8 @@ function GrowthDirectionsInner() {
       }
 
       await loadTasks(selectedDirection!);
+      // Reload summary after deactivating task
+      await loadSummary();
     } catch (error: any) {
       console.error('Error deactivating task:', error);
       alert(error.message || 'Failed to deactivate task');
@@ -317,6 +392,8 @@ function GrowthDirectionsInner() {
       
       // Reload tasks to show updated check-in status
       await loadTasks(selectedDirection!);
+      // Reload summary after check-in
+      await loadSummary();
     } catch (error: any) {
       console.error('Error publishing check-in post:', error);
       alert(error.message || 'Failed to publish post');
@@ -365,6 +442,8 @@ function GrowthDirectionsInner() {
       setShowCompleteModal(null);
       setCompleteForm({ proofUrl: '', note: '' });
       await loadTasks(selectedDirection!);
+      // Reload summary after completing goal
+      await loadSummary();
     } catch (error: any) {
       console.error('Error completing goal:', error);
       alert(error.message || 'Failed to complete goal');
@@ -378,6 +457,30 @@ function GrowthDirectionsInner() {
   }
 
   const currentDirection = directions.find((d) => d.id === selectedDirection);
+  
+  // Get top 3 selected directions
+  const topSelectedDirections = directions
+    .filter((d) => d.isSelected)
+    .slice(0, 3);
+  
+  // Helper function to get emoji for direction
+  const getDirectionEmoji = (slug: string) => {
+    const emojiMap: Record<string, string> = {
+      'learning': '??',
+      'career': '??',
+      'finance': '??',
+      'health': '??',
+      'relationships': '??',
+      'community': '??',
+      'creativity': '??',
+      'mindfulness': '?????',
+      'personal': '??',
+      'digital': '??',
+      'education': '??',
+      'purpose': '???',
+    };
+    return emojiMap[slug] || '??';
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
@@ -390,6 +493,123 @@ function GrowthDirectionsInner() {
           Select directions and activate tasks to track your growth.
         </p>
       </div>
+
+      {/* Summary Section */}
+      {!loading && (
+        <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
+          <h2 className={`font-semibold text-lg mb-4 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+            ?? ?????? ??? ?????? ? ???????
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+            {/* Top 3 Selected Directions */}
+            <div>
+              <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                ???????? ????????? (??? 3)
+              </h3>
+              {topSelectedDirections.length === 0 ? (
+                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  ??? ????????? ?????????
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {topSelectedDirections.map((dir) => (
+                    <div
+                      key={dir.id}
+                      className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}
+                    >
+                      <span className="text-lg">{getDirectionEmoji(dir.slug)}</span>
+                      <span className={`text-sm font-medium ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        {dir.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Active Habits */}
+            <div>
+              <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                ?????? ? ?????? - ???????? ({allActiveHabits.length})
+              </h3>
+              {loadingSummary ? (
+                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  ????????...
+                </p>
+              ) : allActiveHabits.length === 0 ? (
+                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  ??? ???????? ????????
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {allActiveHabits.map((habit) => {
+                    const dir = directions.find((d) => d.id === habit.direction_id);
+                    return (
+                      <div
+                        key={habit.id}
+                        className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}
+                      >
+                        <span className="text-sm">{getDirectionEmoji(dir?.slug || '')}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium truncate ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                            {habit.title}
+                          </p>
+                          {habit.userTask && (
+                            <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                              ?? Streak: {habit.userTask.current_streak} | ? Check-ins: {habit.userTask.total_checkins}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Active Goals */}
+            <div>
+              <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                ?????? ? ?????? - ???? ({allActiveGoals.length})
+              </h3>
+              {loadingSummary ? (
+                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  ????????...
+                </p>
+              ) : allActiveGoals.length === 0 ? (
+                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  ??? ???????? ?????
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {allActiveGoals.map((goal) => {
+                    const dir = directions.find((d) => d.id === goal.direction_id);
+                    return (
+                      <div
+                        key={goal.id}
+                        className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}
+                      >
+                        <span className="text-sm">{getDirectionEmoji(dir?.slug || '')}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium truncate ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                            {goal.title}
+                          </p>
+                          {goal.userTask && (
+                            <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                              ??????: {goal.userTask.status === 'active' ? '???????' : goal.userTask.status === 'completed' ? '?????????' : '?????'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
@@ -428,23 +648,23 @@ function GrowthDirectionsInner() {
                             {(() => {
                               // Fix emoji mapping if they come as ?? from DB
                               const emojiMap: Record<string, string> = {
-                                'learning': '🧠',
-                                'career': '💼',
-                                'finance': '💰',
-                                'health': '💚',
-                                'relationships': '❤️',
-                                'community': '🌍',
-                                'creativity': '🎨',
-                                'mindfulness': '🧘‍♂️',
-                                'personal': '🌱',
-                                'digital': '🌐',
-                                'education': '📚',
-                                'purpose': '🕊️',
+                                'learning': '??',
+                                'career': '??',
+                                'finance': '??',
+                                'health': '??',
+                                'relationships': '??',
+                                'community': '??',
+                                'creativity': '??',
+                                'mindfulness': '?????',
+                                'personal': '??',
+                                'digital': '??',
+                                'education': '??',
+                                'purpose': '???',
                               };
                               if (dir.emoji === '??' || dir.emoji === '???' || dir.emoji?.includes('?')) {
                                 return emojiMap[dir.slug] || dir.emoji;
                               }
-                              return dir.emoji || emojiMap[dir.slug] || '🌱';
+                              return dir.emoji || emojiMap[dir.slug] || '??';
                             })()}
                           </span>
                           <span className="font-medium text-sm">{dir.title}</span>
@@ -489,21 +709,21 @@ function GrowthDirectionsInner() {
                           // Always use emoji map by slug to ensure correct display
                           if (!currentDirection) return '';
                           const emojiMap: Record<string, string> = {
-                            'learning': '🧠',
-                            'career': '💼',
-                            'finance': '💰',
-                            'health': '💚',
-                            'relationships': '❤️',
-                            'community': '🌍',
-                            'creativity': '🎨',
-                            'mindfulness': '🧘‍♂️',
-                            'personal': '🌱',
-                            'digital': '🌐',
-                            'education': '📚',
-                            'purpose': '🕊️',
+                            'learning': '??',
+                            'career': '??',
+                            'finance': '??',
+                            'health': '??',
+                            'relationships': '??',
+                            'community': '??',
+                            'creativity': '??',
+                            'mindfulness': '?????',
+                            'personal': '??',
+                            'digital': '??',
+                            'education': '??',
+                            'purpose': '???',
                           };
                           // Always return emoji from map based on slug
-                          return emojiMap[currentDirection.slug] || currentDirection.emoji || '🌱';
+                          return emojiMap[currentDirection.slug] || currentDirection.emoji || '??';
                         })()}
                       </span>
                       <div>
@@ -575,7 +795,7 @@ function GrowthDirectionsInner() {
                                       Current Streak
                                     </div>
                                     <div className={`text-lg font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                                      🔥 {habit.userTask.current_streak}
+                                      ?? {habit.userTask.current_streak}
                                     </div>
                                   </div>
                                   <div>
@@ -846,7 +1066,7 @@ function GrowthDirectionsInner() {
                         : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
                     }`}
                   >
-                    📷 Image
+                    ?? Image
                   </label>
                   
                   <input
@@ -869,7 +1089,7 @@ function GrowthDirectionsInner() {
                         : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
                     }`}
                   >
-                    🎥 Video
+                    ?? Video
                   </label>
                   
                   {(checkInPostForm.image || checkInPostForm.video) && (
