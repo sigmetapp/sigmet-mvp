@@ -260,13 +260,16 @@ export async function sendMessage(
   }
 
   // Create message
+  // If body is null but we have attachments, use empty string to avoid RLS issues
+  const messageBody = body || (attachments.length > 0 ? '' : null);
+  
   const { data: message, error: messageError } = await supabase
     .from('dms_messages')
     .insert({
       thread_id: threadId,
       sender_id: user.id,
       kind: 'text',
-      body,
+      body: messageBody,
       attachments,
     })
     .select('*')

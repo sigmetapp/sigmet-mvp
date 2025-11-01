@@ -244,6 +244,13 @@ export default function DmsChatWindow({ partnerId }: Props) {
         setInitialMessages(sorted);
         setMessages(sorted);
         
+        // Scroll to bottom after messages are loaded
+        setTimeout(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }
+        }, 300);
+        
         // Calculate days streak after thread is loaded
         try {
           const { data: allMessages } = await supabase
@@ -407,12 +414,29 @@ export default function DmsChatWindow({ partnerId }: Props) {
     handleTyping();
   }, [handleTyping]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages and when messages are initially loaded
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      // Use setTimeout to ensure DOM is updated
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }, 100);
     }
   }, [messages.length]);
+
+  // Scroll to bottom when thread changes (new conversation opened)
+  useEffect(() => {
+    if (thread?.id && messages.length > 0 && scrollRef.current) {
+      // Delay to ensure messages are rendered
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }, 200);
+    }
+  }, [thread?.id, messages.length > 0]);
 
   // Handle emoji selection
   const handleEmojiSelect = useCallback((emoji: string) => {
@@ -501,7 +525,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
     setMessages(withOptimistic);
 
     try {
-      const sentMessage = await sendMessage(thread.id, textToSend || null, attachments as unknown[]);
+      // If no text but we have attachments, send empty string to avoid RLS issues
+      const messageBody = textToSend || (attachments.length > 0 ? '' : null);
+      const sentMessage = await sendMessage(thread.id, messageBody, attachments as unknown[]);
       // Replace optimistic message with real one and ensure proper sorting
       setMessages((prev) => {
         const updated = prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m));
@@ -512,6 +538,13 @@ export default function DmsChatWindow({ partnerId }: Props) {
           return a.id - b.id;
         });
       });
+      
+      // Scroll to bottom after sending
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }, 100);
     } catch (err: any) {
       console.error('Error sending message:', err);
       // Rollback on error
