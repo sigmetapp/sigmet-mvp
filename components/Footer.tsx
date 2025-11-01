@@ -82,6 +82,10 @@ export default function Footer() {
               <>
                 <Link href="/settings" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Settings</Link>
                 <span className={isLight ? "text-black/30" : "text-white/30"}>•</span>
+                <Link href="/admin/users" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>User Management</Link>
+                <span className={isLight ? "text-black/30" : "text-white/30"}>•</span>
+                <Link href="/admin/stats" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Stats</Link>
+                <span className={isLight ? "text-black/30" : "text-white/30"}>•</span>
                 <Link href="/admin/tickets" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Ticket Management</Link>
               </>
             )}
