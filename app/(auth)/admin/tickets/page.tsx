@@ -421,7 +421,7 @@ function AdminTicketsInner() {
                   : 'border border-white/20 text-white/70 hover:bg-white/5'
               }`}
             >
-              ? Back to List
+? Back to List
             </button>
           </div>
 

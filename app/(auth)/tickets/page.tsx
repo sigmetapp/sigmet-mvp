@@ -286,7 +286,7 @@ function TicketsInner() {
                 : 'border border-white/20 text-white/70 hover:bg-white/5'
             }`}
           >
-            ? Back to Tickets
+? Back to Tickets
           </button>
           <span className={`px-3 py-1 rounded-lg text-sm font-medium whitespace-nowrap ${getStatusColor(
             selectedTicket.status
