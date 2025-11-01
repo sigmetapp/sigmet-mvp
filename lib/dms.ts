@@ -136,56 +136,72 @@ export async function getOrCreateThread(
         const commonThreadIds = partnerThreadIds.filter(id => userThreadIdSet.has(id));
 
         if (commonThreadIds.length > 0) {
-          console.log('Common thread IDs:', commonThreadIds);
-          
-          // Get the first matching 1:1 thread
-          const { data: existingThreads, error: threadsErr } = await supabase
-            .from('dms_threads')
-            .select('id, created_by, is_group, title, created_at, last_message_at')
-            .in('id', commonThreadIds)
-            .eq('is_group', false)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          if (threadsErr) {
-            throw new Error(`Failed to get existing thread: ${threadsErr.message}`);
-          }
-
-          if (existingThreads && existingThreads.length > 0) {
-          const thread = existingThreads[0];
-          
-          console.log('Found existing thread:', { 
-            id: thread.id, 
-            idType: typeof thread.id, 
-            created_by: thread.created_by,
-            created_byType: typeof thread.created_by,
-            full: thread 
+          // Double-check that all IDs are numbers (not UUIDs)
+          const validThreadIds = commonThreadIds.filter(id => {
+            if (typeof id === 'string' && id.includes('-')) {
+              console.error('CRITICAL: UUID found in commonThreadIds:', id);
+              return false;
+            }
+            return typeof id === 'number' && !isNaN(id) && id > 0;
           });
           
-          // Check if id is actually a UUID (should be bigint)
-          if (typeof thread.id === 'string' && thread.id.includes('-')) {
-            console.error('CRITICAL: thread.id is UUID string (should be bigint):', thread.id);
-            console.error('Full thread object:', JSON.stringify(thread, null, 2));
-            // Check if id equals created_by - this would indicate a bug in the response
-            if (thread.id === thread.created_by) {
-              console.error('CRITICAL: thread.id equals created_by - Supabase returned wrong field!');
-              throw new Error(`Database error: thread.id is UUID (${thread.id}) instead of bigint. This indicates a database/API bug.`);
-            }
-            throw new Error(`Invalid thread ID format: expected bigint, got UUID string: ${thread.id}`);
-          }
-          
-          // Ensure id is a number (bigint may come as string)
-          const threadId = typeof thread.id === 'string' ? parseInt(thread.id, 10) : Number(thread.id);
-          
-          if (isNaN(threadId) || threadId <= 0) {
-            console.error('Invalid thread.id from database:', thread.id, typeof thread.id, '->', threadId);
-            throw new Error(`Invalid thread ID: ${thread.id} (expected bigint, got ${typeof thread.id})`);
-          }
+          if (validThreadIds.length === 0) {
+            console.warn('No valid thread IDs after UUID filtering, will create new thread');
+          } else {
+            console.log('Common thread IDs (validated):', validThreadIds);
+            
+            // Get the first matching 1:1 thread
+            const { data: existingThreads, error: threadsErr } = await supabase
+              .from('dms_threads')
+              .select('id, created_by, is_group, title, created_at, last_message_at')
+              .in('id', validThreadIds)
+              .eq('is_group', false)
+              .order('created_at', { ascending: false })
+              .limit(1);
 
-            return {
-              ...thread,
-              id: threadId
-            } as Thread;
+            if (threadsErr) {
+              console.error('Error fetching threads:', threadsErr);
+              throw new Error(`Failed to get existing thread: ${threadsErr.message}`);
+            }
+
+            if (existingThreads && existingThreads.length > 0) {
+              const thread = existingThreads[0];
+              
+              console.log('Found existing thread:', { 
+                id: thread.id, 
+                idType: typeof thread.id, 
+                created_by: thread.created_by,
+                created_byType: typeof thread.created_by,
+                full: thread 
+              });
+              
+              // Check if id is actually a UUID (should be bigint)
+              if (typeof thread.id === 'string' && thread.id.includes('-')) {
+                console.error('CRITICAL: thread.id is UUID string (should be bigint):', thread.id);
+                console.error('Full thread object:', JSON.stringify(thread, null, 2));
+                // Check if id equals created_by - this would indicate a bug in the response
+                if (thread.id === thread.created_by) {
+                  console.error('CRITICAL: thread.id equals created_by - Supabase returned wrong field!');
+                }
+                console.error('Skipping this thread, will create new one');
+                // Skip this thread and continue to create new thread below
+              } else {
+                // Ensure id is a number (bigint may come as string)
+                const threadId = typeof thread.id === 'string' ? parseInt(thread.id, 10) : Number(thread.id);
+                
+                if (isNaN(threadId) || threadId <= 0) {
+                  console.error('Invalid thread.id from database:', thread.id, typeof thread.id, '->', threadId);
+                  console.error('Skipping this thread, will create new one');
+                  // Skip this thread and create new one
+                } else {
+                  // Valid thread found!
+                  return {
+                    ...thread,
+                    id: threadId
+                  } as Thread;
+                }
+              }
+            }
           }
         }
       }
