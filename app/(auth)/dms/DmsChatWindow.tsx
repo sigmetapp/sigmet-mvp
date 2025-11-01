@@ -43,9 +43,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [isTyping, setIsTyping] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [messageReactions, setMessageReactions] = useState<Record<number, string[]>>({});
-  const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; messageId: number } | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -417,19 +414,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages.length]);
 
-  // Quick reactions
-  const QUICK_REACTIONS = ['??', '??', '??', '??', '??', '??'];
-  const handleQuickReaction = useCallback((messageId: number, emoji: string) => {
-    setMessageReactions((prev) => {
-      const current = prev[messageId] || [];
-      const updated = current.includes(emoji)
-        ? current.filter((e) => e !== emoji)
-        : [...current, emoji];
-      return { ...prev, [messageId]: updated };
-    });
-    setContextMenu(null);
-  }, []);
-
   // Handle emoji selection
   const handleEmojiSelect = useCallback((emoji: string) => {
     setMessageText((prev) => prev + emoji);
@@ -686,9 +670,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
                 new Date(prevMsg.created_at).getMinutes() !== new Date(msg.created_at).getMinutes() ||
                 formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
 
-              const reactions = messageReactions[msg.id] || [];
-              const isHovered = hoveredMessageId === msg.id;
-
               return (
                 <div key={msg.id}>
                   {showDate && (
@@ -700,12 +681,13 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   )}
 
                   <div
-                    className={`flex gap-2 ${isMine ? 'justify-end' : 'justify-start'} group`}
-                    onMouseEnter={() => setHoveredMessageId(msg.id)}
-                    onMouseLeave={() => setHoveredMessageId(null)}
+                    className={`flex gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}
                     onContextMenu={(e) => {
                       e.preventDefault();
-                      setContextMenu({ x: e.clientX, y: e.clientY, messageId: msg.id });
+                      const msgToReply = messages.find((m) => m.id === msg.id);
+                      if (msgToReply && !msg.deleted_at) {
+                        setReplyingTo(msgToReply);
+                      }
                     }}
                   >
                     {!isMine && !isGroupedWithPrev && (
@@ -733,8 +715,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
                           isMine
                             ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-sm shadow-lg'
                             : 'bg-white/10 text-white rounded-bl-sm border border-white/20 shadow-md'
-                        } ${
-                          isHovered ? 'scale-[1.02]' : ''
                         }`}
                       >
                         {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
@@ -755,13 +735,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
                           </div>
                         )}
                         
-                        {(showTime || reactions.length > 0) && (
+                        {showTime && (
                           <div className={`flex items-center gap-2 mt-1.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                            {showTime && (
-                              <span className="text-[10px] text-white/60">
-                                {formatTime(msg.created_at)}
-                              </span>
-                            )}
+                            <span className="text-[10px] text-white/60">
+                              {formatTime(msg.created_at)}
+                            </span>
                             {msg.edited_at && (
                               <span className="text-[10px] text-white/50 italic">
                                 edited
@@ -769,33 +747,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                             )}
                           </div>
                         )}
-                        
-                        {isHovered && !msg.deleted_at && (
-                          <div className={`absolute ${isMine ? 'left-0 -translate-x-full mr-2' : 'right-0 translate-x-full ml-2'} top-1/2 -translate-y-1/2 flex gap-1 z-10`}>
-                            {QUICK_REACTIONS.map((emoji) => (
-                              <button
-                                key={emoji}
-                                type="button"
-                                onClick={() => handleQuickReaction(msg.id, emoji)}
-                                className="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full text-base transition-all backdrop-blur-sm border border-white/20 hover:scale-110 active:scale-95"
-                                title={emoji}
-                              >
-                                {emoji}
-                              </button>
-                            ))}
-                          </div>
-                        )}
                       </div>
-                      
-                      {reactions.length > 0 && (
-                        <div className={`flex gap-1 mt-1 px-2 py-1 bg-white/5 rounded-full border border-white/10 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                          {reactions.map((emoji, reactIdx) => (
-                            <span key={reactIdx} className="text-sm">
-                              {emoji}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -823,46 +775,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
         )}
       </div>
 
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          className="fixed bg-white/10 backdrop-blur-md border border-white/20 rounded-lg shadow-xl z-50 py-1 min-w-[150px]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={() => setContextMenu(null)}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              const msg = messages.find((m) => m.id === contextMenu.messageId);
-              if (msg) {
-                setReplyingTo(msg);
-                setContextMenu(null);
-              }
-            }}
-            className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition"
-          >
-            Reply
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setReplyingTo(null);
-              setContextMenu(null);
-            }}
-            className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition"
-          >
-            React
-          </button>
-        </div>
-      )}
-
-      {/* Click outside to close context menu */}
-      {contextMenu && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setContextMenu(null)}
-        />
-      )}
 
       {/* Selected files preview */}
       {selectedFiles.length > 0 && (

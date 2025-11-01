@@ -53,20 +53,62 @@ export async function uploadAttachment(file: File): Promise<DmAttachment> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id || 'anon';
 
-  // path: userId/YYYY/MM/<uuid><ext>
+  // Try to upload to dm-attachments bucket first, fallback to assets if not found
   const now = new Date();
   const yyyy = String(now.getUTCFullYear());
   const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
   const ext = getExtensionFromName(sanitizeFilename(file.name)) || (mime && `.${mime.split('/')[1]}`) || '';
   const uuid = (typeof crypto !== 'undefined' && 'randomUUID' in crypto) ? crypto.randomUUID() : `${now.getTime()}-${Math.random().toString(36).slice(2, 10)}`;
-  const path = `${userId}/${yyyy}/${mm}/${uuid}${ext}`;
+  const path = `dms/${userId}/${yyyy}/${mm}/${uuid}${ext}`;
 
-  const { error: uploadErr } = await supabase.storage
+  // Try dm-attachments bucket first
+  let uploadErr = null;
+  let bucketName = DM_ATTACHMENTS_BUCKET;
+  
+  let { error } = await supabase.storage
     .from(DM_ATTACHMENTS_BUCKET)
     .upload(path, file, { contentType: mime, upsert: false });
 
+  uploadErr = error;
+
+  // If bucket not found, try assets bucket as fallback
+  if (uploadErr && (
+    uploadErr.message?.toLowerCase().includes('not found') || 
+    uploadErr.message?.toLowerCase().includes('bucket not found') ||
+    uploadErr.statusCode === '404' ||
+    uploadErr.statusCode === 404 ||
+    uploadErr.message?.includes('The resource was not found')
+  )) {
+    bucketName = 'assets';
+    const assetsPath = `dms/${userId}/${yyyy}/${mm}/${uuid}${ext}`;
+    const result = await supabase.storage
+      .from('assets')
+      .upload(assetsPath, file, { contentType: mime, upsert: false });
+    
+    if (!result.error) {
+      uploadErr = null;
+      // Use assets bucket path
+      const finalPath = assetsPath;
+      
+      const dims = await getImageDimensions(file);
+
+      const attachment: DmAttachment = {
+        type,
+        path: finalPath,
+        size,
+        mime,
+        ...(dims ? { width: dims.width, height: dims.height } : {}),
+      };
+
+      return attachment;
+    } else {
+      // If assets bucket also fails, update error
+      uploadErr = result.error;
+    }
+  }
+
   if (uploadErr) {
-    throw new Error(uploadErr.message || 'Failed to upload');
+    throw new Error(uploadErr.message || 'Failed to upload file. Please try again.');
   }
 
   const dims = await getImageDimensions(file);
@@ -83,10 +125,30 @@ export async function uploadAttachment(file: File): Promise<DmAttachment> {
 }
 
 export async function getSignedUrlForPath(path: string, expiresInSeconds = 60): Promise<string> {
-  const { data, error } = await supabase.storage
+  // Try dm-attachments bucket first
+  let { data, error } = await supabase.storage
     .from(DM_ATTACHMENTS_BUCKET)
     .createSignedUrl(path, expiresInSeconds);
-  if (error || !data?.signedUrl) throw new Error(error?.message || 'Failed to create signed URL');
+  
+  // If bucket not found, try assets bucket
+  if (error && (
+    error.message?.toLowerCase().includes('not found') || 
+    error.message?.toLowerCase().includes('bucket not found') ||
+    (error as any).statusCode === '404' ||
+    (error as any).statusCode === 404 ||
+    error.message?.includes('The resource was not found')
+  )) {
+    const result = await supabase.storage
+      .from('assets')
+      .createSignedUrl(path, expiresInSeconds);
+    if (!result.error && result.data?.signedUrl) {
+      return result.data.signedUrl;
+    }
+  }
+  
+  if (error || !data?.signedUrl) {
+    throw new Error(error?.message || 'Failed to create signed URL');
+  }
   return data.signedUrl;
 }
 
