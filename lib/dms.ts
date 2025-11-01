@@ -23,7 +23,6 @@ export type Thread = {
   is_group: boolean;
   title: string | null;
   created_at: string;
-  updated_at: string;
   last_message_at: string | null;
 };
 
@@ -110,14 +109,14 @@ export async function getOrCreateThread(
         .filter(id => userThreadIdSet.has(id));
 
       if (commonThreadIds.length > 0) {
-        // Get the first matching 1:1 thread
-        const { data: existingThreads, error: threadsErr } = await supabase
-          .from('dms_threads')
-          .select('id, created_by, is_group, title, created_at, updated_at, last_message_at')
-          .in('id', commonThreadIds)
-          .eq('is_group', false)
-          .order('created_at', { ascending: false })
-          .limit(1);
+      // Get the first matching 1:1 thread
+      const { data: existingThreads, error: threadsErr } = await supabase
+        .from('dms_threads')
+        .select('id, created_by, is_group, title, created_at, last_message_at')
+        .in('id', commonThreadIds)
+        .eq('is_group', false)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
         if (threadsErr) {
           throw new Error(`Failed to get existing thread: ${threadsErr.message}`);
@@ -150,7 +149,7 @@ export async function getOrCreateThread(
       created_by: currentUserId,
       is_group: false,
     })
-    .select('id, created_by, is_group, title, created_at, updated_at, last_message_at')
+    .select('id, created_by, is_group, title, created_at, last_message_at')
     .single();
 
   if (insertError || !newThread) {
@@ -162,7 +161,7 @@ export async function getOrCreateThread(
       // Fetch the thread we just created by querying for the most recent thread by this user
       const { data: fetchedThread, error: fetchError } = await supabase
         .from('dms_threads')
-        .select('id, created_by, is_group, title, created_at, updated_at, last_message_at')
+        .select('id, created_by, is_group, title, created_at, last_message_at')
         .eq('created_by', currentUserId)
         .eq('is_group', false)
         .order('created_at', { ascending: false })

@@ -180,7 +180,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .update({
           last_message_id: finalMessage.id,
           last_message_at: finalMessage.created_at,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', threadId);
     } catch {}
