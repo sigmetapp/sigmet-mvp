@@ -128,8 +128,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { data: message, error: msgErr } = await authedClient.rpc('insert_dms_message', {
       p_thread_id: threadId,
       p_sender_id: user.id,
-      p_kind: 'text',
       p_body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
+      p_kind: 'text',
       p_attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : []
     });
     

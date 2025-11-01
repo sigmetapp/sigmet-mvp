@@ -5,8 +5,8 @@
 create or replace function public.insert_dms_message(
   p_thread_id bigint,
   p_sender_id uuid,
+  p_body text default null,
   p_kind text default 'text',
-  p_body text,
   p_attachments jsonb default '[]'::jsonb
 )
 returns public.dms_messages
