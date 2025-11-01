@@ -56,9 +56,6 @@ export default function Footer() {
             <ul className="space-y-2">
               <li><Link className={`${isLight ? "hover:text-black" : "hover:text-white"}`} href="/feed">Feed</Link></li>
               <li><Link className={`${isLight ? "hover:text-black" : "hover:text-white"}`} href="/profile">Profile</Link></li>
-              {isAdmin && (
-                <li><Link className={`${isLight ? "hover:text-black" : "hover:text-white"}`} href="/settings">Settings</Link></li>
-              )}
             </ul>
           </div>
 
@@ -88,9 +85,6 @@ export default function Footer() {
                 <Link href="/admin/tickets" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Ticket Management</Link>
               </>
             )}
-            <a href="https://sigmet.app" target="_blank" rel="noreferrer" className={isLight ? "hover:text-black" : "hover:text-white"}>
-              sigmet.app
-            </a>
           </div>
         </div>
       </div>
