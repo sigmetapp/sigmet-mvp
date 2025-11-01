@@ -187,10 +187,14 @@ export async function getOrCreateThread(
  * Returns up to 50 messages.
  */
 export async function listMessages(
-  threadId: number,
+  threadId: number | string,
   limit: number = 50
 ): Promise<Message[]> {
-  if (!threadId || Number.isNaN(threadId)) {
+  // Convert to number if string (bigint from database may be string)
+  const threadIdNum = typeof threadId === 'string' ? Number(threadId) : threadId;
+  
+  if (!threadIdNum || Number.isNaN(threadIdNum) || threadIdNum <= 0) {
+    console.error('Invalid thread_id in listMessages:', threadId, typeof threadId, '->', threadIdNum);
     throw new Error('Invalid thread_id');
   }
 
@@ -209,7 +213,7 @@ export async function listMessages(
   const { data: membership, error: membershipError } = await supabase
     .from('dms_thread_participants')
     .select('thread_id')
-    .eq('thread_id', threadId)
+    .eq('thread_id', threadIdNum)
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -223,7 +227,7 @@ export async function listMessages(
   const { data: messages, error: messagesError } = await supabase
     .from('dms_messages')
     .select('*')
-    .eq('thread_id', threadId)
+    .eq('thread_id', threadIdNum)
     .order('id', { ascending: false })
     .limit(Math.min(50, Math.max(1, limit)));
 
@@ -231,7 +235,14 @@ export async function listMessages(
     throw new Error(messagesError.message);
   }
 
-  return (messages || []) as Message[];
+  // Ensure message IDs are numbers
+  const messagesWithNumericIds = (messages || []).map((msg: any) => ({
+    ...msg,
+    id: Number(msg.id),
+    thread_id: Number(msg.thread_id)
+  }));
+
+  return messagesWithNumericIds as Message[];
 }
 
 /**

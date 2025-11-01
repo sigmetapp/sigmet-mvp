@@ -228,10 +228,26 @@ export default function DmsChatWindow({ partnerId }: Props) {
         const threadData = await getOrCreateThread(currentUserId, partnerId);
         if (cancelled) return;
 
-        setThread(threadData);
+        // Ensure thread.id is a valid number
+        if (!threadData || !threadData.id) {
+          throw new Error('Failed to get thread');
+        }
+        
+        const threadIdNum = Number(threadData.id);
+        if (!threadIdNum || isNaN(threadIdNum)) {
+          console.error('Invalid thread.id:', threadData.id, typeof threadData.id);
+          throw new Error('Invalid thread ID');
+        }
 
-        // Load messages
-        const messagesData = await listMessages(threadData.id, 50);
+        // Update thread data with numeric ID
+        const threadWithNumericId = {
+          ...threadData,
+          id: threadIdNum
+        };
+        setThread(threadWithNumericId);
+
+        // Load messages with numeric thread ID
+        const messagesData = await listMessages(threadIdNum, 50);
         if (cancelled) return;
 
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
@@ -256,7 +272,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
           const { data: allMessages } = await supabase
             .from('dms_messages')
             .select('created_at')
-            .eq('thread_id', threadData.id)
+            .eq('thread_id', threadIdNum)
             .in('sender_id', [currentUserId, partnerId])
             .order('created_at', { ascending: false })
             .limit(100);
@@ -287,7 +303,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
           } else if (!cancelled) {
             setDaysStreak(0);
           }
-        } catch {
+        } catch (streakErr) {
+          console.error('Error calculating streak:', streakErr);
           if (!cancelled) {
             setDaysStreak(0);
           }
@@ -295,6 +312,12 @@ export default function DmsChatWindow({ partnerId }: Props) {
       } catch (err: any) {
         if (!cancelled) {
           console.error('Error loading thread/messages:', err);
+          console.error('Error details:', {
+            currentUserId,
+            partnerId,
+            threadData: err?.threadData,
+            message: err?.message
+          });
           setError(err?.message || 'Failed to load conversation');
         }
       } finally {
