@@ -35,31 +35,34 @@ create policy "Users can view own tickets"
   to authenticated
   using (auth.uid() = user_id);
 
+-- Security definer function to check if user is admin
+create or replace function public.is_admin()
+returns boolean
+language plpgsql
+security definer
+stable
+as $$
+declare
+  user_email text;
+begin
+  select email into user_email from auth.users where id = auth.uid();
+  return (user_email = 'seosasha@gmail.com');
+end;
+$$;
+
 -- Admins can view all tickets
 create policy "Admins can view all tickets"
   on public.tickets
   for select
   to authenticated
-  using (
-    exists (
-      select 1 from auth.users
-      where auth.users.id = auth.uid()
-      and auth.users.email = 'seosasha@gmail.com'
-    )
-  );
+  using (public.is_admin());
 
 -- Admins can update all tickets
 create policy "Admins can update all tickets"
   on public.tickets
   for update
   to authenticated
-  using (
-    exists (
-      select 1 from auth.users
-      where auth.users.id = auth.uid()
-      and auth.users.email = 'seosasha@gmail.com'
-    )
-  );
+  using (public.is_admin());
 
 -- Function to update updated_at timestamp
 create or replace function update_tickets_updated_at()
