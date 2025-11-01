@@ -211,7 +211,7 @@ function DmsInner() {
                           </div>
                           {partner.messages24h !== undefined && partner.messages24h > 0 && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 whitespace-nowrap shrink-0">
-                              <span className="text-xs leading-none" role="img" aria-label="speech">??</span>
+                              <span className="text-xs leading-none" role="img" aria-label="speech">💬</span>
                               {partner.messages24h}
                             </span>
                           )}

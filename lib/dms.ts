@@ -171,10 +171,12 @@ export async function getOrCreateThread(
 /**
  * List messages in a thread, ordered by id desc (newest first).
  * Returns up to 50 messages.
+ * If beforeId is provided, returns messages older than that message.
  */
 export async function listMessages(
   threadId: number,
-  limit: number = 50
+  limit: number = 50,
+  beforeId?: number
 ): Promise<Message[]> {
   if (!threadId || Number.isNaN(threadId)) {
     throw new Error('Invalid thread_id');
@@ -206,10 +208,16 @@ export async function listMessages(
     throw new Error('Forbidden');
   }
 
-  const { data: messages, error: messagesError } = await supabase
+  let query = supabase
     .from('dms_messages')
     .select('*')
-    .eq('thread_id', threadId)
+    .eq('thread_id', threadId);
+  
+  if (beforeId) {
+    query = query.lt('id', beforeId);
+  }
+  
+  const { data: messages, error: messagesError } = await query
     .order('id', { ascending: false })
     .limit(Math.min(50, Math.max(1, limit)));
 

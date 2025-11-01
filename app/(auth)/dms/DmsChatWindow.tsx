@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread } from '@/lib/dms';
 import { useDmRealtime } from '@/hooks/useDmRealtime';
-import EmojiPicker from '@/components/EmojiPicker';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { uploadAttachment, type DmAttachment } from '@/lib/dm/attachments';
 
 type Props = {
@@ -34,13 +34,18 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [sending, setSending] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [messages, setMessages] = useDmRealtime(thread?.id || null, initialMessages);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const oldestMessageIdRef = useRef<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const presenceChannelRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -159,8 +164,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
         setThread(threadData);
 
-        // Load messages
-        const messagesData = await listMessages(threadData.id, 50);
+        // Load last 10 messages initially
+        const messagesData = await listMessages(threadData.id, 10);
         if (cancelled) return;
 
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
@@ -172,6 +177,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
         });
         setInitialMessages(sorted);
         setMessages(sorted);
+        
+        // Set oldest message ID for pagination
+        if (sorted.length > 0) {
+          oldestMessageIdRef.current = sorted[0].id;
+          // If we got fewer than 10 messages, there are no more to load
+          setHasMoreMessages(messagesData.length >= 10);
+        } else {
+          setHasMoreMessages(false);
+        }
         
         // Calculate days streak after thread is loaded
         try {
@@ -286,16 +300,135 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages, currentUserId, partnerId]);
 
-  // Scroll to bottom on new messages
+  // Load older messages function
+  async function loadOlderMessages() {
+    if (!thread || loadingMore || !hasMoreMessages || !oldestMessageIdRef.current) return;
+
+    setLoadingMore(true);
+    try {
+      const olderMessages = await listMessages(thread.id, 20, oldestMessageIdRef.current);
+      
+      if (olderMessages.length === 0) {
+        setHasMoreMessages(false);
+        setLoadingMore(false);
+        return;
+      }
+
+      // Sort by created_at ascending (oldest first, newest last)
+      const sorted = olderMessages.sort((a, b) => {
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+        return a.id - b.id;
+      });
+
+      // Preserve scroll position
+      const scrollElement = scrollRef.current;
+      if (scrollElement) {
+        const previousScrollHeight = scrollElement.scrollHeight;
+        
+        // Prepend older messages
+        setMessages((prev) => {
+          const combined = [...sorted, ...prev];
+          return combined.sort((a, b) => {
+            const timeA = new Date(a.created_at).getTime();
+            const timeB = new Date(b.created_at).getTime();
+            if (timeA !== timeB) return timeA - timeB;
+            return a.id - b.id;
+          });
+        });
+
+        // Restore scroll position after render
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (scrollElement) {
+              const newScrollHeight = scrollElement.scrollHeight;
+              const scrollDiff = newScrollHeight - previousScrollHeight;
+              scrollElement.scrollTop = scrollDiff;
+            }
+          });
+        });
+      } else {
+        setMessages((prev) => {
+          const combined = [...sorted, ...prev];
+          return combined.sort((a, b) => {
+            const timeA = new Date(a.created_at).getTime();
+            const timeB = new Date(b.created_at).getTime();
+            if (timeA !== timeB) return timeA - timeB;
+            return a.id - b.id;
+          });
+        });
+      }
+
+      // Update oldest message ID
+      if (sorted.length > 0) {
+        oldestMessageIdRef.current = sorted[0].id;
+        setHasMoreMessages(olderMessages.length >= 20);
+      } else {
+        setHasMoreMessages(false);
+      }
+    } catch (err: any) {
+      console.error('Error loading older messages:', err);
+      setError(err?.message || 'Failed to load older messages');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  // Handle scroll to detect when near top
   useEffect(() => {
-    if (scrollRef.current) {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement || !thread) return;
+
+    let loadingTimeout: NodeJS.Timeout | null = null;
+
+    const handleScroll = () => {
+      const scrollTop = scrollElement.scrollTop;
+      // Load more when within 200px of top
+      if (scrollTop < 200 && hasMoreMessages && !loadingMore) {
+        // Debounce to avoid multiple rapid calls
+        if (loadingTimeout) clearTimeout(loadingTimeout);
+        loadingTimeout = setTimeout(() => {
+          void loadOlderMessages();
+        }, 100);
+      }
+    };
+
+    scrollElement.addEventListener('scroll', handleScroll);
+    return () => {
+      scrollElement.removeEventListener('scroll', handleScroll);
+      if (loadingTimeout) clearTimeout(loadingTimeout);
+    };
+  }, [hasMoreMessages, loadingMore, thread]);
+
+  // Scroll to bottom on new messages (but not when loading older messages)
+  useEffect(() => {
+    if (scrollRef.current && !loadingMore) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length]);
+  }, [messages.length, loadingMore]);
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
 
   // Handle emoji selection
-  function handleEmojiSelect(emoji: string) {
-    setMessageText((prev) => prev + emoji);
+  function handleEmojiSelect(emojiData: EmojiClickData) {
+    setMessageText((prev) => prev + emojiData.emoji);
+    setShowEmojiPicker(false);
   }
 
   // Handle file selection
@@ -317,7 +450,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   // Handle send message with optimistic update
   async function handleSend() {
-    if (!thread || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
+    if (!thread || sending) return;
+    if (!messageText.trim() && selectedFiles.length === 0) return;
 
     const textToSend = messageText.trim();
     setMessageText('');
@@ -501,6 +635,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
       </div>
 
       {/* Error message */}
+            {loadingMore && (
+              <div className="text-center text-white/50 text-sm py-2">
+                Loading older messages...
+              </div>
+            )}
       {error && (
         <div className="px-4 py-2 bg-red-500/20 text-red-400 text-sm border-b border-red-500/30">
           {error}
@@ -674,7 +813,36 @@ export default function DmsChatWindow({ partnerId }: Props) {
             placeholder="Type a message..."
             disabled={sending || uploadingAttachments}
           />
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+
+          <div className="relative" ref={emojiPickerRef}>
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 text-lg"
+              title="Add emoji"
+            >
+              😊
+            </button>
+            {showEmojiPicker && (
+              <div className="absolute bottom-full right-0 mb-2 z-50">
+                <EmojiPicker 
+                  onEmojiClick={handleEmojiSelect}
+                  width={350}
+                  height={400}
+                  previewConfig={{ showPreview: false }}
+                  skinTonesDisabled
+                  theme="dark"
+                  lazyLoadEmojis
+                />
+              </div>
+            )}
+          </div>
+
+
+
+
+
+
           <button
             className="btn btn-primary rounded-xl px-3 py-2"
             onClick={handleSend}
