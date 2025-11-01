@@ -359,23 +359,23 @@ function GrowthDirectionsInner() {
                             {(() => {
                               // Fix emoji mapping if they come as ?? from DB
                               const emojiMap: Record<string, string> = {
-                                'learning': '??',
-                                'career': '??',
-                                'finance': '??',
-                                'health': '??',
-                                'relationships': '??',
-                                'community': '??',
-                                'creativity': '??',
-                                'mindfulness': '?????',
-                                'personal': '??',
-                                'digital': '??',
-                                'education': '??',
-                                'purpose': '???',
+                                'learning': '🧠',
+                                'career': '💼',
+                                'finance': '💰',
+                                'health': '🧘',
+                                'relationships': '❤️',
+                                'community': '🌍',
+                                'creativity': '🎨',
+                                'mindfulness': '🧘‍♂️',
+                                'personal': '🌱',
+                                'digital': '🌐',
+                                'education': '📚',
+                                'purpose': '🕊️',
                               };
                               if (dir.emoji === '??' || dir.emoji === '???' || dir.emoji?.includes('?')) {
                                 return emojiMap[dir.slug] || dir.emoji;
                               }
-                              return dir.emoji;
+                              return dir.emoji || emojiMap[dir.slug] || '??';
                             })()}
                           </span>
                           <span className="font-medium text-sm">{dir.title}</span>
@@ -417,26 +417,24 @@ function GrowthDirectionsInner() {
                     <div className="flex items-center gap-3 mb-4">
                       <span className="text-3xl">
                         {(() => {
-                          // Fix emoji mapping if they come as ?? from DB
+                          // Always use emoji map by slug to ensure correct display
                           if (!currentDirection) return '';
                           const emojiMap: Record<string, string> = {
-                            'learning': '??',
-                            'career': '??',
-                            'finance': '??',
-                            'health': '??',
-                            'relationships': '??',
-                            'community': '??',
-                            'creativity': '??',
-                            'mindfulness': '?????',
-                            'personal': '??',
-                            'digital': '??',
-                            'education': '??',
-                            'purpose': '???',
+                            'learning': '🧠',
+                            'career': '💼',
+                            'finance': '💰',
+                            'health': '🧘',
+                            'relationships': '❤️',
+                            'community': '🌍',
+                            'creativity': '🎨',
+                            'mindfulness': '🧘‍♂️',
+                            'personal': '🌱',
+                            'digital': '🌐',
+                            'education': '📚',
+                            'purpose': '🕊️',
                           };
-                          if (currentDirection.emoji === '??' || currentDirection.emoji === '???' || currentDirection.emoji?.includes('?')) {
-                            return emojiMap[currentDirection.slug] || currentDirection.emoji;
-                          }
-                          return currentDirection.emoji;
+                          // Always return emoji from map based on slug
+                          return emojiMap[currentDirection.slug] || currentDirection.emoji || '??';
                         })()}
                       </span>
                       <div>
