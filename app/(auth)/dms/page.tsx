@@ -53,11 +53,11 @@ function DmsInner() {
       setLoading(true);
       try {
         // Get threads where user is a participant
+        // Removed limit to show all threads with messages
         const { data: participants } = await supabase
           .from('dms_thread_participants')
           .select('thread_id')
-          .eq('user_id', currentUserId)
-          .limit(20);
+          .eq('user_id', currentUserId);
 
         if (cancelled || !participants || participants.length === 0) {
           setPartners([]);
@@ -89,47 +89,9 @@ function DmsInner() {
           return;
         }
 
-        // Get all unique thread IDs from other participants
-        const allThreadIdsFromParticipants = Array.from(
-          new Set(otherParticipants.map((p) => p.thread_id))
-        );
-
-        let validParticipants = otherParticipants;
-        let threadsWithMessages: Set<number> | null = null;
-
-        if (allThreadIdsFromParticipants.length > 0) {
-          const { data: messages, error: messagesError } = await supabase
-            .from('dms_messages')
-            .select('thread_id')
-            .in('thread_id', allThreadIdsFromParticipants);
-
-          if (messagesError) {
-            console.warn('[DMs] Falling back to participants without message filter:', messagesError);
-          } else {
-            const threadsWithMessagesLocal = new Set(
-              (messages || [])
-                .map((msg) => normalizeThreadId(msg.thread_id))
-                .filter((id): id is number => id !== null)
-            );
-
-            threadsWithMessages = threadsWithMessagesLocal;
-
-            console.log('[DMs] Debug:', {
-              totalThreadIds: threadIds.length,
-              totalOtherParticipants: otherParticipants.length,
-              totalThreadIdsFromParticipants: allThreadIdsFromParticipants.length,
-              messagesFound: messages?.length || 0,
-              threadsWithMessagesCount: threadsWithMessagesLocal.size,
-            });
-
-            validParticipants = otherParticipants.filter((participant) => {
-              const normalizedId = normalizeThreadId(participant.thread_id);
-              return normalizedId !== null && threadsWithMessagesLocal.has(normalizedId);
-            });
-
-            console.log('[DMs] Valid participants after filtering:', validParticipants.length);
-          }
-        }
+        // Use all participants without filtering by message existence
+        // This ensures all interlocutors are shown, regardless of message query results
+        const validParticipants = otherParticipants;
 
         if (cancelled || validParticipants.length === 0) {
           setPartners([]);
@@ -158,11 +120,11 @@ function DmsInner() {
         const partnerIds = Array.from(partnerThreadMap.keys());
 
         // Load profiles
+        // Removed limit to show all contacts with messages
         const { data: profiles } = await supabase
           .from('profiles')
           .select('user_id, username, full_name, avatar_url')
-          .in('user_id', partnerIds)
-          .limit(20);
+          .in('user_id', partnerIds);
 
         if (!cancelled && profiles) {
           // Get thread IDs that have messages for metadata query
