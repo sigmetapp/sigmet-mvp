@@ -11,7 +11,7 @@ export default function SidebarShell({ user, children }: { user: User; children:
   const isLight = theme === "light";
 
   return (
-    <div className={`min-h-screen w-full transition-colors ${
+    <div className={`h-screen overflow-hidden w-full transition-colors ${
       isLight ? "bg-telegram-gradient text-telegram-text" : "bg-sigmet text-telegram-text"
     }`}>
       {/* Mobile top bar */}
@@ -51,10 +51,12 @@ export default function SidebarShell({ user, children }: { user: User; children:
         )}
 
         {/* Main content */}
-        <main className={`min-h-screen flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6 transition-colors ${
+        <main className={`flex-1 min-h-0 overflow-hidden flex flex-col px-4 py-4 lg:px-8 lg:py-6 transition-colors ${
           isLight ? "text-telegram-text" : "text-telegram-text"
         }`}>
-          {children}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {children}
+          </div>
         </main>
       </div>
     </div>

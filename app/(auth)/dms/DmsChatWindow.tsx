@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread } from '@/lib/dms';
 import { useDmRealtime } from '@/hooks/useDmRealtime';
-import EmojiPicker from '@/components/EmojiPicker';
-import { uploadAttachment, type DmAttachment } from '@/lib/dm/attachments';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
+import { uploadAttachment, getSignedUrlForAttachment, type DmAttachment } from '@/lib/dm/attachments';
+import twemoji from 'twemoji';
 
 type Props = {
   partnerId: string;
@@ -34,13 +35,17 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [sending, setSending] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [messages, setMessages] = useDmRealtime(thread?.id || null, initialMessages);
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<number, Record<number, string>>>({});
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const presenceChannelRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const hasScrolledToBottomRef = useRef<boolean>(false);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -159,8 +164,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
         setThread(threadData);
 
-        // Load messages
-        const messagesData = await listMessages(threadData.id, 50);
+        // Load last 20 messages
+        const messagesData = await listMessages(threadData.id, 20);
         if (cancelled) return;
 
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
@@ -172,6 +177,12 @@ export default function DmsChatWindow({ partnerId }: Props) {
         });
         setInitialMessages(sorted);
         setMessages(sorted);
+        
+        // Reset scroll flag when loading new thread
+        hasScrolledToBottomRef.current = false;
+        
+        // Scroll to bottom after messages are loaded
+        // This will be handled by useEffect after render
         
         // Calculate days streak after thread is loaded
         try {
@@ -286,16 +297,100 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages, currentUserId, partnerId]);
 
-  // Scroll to bottom on new messages
+  // Load signed URLs for attachments
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (!messages.length) return;
+
+    let cancelled = false;
+    const loadUrls = async () => {
+      const urlMap: Record<number, Record<number, string>> = {};
+      
+      for (const msg of messages) {
+        if (msg.deleted_at || !msg.attachments || !Array.isArray(msg.attachments)) continue;
+        
+        const msgUrls: Record<number, string> = {};
+        for (let i = 0; i < msg.attachments.length; i++) {
+          const att = msg.attachments[i] as DmAttachment;
+          if (!att || !att.path) continue;
+          
+          try {
+            const url = await getSignedUrlForAttachment(att, 3600); // 1 hour
+            if (!cancelled) {
+              msgUrls[i] = url;
+            }
+          } catch (err) {
+            console.error('Error loading attachment URL:', err);
+          }
+        }
+        
+        if (Object.keys(msgUrls).length > 0 && !cancelled) {
+          urlMap[msg.id] = msgUrls;
+        }
+      }
+      
+      if (!cancelled) {
+        setAttachmentUrls((prev) => ({ ...prev, ...urlMap }));
+      }
+    };
+
+    void loadUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [messages]);
+
+  // Scroll to bottom on new messages or when dialog opens
+  useEffect(() => {
+    if (!scrollRef.current || messages.length === 0 || !thread) return;
+    
+    // Use requestAnimationFrame with multiple frames to ensure DOM is fully updated
+    const scrollToBottom = () => {
+      if (scrollRef.current) {
+        const element = scrollRef.current;
+        // Force scroll to absolute bottom
+        element.scrollTop = element.scrollHeight;
+        hasScrolledToBottomRef.current = true;
+      }
+    };
+    
+    // Use multiple requestAnimationFrame calls to ensure DOM is fully rendered
+    // Wait a bit for images/attachments to load and affect scrollHeight
+    const timeoutId = setTimeout(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            scrollToBottom();
+            // One more check after a short delay for images
+            setTimeout(scrollToBottom, 100);
+          });
+        });
+      });
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [messages.length, thread?.id, attachmentUrls]);
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
     }
-  }, [messages.length]);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
 
   // Handle emoji selection
-  function handleEmojiSelect(emoji: string) {
-    setMessageText((prev) => prev + emoji);
+  function handleEmojiSelect(emojiData: EmojiClickData) {
+    setMessageText((prev) => prev + emojiData.emoji);
+    setShowEmojiPicker(false);
   }
 
   // Handle file selection
@@ -317,7 +412,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   // Handle send message with optimistic update
   async function handleSend() {
-    if (!thread || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
+    if (!thread || sending) return;
+    if (!messageText.trim() && selectedFiles.length === 0) return;
 
     const textToSend = messageText.trim();
     setMessageText('');
@@ -410,7 +506,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   if (loading) {
     return (
-      <div className="card card-glow h-full flex items-center justify-center">
+      <div className="card card-glow h-[600px] flex items-center justify-center">
         <div className="text-white/70">Loading conversation...</div>
       </div>
     );
@@ -418,7 +514,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   if (error && !thread) {
     return (
-      <div className="card card-glow h-full flex items-center justify-center">
+      <div className="card card-glow h-[600px] flex items-center justify-center">
         <div className="text-red-400">{error}</div>
       </div>
     );
@@ -431,7 +527,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const partnerAvatar = partnerProfile?.avatar_url || AVATAR_FALLBACK;
 
   return (
-    <div className="card card-glow flex flex-col h-full overflow-hidden">
+    <div className="card card-glow flex flex-col h-[600px] overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-3">
@@ -510,7 +606,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto smooth-scroll px-3 py-4"
+        className="flex-1 min-h-0 overflow-y-auto smooth-scroll px-3 py-4"
       >
         {messages.length === 0 ? (
           <div className="text-center text-white/50 text-sm py-8">
@@ -547,19 +643,104 @@ export default function DmsChatWindow({ partnerId }: Props) {
                       }`}
                     >
                       <div
-                        className={`px-4 py-2 rounded-2xl ${
+                        className={`rounded-2xl ${
                           isMine
                             ? 'bg-gradient-to-br from-sky-500/80 to-fuchsia-500/80 text-white rounded-br-sm'
                             : 'bg-white/8 text-white rounded-bl-sm border border-white/10'
                         }`}
                       >
                         {msg.deleted_at ? (
-                          <div className="italic text-white/60">
+                          <div className="px-4 py-2 italic text-white/60">
                             Message deleted
                           </div>
                         ) : (
-                          <div className="whitespace-pre-wrap leading-relaxed">
-                            {msg.body}
+                          <div className="px-4 py-2">
+                            {/* Attachments */}
+                            {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                              <div className="space-y-2 mb-2">
+                                {msg.attachments.map((att, attIdx) => {
+                                  const attachment = att as DmAttachment;
+                                  const url = attachmentUrls[msg.id]?.[attIdx];
+                                  
+                                  if (!attachment || !url) return null;
+                                  
+                                  if (attachment.type === 'image') {
+                                    return (
+                                      <div key={attIdx} className="rounded-lg overflow-hidden max-w-full">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={url}
+                                          alt="Attachment"
+                                          className="max-w-full h-auto max-h-[400px] object-contain rounded-lg"
+                                          loading="lazy"
+                                        />
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  if (attachment.type === 'video') {
+                                    return (
+                                      <div key={attIdx} className="rounded-lg overflow-hidden max-w-full">
+                                        <video
+                                          src={url}
+                                          controls
+                                          className="max-w-full h-auto max-h-[400px] rounded-lg"
+                                        >
+                                          Your browser does not support video.
+                                        </video>
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  if (attachment.type === 'audio') {
+                                    return (
+                                      <div key={attIdx} className="rounded-lg overflow-hidden max-w-full">
+                                        <audio src={url} controls className="w-full">
+                                          Your browser does not support audio.
+                                        </audio>
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  // File type
+                                  const fileName = attachment.path.split('/').pop() || 'File';
+                                  const fileSize = attachment.size ? `${(attachment.size / 1024).toFixed(1)} KB` : '';
+                                  
+                                  return (
+                                    <a
+                                      key={attIdx}
+                                      href={url}
+                                      download={fileName}
+                                      className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition text-white/90"
+                                    >
+                                      <span className="text-lg">??</span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium truncate">{fileName}</div>
+                                        {fileSize && (
+                                          <div className="text-xs text-white/60">{fileSize}</div>
+                                        )}
+                                      </div>
+                                      <span className="text-xs text-white/60">Download</span>
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            
+                            {/* Message body */}
+                            {msg.body && (
+                              <div 
+                                className="whitespace-pre-wrap leading-relaxed text-[1.1em] emoji-text"
+                                dangerouslySetInnerHTML={{
+                                  __html: twemoji.parse(msg.body || '', {
+                                    className: 'twemoji',
+                                    folder: 'svg',
+                                    ext: '.svg',
+                                    base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+                                  })
+                                }}
+                              />
+                            )}
                           </div>
                         )}
                       </div>
@@ -674,7 +855,36 @@ export default function DmsChatWindow({ partnerId }: Props) {
             placeholder="Type a message..."
             disabled={sending || uploadingAttachments}
           />
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+
+          <div className="relative" ref={emojiPickerRef}>
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 text-lg"
+              title="Add emoji"
+            >
+              ??
+            </button>
+            {showEmojiPicker && (
+              <div className="absolute bottom-full right-0 mb-2 z-50">
+                <EmojiPicker 
+                  onEmojiClick={handleEmojiSelect}
+                  width={350}
+                  height={400}
+                  previewConfig={{ showPreview: false }}
+                  skinTonesDisabled
+                  theme="dark"
+                  lazyLoadEmojis
+                />
+              </div>
+            )}
+          </div>
+
+
+
+
+
+
           <button
             className="btn btn-primary rounded-xl px-3 py-2"
             onClick={handleSend}
