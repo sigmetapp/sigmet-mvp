@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { coerceThreadId, type ThreadId } from '@/lib/dm/threadId';
 
 export default function DmGlobalNotifications() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [threadIds, setThreadIds] = useState<Set<number>>(new Set());
-  const lastMessageIdsRef = useRef<Map<number, number>>(new Map());
+  const [threadIds, setThreadIds] = useState<Set<ThreadId>>(new Set());
+  const lastMessageIdsRef = useRef<Map<ThreadId, number>>(new Map());
   const channelsRef = useRef<any[]>([]);
   const cancelledRef = useRef(false);
 
@@ -35,7 +36,13 @@ export default function DmGlobalNotifications() {
 
         if (cancelledRef.current || !participants) return;
 
-        const ids = new Set(participants.map((p) => p.thread_id));
+        const ids = new Set<ThreadId>();
+        for (const participant of participants || []) {
+          const tid = coerceThreadId(participant.thread_id);
+          if (tid) {
+            ids.add(tid);
+          }
+        }
         setThreadIds(ids);
 
         // Get last message IDs for each thread
@@ -49,7 +56,12 @@ export default function DmGlobalNotifications() {
               .limit(1);
 
             if (messages && messages.length > 0) {
-              lastMessageIdsRef.current.set(threadId, messages[0]!.id);
+              const messageId = typeof messages[0]!.id === 'string'
+                ? parseInt(messages[0]!.id, 10)
+                : Number(messages[0]!.id);
+              if (!Number.isNaN(messageId)) {
+                lastMessageIdsRef.current.set(threadId, messageId);
+              }
             }
           } catch {
             // Ignore errors
@@ -89,12 +101,16 @@ export default function DmGlobalNotifications() {
 
             // Check if this is a new message from someone else
             const lastMessageId = lastMessageIdsRef.current.get(threadId);
+            const messageId = typeof newMessage.id === 'string'
+              ? parseInt(newMessage.id, 10)
+              : Number(newMessage.id);
+
             if (
-              newMessage.id !== lastMessageId &&
+              !Number.isNaN(messageId) &&
+              messageId !== lastMessageId &&
               newMessage.sender_id !== currentUserId
             ) {
-              // Update last message ID
-              lastMessageIdsRef.current.set(threadId, newMessage.id);
+              lastMessageIdsRef.current.set(threadId, messageId);
 
               // Play notification sound
               try {

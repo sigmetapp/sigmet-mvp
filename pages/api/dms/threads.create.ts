@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import { coerceThreadId, assertThreadId } from '@/lib/dm/threadId';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
@@ -50,10 +51,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           execOrFetch(client.from('dms_thread_participants').select('thread_id').eq('user_id', a)),
           execOrFetch(client.from('dms_thread_participants').select('thread_id').eq('user_id', b)),
         ]);
-        const aIds = new Set(((aList.data as any[]) || []).map((r) => Number(r.thread_id)));
-        const bIds = new Set(((bList.data as any[]) || []).map((r) => Number(r.thread_id)));
-        const both: number[] = [];
-        for (const id of aIds) if (bIds.has(id)) both.push(id);
+        const aIds = new Set<string>();
+        for (const row of (aList.data as any[]) || []) {
+          const tid = coerceThreadId(row.thread_id);
+          if (tid) aIds.add(tid);
+        }
+        const both: string[] = [];
+        for (const row of (bList.data as any[]) || []) {
+          const tid = coerceThreadId(row.thread_id);
+          if (tid && aIds.has(tid)) {
+            both.push(tid);
+          }
+        }
         if (both.length > 0) {
           const { data: existing } = await client
             .from('dms_threads')
@@ -62,7 +71,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .eq('is_group', false)
             .order('id', { ascending: false })
             .maybeSingle();
-          if (existing) return res.status(200).json({ ok: true, thread: existing });
+          if (existing) {
+            const tid = coerceThreadId(existing.id);
+            if (!tid) {
+              return res.status(400).json({ ok: false, error: 'Invalid thread ID returned from database' });
+            }
+            return res.status(200).json({ ok: true, thread: { ...existing, id: tid } });
+          }
         }
 
         // Create new thread and add participants
@@ -73,14 +88,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .single();
         if (tErr || !thread) return res.status(400).json({ ok: false, error: tErr?.message || 'Failed to create thread' });
 
+        const threadId = assertThreadId(thread.id, 'Invalid thread ID returned from database');
         const rows = [
-          { thread_id: thread.id, user_id: a, role: 'owner' },
-          { thread_id: thread.id, user_id: b, role: 'member' },
+          { thread_id: threadId, user_id: a, role: 'owner' },
+          { thread_id: threadId, user_id: b, role: 'member' },
         ];
         const { error: pErr } = await client.from('dms_thread_participants').insert(rows);
         if (pErr) return res.status(400).json({ ok: false, error: pErr.message });
 
-        return res.status(200).json({ ok: true, thread });
+        return res.status(200).json({ ok: true, thread: { ...thread, id: threadId } });
       }
 
       return res.status(400).json({ ok: false, error: error.message });

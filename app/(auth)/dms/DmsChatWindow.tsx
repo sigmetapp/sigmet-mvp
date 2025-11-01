@@ -8,6 +8,7 @@ import { useDmRealtime } from '@/hooks/useDmRealtime';
 import EmojiPicker from '@/components/EmojiPicker';
 import { uploadAttachment, type DmAttachment, getSignedUrlForAttachment } from '@/lib/dm/attachments';
 import { subscribeToThread, sendTypingIndicator } from '@/lib/dm/realtime';
+import { assertThreadId } from '@/lib/dm/threadId';
 
 type Props = {
   partnerId: string;
@@ -235,34 +236,24 @@ export default function DmsChatWindow({ partnerId }: Props) {
         
         if (cancelled) return;
 
-        // Ensure thread.id is a valid number
         if (!threadData) {
           console.error('threadData is null or undefined');
           throw new Error('Failed to get thread: threadData is null');
         }
-        
-        console.log('threadData received:', { id: threadData.id, type: typeof threadData.id, full: threadData });
-        
-        const threadIdNum = threadData.id != null ? (typeof threadData.id === 'string' ? Number(threadData.id) : Number(threadData.id)) : null;
-        
-        if (threadIdNum == null || isNaN(threadIdNum) || threadIdNum <= 0) {
-          console.error('Invalid thread.id:', threadData.id, typeof threadData.id, '->', threadIdNum);
-          throw new Error(`Invalid thread ID: ${threadData.id}`);
-        }
 
-        // Update thread data with numeric ID
-        const threadWithNumericId = {
+        const threadId = assertThreadId(threadData.id, 'Invalid thread ID received');
+
+        setThread({
           ...threadData,
-          id: threadIdNum
-        };
-        setThread(threadWithNumericId);
+          id: threadId,
+        });
 
-        // Load messages with numeric thread ID
+        // Load messages with thread ID
         let messagesData;
         try {
-          messagesData = await listMessages(threadIdNum, 50);
+          messagesData = await listMessages(threadId, 50);
         } catch (msgErr: any) {
-          console.error('Error in listMessages:', msgErr, 'threadIdNum:', threadIdNum);
+          console.error('Error in listMessages:', msgErr, 'threadId:', threadId);
           // Continue without messages if we can't load them, but thread is valid
           messagesData = [];
         }
@@ -290,7 +281,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
           const { data: allMessages } = await supabase
             .from('dms_messages')
             .select('created_at')
-            .eq('thread_id', threadIdNum)
+            .eq('thread_id', threadId)
             .in('sender_id', [currentUserId, partnerId])
             .order('created_at', { ascending: false })
             .limit(100);
@@ -409,12 +400,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   useEffect(() => {
     if (!thread?.id || !currentUserId || !partnerId) return;
 
-    // Ensure thread.id is a valid number
-    const threadId = Number(thread.id);
-    if (!threadId || isNaN(threadId)) {
-      console.error('Invalid thread.id for typing indicators:', thread.id);
-      return;
-    }
+    const threadId = thread.id;
 
     let unsubscribe: (() => void) | null = null;
 
@@ -441,8 +427,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const handleTyping = useCallback(() => {
     if (!thread?.id || !currentUserId || isTyping) return;
 
-    const threadId = Number(thread.id);
-    if (!threadId || isNaN(threadId)) return;
+    const threadId = thread.id;
 
     setIsTyping(true);
     void sendTypingIndicator(threadId, currentUserId, true);
@@ -454,10 +439,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
       if (thread?.id && currentUserId) {
-        const tid = Number(thread.id);
-        if (tid && !isNaN(tid)) {
-          void sendTypingIndicator(tid, currentUserId, false);
-        }
+        void sendTypingIndicator(thread.id, currentUserId, false);
       }
     }, 3000);
   }, [thread?.id, currentUserId, isTyping]);
@@ -518,12 +500,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   async function handleSend() {
     if (!thread || !thread.id || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
 
-    // Ensure thread.id is a valid number
-    const threadId = Number(thread.id);
-    if (!threadId || isNaN(threadId)) {
-      setError('Invalid thread ID');
-      return;
-    }
+    const threadId = thread.id;
 
     const textToSend = messageText.trim();
     const replyToId = replyingTo?.id || null;

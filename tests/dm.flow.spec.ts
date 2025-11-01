@@ -20,8 +20,8 @@ function createRes() {
 
 // In-memory DB-ish state for this test
 const state = {
-  threadId: 1,
-  messages: [] as Array<{ id: number; thread_id: number; sender_id: string }>,
+  threadId: 'thread-1',
+  messages: [] as Array<{ id: number; thread_id: string; sender_id: string }>,
   nextMsgId: 1000,
   receiptsUpdates: [] as Array<{ user_id: string; status: string; message_ids: number[] }>,
 };
