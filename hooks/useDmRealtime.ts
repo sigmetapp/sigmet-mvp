@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import type { Message } from '@/lib/dms';
+import { assertThreadId, type ThreadId } from '@/lib/dm/threadId';
 
 function createClientComponentClient() {
   return createClient(
@@ -28,7 +29,7 @@ export type MessageChange = RealtimePostgresChangesPayload<{
  * Returns [messages, setMessages] tuple.
  */
 export function useDmRealtime(
-  threadId: number | null,
+  threadId: ThreadId | null,
   initialMessages: Message[]
 ): [Message[], React.Dispatch<React.SetStateAction<Message[]>>] {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -39,10 +40,11 @@ export function useDmRealtime(
       return;
     }
 
-    // Ensure threadId is a number for filtering
-    const threadIdNum = typeof threadId === 'string' ? Number(threadId) : threadId;
-    if (!threadIdNum || isNaN(threadIdNum)) {
-      console.error('Invalid threadId in useDmRealtime:', threadId);
+    let normalizedThreadId: ThreadId;
+    try {
+      normalizedThreadId = assertThreadId(threadId, 'Invalid threadId in useDmRealtime');
+    } catch (err) {
+      console.error('Invalid threadId in useDmRealtime:', threadId, err);
       setMessages(initialMessages);
       return;
     }
@@ -54,14 +56,14 @@ export function useDmRealtime(
     let cancelled = false;
 
     const channel = supabase
-      .channel(`dms_messages:${threadIdNum}`)
+      .channel(`dms_messages:${normalizedThreadId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'dms_messages',
-          filter: `thread_id=eq.${threadIdNum}`,
+          filter: `thread_id=eq.${normalizedThreadId}`,
         },
         (payload: MessageChange) => {
           if (cancelled) return;
@@ -73,7 +75,7 @@ export function useDmRealtime(
           if (payload.eventType === 'INSERT' && row) {
             const newMessage: Message = {
               id: Number(row.id),
-              thread_id: Number(row.thread_id),
+              thread_id: assertThreadId(row.thread_id, 'Invalid thread_id in realtime payload'),
               sender_id: row.sender_id,
               kind: row.kind,
               body: row.body,

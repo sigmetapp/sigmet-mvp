@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import { assertThreadId } from '@/lib/dm/threadId';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
@@ -11,10 +12,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return await q;
     };
 
-    const threadId = Number(req.body?.thread_id);
+    const threadId = (() => {
+      try {
+        return assertThreadId(req.body?.thread_id, 'Invalid thread_id');
+      } catch {
+        return null;
+      }
+    })();
     const upTo = Number(req.body?.up_to_message_id);
 
-    if (!threadId || Number.isNaN(threadId) || !upTo || Number.isNaN(upTo)) {
+    if (!threadId || !upTo || Number.isNaN(upTo)) {
       return res.status(400).json({ ok: false, error: 'Invalid input' });
     }
 

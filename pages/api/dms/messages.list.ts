@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import { assertThreadId } from '@/lib/dm/threadId';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ ok: false, error: 'Method not allowed' });
@@ -7,8 +8,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { client, user } = await getAuthedClient(req);
 
-    const threadId = Number(req.query.thread_id);
-    if (!threadId || Number.isNaN(threadId)) {
+    const threadId = (() => {
+      try {
+        return assertThreadId(req.query.thread_id, 'Invalid thread_id');
+      } catch {
+        return null;
+      }
+    })();
+    if (!threadId) {
       return res.status(400).json({ ok: false, error: 'Invalid thread_id' });
     }
 

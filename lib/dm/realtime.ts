@@ -1,8 +1,9 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { assertThreadId, type ThreadId } from '@/lib/dm/threadId';
 
 // Channel management for threads
-let activeChannels = new Map<number, RealtimeChannel>();
+let activeChannels = new Map<ThreadId, RealtimeChannel>();
 
 export type MessageChange = {
   type: 'INSERT' | 'UPDATE' | 'DELETE';
@@ -17,17 +18,18 @@ export type TypingEvent = {
 /**
  * Get or create a channel for a thread
  */
-export function getThreadChannel(threadId: number): RealtimeChannel {
-  let channel = activeChannels.get(threadId);
+export function getThreadChannel(threadId: ThreadId): RealtimeChannel {
+  const normalizedThreadId = assertThreadId(threadId, 'Invalid thread ID for realtime channel');
+  let channel = activeChannels.get(normalizedThreadId);
   
   if (!channel) {
     channel = supabase
-      .channel(`thread:${threadId}`, {
+      .channel(`thread:${normalizedThreadId}`, {
         config: {
           broadcast: { self: true },
         },
       });
-    activeChannels.set(threadId, channel);
+    activeChannels.set(normalizedThreadId, channel);
   }
   
   return channel;
@@ -37,13 +39,14 @@ export function getThreadChannel(threadId: number): RealtimeChannel {
  * Subscribe to thread changes (messages, receipts, typing)
  */
 export async function subscribeToThread(
-  threadId: number,
+  threadId: ThreadId,
   callbacks: {
     onMessage?: (change: MessageChange) => void;
     onTyping?: (event: TypingEvent) => void;
   }
 ): Promise<() => void> {
-  const channel = getThreadChannel(threadId);
+  const normalizedThreadId = assertThreadId(threadId, 'Invalid thread ID for subscription');
+  const channel = getThreadChannel(normalizedThreadId);
   
   // Subscribe to message changes
   if (callbacks.onMessage) {
@@ -53,7 +56,7 @@ export async function subscribeToThread(
         event: '*',
         schema: 'public',
         table: 'dms_messages',
-        filter: `thread_id=eq.${threadId}`,
+        filter: `thread_id=eq.${normalizedThreadId}`,
       },
       (payload) => {
         callbacks.onMessage?.({
@@ -77,7 +80,7 @@ export async function subscribeToThread(
   try {
     const status = await channel.subscribe();
     if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR') {
-      console.log(`Subscribed to thread ${threadId}, status:`, status);
+      console.log(`Subscribed to thread ${normalizedThreadId}, status:`, status);
     }
   } catch (error) {
     console.error('Error subscribing to thread:', error);
@@ -88,7 +91,7 @@ export async function subscribeToThread(
   return async () => {
     try {
       await channel.unsubscribe();
-      activeChannels.delete(threadId);
+      activeChannels.delete(normalizedThreadId);
     } catch (error) {
       console.error('Error unsubscribing from thread:', error);
     }
@@ -99,12 +102,13 @@ export async function subscribeToThread(
  * Send typing indicator
  */
 export async function sendTypingIndicator(
-  threadId: number,
+  threadId: ThreadId,
   userId: string,
   typing: boolean
 ): Promise<void> {
   try {
-    const channel = getThreadChannel(threadId);
+    const normalizedThreadId = assertThreadId(threadId, 'Invalid thread ID for typing indicator');
+    const channel = getThreadChannel(normalizedThreadId);
     
     // Ensure channel is subscribed
     const state = (channel as any).state;

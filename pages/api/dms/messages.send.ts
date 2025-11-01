@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import { assertThreadId } from '@/lib/dm/threadId';
 
 // Simple in-memory rate limiter for development only.
 // For production, use a centralized store like Redis (INCR + EXPIRE)
@@ -40,11 +41,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const threadId = Number(req.body?.thread_id);
+    const threadId = (() => {
+      try {
+        return assertThreadId(req.body?.thread_id, 'Invalid thread_id');
+      } catch {
+        return null;
+      }
+    })();
     let body = (req.body?.body as string | undefined) ?? null;
     const attachments = (req.body?.attachments as unknown) ?? [];
 
-    if (!threadId || Number.isNaN(threadId)) {
+    if (!threadId) {
       return res.status(400).json({ ok: false, error: 'Invalid thread_id' });
     }
 
@@ -151,7 +158,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           sender_id: user.id, 
           kind: 'text', 
           body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
-          attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : null
+          attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : []
         })
         .select('*')
         .single();
