@@ -11,7 +11,7 @@ export default function SidebarShell({ user, children }: { user: User; children:
   const isLight = theme === "light";
 
   return (
-    <div className={`min-h-screen w-full transition-colors ${
+    <div className={`h-screen overflow-hidden w-full transition-colors ${
       isLight ? "bg-telegram-gradient text-telegram-text" : "bg-sigmet text-telegram-text"
     }`}>
       {/* Mobile top bar */}

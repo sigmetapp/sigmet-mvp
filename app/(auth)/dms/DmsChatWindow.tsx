@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread } from '@/lib/dms';
 import { useDmRealtime } from '@/hooks/useDmRealtime';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
-import { uploadAttachment, type DmAttachment } from '@/lib/dm/attachments';
+import { uploadAttachment, getSignedUrlForAttachment, type DmAttachment } from '@/lib/dm/attachments';
 
 type Props = {
   partnerId: string;
@@ -38,6 +38,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [messages, setMessages] = useDmRealtime(thread?.id || null, initialMessages);
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<number, Record<number, string>>>({});
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const presenceChannelRef = useRef<any>(null);
@@ -288,6 +289,48 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages, currentUserId, partnerId]);
 
+  // Load signed URLs for attachments
+  useEffect(() => {
+    if (!messages.length) return;
+
+    let cancelled = false;
+    const loadUrls = async () => {
+      const urlMap: Record<number, Record<number, string>> = {};
+      
+      for (const msg of messages) {
+        if (msg.deleted_at || !msg.attachments || !Array.isArray(msg.attachments)) continue;
+        
+        const msgUrls: Record<number, string> = {};
+        for (let i = 0; i < msg.attachments.length; i++) {
+          const att = msg.attachments[i] as DmAttachment;
+          if (!att || !att.path) continue;
+          
+          try {
+            const url = await getSignedUrlForAttachment(att, 3600); // 1 hour
+            if (!cancelled) {
+              msgUrls[i] = url;
+            }
+          } catch (err) {
+            console.error('Error loading attachment URL:', err);
+          }
+        }
+        
+        if (Object.keys(msgUrls).length > 0 && !cancelled) {
+          urlMap[msg.id] = msgUrls;
+        }
+      }
+      
+      if (!cancelled) {
+        setAttachmentUrls((prev) => ({ ...prev, ...urlMap }));
+      }
+    };
+
+    void loadUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [messages]);
+
   // Scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
@@ -512,7 +555,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
                   title="Days streak"
                 >
-                  <span className="text-xs leading-none" role="img" aria-label="fire">??</span>
+                  <span className="text-xs leading-none" role="img" aria-label="fire">🔥</span>
                   {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
                 </span>
               )}
@@ -568,19 +611,96 @@ export default function DmsChatWindow({ partnerId }: Props) {
                       }`}
                     >
                       <div
-                        className={`px-4 py-2 rounded-2xl ${
+                        className={`rounded-2xl ${
                           isMine
                             ? 'bg-gradient-to-br from-sky-500/80 to-fuchsia-500/80 text-white rounded-br-sm'
                             : 'bg-white/8 text-white rounded-bl-sm border border-white/10'
                         }`}
                       >
                         {msg.deleted_at ? (
-                          <div className="italic text-white/60">
+                          <div className="px-4 py-2 italic text-white/60">
                             Message deleted
                           </div>
                         ) : (
-                          <div className="whitespace-pre-wrap leading-relaxed">
-                            {msg.body}
+                          <div className="px-4 py-2">
+                            {/* Attachments */}
+                            {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                              <div className="space-y-2 mb-2">
+                                {msg.attachments.map((att, attIdx) => {
+                                  const attachment = att as DmAttachment;
+                                  const url = attachmentUrls[msg.id]?.[attIdx];
+                                  
+                                  if (!attachment || !url) return null;
+                                  
+                                  if (attachment.type === 'image') {
+                                    return (
+                                      <div key={attIdx} className="rounded-lg overflow-hidden max-w-full">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={url}
+                                          alt="Attachment"
+                                          className="max-w-full h-auto max-h-[400px] object-contain rounded-lg"
+                                          loading="lazy"
+                                        />
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  if (attachment.type === 'video') {
+                                    return (
+                                      <div key={attIdx} className="rounded-lg overflow-hidden max-w-full">
+                                        <video
+                                          src={url}
+                                          controls
+                                          className="max-w-full h-auto max-h-[400px] rounded-lg"
+                                        >
+                                          Your browser does not support video.
+                                        </video>
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  if (attachment.type === 'audio') {
+                                    return (
+                                      <div key={attIdx} className="rounded-lg overflow-hidden max-w-full">
+                                        <audio src={url} controls className="w-full">
+                                          Your browser does not support audio.
+                                        </audio>
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  // File type
+                                  const fileName = attachment.path.split('/').pop() || 'File';
+                                  const fileSize = attachment.size ? `${(attachment.size / 1024).toFixed(1)} KB` : '';
+                                  
+                                  return (
+                                    <a
+                                      key={attIdx}
+                                      href={url}
+                                      download={fileName}
+                                      className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition text-white/90"
+                                    >
+                                      <span className="text-lg">📎</span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium truncate">{fileName}</div>
+                                        {fileSize && (
+                                          <div className="text-xs text-white/60">{fileSize}</div>
+                                        )}
+                                      </div>
+                                      <span className="text-xs text-white/60">Download</span>
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            
+                            {/* Message body */}
+                            {msg.body && (
+                              <div className="whitespace-pre-wrap leading-relaxed">
+                                {msg.body}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
