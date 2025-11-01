@@ -159,7 +159,7 @@ function DmsInner() {
     <div className="flex gap-4 h-full overflow-hidden">
       {/* Partners list - left side */}
       <div className="w-80 flex-shrink-0">
-        <div className="card card-glow h-full flex flex-col">
+        <div className="card card-glow h-[600px] flex flex-col">
           <div className="px-4 py-3 border-b border-white/10">
             <h1 className="text-lg font-semibold text-white">Messages</h1>
           </div>
@@ -227,11 +227,11 @@ function DmsInner() {
       </div>
 
       {/* Chat window - right side */}
-      <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
+      <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
         {selectedPartnerId ? (
           <DmsChatWindow partnerId={selectedPartnerId} />
         ) : (
-          <div className="card card-glow h-full flex items-center justify-center">
+          <div className="card card-glow h-[600px] flex items-center justify-center">
             <div className="text-white/70 text-center">
               <div className="text-lg mb-2">Select a conversation</div>
               <div className="text-sm">Choose a user from the list to start messaging</div>
