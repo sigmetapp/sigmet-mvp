@@ -525,8 +525,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
     setMessages(withOptimistic);
 
     try {
-      // If no text but we have attachments, send empty string to avoid RLS issues
-      const messageBody = textToSend || (attachments.length > 0 ? '' : null);
+      // API endpoint will handle empty body with attachments automatically
+      // It uses zero-width space character which is invisible
+      const messageBody = textToSend || null;
       const sentMessage = await sendMessage(thread.id, messageBody, attachments as unknown[]);
       // Replace optimistic message with real one and ensure proper sorting
       setMessages((prev) => {
@@ -762,11 +763,13 @@ export default function DmsChatWindow({ partnerId }: Props) {
                           <div className="italic text-white/60 text-sm">
                             Message deleted
                           </div>
-                        ) : (
+                        ) : msg.body && msg.body.trim() ? (
                           <div className="whitespace-pre-wrap leading-relaxed text-sm">
                             {msg.body}
                           </div>
-                        )}
+                        ) : msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 ? (
+                          null // Only show attachments if no text
+                        ) : null}
                         
                         {showTime && (
                           <div className={`flex items-center gap-2 mt-1.5 ${isMine ? 'justify-end' : 'justify-start'}`}>

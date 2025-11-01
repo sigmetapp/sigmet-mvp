@@ -223,6 +223,7 @@ export async function listMessages(
 /**
  * Send a message in a thread.
  * Returns the created message.
+ * Uses API endpoint to bypass RLS policies.
  */
 export async function sendMessage(
   threadId: number,
@@ -244,54 +245,34 @@ export async function sendMessage(
     throw new Error('Unauthorized');
   }
 
-  // Ensure membership
-  const { data: membership, error: membershipError } = await supabase
-    .from('dms_thread_participants')
-    .select('thread_id')
-    .eq('thread_id', threadId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (membershipError) {
-    throw new Error(membershipError.message);
-  }
-  if (!membership) {
-    throw new Error('Forbidden');
+  // Get session token for API call
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error('Unauthorized');
   }
 
-  // Create message
-  // If body is null but we have attachments, use empty string to avoid RLS issues
-  const messageBody = body || (attachments.length > 0 ? '' : null);
-  
-  const { data: message, error: messageError } = await supabase
-    .from('dms_messages')
-    .insert({
-      thread_id: threadId,
-      sender_id: user.id,
-      kind: 'text',
-      body: messageBody,
-      attachments,
-    })
-    .select('*')
-    .single();
+  // Use API endpoint which handles RLS better and supports attachments without body
+  const response = await fetch('/api/dms/messages.send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+      body: JSON.stringify({
+        thread_id: threadId,
+        body: body || null, // API endpoint will handle empty body with attachments (uses zero-width space)
+        attachments: attachments.length > 0 ? attachments : [],
+      }),
+  });
 
-  if (messageError || !message) {
-    throw new Error(messageError?.message || 'Failed to send message');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to send message: ${response.statusText}`);
   }
 
-  // Update thread last message refs (best-effort)
-  try {
-    await supabase
-      .from('dms_threads')
-      .update({
-        last_message_id: message.id,
-        last_message_at: message.created_at,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', threadId);
-  } catch {
-    // Ignore update errors
+  const result = await response.json();
+  if (!result.ok || !result.message) {
+    throw new Error(result.error || 'Failed to send message');
   }
 
-  return message as Message;
+  return result.message as Message;
 }
