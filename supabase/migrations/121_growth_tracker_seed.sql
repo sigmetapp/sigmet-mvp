@@ -3,18 +3,18 @@ begin;
 
 -- Directions
 insert into public.growth_directions (slug, title, emoji, sort_index) values
-('learning','Learning & Knowledge','??',1),
-('career','Career & Projects','??',2),
-('finance','Finance & Stability','??',3),
-('health','Health & Fitness','??',4),
-('relationships','Relationships & Family','??',5),
-('community','Community & Society','??',6),
-('creativity','Creativity & Expression','??',7),
-('mindfulness','Mindfulness & Balance','?????',8),
-('personal','Personal Growth & Self-Awareness','??',9),
-('digital','Digital Skills & Tech','??',10),
-('education','Education & Mentorship','??',11),
-('purpose','Meaning & Purpose','???',12)
+('learning','Learning & Knowledge','🧠',1),
+('career','Career & Projects','💼',2),
+('finance','Finance & Stability','💰',3),
+('health','Health & Fitness','🧘',4),
+('relationships','Relationships & Family','❤️',5),
+('community','Community & Society','🌍',6),
+('creativity','Creativity & Expression','🎨',7),
+('mindfulness','Mindfulness & Balance','🧘‍♂️',8),
+('personal','Personal Growth & Self-Awareness','🌱',9),
+('digital','Digital Skills & Tech','🌐',10),
+('education','Education & Mentorship','📚',11),
+('purpose','Meaning & Purpose','🕊️',12)
 on conflict (slug) do nothing;
 
 -- Helper: get id by slug
