@@ -10,9 +10,9 @@ import { uploadAttachment, type DmAttachment, getSignedUrlForAttachment } from '
 import { subscribeToThread, sendTypingIndicator } from '@/lib/dm/realtime';
 import { assertThreadId } from '@/lib/dm/threadId';
 
-const INITIAL_MESSAGE_LIMIT = 20;
+const INITIAL_MESSAGE_LIMIT = 30; // Load more messages initially for better UX
 const BACKFILL_BATCH_LIMIT = 50;
-const MAX_BACKFILL_BATCHES = 3;
+const MAX_BACKFILL_BATCHES = 5; // Load more history in background
 
 type Props = {
   partnerId: string;
@@ -298,16 +298,17 @@ export default function DmsChatWindow({ partnerId }: Props) {
         setMessages(sorted);
         oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
         
-        // Scroll to bottom after messages are loaded
-        setTimeout(() => {
+        // Scroll to bottom immediately for faster perceived loading
+        requestAnimationFrame(() => {
           if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
           }
-        }, 300);
+        });
 
         const shouldPreloadOlder = sorted.length === INITIAL_MESSAGE_LIMIT;
         if (shouldPreloadOlder && oldestMessageIdRef.current !== null) {
           // Defer background loading to let the latest messages paint first
+          // Use shorter delay for faster background loading
           setTimeout(() => {
             if (cancelled || isPreloadingOlderRef.current) return;
             isPreloadingOlderRef.current = true;
@@ -334,6 +335,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
                   const orderedOlder = sortMessagesChronologically(olderMessages);
 
+                  // Use functional update to avoid race conditions
                   setMessages((prev) => mergeMessages(prev, orderedOlder));
 
                   beforeId = orderedOlder[0]?.id ?? null;
@@ -343,12 +345,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   if (olderMessages.length < BACKFILL_BATCH_LIMIT) {
                     break;
                   }
+                  
+                  // Small delay between batches to avoid overwhelming the server
+                  await new Promise(resolve => setTimeout(resolve, 100));
                 }
               } finally {
                 isPreloadingOlderRef.current = false;
               }
             })();
-          }, 250);
+          }, 150); // Reduced from 250ms to 150ms
         }
         
         // Calculate days streak after thread is loaded
@@ -426,30 +431,30 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages.length]);
 
-  // Play sound on new messages (from partner or own messages)
+  // Play sound notification when message is successfully sent
   useEffect(() => {
     if (messages.length === 0 || !currentUserId || !partnerId) return;
     
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage) return;
     
-    // Check if this is a new message (from partner or own)
+    // Check if this is a new message
     const isNewMessage = lastMessage.id !== lastMessageIdRef.current;
-    const isFromPartner = lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId;
     const isOwnMessage = lastMessage.sender_id === currentUserId;
     
-    if (isNewMessage && (isFromPartner || isOwnMessage)) {
+    // Only play sound for own messages (when sent successfully)
+    if (isNewMessage && isOwnMessage) {
       const prevLastId = lastMessageIdRef.current;
       lastMessageIdRef.current = lastMessage.id;
       
       // Skip sound for the first message when loading conversation
-      if (prevLastId === null) {
+      // and for optimistic messages (temporary IDs are very large)
+      if (prevLastId === null || lastMessage.id > Date.now() - 1000) {
         return;
       }
       
-      // Play notification sound
+      // Play a subtle success notification sound
       try {
-        // Create audio context for beep sound
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
@@ -457,14 +462,16 @@ export default function DmsChatWindow({ partnerId }: Props) {
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
         
-        oscillator.frequency.value = 800;
+        // Higher frequency for a more pleasant "sent" sound
+        oscillator.frequency.value = 1200;
         oscillator.type = 'sine';
         
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        // Softer volume and shorter duration
+        gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
         
         oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.3);
+        oscillator.stop(audioContext.currentTime + 0.15);
       } catch (err) {
         console.error('Error playing sound:', err);
       }
@@ -528,24 +535,24 @@ export default function DmsChatWindow({ partnerId }: Props) {
   // Scroll to bottom on new messages and when messages are initially loaded
   useEffect(() => {
     if (scrollRef.current) {
-      // Use setTimeout to ensure DOM is updated
-      setTimeout(() => {
+      // Use requestAnimationFrame for smoother scrolling
+      requestAnimationFrame(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-      }, 100);
+      });
     }
   }, [messages.length]);
 
   // Scroll to bottom when thread changes (new conversation opened)
   useEffect(() => {
     if (thread?.id && messages.length > 0 && scrollRef.current) {
-      // Delay to ensure messages are rendered
-      setTimeout(() => {
+      // Use requestAnimationFrame for immediate scroll
+      requestAnimationFrame(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-      }, 200);
+      });
     }
   }, [thread?.id, messages.length > 0]);
 
@@ -573,16 +580,30 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   // Handle send message with optimistic update
   async function handleSend() {
-    if (!thread || !thread.id || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
+    if (!thread || !thread.id || (!messageText.trim() && selectedFiles.length === 0)) return;
+    
+    // Don't block if already sending - allow queueing multiple messages
+    if (sending && selectedFiles.length === 0) {
+      // If uploading attachments, block to prevent issues
+      return;
+    }
 
     const threadId = thread.id;
 
     const textToSend = messageText.trim();
     const replyToId = replyingTo?.id || null;
+    const filesToUpload = [...selectedFiles];
+    
+    // Clear UI immediately for better responsiveness
     setMessageText('');
     setReplyingTo(null);
+    setSelectedFiles([]);
     setSending(true);
-    setUploadingAttachments(true);
+    
+    // Only show uploading state if we actually have files
+    if (filesToUpload.length > 0) {
+      setUploadingAttachments(true);
+    }
     
     // Clear typing indicator
     setIsTyping(false);
@@ -597,22 +618,24 @@ export default function DmsChatWindow({ partnerId }: Props) {
     let attachments: DmAttachment[] = [];
 
     // Upload files if any
-    if (selectedFiles.length > 0) {
+    if (filesToUpload.length > 0) {
       try {
         attachments = await Promise.all(
-          selectedFiles.map((file) => uploadAttachment(file))
+          filesToUpload.map((file) => uploadAttachment(file))
         );
-        setSelectedFiles([]);
       } catch (err: any) {
         console.error('Error uploading attachments:', err);
         setError(err?.message || 'Failed to upload attachments');
         setSending(false);
         setUploadingAttachments(false);
+        // Restore files to the UI on error
+        setSelectedFiles(filesToUpload);
+        setMessageText(textToSend);
         return;
+      } finally {
+        setUploadingAttachments(false);
       }
     }
-
-    setUploadingAttachments(false);
 
     // Optimistic update
     const optimisticMessage: Message = {
@@ -644,11 +667,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
       });
       
       // Scroll to bottom after sending
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-      }, 100);
+      });
     } catch (err: any) {
       console.error('Error sending message:', err);
       // Rollback on error
@@ -937,7 +960,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                 className="relative inline-flex items-center gap-2 px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-sm"
               >
                 {file.type.startsWith('image/') ? (
-                  <span className="text-xs">??</span>
+                  <span className="text-xs">???</span>
                 ) : file.type.startsWith('video/') ? (
                   <span className="text-xs">??</span>
                 ) : (
@@ -1073,7 +1096,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                 </span>
               ) : sending ? (
                 <span className="flex items-center gap-1">
-                  <span className="animate-pulse">?</span>
+                  <span className="animate-pulse">??</span>
                   Sending...
                 </span>
               ) : (

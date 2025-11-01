@@ -89,53 +89,71 @@ function DmsInner() {
           .limit(20);
 
         if (!cancelled && profiles) {
-          // Load message counts for last 24 hours for each partner
-          const profilesWithCounts = await Promise.all(
-            profiles.map(async (p) => {
-              try {
-                // Find common thread between current user and partner
-                const { data: partnerThreads } = await supabase
-                  .from('dms_thread_participants')
-                  .select('thread_id')
-                  .eq('user_id', p.user_id)
-                  .in('thread_id', threadIds);
-                
-                if (partnerThreads && partnerThreads.length > 0) {
-                  // Get the first common thread
-                  const commonThreadId = partnerThreads[0].thread_id;
-                  const last24h = new Date();
-                  last24h.setHours(last24h.getHours() - 24);
-                  
-                  const { count } = await supabase
-                    .from('dms_messages')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('thread_id', commonThreadId)
-                    .in('sender_id', [currentUserId, p.user_id])
-                    .gte('created_at', last24h.toISOString());
+          // Set profiles immediately for faster UI rendering
+          const basicProfiles = profiles.map((p) => ({
+            user_id: p.user_id,
+            username: p.username,
+            full_name: p.full_name,
+            avatar_url: p.avatar_url,
+            messages24h: 0,
+          }));
+          setPartners(basicProfiles);
+          
+          // Load message counts in background (non-blocking)
+          void (async () => {
+            try {
+              const profilesWithCounts = await Promise.all(
+                profiles.map(async (p) => {
+                  try {
+                    // Find common thread between current user and partner
+                    const { data: partnerThreads } = await supabase
+                      .from('dms_thread_participants')
+                      .select('thread_id')
+                      .eq('user_id', p.user_id)
+                      .in('thread_id', threadIds);
+                    
+                    if (partnerThreads && partnerThreads.length > 0) {
+                      // Get the first common thread
+                      const commonThreadId = partnerThreads[0].thread_id;
+                      const last24h = new Date();
+                      last24h.setHours(last24h.getHours() - 24);
+                      
+                      const { count } = await supabase
+                        .from('dms_messages')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('thread_id', commonThreadId)
+                        .in('sender_id', [currentUserId, p.user_id])
+                        .gte('created_at', last24h.toISOString());
+                      
+                      return {
+                        user_id: p.user_id,
+                        username: p.username,
+                        full_name: p.full_name,
+                        avatar_url: p.avatar_url,
+                        messages24h: count || 0,
+                      };
+                    }
+                  } catch (err) {
+                    console.error('Error loading message count for partner:', err);
+                  }
                   
                   return {
                     user_id: p.user_id,
                     username: p.username,
                     full_name: p.full_name,
                     avatar_url: p.avatar_url,
-                    messages24h: count || 0,
+                    messages24h: 0,
                   };
-                }
-              } catch (err) {
-                console.error('Error loading message count for partner:', err);
-              }
+                })
+              );
               
-              return {
-                user_id: p.user_id,
-                username: p.username,
-                full_name: p.full_name,
-                avatar_url: p.avatar_url,
-                messages24h: 0,
-              };
-            })
-          );
-          
-          setPartners(profilesWithCounts);
+              if (!cancelled) {
+                setPartners(profilesWithCounts);
+              }
+            } catch (err) {
+              console.error('Error loading message counts:', err);
+            }
+          })();
         }
       } catch (err) {
         console.error('Error loading partners:', err);
