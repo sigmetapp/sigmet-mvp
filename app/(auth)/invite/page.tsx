@@ -13,6 +13,7 @@ interface Invite {
   sent_at: string | null;
   accepted_at: string | null;
   token: string;
+  invite_code: string | null;
 }
 
 interface InviteStats {
@@ -235,10 +236,10 @@ export default function InvitePage() {
                 <thead>
                   <tr className="border-b border-gray-700">
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Email</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Invite Code</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Status</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Sent</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Accepted</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Token</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -246,13 +247,31 @@ export default function InvitePage() {
                     <tr key={invite.id} className="border-b border-gray-700/50">
                       <td className="py-3 px-4 text-sm text-white">{invite.invitee_email}</td>
                       <td className="py-3 px-4 text-sm">
+                        {invite.invite_code ? (
+                          <div className="flex items-center gap-2">
+                            <code className="px-2 py-1 bg-gray-700 text-blue-400 font-mono font-bold rounded text-sm">
+                              {invite.invite_code}
+                            </code>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(invite.invite_code!);
+                                alert('Invite code copied!');
+                              }}
+                              className="text-xs text-gray-400 hover:text-white"
+                              title="Copy code"
+                            >
+                              ??
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500 text-xs">Generating...</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-sm">
                         <span className={getStatusColor(invite.status)}>{invite.status}</span>
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.sent_at)}</td>
                       <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.accepted_at)}</td>
-                      <td className="py-3 px-4 text-sm text-gray-500 font-mono text-xs">
-                        {invite.token.substring(0, 8)}...
-                      </td>
                     </tr>
                   ))}
                 </tbody>

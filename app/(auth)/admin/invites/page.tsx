@@ -15,6 +15,7 @@ interface Invite {
   accepted_at: string | null;
   consumed_by_user_id: string | null;
   token: string;
+  invite_code: string | null;
 }
 
 export default function AdminInvitesPage() {
@@ -255,11 +256,11 @@ export default function AdminInvitesPage() {
                   <tr className="border-b border-gray-700">
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Inviter ID</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Email</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Invite Code</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Status</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Sent</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Accepted</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Consumed By</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Token</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -270,15 +271,21 @@ export default function AdminInvitesPage() {
                       </td>
                       <td className="py-3 px-4 text-sm text-white">{invite.invitee_email}</td>
                       <td className="py-3 px-4 text-sm">
+                        {invite.invite_code ? (
+                          <code className="px-2 py-1 bg-gray-700 text-blue-400 font-mono font-bold rounded text-sm">
+                            {invite.invite_code}
+                          </code>
+                        ) : (
+                          <span className="text-gray-500 text-xs">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-sm">
                         <span className={getStatusColor(invite.status)}>{invite.status}</span>
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.sent_at)}</td>
                       <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.accepted_at)}</td>
                       <td className="py-3 px-4 text-sm text-gray-400 font-mono text-xs">
                         {invite.consumed_by_user_id ? invite.consumed_by_user_id.substring(0, 8) + '...' : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-500 font-mono text-xs">
-                        {invite.token.substring(0, 8)}...
                       </td>
                     </tr>
                   ))}
