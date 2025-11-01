@@ -7,6 +7,7 @@ import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread
 import { useDmRealtime } from '@/hooks/useDmRealtime';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { uploadAttachment, getSignedUrlForAttachment, type DmAttachment } from '@/lib/dm/attachments';
+import twemoji from 'twemoji';
 
 type Props = {
   partnerId: string;
@@ -728,9 +729,17 @@ export default function DmsChatWindow({ partnerId }: Props) {
                             
                             {/* Message body */}
                             {msg.body && (
-                              <div className="whitespace-pre-wrap leading-relaxed">
-                                {msg.body}
-                              </div>
+                              <div 
+                                className="whitespace-pre-wrap leading-relaxed text-[1.1em] emoji-text"
+                                dangerouslySetInnerHTML={{
+                                  __html: twemoji.parse(msg.body || '', {
+                                    className: 'twemoji',
+                                    folder: 'svg',
+                                    ext: '.svg',
+                                    base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+                                  })
+                                }}
+                              />
                             )}
                           </div>
                         )}
