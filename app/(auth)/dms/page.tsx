@@ -43,7 +43,7 @@ function DmsInner() {
     })();
   }, []);
 
-  // Load recent conversation partners (from threads)
+  // Load all conversation partners (from threads with messages) + mutual follows
   useEffect(() => {
     if (!currentUserId) return;
 
@@ -52,243 +52,268 @@ function DmsInner() {
     (async () => {
       setLoading(true);
       try {
-        // Get threads where user is a participant
-        const { data: participants } = await supabase
-          .from('dms_thread_participants')
-          .select('thread_id')
-          .eq('user_id', currentUserId)
-          .limit(20);
-
-        if (cancelled || !participants || participants.length === 0) {
-          setPartners([]);
-          setSelectedPartnerId(null);
-          setLoading(false);
-          return;
-        }
-
-        const threadIds = participants.map((p) => p.thread_id);
-
-        // Normalize thread IDs for comparison
+        // Helper to normalize thread IDs
         const normalizeThreadId = (id: number | string | null | undefined): number | null => {
           if (id === null || id === undefined) return null;
           const numId = typeof id === 'string' ? Number.parseInt(id, 10) : id;
           return typeof numId === 'number' && Number.isFinite(numId) ? numId : null;
         };
 
-        // Get other participants from all threads first
-        const { data: otherParticipants } = await supabase
+        // Step 1: Get all partners from threads that have messages
+        // Find all threads where user is a participant AND there are messages
+        const { data: userThreads } = await supabase
           .from('dms_thread_participants')
-          .select('user_id, thread_id')
-          .in('thread_id', threadIds)
-          .neq('user_id', currentUserId);
-
-        if (cancelled || !otherParticipants || otherParticipants.length === 0) {
-          setPartners([]);
-          setSelectedPartnerId(null);
-          setLoading(false);
-          return;
-        }
-
-        // Get all unique thread IDs from other participants
-        const allThreadIdsFromParticipants = Array.from(
-          new Set(otherParticipants.map((p) => p.thread_id))
-        );
-
-        let validParticipants = otherParticipants;
-        let threadsWithMessages: Set<number> | null = null;
-
-        if (allThreadIdsFromParticipants.length > 0) {
-          const { data: messages, error: messagesError } = await supabase
-            .from('dms_messages')
-            .select('thread_id')
-            .in('thread_id', allThreadIdsFromParticipants);
-
-          if (messagesError) {
-            console.warn('[DMs] Falling back to participants without message filter:', messagesError);
-          } else {
-            const threadsWithMessagesLocal = new Set(
-              (messages || [])
-                .map((msg) => normalizeThreadId(msg.thread_id))
-                .filter((id): id is number => id !== null)
-            );
-
-            threadsWithMessages = threadsWithMessagesLocal;
-
-            console.log('[DMs] Debug:', {
-              totalThreadIds: threadIds.length,
-              totalOtherParticipants: otherParticipants.length,
-              totalThreadIdsFromParticipants: allThreadIdsFromParticipants.length,
-              messagesFound: messages?.length || 0,
-              threadsWithMessagesCount: threadsWithMessagesLocal.size,
-            });
-
-            validParticipants = otherParticipants.filter((participant) => {
-              const normalizedId = normalizeThreadId(participant.thread_id);
-              return normalizedId !== null && threadsWithMessagesLocal.has(normalizedId);
-            });
-
-            console.log('[DMs] Valid participants after filtering:', validParticipants.length);
-          }
-        }
-
-        if (cancelled || validParticipants.length === 0) {
-          setPartners([]);
-          setSelectedPartnerId(null);
-          setLoading(false);
-          return;
-        }
+          .select('thread_id')
+          .eq('user_id', currentUserId);
 
         const partnerThreadMap = new Map<string, number>();
-        for (const participant of validParticipants) {
-          const threadIdValue = participant.thread_id;
-          const normalizedThreadId =
-            typeof threadIdValue === 'string'
-              ? Number.parseInt(threadIdValue, 10)
-              : threadIdValue;
+        const allPartnerIds = new Set<string>();
 
-          if (
-            typeof normalizedThreadId === 'number' &&
-            Number.isFinite(normalizedThreadId) &&
-            !partnerThreadMap.has(participant.user_id)
-          ) {
-            partnerThreadMap.set(participant.user_id, normalizedThreadId);
+        if (userThreads && userThreads.length > 0) {
+          const threadIds = userThreads
+            .map((t) => normalizeThreadId(t.thread_id))
+            .filter((id): id is number => id !== null);
+
+          if (threadIds.length > 0) {
+            // Get threads that have messages
+            const { data: threadsWithMessages } = await supabase
+              .from('dms_messages')
+              .select('thread_id')
+              .in('thread_id', threadIds);
+
+            const threadsWithMessagesSet = new Set<number>();
+            if (threadsWithMessages) {
+              for (const msg of threadsWithMessages) {
+                const tid = normalizeThreadId(msg.thread_id);
+                if (tid !== null) {
+                  threadsWithMessagesSet.add(tid);
+                }
+              }
+            }
+
+            // Get other participants from threads with messages
+            const { data: otherParticipants } = await supabase
+              .from('dms_thread_participants')
+              .select('user_id, thread_id')
+              .in('thread_id', Array.from(threadsWithMessagesSet))
+              .neq('user_id', currentUserId);
+
+            if (otherParticipants) {
+              for (const participant of otherParticipants) {
+                const threadId = normalizeThreadId(participant.thread_id);
+                const userId = participant.user_id as string;
+                if (threadId !== null && userId && !partnerThreadMap.has(userId)) {
+                  partnerThreadMap.set(userId, threadId);
+                  allPartnerIds.add(userId);
+                }
+              }
+            }
           }
         }
 
-        const partnerIds = Array.from(partnerThreadMap.keys());
+        // Step 2: Get mutual follows (users I follow AND who follow me)
+        try {
+          const [{ data: iFollowRows }, { data: followMeRows }] = await Promise.all([
+            supabase
+              .from('follows')
+              .select('followee_id')
+              .eq('follower_id', currentUserId),
+            supabase
+              .from('follows')
+              .select('follower_id')
+              .eq('followee_id', currentUserId),
+          ]);
 
-        // Load profiles
+          const iFollowSet = new Set<string>();
+          const followMeSet = new Set<string>();
+
+          if (iFollowRows) {
+            for (const row of iFollowRows) {
+              const userId = row.followee_id as string;
+              if (userId && userId !== currentUserId) {
+                iFollowSet.add(userId);
+              }
+            }
+          }
+
+          if (followMeRows) {
+            for (const row of followMeRows) {
+              const userId = row.follower_id as string;
+              if (userId && userId !== currentUserId) {
+                followMeSet.add(userId);
+              }
+            }
+          }
+
+          // Add mutual follows (users who are in both sets)
+          for (const userId of iFollowSet) {
+            if (followMeSet.has(userId) && !partnerThreadMap.has(userId)) {
+              allPartnerIds.add(userId);
+              // For mutual follows without existing thread, set thread_id to null
+            }
+          }
+        } catch (followErr) {
+          console.warn('Error loading mutual follows (follows table may not exist):', followErr);
+        }
+
+        if (cancelled) return;
+
+        // Step 3: Load profiles for all partners
+        const partnerIdsArray = Array.from(allPartnerIds);
+        
+        if (partnerIdsArray.length === 0) {
+          setPartners([]);
+          setSelectedPartnerId(null);
+          setLoading(false);
+          return;
+        }
+
         const { data: profiles } = await supabase
           .from('profiles')
           .select('user_id, username, full_name, avatar_url')
-          .in('user_id', partnerIds)
-          .limit(20);
+          .in('user_id', partnerIdsArray);
 
-        if (!cancelled && profiles) {
-          // Get thread IDs that have messages for metadata query
-          const threadIdsForMeta = Array.from(partnerThreadMap.values());
+        if (cancelled || !profiles) {
+          setPartners([]);
+          setSelectedPartnerId(null);
+          setLoading(false);
+          return;
+        }
+
+        // Step 4: Get thread metadata for partners with threads
+        const threadIdsForMeta = Array.from(partnerThreadMap.values());
+        let threadMetaMap = new Map<number, { last_message_at: string | null; created_at: string }>();
+
+        if (threadIdsForMeta.length > 0) {
           const { data: threadMeta } = await supabase
             .from('dms_threads')
             .select('id, last_message_at, created_at')
             .in('id', threadIdsForMeta);
 
-          const threadMetaMap = new Map<number, { last_message_at: string | null; created_at: string }>();
-          for (const meta of threadMeta || []) {
-            const metaId = typeof meta.id === 'string' ? Number.parseInt(meta.id, 10) : meta.id;
-            if (typeof metaId === 'number' && Number.isFinite(metaId)) {
-              threadMetaMap.set(metaId, {
-                last_message_at: meta.last_message_at ?? null,
-                created_at: meta.created_at,
-              });
+          if (threadMeta) {
+            for (const meta of threadMeta) {
+              const metaId = normalizeThreadId(meta.id);
+              if (metaId !== null) {
+                threadMetaMap.set(metaId, {
+                  last_message_at: meta.last_message_at ?? null,
+                  created_at: meta.created_at,
+                });
+              }
             }
           }
+        }
 
-          const basePartners = profiles
-            .map((p) => {
-              const threadId = partnerThreadMap.get(p.user_id) ?? null;
-              const meta = threadId ? threadMetaMap.get(threadId) : null;
+        // Step 5: Build partners list
+        const basePartners = profiles
+          .map((p) => {
+            const userId = p.user_id;
+            const threadId = partnerThreadMap.get(userId) ?? null;
+            const meta = threadId ? threadMetaMap.get(threadId) : null;
+            return {
+              user_id: userId,
+              username: p.username,
+              full_name: p.full_name,
+              avatar_url: p.avatar_url,
+              thread_id: threadId,
+              messages24h: undefined as number | undefined,
+              last_message_at: meta?.last_message_at ?? null,
+              created_at: meta?.created_at ?? null,
+            };
+          })
+          .sort((a, b) => {
+            // Sort by: last message (desc), then created (desc), then mutual follows at the end
+            const hasMessagesA = a.thread_id !== null;
+            const hasMessagesB = b.thread_id !== null;
+            
+            if (hasMessagesA && !hasMessagesB) return -1;
+            if (!hasMessagesA && hasMessagesB) return 1;
+
+            const lastA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+            const lastB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+            if (lastA !== lastB) return lastB - lastA;
+            
+            const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return createdB - createdA;
+          })
+          .map(({ last_message_at: _last, created_at: _created, ...rest }) => rest);
+
+        setPartners(basePartners);
+
+        // Step 6: Handle query params
+        const partnerIdFromQuery = searchParams.get('partnerId');
+        if (partnerIdFromQuery) {
+          const existingPartner = basePartners.find((p) => p.user_id === partnerIdFromQuery);
+          if (existingPartner) {
+            setSelectedPartnerId(partnerIdFromQuery);
+          } else {
+            // Load profile for the partner from query params
+            try {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('user_id, username, full_name, avatar_url')
+                .eq('user_id', partnerIdFromQuery)
+                .maybeSingle();
+
+              if (profile && !cancelled) {
+                const newPartner: Profile = {
+                  ...profile,
+                  thread_id: null,
+                  messages24h: undefined,
+                };
+                setPartners((prev) => [newPartner, ...prev]);
+                setSelectedPartnerId(partnerIdFromQuery);
+              } else if (!cancelled) {
+                setSelectedPartnerId(partnerIdFromQuery);
+              }
+            } catch (err) {
+              console.error('Error loading partner from query:', err);
+              if (!cancelled) {
+                setSelectedPartnerId(partnerIdFromQuery);
+              }
+            }
+          }
+        } else {
+          setSelectedPartnerId((prev) => prev ?? basePartners[0]?.user_id ?? null);
+        }
+
+        // Step 7: Load 24h message counts for partners with threads
+        const last24h = new Date();
+        last24h.setHours(last24h.getHours() - 24);
+
+        void Promise.all(
+          basePartners.map(async (partner) => {
+            const threadId = partner.thread_id;
+            if (!threadId) {
+              return { user_id: partner.user_id, count: 0 };
+            }
+            try {
+              const { count } = await supabase
+                .from('dms_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('thread_id', threadId)
+                .is('deleted_at', null)
+                .gte('created_at', last24h.toISOString());
+
+              return { user_id: partner.user_id, count: count || 0 };
+            } catch (err) {
+              console.error('Error loading message count for partner:', err);
+              return { user_id: partner.user_id, count: 0 };
+            }
+          })
+        ).then((counts) => {
+          if (cancelled || !counts) return;
+          setPartners((prev) =>
+            prev.map((partner) => {
+              const match = counts.find((c) => c.user_id === partner.user_id);
+              if (!match) return partner;
               return {
-                user_id: p.user_id,
-                username: p.username,
-                full_name: p.full_name,
-                avatar_url: p.avatar_url,
-                thread_id: threadId,
-                messages24h: undefined,
-                last_message_at: meta?.last_message_at ?? null,
-                created_at: meta?.created_at ?? null,
+                ...partner,
+                messages24h: match.count,
               };
             })
-            .sort((a, b) => {
-              const lastA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-              const lastB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-              if (lastA !== lastB) return lastB - lastA;
-              const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
-              const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
-              return createdB - createdA;
-            })
-            .map(({ last_message_at: _last, created_at: _created, ...rest }) => rest);
-
-          setPartners(basePartners);
-          
-          // Check if there's a partnerId in query params
-          const partnerIdFromQuery = searchParams.get('partnerId');
-          if (partnerIdFromQuery) {
-            // Check if this partner is already in the list
-            const existingPartner = basePartners.find(p => p.user_id === partnerIdFromQuery);
-            if (existingPartner) {
-              setSelectedPartnerId(partnerIdFromQuery);
-            } else {
-              // Load profile for the partner from query params
-              (async () => {
-                try {
-                  const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('user_id, username, full_name, avatar_url')
-                    .eq('user_id', partnerIdFromQuery)
-                    .maybeSingle();
-                  
-                  if (profile && !cancelled) {
-                    // Add this partner to the list
-                    const newPartner: Profile = {
-                      ...profile,
-                      thread_id: null,
-                      messages24h: undefined,
-                    };
-                    setPartners((prev) => [newPartner, ...prev]);
-                    setSelectedPartnerId(partnerIdFromQuery);
-                  } else if (!cancelled) {
-                    // If not found, still select it (chat window will handle thread creation)
-                    setSelectedPartnerId(partnerIdFromQuery);
-                  }
-                } catch (err) {
-                  console.error('Error loading partner from query:', err);
-                  if (!cancelled) {
-                    setSelectedPartnerId(partnerIdFromQuery);
-                  }
-                }
-              })();
-            }
-          } else {
-            setSelectedPartnerId((prev) => prev ?? basePartners[0]?.user_id ?? null);
-          }
-
-          const last24h = new Date();
-          last24h.setHours(last24h.getHours() - 24);
-
-          void Promise.all(
-            basePartners.map(async (partner) => {
-              const threadId = partner.thread_id;
-              if (!threadId) {
-                return { user_id: partner.user_id, count: 0 };
-              }
-              try {
-                const { count } = await supabase
-                  .from('dms_messages')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('thread_id', threadId)
-                  .in('sender_id', [currentUserId, partner.user_id])
-                  .gte('created_at', last24h.toISOString());
-
-                return { user_id: partner.user_id, count: count || 0 };
-              } catch (err) {
-                console.error('Error loading message count for partner:', err);
-                return { user_id: partner.user_id, count: 0 };
-              }
-            })
-          ).then((counts) => {
-            if (cancelled || !counts) return;
-            setPartners((prev) =>
-              prev.map((partner) => {
-                const match = counts.find((c) => c.user_id === partner.user_id);
-                if (!match) return partner;
-                return {
-                  ...partner,
-                  messages24h: match.count,
-                };
-              })
-            );
-          });
-        }
+          );
+        });
       } catch (err) {
         console.error('Error loading partners:', err);
         if (!cancelled) {
