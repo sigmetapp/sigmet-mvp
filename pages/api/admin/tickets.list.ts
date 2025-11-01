@@ -51,7 +51,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (error) throw error;
 
-    return res.status(200).json({ tickets: data || [] });
+    // Get user emails and usernames for tickets
+    const tickets = data || [];
+    const userIds = [...new Set(tickets.map((t: any) => t.user_id))].filter(Boolean);
+    const userInfoMap: Record<string, { email?: string; username?: string }> = {};
+
+    if (userIds.length > 0) {
+      // Get emails from auth.users
+      const { data: usersData } = await admin.auth.admin.listUsers();
+      for (const user of usersData?.users || []) {
+        if (userIds.includes(user.id)) {
+          userInfoMap[user.id] = { email: user.email };
+        }
+      }
+
+      // Get usernames from profiles
+      const { data: profilesData } = await admin
+        .from('profiles')
+        .select('user_id, username')
+        .in('user_id', userIds);
+
+      for (const profile of profilesData || []) {
+        if (profile?.user_id && profile?.username) {
+          userInfoMap[profile.user_id] = {
+            ...userInfoMap[profile.user_id],
+            username: profile.username,
+          };
+        }
+      }
+    }
+
+    // Attach user info to tickets
+    const ticketsWithUsers = tickets.map((ticket: any) => ({
+      ...ticket,
+      user_email: userInfoMap[ticket.user_id]?.email || null,
+      user_username: userInfoMap[ticket.user_id]?.username || null,
+    }));
+
+    return res.status(200).json({ tickets: ticketsWithUsers });
   } catch (e: any) {
     console.error('admin.tickets.list error', e);
     return res.status(500).json({ error: e?.message || 'Internal error' });

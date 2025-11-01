@@ -85,7 +85,7 @@ export default function Footer() {
               <>
                 <Link href="/settings" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Settings</Link>
                 <span className={isLight ? "text-black/30" : "text-white/30"}>•</span>
-                <Link href="/settings#tickets" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Ticket Management</Link>
+                <Link href="/admin/tickets" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Ticket Management</Link>
               </>
             )}
             <a href="https://sigmet.app" target="_blank" rel="noreferrer" className={isLight ? "hover:text-black" : "hover:text-white"}>
