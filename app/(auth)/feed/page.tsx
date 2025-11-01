@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { RequireAuth } from "@/components/RequireAuth";
 import Button from "@/components/Button";
+import { useTheme } from "@/components/ThemeProvider";
 
 export default function FeedPage() {
   return (
@@ -35,6 +36,8 @@ type Comment = {
 };
 
 function FeedInner() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const [text, setText] = useState("");
@@ -587,8 +590,8 @@ function FeedInner() {
       <div className="mb-6 md:mb-8">
         <div className="flex items-end justify-between">
           <div>
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight gradient-text">Your feed</h1>
-            <p className="text-white/70 mt-1">Share progress and see what others are building.</p>
+            <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? "bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent" : "gradient-text"}`}>Your feed</h1>
+            <p className={`mt-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Share progress and see what others are building.</p>
           </div>
           <div className="hidden sm:block">
             <Button onClick={() => setComposerOpen(true)} variant="primary" className="shadow-md" icon={<Plus />}>Create post</Button>
@@ -611,8 +614,12 @@ function FeedInner() {
                     onClick={() => setActiveDirection(id)}
                     className={`px-3 py-1.5 rounded-full text-sm transition border ${
                       active
-                        ? "bg-white text-black border-white"
-                        : "text-white/80 border-white/20 hover:bg-white/10"
+                        ? isLight
+                          ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                          : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                        : isLight
+                        ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
+                        : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
                     }`}
                   >
                     {label}
@@ -625,12 +632,12 @@ function FeedInner() {
 
         {/* Feed */}
         {loading ? (
-          <div className="text-white/60">Loading…</div>
+          <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading…</div>
         ) : (
           posts.map((p) => (
             <div
               key={p.id}
-              className="card card-glow p-4 md:p-6 space-y-4 transition-shadow hover:shadow-[0_12px_60px_rgba(0,0,0,0.45)]"
+              className="telegram-card-feature p-4 md:p-6 space-y-4"
               onMouseEnter={() => addViewOnce(p.id)}
             >
               {/* header */}
@@ -648,13 +655,13 @@ function FeedInner() {
                           className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
                         />
                         <div className="flex flex-col min-w-0">
-                          <div className="text-sm text-white truncate">{username}</div>
+                          <div className={`text-sm truncate ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{username}</div>
                         </div>
                       </>
                     );
                   })()}
                 </div>
-                <div className="relative flex items-center gap-2 text-xs text-white/60">
+                <div className={`relative flex items-center gap-2 text-xs ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                   <span>{new Date(p.created_at).toLocaleString()}</span>
                   {uid === p.user_id && editingId !== p.id && (
                     <div className="ml-2">
@@ -668,14 +675,22 @@ function FeedInner() {
                         ⋯
                       </Button>
                       {openMenuFor === p.id && (
-                        <div className="absolute right-0 mt-2 w-40 rounded-xl border border-white/10 bg-[#0f1628] shadow-[0_12px_40px_rgba(0,0,0,0.45)] z-10">
+                        <div className={`absolute right-0 mt-2 w-40 rounded-xl border backdrop-blur-md z-10 transition-colors ${
+                          isLight
+                            ? "border-telegram-blue/20 bg-white/90 shadow-[0_8px_24px_rgba(51,144,236,0.15)]"
+                            : "border-telegram-blue/30 bg-[rgba(15,22,35,0.95)] shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+                        }`}>
                           <button
                             onClick={() => {
                               setOpenMenuFor(null);
                               setEditingId(p.id);
                               setEditBody(p.body || "");
                             }}
-                            className="w-full text-left px-3 py-2 text-white/90 hover:bg-white/10 rounded-t-xl"
+                            className={`w-full text-left px-3 py-2 rounded-t-xl transition ${
+                              isLight
+                                ? "text-telegram-text hover:bg-telegram-blue/10"
+                                : "text-telegram-text hover:bg-telegram-blue/15"
+                            }`}
                           >
                             Edit
                           </button>
@@ -684,7 +699,11 @@ function FeedInner() {
                               setOpenMenuFor(null);
                               deletePost(p);
                             }}
-                            className="w-full text-left px-3 py-2 text-red-300 hover:bg-white/10 rounded-b-xl"
+                            className={`w-full text-left px-3 py-2 rounded-b-xl transition ${
+                              isLight
+                                ? "text-red-600 hover:bg-red-50"
+                                : "text-red-400 hover:bg-red-500/10"
+                            }`}
                           >
                             Delete
                           </button>
@@ -701,7 +720,7 @@ function FeedInner() {
                   <textarea
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
-                    className="w-full bg-transparent border border-white/10 rounded-2xl p-3 outline-none"
+                    className={`input w-full rounded-2xl p-3 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
                   />
                   <div className="flex gap-2">
                     <Button onClick={() => saveEdit(p)} variant="primary">Save</Button>
@@ -710,12 +729,12 @@ function FeedInner() {
                 </div>
               ) : (
                 <>
-                  {p.body && <p className="leading-relaxed text-white">{p.body}</p>}
+                  {p.body && <p className={`leading-relaxed ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
                   {p.image_url && (
-                    <img src={p.image_url} loading="lazy" className="rounded-2xl border border-white/10" alt="post image" />
+                    <img src={p.image_url} loading="lazy" className={`rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
                   )}
                   {p.video_url && (
-                    <video controls preload="metadata" className="w-full rounded-2xl border border-white/10">
+                    <video controls preload="metadata" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}>
                       <source src={p.video_url} />
                     </video>
                   )}
@@ -725,7 +744,7 @@ function FeedInner() {
               {/* author actions moved to header near date */}
 
               {/* footer */}
-              <div className="flex items-center gap-5 text-white/80">
+              <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                 <div className="flex items-center gap-1" title="Views">
                   <Eye />
                   <span className="text-sm">{p.views ?? 0}</span>
@@ -774,7 +793,7 @@ function FeedInner() {
               </div>
 
                 <button
-                  className="ml-auto text-sm underline hover:no-underline"
+                  className={`ml-auto text-sm underline hover:no-underline transition ${isLight ? "text-telegram-blue hover:text-telegram-blue-dark" : "text-telegram-blue-light hover:text-telegram-blue"}`}
                   onClick={async () => {
                     const willOpen = !openComments[p.id];
                     setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
@@ -804,8 +823,8 @@ function FeedInner() {
                       const children = byParent[key] || [];
                       return children.map((c) => (
                         <div key={c.id} className={`mt-2 ${depth === 0 ? "" : "ml-4"}`}>
-                          <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-sm">
-                            <div className="text-xs text-white/60 flex items-center justify-between">
+                          <div className={`telegram-card-glow rounded-xl p-2 text-sm ${isLight ? "" : ""}`}>
+                            <div className={`text-xs flex items-center justify-between ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                               <div className="flex items-center gap-2 min-w-0">
                                 {(() => {
                                   const prof = c.user_id ? commenterProfiles[c.user_id] : undefined;
@@ -821,17 +840,17 @@ function FeedInner() {
                               </div>
                               <span>{new Date(c.created_at).toLocaleString()}</span>
                             </div>
-                            {c.body && <div className="mt-1 whitespace-pre-wrap">{c.body}</div>}
+                            {c.body && <div className={`mt-1 whitespace-pre-wrap ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{c.body}</div>}
                             {c.media_url && (
                               c.media_url.match(/\.(mp4|webm|ogg)(\?|$)/i) ? (
-                                <video controls preload="metadata" className="mt-2 w-full rounded-xl border border-white/10">
+                                <video controls preload="metadata" className={`mt-2 w-full rounded-xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}>
                                   <source src={c.media_url} />
                                 </video>
                               ) : (
                                 <img
                                   src={c.media_url}
                                   loading="lazy"
-                                  className="mt-2 rounded-xl border border-white/10 max-h-80 object-contain"
+                                  className={`mt-2 rounded-xl border max-h-80 object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
                                   alt="comment media"
                                 />
                               )
@@ -839,8 +858,14 @@ function FeedInner() {
                             <div className="mt-2 flex items-center gap-2 text-xs">
                               <button
                                 onClick={() => voteComment(c.id, 1)}
-                                className={`px-2 py-1 rounded-lg border ${
-                                  myCommentVotes[c.id] === 1 ? "bg-emerald-300 text-black border-emerald-300" : "border-white/20 hover:bg-white/10"
+                                className={`px-2 py-1 rounded-lg border transition ${
+                                  myCommentVotes[c.id] === 1
+                                    ? isLight
+                                      ? "bg-emerald-500 text-white border-emerald-500"
+                                      : "bg-emerald-400 text-white border-emerald-400"
+                                    : isLight
+                                    ? "border-telegram-blue/30 hover:bg-emerald-50"
+                                    : "border-telegram-blue/30 hover:bg-emerald-400/10"
                                 }`}
                               >
                                 +
@@ -867,7 +892,7 @@ function FeedInner() {
                                   value={replyInput[c.id] || ""}
                                   onChange={(e) => setReplyInput((prev) => ({ ...prev, [c.id]: e.target.value }))}
                                   placeholder="Write a reply…"
-                                  className="input bg-transparent border border-white/10 py-2 focus:ring-0"
+                                  className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
                                 />
                                 <button
                                   onClick={() => {
@@ -898,7 +923,7 @@ function FeedInner() {
                         }))
                       }
                       placeholder="Write a comment…"
-                      className="input bg-transparent border border-white/10 py-2 focus:ring-0"
+                      className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
                     />
                     <input
                       id={`cfile-${p.id}`}
@@ -910,11 +935,15 @@ function FeedInner() {
                         setCommentFile((prev) => ({ ...prev, [p.id]: f }));
                       }}
                     />
-                    <label htmlFor={`cfile-${p.id}`} className="px-3 py-2 rounded-xl border border-white/20 text-white/80 hover:bg-white/10 text-sm cursor-pointer">
+                    <label htmlFor={`cfile-${p.id}`} className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
+                      isLight
+                        ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
+                        : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                    }`}>
                       📎
                     </label>
                     {commentFile[p.id] && (
-                      <span className="text-xs text-white/60 truncate max-w-[120px]">{commentFile[p.id]?.name}</span>
+                      <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
                     )}
                     <button onClick={() => addComment(p.id)} className="btn btn-primary">
                       Send
@@ -941,16 +970,16 @@ function FeedInner() {
       {composerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            className="absolute inset-0 bg-black/90"
+            className={`absolute inset-0 ${isLight ? "bg-black/50" : "bg-black/80"}`}
             onClick={() => !publishing && setComposerOpen(false)}
           />
           <div className="relative z-10 w-full max-w-xl mx-auto p-4">
-            <div className="card p-4 md:p-6 shadow-[0_8px_40px_rgba(0,0,0,0.45)] space-y-4">
+            <div className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? "" : ""}`}>
               <div className="flex items-center justify-between">
-                <div className="text-white/80 font-medium">Create post</div>
+                <div className={`font-medium ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create post</div>
                 <button
                   onClick={() => !publishing && setComposerOpen(false)}
-                  className="text-white/60 hover:text-white"
+                  className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
                   aria-label="Close"
                 >
                   ✕
@@ -960,7 +989,7 @@ function FeedInner() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="What do you want to share?"
-                className="w-full bg-transparent outline-none placeholder-white/40 min-h-[120px] text.base md:text-lg text-white"
+                className={`input w-full outline-none min-h-[120px] text.base md:text-lg ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
               />
               <input
                 ref={unifiedFileRef}
@@ -978,12 +1007,16 @@ function FeedInner() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => unifiedFileRef.current?.click()}
-                  className="px-3 py-2 rounded-xl border border-white/20 text-white/80 hover:bg-white/10 text-sm"
+                  className={`px-3 py-2 rounded-xl border text-sm transition ${
+                    isLight
+                      ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
+                      : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                  }`}
                 >
                   📎 Media
                 </button>
                 {(img || vid) && (
-                  <span className="text-white/60 text-sm">
+                  <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                     {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
                   </span>
                 )}
