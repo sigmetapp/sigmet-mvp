@@ -7,44 +7,51 @@ import { RequireAuth } from '@/components/RequireAuth';
 
 interface Invite {
   id: string;
+  inviter_user_id: string;
   invitee_email: string;
   status: 'pending' | 'accepted' | 'expired' | 'revoked';
   created_at: string;
   sent_at: string | null;
   accepted_at: string | null;
+  consumed_by_user_id: string | null;
   token: string;
 }
 
-interface InviteStats {
-  user_id: string;
-  total_sent: number;
-  accepted_count: number;
-  active_count: number;
-}
-
-export default function InvitePage() {
+export default function AdminInvitesPage() {
   const [email, setEmail] = useState('');
+  const [targetInviterId, setTargetInviterId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
-  const [stats, setStats] = useState<InviteStats | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadInvites();
-    loadStats();
     checkAdmin();
+    loadInvites();
   }, []);
 
   const checkAdmin = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+
       const { data, error } = await supabase.rpc('is_admin_uid');
       if (error) throw error;
-      setIsAdmin(data ?? false);
+      
+      const adminStatus = data ?? false;
+      setIsAdmin(adminStatus);
+
+      if (!adminStatus && typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
     } catch (err) {
       console.error('Error checking admin status:', err);
       setIsAdmin(false);
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
     }
   };
 
@@ -53,31 +60,14 @@ export default function InvitePage() {
       const { data, error } = await supabase
         .from('invites')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (error) throw error;
       setInvites(data || []);
     } catch (err: any) {
       console.error('Error loading invites:', err);
       setError(err.message || 'Failed to load invites');
-    }
-  };
-
-  const loadStats = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('invite_stats')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
-      setStats(data || { user_id: user.id, total_sent: 0, accepted_count: 0, active_count: 0 });
-    } catch (err: any) {
-      console.error('Error loading stats:', err);
     }
   };
 
@@ -95,29 +85,37 @@ export default function InvitePage() {
     }
 
     try {
-      const { data, error } = await supabase.rpc('send_invite', {
+      const params: { invitee_email: string; target_inviter?: string } = {
         invitee_email: email.trim().toLowerCase()
-      });
+      };
+
+      // If target inviter ID is provided, use it; otherwise use null (will default to admin's own ID)
+      if (targetInviterId.trim()) {
+        params.target_inviter = targetInviterId.trim();
+      }
+
+      const { data, error } = await supabase.rpc('admin_create_invite', params);
 
       if (error) {
-        // Handle specific error messages
-        const errorMsg = error.message || 'Failed to send invite';
+        const errorMsg = error.message || 'Failed to create invite';
         setError(errorMsg);
         return;
       }
 
-      setSuccess('Invite sent successfully!');
+      setSuccess('Invite created successfully!');
       setEmail('');
+      setTargetInviterId('');
       await loadInvites();
-      await loadStats();
 
       // PostHog event
       ph.capture('invite_sent', {
         invite_id: data,
-        invitee_email: email.trim().toLowerCase()
+        invitee_email: email.trim().toLowerCase(),
+        admin_created: true,
+        target_inviter: params.target_inviter || currentUserId
       });
     } catch (err: any) {
-      setError(err.message || 'Failed to send invite');
+      setError(err.message || 'Failed to create invite');
     } finally {
       setLoading(false);
     }
@@ -149,43 +147,38 @@ export default function InvitePage() {
     });
   };
 
+  if (isAdmin === null) {
+    return (
+      <RequireAuth>
+        <div className="max-w-4xl mx-auto p-6">
+          <div className="text-white">Loading...</div>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
     <RequireAuth>
-      <div className="max-w-4xl mx-auto p-6">
-        <h1 className="text-2xl font-semibold text-white mb-6">Invite System</h1>
+      <div className="max-w-6xl mx-auto p-6">
+        <h1 className="text-2xl font-semibold text-white mb-2">Admin: Invite Management</h1>
+        <p className="text-gray-400 mb-6">Create invites without the 3 invite limit. Can specify inviter_user_id.</p>
 
-        {/* Admin Notice */}
-        {isAdmin && (
-          <div className="mb-4 p-3 bg-blue-500/20 border border-blue-500/50 rounded-lg">
-            <p className="text-blue-300 text-sm">Admin mode: You can create invites without the 3 invite limit.</p>
-          </div>
-        )}
+        {/* Admin Status */}
+        <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+          <p className="text-green-300 text-sm">? Admin access confirmed. You can create unlimited invites.</p>
+        </div>
 
-        {/* Stats Cards */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <div className="text-gray-400 text-sm mb-1">Total Sent</div>
-              <div className="text-2xl font-bold text-white">{stats.total_sent}</div>
-            </div>
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <div className="text-gray-400 text-sm mb-1">Accepted</div>
-              <div className="text-2xl font-bold text-green-400">{stats.accepted_count}</div>
-            </div>
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <div className="text-gray-400 text-sm mb-1">Active (Pending + Accepted)</div>
-              <div className="text-2xl font-bold text-yellow-400">{stats.active_count} / 3</div>
-            </div>
-          </div>
-        )}
-
-        {/* Send Invite Form */}
+        {/* Create Invite Form */}
         <div className="bg-gray-800 p-6 rounded-lg mb-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Send Invite</h2>
+          <h2 className="text-lg font-semibold text-white mb-4">Create Invite</h2>
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
               <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                Email Address
+                Email Address *
               </label>
               <input
                 type="email"
@@ -199,6 +192,24 @@ export default function InvitePage() {
               />
               <p className="mt-1 text-xs text-gray-400">
                 Only single email allowed. Batch invites are not permitted.
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label htmlFor="targetInviter" className="block text-sm font-medium text-gray-300 mb-2">
+                Target Inviter User ID (Optional)
+              </label>
+              <input
+                type="text"
+                id="targetInviter"
+                value={targetInviterId}
+                onChange={(e) => setTargetInviterId(e.target.value)}
+                placeholder="Leave empty to use your own ID"
+                className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                disabled={loading}
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                If provided, the invite will be created on behalf of this user. Otherwise, uses your admin user ID.
               </p>
             </div>
 
@@ -219,37 +230,53 @@ export default function InvitePage() {
               disabled={loading || !email.trim()}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              {loading ? 'Sending...' : 'Send Invite'}
+              {loading ? 'Creating...' : 'Create Invite'}
             </button>
           </form>
         </div>
 
-        {/* Invites List */}
+        {/* All Invites List */}
         <div className="bg-gray-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold text-white mb-4">Your Invites</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">All Invites (Last 100)</h2>
+            <button
+              onClick={loadInvites}
+              className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition text-sm"
+            >
+              Refresh
+            </button>
+          </div>
           {invites.length === 0 ? (
-            <p className="text-gray-400">No invites yet. Send your first invite above.</p>
+            <p className="text-gray-400">No invites found.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-700">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Inviter ID</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Email</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Status</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Sent</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Accepted</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Consumed By</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Token</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invites.map((invite) => (
                     <tr key={invite.id} className="border-b border-gray-700/50">
+                      <td className="py-3 px-4 text-sm text-gray-400 font-mono text-xs">
+                        {invite.inviter_user_id.substring(0, 8)}...
+                      </td>
                       <td className="py-3 px-4 text-sm text-white">{invite.invitee_email}</td>
                       <td className="py-3 px-4 text-sm">
                         <span className={getStatusColor(invite.status)}>{invite.status}</span>
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.sent_at)}</td>
                       <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.accepted_at)}</td>
+                      <td className="py-3 px-4 text-sm text-gray-400 font-mono text-xs">
+                        {invite.consumed_by_user_id ? invite.consumed_by_user_id.substring(0, 8) + '...' : '-'}
+                      </td>
                       <td className="py-3 px-4 text-sm text-gray-500 font-mono text-xs">
                         {invite.token.substring(0, 8)}...
                       </td>

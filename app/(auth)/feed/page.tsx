@@ -256,6 +256,10 @@ function FeedInner() {
         const newPost = data as Post;
         setPosts((prev) => [newPost, ...prev]);
         setCommentCounts((prev) => ({ ...prev, [newPost.id]: 0 }));
+        
+        // Track first post activity
+        const { trackUserActivity } = await import("@/lib/invite-tracking");
+        await trackUserActivity(uid, "first_post");
       }
       setText("");
       setImg(null);
