@@ -5,6 +5,7 @@ import Button from '@/components/Button';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import CountryCitySelect from '@/components/CountryCitySelect';
+import { useTheme } from '@/components/ThemeProvider';
 
 export default function ProfilePage() {
   return (
@@ -15,6 +16,8 @@ export default function ProfilePage() {
 }
 
 function ProfileSettings() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const [loading, setLoading] = useState(true);
@@ -72,21 +75,21 @@ function ProfileSettings() {
     }
   }
 
-  if (loading) return <div className="p-6 text-white/70">Loading...</div>;
+  if (loading) return <div className={`p-6 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Loading...</div>;
 
   return (
     <main className="max-w-2xl mx-auto p-6">
-      <div className="card p-6 space-y-5">
-        <h1 className="text-white text-xl font-semibold">Profile settings</h1>
+      <div className="telegram-card-glow p-6 space-y-5">
+        <h1 className={`text-xl font-semibold ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Profile settings</h1>
 
         <div className="flex items-center gap-4">
           <img
             src={profile.avatar_url || AVATAR_FALLBACK}
-            className="w-16 h-16 rounded-full object-cover"
+            className={`w-16 h-16 rounded-full object-cover border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
             alt="avatar"
           />
           <div>
-            <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-white" />
+            <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className={`${isLight ? "text-telegram-text" : "text-telegram-text"}`} />
             <Button onClick={uploadAvatar} variant="secondary" size="sm" className="ml-2">
               Upload
             </Button>
@@ -148,9 +151,9 @@ function ProfileSettings() {
                 name="online_status"
                 checked={profile.show_online_status !== false}
                 onChange={() => setProfile({ ...profile, show_online_status: true })}
-                className="text-white"
+                className={isLight ? "text-telegram-blue" : "text-telegram-blue-light"}
               />
-              <span className="text-white/90">Show online</span>
+              <span className={isLight ? "text-telegram-text" : "text-telegram-text"}>Show online</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -158,14 +161,14 @@ function ProfileSettings() {
                 name="online_status"
                 checked={profile.show_online_status === false}
                 onChange={() => setProfile({ ...profile, show_online_status: false })}
-                className="text-white"
+                className={isLight ? "text-telegram-blue" : "text-telegram-blue-light"}
               />
-              <span className="text-white/90">Don't show online</span>
+              <span className={isLight ? "text-telegram-text" : "text-telegram-text"}>Don't show online</span>
             </label>
           </div>
         </div>
 
-        {note && <div className="text-white/70 text-sm">{note}</div>}
+        {note && <div className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{note}</div>}
         <Button onClick={saveProfile} variant="primary" className="w-full">
           Save
         </Button>

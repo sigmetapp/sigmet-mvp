@@ -6,21 +6,12 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
+import { useTheme } from '@/components/ThemeProvider';
 
 export default function SignupPage() {
   const router = useRouter();
-
-  const colors = {
-    bg: '#0d1117',
-    surface: '#161b22',
-    text: '#c9d1d9',
-    muted: '#8b949e',
-    border: '#30363d',
-    primary: '#2ea043',
-    primaryHover: '#3fb950',
-    accent: '#58a6ff',
-    danger: '#f85149',
-  } as const;
+  const { theme } = useTheme();
+  const isLight = theme === "light";
 
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
@@ -99,7 +90,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div style={{ backgroundColor: colors.bg, minHeight: '100vh', color: colors.text }}>
+    <div className={isLight ? "bg-telegram-gradient" : "bg-sigmet"} style={{ minHeight: '100vh' }}>
       <Head>
         <title>Sign up | Sigmet</title>
         <meta name="description" content="Create your Sigmet account" />
@@ -108,17 +99,18 @@ export default function SignupPage() {
       <main style={container}>
         <section className="grid">
           <div className="left">
-            <h1 className="title">Create your Sigmet account</h1>
-            <p className="subtitle">
+            <h1 className={`title ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create your Sigmet account</h1>
+            <p className={`subtitle ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
               Join Sigmet to build your social weight through growth and purpose.
             </p>
 
-            <form onSubmit={handleSubmit} className="formCard">
+            <form onSubmit={handleSubmit} className={`formCard ${isLight ? "telegram-card-glow" : "telegram-card-glow"}`}>
               <div className="formRow">
-                <label htmlFor="fullName">Full name</label>
+                <label htmlFor="fullName" className="label">Full name</label>
                 <input
                   id="fullName"
                   type="text"
+                  className="input"
                   placeholder="Alex Doe"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
@@ -126,10 +118,11 @@ export default function SignupPage() {
               </div>
 
               <div className="formRow">
-                <label htmlFor="email">Email</label>
+                <label htmlFor="email" className="label">Email</label>
                 <input
                   id="email"
                   type="email"
+                  className="input"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -138,10 +131,11 @@ export default function SignupPage() {
               </div>
 
               <div className="formRow">
-                <label htmlFor="password">Password</label>
+                <label htmlFor="password" className="label">Password</label>
                 <input
                   id="password"
                   type="password"
+                  className="input"
                   placeholder="Minimum 6 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -183,9 +177,9 @@ export default function SignupPage() {
               </div>
             </form>
 
-            <div className="tipsCard">
-              <h3>Quick tips</h3>
-              <ul>
+            <div className={`tipsCard ${isLight ? "telegram-card-glow" : "telegram-card-glow"}`}>
+              <h3 className={isLight ? "text-telegram-text" : "text-telegram-text"}>Quick tips</h3>
+              <ul className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>
                 <li>Use a valid email to receive the confirmation link.</li>
                 <li>After confirming, you can complete your profile setup.</li>
                 <li>Choose 3 growth areas to personalize your experience.</li>
@@ -194,14 +188,14 @@ export default function SignupPage() {
           </div>
 
           <div className="right">
-            <div className="infoCard">
-              <h3>Why Sigmet</h3>
-              <ul>
+            <div className={`infoCard ${isLight ? "telegram-card-glow" : "telegram-card-glow"}`}>
+              <h3 className={isLight ? "text-telegram-text" : "text-telegram-text"}>Why Sigmet</h3>
+              <ul className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>
                 <li>Communities built on purpose, not popularity.</li>
                 <li>Transparent and fair social weight system.</li>
                 <li>Insightful analytics for creators and members.</li>
               </ul>
-              <div className="smallNote">
+              <div className={`smallNote ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                 A verification email will be sent to ensure account security.
               </div>
             </div>
@@ -212,26 +206,26 @@ export default function SignupPage() {
       <style jsx>{`
         .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; }
         .title { font-size: 32px; font-weight: 700; margin: 0 0 8px; }
-        .subtitle { color: ${'#8b949e'}; margin: 0 0 20px; line-height: 1.7; }
-        .formCard, .tipsCard, .infoCard { background: ${'#161b22'}; border: 1px solid ${'#30363d'}; border-radius: 12px; padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+        .subtitle { margin: 0 0 20px; line-height: 1.7; }
+        .formCard, .tipsCard, .infoCard { border-radius: 12px; padding: 24px; }
         .formCard { margin-top: 8px; }
         .tipsCard { margin-top: 20px; }
         .infoCard { position: sticky; top: 24px; }
         .formRow { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-        label { font-size: 14px; color: ${'#8b949e'}; }
-        input[type='text'], input[type='email'], input[type='password'] { background: ${'#0b1320'}; border: 1px solid ${'#30363d'}; color: ${'#c9d1d9'}; padding: 12px 14px; border-radius: 10px; outline: none; transition: border .15s ease, box-shadow .15s ease; }
-        input::placeholder { color: #6b7280; }
-        input:focus { border-color: ${'#58a6ff'}; box-shadow: 0 0 0 3px rgba(88,166,255,0.2); }
-        .checkboxRow { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; color: ${'#8b949e'}; }
+        label { font-size: 14px; }
+        input[type='text'], input[type='email'], input[type='password'] { padding: 12px 14px; border-radius: 10px; outline: none; transition: border .15s ease, box-shadow .15s ease; }
+        input::placeholder { }
+        input:focus { border-color: rgba(51, 144, 236, 0.4); box-shadow: 0 0 0 3px rgba(51, 144, 236, 0.15); }
+        .checkboxRow { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; }
         .alert { border-radius: 10px; padding: 12px 14px; font-size: 14px; margin: 8px 0 12px; }
-        .alert.error { background: rgba(248,81,73,0.1); border: 1px solid ${'#f85149'}; }
-        .alert.notice { background: rgba(46,160,67,0.12); border: 1px solid ${'#2ea043'}; }
+        .alert.error { background: rgba(248,81,73,0.1); border: 1px solid #f85149; }
+        .alert.notice { background: rgba(46,160,67,0.12); border: 1px solid #2ea043; }
         .actions { display: flex; gap: 12px; margin-top: 8px; }
-        .btnSecondary { text-decoration: none; background: rgba(58,166,255,0.08); border: 1px solid ${'#58a6ff'}; color: ${'#58a6ff'}; font-weight: 600; border-radius: 10px; padding: 12px 16px; display: inline-flex; align-items: center; transition: transform .15s ease, background .15s ease; }
-        .btnSecondary:hover { background: rgba(88,166,255,0.15); transform: translateY(-1px); }
+        .btnSecondary { text-decoration: none; font-weight: 600; border-radius: 10px; padding: 12px 16px; display: inline-flex; align-items: center; transition: transform .15s ease, background .15s ease; }
+        .btnSecondary:hover { transform: translateY(-1px); }
         .btnSecondary.sm { padding: 8px 12px; font-weight: 600; }
-        ul { margin: 0; padding-left: 20px; line-height: 1.8; color: ${'#8b949e'}; }
-        .smallNote { margin-top: 12px; font-size: 13px; color: ${'#8b949e'}; }
+        ul { margin: 0; padding-left: 20px; line-height: 1.8; }
+        .smallNote { margin-top: 12px; font-size: 13px; }
         @media (max-width: 1024px) { .grid { grid-template-columns: 1fr; } .infoCard { position: static; } }
       `}</style>
     </div>

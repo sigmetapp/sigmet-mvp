@@ -38,8 +38,10 @@ export default function Header() {
 
   return (
     <header
-      className={`sticky top-0 z-50 backdrop-blur supports-[backdrop-filter]:bg-black/30 ${
-        isLight ? "border-b border-black/10 bg-white/70 supports-[backdrop-filter]:bg-white/60" : "border-b border-white/10 bg-black/30"
+      className={`sticky top-0 z-50 backdrop-blur-md transition-colors ${
+        isLight 
+          ? "border-b border-telegram-blue/15 bg-white/80 supports-[backdrop-filter]:bg-white/70" 
+          : "border-b border-telegram-blue/20 bg-[rgba(15,22,35,0.8)] supports-[backdrop-filter]:bg-[rgba(15,22,35,0.7)]"
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
@@ -55,9 +57,15 @@ export default function Header() {
               className="rounded-md"
             />
           ) : (
-            <div className="h-9 w-9 rounded-md bg-white/10 grid place-items-center border border-white/10">S</div>
+            <div className={`h-9 w-9 rounded-md grid place-items-center border ${
+              isLight 
+                ? "bg-telegram-blue/10 border-telegram-blue/20 text-telegram-blue" 
+                : "bg-telegram-blue/20 border-telegram-blue/30 text-telegram-blue-light"
+            }`}>
+              S
+            </div>
           )}
-          <span className={`${isLight ? "text-black/90" : "text-white/90"} font-semibold tracking-tight`}>
+          <span className={`${isLight ? "text-telegram-text" : "text-telegram-text"} font-semibold tracking-tight`}>
             {site_name || "SIGMET"}
           </span>
         </Link>
@@ -70,12 +78,14 @@ export default function Header() {
               <Link
                 key={l.href}
                 href={l.href}
-                className={`px-3 py-1.5 rounded-lg text-sm transition ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                   active
-                    ? "bg-white text-black"
+                    ? isLight
+                      ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                      : "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
                     : isLight
-                    ? "text-black/70 hover:text-black hover:bg-black/5"
-                    : "text-white/75 hover:text-white hover:bg-white/10"
+                    ? "text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
+                    : "text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
                 }`}
               >
                 {l.label}
@@ -89,8 +99,8 @@ export default function Header() {
             aria-label="Toggle theme"
             className={`ml-2 h-9 w-9 grid place-items-center rounded-lg border transition ${
               isLight
-                ? "border-black/10 text-black/70 hover:bg-black/5"
-                : "border-white/20 text-white/80 hover:bg-white/10"
+                ? "border-telegram-blue/20 text-telegram-blue hover:bg-telegram-blue/10"
+                : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/20"
             }`}
             title={isLight ? "Switch to dark" : "Switch to light"}
           >
@@ -102,17 +112,21 @@ export default function Header() {
             <>
               <Link
                 href="/login"
-                className={`ml-2 px-3 py-1.5 rounded-lg text-sm border transition ${
+                className={`ml-2 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition ${
                   isLight
-                    ? "border-black/10 text-black/70 hover:bg-black/5"
-                    : "border-white/20 text-white/80 hover:bg-white/10"
+                    ? "border-telegram-blue text-telegram-blue hover:bg-telegram-blue/10"
+                    : "border-telegram-blue text-telegram-blue-light hover:bg-telegram-blue/15"
                 }`}
               >
                 Log in
               </Link>
               <Link
                 href="/signup"
-                className="ml-2 px-3 py-1.5 rounded-lg text-sm bg-white text-black hover:opacity-90 transition"
+                className={`ml-2 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                  isLight
+                    ? "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                    : "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                }`}
               >
                 Sign up
               </Link>
@@ -120,10 +134,10 @@ export default function Header() {
           ) : (
             <button
               onClick={handleLogout}
-              className={`ml-2 px-3 py-1.5 rounded-lg text-sm border transition ${
+              className={`ml-2 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition ${
                 isLight
-                  ? "border-black/10 text-black/70 hover:bg-black/5"
-                  : "border-white/20 text-white/80 hover:bg-white/10"
+                  ? "border-telegram-blue/30 text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
+                  : "border-telegram-blue/30 text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
               }`}
             >
               Logout

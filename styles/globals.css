@@ -9,6 +9,15 @@
   --accent: #7affc0;
   --bg: #0b1220;
   --text: #a8b3c7;
+  /* Telegram colors */
+  --telegram-blue: #3390EC;
+  --telegram-blue-light: #5BA8F0;
+  --telegram-blue-dark: #2B7ED6;
+  --telegram-bg: #FFFFFF;
+  --telegram-bg-secondary: #F1F1F1;
+  --telegram-text: #000000;
+  --telegram-text-secondary: #707579;
+  --telegram-hover: #F0F0F0;
 }
 
 /* Light theme overrides */
@@ -23,7 +32,8 @@ html, body, #__next { height: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: Inter, "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  /* Telegram-style fonts */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 .bg-sigmet {
@@ -41,9 +51,14 @@ body {
 
 .card {
   @apply bg-white/5 border border-white/10 rounded-2xl;
+  background: rgba(31, 41, 55, 0.6);
+  border: 1px solid rgba(51, 144, 236, 0.15);
+  backdrop-filter: blur(10px);
 }
 html.theme-light .card {
   @apply bg-black/5 border border-black/10;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(51, 144, 236, 0.12);
 }
 .card-glow {
   position: relative;
@@ -88,19 +103,134 @@ html.theme-light .card {
   @apply bg-white text-black hover:opacity-90;
 }
 .input {
-  @apply w-full rounded-xl bg-white/10 text-white px-3 py-3 outline-none focus:ring-2 focus:ring-white/30;
+  @apply w-full rounded-xl px-3 py-3 outline-none focus:ring-2 transition-colors;
+  background: rgba(31, 41, 55, 0.7);
+  border: 1px solid rgba(51, 144, 236, 0.15);
+  color: #E5EDF7;
+  backdrop-filter: blur(10px);
+}
+.input::placeholder {
+  color: rgba(168, 181, 199, 0.5);
+}
+.input:focus {
+  border-color: rgba(51, 144, 236, 0.4);
+  box-shadow: 0 0 0 3px rgba(51, 144, 236, 0.15);
+  background: rgba(31, 41, 55, 0.85);
 }
 html.theme-light .input {
-  @apply bg-black/5 text-black focus:ring-black/20;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(51, 144, 236, 0.2);
+  color: #000000;
+}
+html.theme-light .input::placeholder {
+  color: rgba(112, 117, 121, 0.6);
+}
+html.theme-light .input:focus {
+  border-color: rgba(51, 144, 236, 0.4);
+  box-shadow: 0 0 0 3px rgba(51, 144, 236, 0.1);
+  background: rgba(255, 255, 255, 0.95);
 }
 .label {
-  @apply block text-white/80 text-sm mb-2;
+  @apply block text-sm mb-2 font-medium;
+  color: #E5EDF7;
 }
-html.theme-light .label { @apply text-black/70; }
+html.theme-light .label {
+  color: #000000;
+}
 .text-muted { @apply text-white/70; }
 .text-dim { @apply text-white/50; }
 html.theme-light .text-muted { @apply text-black/60; }
 html.theme-light .text-dim { @apply text-black/40; }
+
+/* Global text contrast utilities */
+html:not(.theme-light) {
+  color: #E5EDF7;
+}
+
+html:not(.theme-light) h1,
+html:not(.theme-light) h2,
+html:not(.theme-light) h3,
+html:not(.theme-light) h4,
+html:not(.theme-light) h5,
+html:not(.theme-light) h6 {
+  color: #E5EDF7;
+}
+
+html:not(.theme-light) p,
+html:not(.theme-light) span,
+html:not(.theme-light) div {
+  color: inherit;
+}
+
+html.theme-light {
+  color: #000000;
+}
+
+html.theme-light h1,
+html.theme-light h2,
+html.theme-light h3,
+html.theme-light h4,
+html.theme-light h5,
+html.theme-light h6 {
+  color: #000000;
+}
+
+/* Telegram text colors */
+.text-telegram-text {
+  color: #E5EDF7;
+}
+
+.text-telegram-text-secondary {
+  color: #A8B5C7;
+}
+
+html.theme-light .text-telegram-text {
+  color: #000000;
+}
+
+html.theme-light .text-telegram-text-secondary {
+  color: #707579;
+}
+
+/* Theme toggle button */
+.telegram-theme-toggle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(31, 41, 55, 0.8);
+  border: 1px solid rgba(51, 144, 236, 0.2);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 12px rgba(51, 144, 236, 0.1);
+}
+
+.telegram-theme-toggle:hover {
+  background: rgba(31, 41, 55, 0.95);
+  border-color: rgba(51, 144, 236, 0.35);
+  box-shadow: 0 4px 16px rgba(51, 144, 236, 0.2);
+  transform: scale(1.05);
+}
+
+.telegram-theme-toggle:active {
+  transform: scale(0.95);
+}
+
+html.theme-light .telegram-theme-toggle {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(51, 144, 236, 0.15);
+  box-shadow: 0 2px 12px rgba(51, 144, 236, 0.08);
+}
+
+html.theme-light .telegram-theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(51, 144, 236, 0.25);
+  box-shadow: 0 4px 16px rgba(51, 144, 236, 0.15);
+}
 
 /* Gradient text utility for brand accents */
 .gradient-text {
@@ -108,6 +238,111 @@ html.theme-light .text-dim { @apply text-black/40; }
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* Telegram-style classes */
+/* Dark theme (default) */
+.bg-telegram-gradient {
+  background: linear-gradient(180deg, #0F1623 0%, #1A2332 100%);
+}
+
+html.theme-light .bg-telegram-gradient {
+  background: linear-gradient(180deg, #E5F2FF 0%, #FFFFFF 100%);
+}
+
+.telegram-card-glow {
+  position: relative;
+  background: rgba(31, 41, 55, 0.8);
+  border: 1px solid rgba(51, 144, 236, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(51, 144, 236, 0.1), 0 0 0 1px rgba(51, 144, 236, 0.08);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.telegram-card-glow::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(51, 144, 236, 0.15), rgba(91, 168, 240, 0.08));
+  filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.telegram-card-glow:hover {
+  border-color: rgba(51, 144, 236, 0.35);
+  box-shadow: 0 8px 24px rgba(51, 144, 236, 0.2), 0 0 0 1px rgba(51, 144, 236, 0.15);
+  transform: translateY(-2px);
+  background: rgba(31, 41, 55, 0.9);
+}
+
+.telegram-card-glow:hover::before {
+  opacity: 1;
+}
+
+html.theme-light .telegram-card-glow {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(51, 144, 236, 0.15);
+  box-shadow: 0 2px 12px rgba(51, 144, 236, 0.08), 0 0 0 1px rgba(51, 144, 236, 0.05);
+}
+
+html.theme-light .telegram-card-glow:hover {
+  border-color: rgba(51, 144, 236, 0.25);
+  box-shadow: 0 8px 24px rgba(51, 144, 236, 0.15), 0 0 0 1px rgba(51, 144, 236, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.telegram-card-feature {
+  position: relative;
+  background: rgba(31, 41, 55, 0.6);
+  border: 1px solid rgba(51, 144, 236, 0.15);
+  border-radius: 16px;
+  padding: 24px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.telegram-card-feature::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(51, 144, 236, 0.12), rgba(91, 168, 240, 0.06));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.telegram-card-feature:hover {
+  border-color: rgba(51, 144, 236, 0.3);
+  box-shadow: 0 8px 32px rgba(51, 144, 236, 0.25), 0 4px 16px rgba(51, 144, 236, 0.15);
+  transform: translateY(-4px) scale(1.02);
+  background: rgba(31, 41, 55, 0.8);
+}
+
+.telegram-card-feature:hover::after {
+  opacity: 1;
+}
+
+.telegram-card-feature > * {
+  position: relative;
+  z-index: 1;
+}
+
+html.theme-light .telegram-card-feature {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(51, 144, 236, 0.12);
+}
+
+html.theme-light .telegram-card-feature:hover {
+  border-color: rgba(51, 144, 236, 0.25);
+  box-shadow: 0 8px 32px rgba(51, 144, 236, 0.18), 0 4px 16px rgba(51, 144, 236, 0.12);
+  background: rgba(255, 255, 255, 0.9);
 }
 
 /*
