@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread } from '@/lib/dms';
 import { useDmRealtime } from '@/hooks/useDmRealtime';
 import EmojiPicker from '@/components/EmojiPicker';
-import { uploadAttachment, type DmAttachment } from '@/lib/dm/attachments';
+import { uploadAttachment, type DmAttachment, getSignedUrlForAttachment } from '@/lib/dm/attachments';
+import { subscribeToThread, sendTypingIndicator } from '@/lib/dm/realtime';
 
 type Props = {
   partnerId: string;
@@ -37,13 +38,86 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [messages, setMessages] = useDmRealtime(thread?.id || null, initialMessages);
+  
+  // New features state
+  const [isTyping, setIsTyping] = useState(false);
+  const [partnerTyping, setPartnerTyping] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [messageReactions, setMessageReactions] = useState<Record<number, string[]>>({});
+  const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; messageId: number } | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const presenceChannelRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const threadChannelRef = useRef<any>(null);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
+
+  // Attachment preview component
+  function AttachmentPreview({ attachment }: { attachment: DmAttachment }) {
+    const [url, setUrl] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      if (attachment.path) {
+        getSignedUrlForAttachment(attachment, 3600)
+          .then((signedUrl) => {
+            setUrl(signedUrl);
+            setLoading(false);
+          })
+          .catch((err) => {
+            console.error('Error loading attachment:', err);
+            setLoading(false);
+          });
+      }
+    }, [attachment]);
+
+    if (loading) {
+      return (
+        <div className="w-48 h-48 bg-white/5 rounded-lg flex items-center justify-center border border-white/10">
+          <div className="text-white/40 text-xs">Loading...</div>
+        </div>
+      );
+    }
+
+    if (attachment.type === 'image' && url) {
+      return (
+        <img
+          src={url}
+          alt="Attachment"
+          className="max-w-[280px] max-h-[280px] rounded-lg object-cover border border-white/10"
+        />
+      );
+    }
+
+    if (attachment.type === 'video' && url) {
+      return (
+        <div className="relative max-w-[280px] max-h-[280px] rounded-lg overflow-hidden border border-white/10 bg-black/20">
+          <video
+            src={url}
+            controls
+            className="max-w-full max-h-full"
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="px-3 py-2 bg-white/5 rounded-lg border border-white/10 flex items-center gap-2 max-w-[280px]">
+        <span className="text-xl">??</span>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs text-white/90 truncate">File</div>
+          <div className="text-[10px] text-white/60">
+            {attachment.size ? `${(attachment.size / 1024).toFixed(1)} KB` : ''}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Get current user
   useEffect(() => {
@@ -286,6 +360,56 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages, currentUserId, partnerId]);
 
+  // Subscribe to typing indicators
+  useEffect(() => {
+    if (!thread?.id || !currentUserId || !partnerId) return;
+
+    let unsubscribe: (() => void) | null = null;
+
+    (async () => {
+      try {
+        unsubscribe = await subscribeToThread(thread.id, {
+          onTyping: (event) => {
+            if (event.userId === partnerId) {
+              setPartnerTyping(event.typing);
+            }
+          },
+        });
+      } catch (err) {
+        console.error('Error subscribing to typing indicators:', err);
+      }
+    })();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [thread?.id, currentUserId, partnerId]);
+
+  // Handle typing indicator
+  const handleTyping = useCallback(() => {
+    if (!thread?.id || !currentUserId || isTyping) return;
+
+    setIsTyping(true);
+    void sendTypingIndicator(thread.id, currentUserId, true);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+      if (thread?.id && currentUserId) {
+        void sendTypingIndicator(thread.id, currentUserId, false);
+      }
+    }, 3000);
+  }, [thread?.id, currentUserId, isTyping]);
+
+  // Handle message text change with typing indicator
+  const handleMessageTextChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setMessageText(e.target.value);
+    handleTyping();
+  }, [handleTyping]);
+
   // Scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
@@ -293,10 +417,23 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages.length]);
 
+  // Quick reactions
+  const QUICK_REACTIONS = ['??', '??', '??', '??', '??', '??'];
+  const handleQuickReaction = useCallback((messageId: number, emoji: string) => {
+    setMessageReactions((prev) => {
+      const current = prev[messageId] || [];
+      const updated = current.includes(emoji)
+        ? current.filter((e) => e !== emoji)
+        : [...current, emoji];
+      return { ...prev, [messageId]: updated };
+    });
+    setContextMenu(null);
+  }, []);
+
   // Handle emoji selection
-  function handleEmojiSelect(emoji: string) {
+  const handleEmojiSelect = useCallback((emoji: string) => {
     setMessageText((prev) => prev + emoji);
-  }
+  }, []);
 
   // Handle file selection
   function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
@@ -320,9 +457,21 @@ export default function DmsChatWindow({ partnerId }: Props) {
     if (!thread || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
 
     const textToSend = messageText.trim();
+    const replyToId = replyingTo?.id || null;
     setMessageText('');
+    setReplyingTo(null);
     setSending(true);
     setUploadingAttachments(true);
+    
+    // Clear typing indicator
+    setIsTyping(false);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    if (thread.id && currentUserId) {
+      void sendTypingIndicator(thread.id, currentUserId, false);
+    }
 
     let attachments: DmAttachment[] = [];
 
@@ -517,59 +666,134 @@ export default function DmsChatWindow({ partnerId }: Props) {
             No messages yet. Start the conversation!
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {messages.map((msg, idx) => {
               const isMine = msg.sender_id === currentUserId;
               const prevMsg = idx > 0 ? messages[idx - 1] : null;
+              const nextMsg = idx < messages.length - 1 ? messages[idx + 1] : null;
               const showDate =
                 !prevMsg ||
                 formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
               
+              // Group messages from same sender within 5 minutes
+              const isGroupedWithPrev = prevMsg && 
+                prevMsg.sender_id === msg.sender_id &&
+                new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() < 5 * 60 * 1000;
+              
               // Show time only if minute is different from previous message
-              const showTime = !prevMsg || 
+              const showTime = !isGroupedWithPrev || 
+                !prevMsg ||
                 new Date(prevMsg.created_at).getMinutes() !== new Date(msg.created_at).getMinutes() ||
                 formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
+
+              const reactions = messageReactions[msg.id] || [];
+              const isHovered = hoveredMessageId === msg.id;
 
               return (
                 <div key={msg.id}>
                   {showDate && (
-                    <div className="text-center text-xs text-white/50 py-2">
-                      {formatDate(msg.created_at)}
+                    <div className="text-center text-xs text-white/50 py-3">
+                      <span className="bg-white/5 px-3 py-1 rounded-full border border-white/10">
+                        {formatDate(msg.created_at)}
+                      </span>
                     </div>
                   )}
 
                   <div
-                    className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+                    className={`flex gap-2 ${isMine ? 'justify-end' : 'justify-start'} group`}
+                    onMouseEnter={() => setHoveredMessageId(msg.id)}
+                    onMouseLeave={() => setHoveredMessageId(null)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setContextMenu({ x: e.clientX, y: e.clientY, messageId: msg.id });
+                    }}
                   >
+                    {!isMine && !isGroupedWithPrev && (
+                      <img
+                        src={partnerProfile?.avatar_url || AVATAR_FALLBACK}
+                        alt=""
+                        className="h-8 w-8 rounded-full object-cover border border-white/10 flex-shrink-0"
+                      />
+                    )}
+                    {!isMine && isGroupedWithPrev && <div className="w-8" />}
+                    
                     <div
                       className={`max-w-[78%] flex flex-col ${
                         isMine ? 'items-end' : 'items-start'
                       }`}
                     >
+                      {replyingTo?.id === msg.id && (
+                        <div className={`text-xs text-white/60 mb-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 max-w-full ${isMine ? 'text-right' : 'text-left'}`}>
+                          Replying to: {msg.body?.substring(0, 50)}{msg.body && msg.body.length > 50 ? '...' : ''}
+                        </div>
+                      )}
+                      
                       <div
-                        className={`px-4 py-2 rounded-2xl ${
+                        className={`relative px-4 py-2.5 rounded-2xl transition-all message-enter ${
                           isMine
-                            ? 'bg-gradient-to-br from-sky-500/80 to-fuchsia-500/80 text-white rounded-br-sm'
-                            : 'bg-white/8 text-white rounded-bl-sm border border-white/10'
+                            ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-sm shadow-lg'
+                            : 'bg-white/10 text-white rounded-bl-sm border border-white/20 shadow-md'
+                        } ${
+                          isHovered ? 'scale-[1.02]' : ''
                         }`}
                       >
+                        {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                          <div className="mb-2 space-y-2">
+                            {(msg.attachments as any[]).map((att: any, attIdx: number) => (
+                              <AttachmentPreview key={attIdx} attachment={att} />
+                            ))}
+                          </div>
+                        )}
+                        
                         {msg.deleted_at ? (
-                          <div className="italic text-white/60">
+                          <div className="italic text-white/60 text-sm">
                             Message deleted
                           </div>
                         ) : (
-                          <div className="whitespace-pre-wrap leading-relaxed">
+                          <div className="whitespace-pre-wrap leading-relaxed text-sm">
                             {msg.body}
                           </div>
                         )}
+                        
+                        {(showTime || reactions.length > 0) && (
+                          <div className={`flex items-center gap-2 mt-1.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                            {showTime && (
+                              <span className="text-[10px] text-white/60">
+                                {formatTime(msg.created_at)}
+                              </span>
+                            )}
+                            {msg.edited_at && (
+                              <span className="text-[10px] text-white/50 italic">
+                                edited
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        
+                        {isHovered && !msg.deleted_at && (
+                          <div className={`absolute ${isMine ? 'left-0 -translate-x-full mr-2' : 'right-0 translate-x-full ml-2'} top-1/2 -translate-y-1/2 flex gap-1 z-10`}>
+                            {QUICK_REACTIONS.map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => handleQuickReaction(msg.id, emoji)}
+                                className="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full text-base transition-all backdrop-blur-sm border border-white/20 hover:scale-110 active:scale-95"
+                                title={emoji}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      {showTime && (
-                        <div
-                          className={`text-[11px] text-white/60 mt-1 ${
-                            isMine ? 'text-right' : 'text-left'
-                          }`}
-                        >
-                          {formatTime(msg.created_at)}
+                      
+                      {reactions.length > 0 && (
+                        <div className={`flex gap-1 mt-1 px-2 py-1 bg-white/5 rounded-full border border-white/10 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                          {reactions.map((emoji, reactIdx) => (
+                            <span key={reactIdx} className="text-sm">
+                              {emoji}
+                            </span>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -577,9 +801,68 @@ export default function DmsChatWindow({ partnerId }: Props) {
                 </div>
               );
             })}
+            
+            {/* Typing indicator */}
+            {partnerTyping && (
+              <div className="flex gap-2 justify-start">
+                <img
+                  src={partnerProfile?.avatar_url || AVATAR_FALLBACK}
+                  alt=""
+                  className="h-8 w-8 rounded-full object-cover border border-white/10 flex-shrink-0"
+                />
+                <div className="bg-white/10 rounded-2xl rounded-bl-sm border border-white/20 px-4 py-3">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed bg-white/10 backdrop-blur-md border border-white/20 rounded-lg shadow-xl z-50 py-1 min-w-[150px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={() => setContextMenu(null)}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const msg = messages.find((m) => m.id === contextMenu.messageId);
+              if (msg) {
+                setReplyingTo(msg);
+                setContextMenu(null);
+              }
+            }}
+            className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition"
+          >
+            Reply
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setReplyingTo(null);
+              setContextMenu(null);
+            }}
+            className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition"
+          >
+            React
+          </button>
+        </div>
+      )}
+
+      {/* Click outside to close context menu */}
+      {contextMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setContextMenu(null)}
+        />
+      )}
 
       {/* Selected files preview */}
       {selectedFiles.length > 0 && (
@@ -591,7 +874,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                 className="relative inline-flex items-center gap-2 px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-sm"
               >
                 {file.type.startsWith('image/') ? (
-                  <span className="text-xs">???</span>
+                  <span className="text-xs">??</span>
                 ) : file.type.startsWith('video/') ? (
                   <span className="text-xs">??</span>
                 ) : (
@@ -625,9 +908,38 @@ export default function DmsChatWindow({ partnerId }: Props) {
         </div>
       )}
 
+      {/* Reply preview */}
+      {replyingTo && (
+        <div className="px-4 py-2 border-t border-white/10 bg-white/5 flex items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-white/60 mb-1">Replying to:</div>
+            <div className="text-sm text-white/90 truncate">
+              {replyingTo.body?.substring(0, 100)}{replyingTo.body && replyingTo.body.length > 100 ? '...' : ''}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setReplyingTo(null)}
+            className="text-white/60 hover:text-white/90 transition ml-2"
+            title="Cancel reply"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-white/10">
-        <div className="relative flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-1.5">
+        <div className="relative flex items-end gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-2">
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
@@ -640,7 +952,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
           {/* Attach button */}
           <button
             type="button"
-            className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 transition"
+            className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 transition flex-shrink-0"
             title="Attach file, photo, or video"
             onClick={() => fileInputRef.current?.click()}
             disabled={sending || uploadingAttachments}
@@ -660,28 +972,52 @@ export default function DmsChatWindow({ partnerId }: Props) {
               />
             </svg>
           </button>
-          <input
-            className="input flex-1 bg-transparent border-0 focus:ring-0 placeholder-white/40"
+          <textarea
+            ref={textareaRef}
+            className="flex-1 bg-transparent border-0 focus:ring-0 placeholder-white/40 resize-none max-h-32 overflow-y-auto text-sm py-1"
             value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
+            onChange={handleMessageTextChange}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 void handleSend();
               }
             }}
-            type="text"
-            placeholder="Type a message..."
+            placeholder={replyingTo ? "Reply to message..." : "Type a message..."}
             disabled={sending || uploadingAttachments}
+            rows={1}
+            style={{
+              height: 'auto',
+              minHeight: '24px',
+            }}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
+            }}
           />
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-          <button
-            className="btn btn-primary rounded-xl px-3 py-2"
-            onClick={handleSend}
-            disabled={(!messageText.trim() && selectedFiles.length === 0) || sending || uploadingAttachments}
-          >
-            {uploadingAttachments ? 'Uploading...' : sending ? '...' : 'Send'}
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+            <button
+              className="btn btn-primary rounded-xl px-4 py-2 text-sm font-medium"
+              onClick={handleSend}
+              disabled={(!messageText.trim() && selectedFiles.length === 0) || sending || uploadingAttachments}
+            >
+              {uploadingAttachments ? (
+                <span className="flex items-center gap-1">
+                  <span className="animate-spin">?</span>
+                  Uploading...
+                </span>
+              ) : sending ? (
+                <span className="flex items-center gap-1">
+                  <span className="animate-pulse">?</span>
+                  Sending...
+                </span>
+              ) : (
+                'Send'
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
