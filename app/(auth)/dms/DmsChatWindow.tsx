@@ -10,9 +10,38 @@ import { uploadAttachment, type DmAttachment, getSignedUrlForAttachment } from '
 import { subscribeToThread, sendTypingIndicator } from '@/lib/dm/realtime';
 import { assertThreadId } from '@/lib/dm/threadId';
 
+const INITIAL_MESSAGE_LIMIT = 20;
+const BACKFILL_BATCH_LIMIT = 50;
+const MAX_BACKFILL_BATCHES = 3;
+
 type Props = {
   partnerId: string;
 };
+
+function sortMessagesChronologically(rawMessages: Message[]): Message[] {
+  return [...rawMessages].sort((a, b) => {
+    const timeA = new Date(a.created_at).getTime();
+    const timeB = new Date(b.created_at).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    return a.id - b.id;
+  });
+}
+
+function mergeMessages(existing: Message[], additions: Message[]): Message[] {
+  if (additions.length === 0) {
+    return existing;
+  }
+
+  const byId = new Map<number, Message>();
+  for (const msg of existing) {
+    byId.set(msg.id, msg);
+  }
+  for (const msg of additions) {
+    byId.set(msg.id, msg);
+  }
+
+  return sortMessagesChronologically(Array.from(byId.values()));
+}
 
 export default function DmsChatWindow({ partnerId }: Props) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -31,6 +60,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastMessageIdRef = useRef<number | null>(null);
+  const oldestMessageIdRef = useRef<number | null>(null);
+  const isPreloadingOlderRef = useRef(false);
 
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
@@ -221,6 +252,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
     let cancelled = false;
 
     (async () => {
+      oldestMessageIdRef.current = null;
+      isPreloadingOlderRef.current = false;
       setLoading(true);
       setError(null);
 
@@ -251,7 +284,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
         // Load messages with thread ID
         let messagesData;
         try {
-          messagesData = await listMessages(threadId, 50);
+          messagesData = await listMessages(threadId, { limit: INITIAL_MESSAGE_LIMIT });
         } catch (msgErr: any) {
           console.error('Error in listMessages:', msgErr, 'threadId:', threadId);
           // Continue without messages if we can't load them, but thread is valid
@@ -260,14 +293,10 @@ export default function DmsChatWindow({ partnerId }: Props) {
         if (cancelled) return;
 
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
-        const sorted = messagesData.sort((a, b) => {
-          const timeA = new Date(a.created_at).getTime();
-          const timeB = new Date(b.created_at).getTime();
-          if (timeA !== timeB) return timeA - timeB;
-          return a.id - b.id;
-        });
+        const sorted = sortMessagesChronologically(messagesData);
         setInitialMessages(sorted);
         setMessages(sorted);
+        oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
         
         // Scroll to bottom after messages are loaded
         setTimeout(() => {
@@ -275,6 +304,52 @@ export default function DmsChatWindow({ partnerId }: Props) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
           }
         }, 300);
+
+        const shouldPreloadOlder = sorted.length === INITIAL_MESSAGE_LIMIT;
+        if (shouldPreloadOlder && oldestMessageIdRef.current !== null) {
+          // Defer background loading to let the latest messages paint first
+          setTimeout(() => {
+            if (cancelled || isPreloadingOlderRef.current) return;
+            isPreloadingOlderRef.current = true;
+
+            void (async () => {
+              try {
+                let beforeId = oldestMessageIdRef.current;
+                let batchesFetched = 0;
+                while (!cancelled && beforeId !== null && batchesFetched < MAX_BACKFILL_BATCHES) {
+                  let olderMessages: Message[] = [];
+                  try {
+                    olderMessages = await listMessages(threadId, {
+                      limit: BACKFILL_BATCH_LIMIT,
+                      beforeId,
+                    });
+                  } catch (olderErr) {
+                    console.error('Error preloading older messages:', olderErr);
+                    break;
+                  }
+
+                  if (cancelled || olderMessages.length === 0) {
+                    break;
+                  }
+
+                  const orderedOlder = sortMessagesChronologically(olderMessages);
+
+                  setMessages((prev) => mergeMessages(prev, orderedOlder));
+
+                  beforeId = orderedOlder[0]?.id ?? null;
+                  oldestMessageIdRef.current = beforeId;
+                  batchesFetched += 1;
+
+                  if (olderMessages.length < BACKFILL_BATCH_LIMIT) {
+                    break;
+                  }
+                }
+              } finally {
+                isPreloadingOlderRef.current = false;
+              }
+            })();
+          }, 250);
+        }
         
         // Calculate days streak after thread is loaded
         try {
@@ -554,12 +629,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
     const previousMessages = messages;
     // Add optimistic message sorted by time
-    const withOptimistic = [...messages, optimisticMessage].sort((a, b) => {
-      const timeA = new Date(a.created_at).getTime();
-      const timeB = new Date(b.created_at).getTime();
-      if (timeA !== timeB) return timeA - timeB;
-      return a.id - b.id;
-    });
+    const withOptimistic = sortMessagesChronologically([...messages, optimisticMessage]);
     setMessages(withOptimistic);
 
     try {
@@ -570,12 +640,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       // Replace optimistic message with real one and ensure proper sorting
       setMessages((prev) => {
         const updated = prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m));
-        return updated.sort((a, b) => {
-          const timeA = new Date(a.created_at).getTime();
-          const timeB = new Date(b.created_at).getTime();
-          if (timeA !== timeB) return timeA - timeB;
-          return a.id - b.id;
-        });
+        return sortMessagesChronologically(updated);
       });
       
       // Scroll to bottom after sending
