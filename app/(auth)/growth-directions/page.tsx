@@ -61,10 +61,12 @@ function GrowthDirectionsInner() {
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [activating, setActivating] = useState<Set<string>>(new Set());
-  const [checkingIn, setCheckingIn] = useState<Set<string>>(new Set());
   const [completing, setCompleting] = useState<Set<string>>(new Set());
   const [showCompleteModal, setShowCompleteModal] = useState<{ taskId: string; userTaskId: string } | null>(null);
   const [completeForm, setCompleteForm] = useState({ proofUrl: '', note: '' });
+  const [showCheckInModal, setShowCheckInModal] = useState<{ userTaskId: string; task: Task } | null>(null);
+  const [checkInPostForm, setCheckInPostForm] = useState({ body: '', image: null as File | null, video: null as File | null });
+  const [publishingPost, setPublishingPost] = useState(false);
 
   useEffect(() => {
     loadDirections();
@@ -233,21 +235,71 @@ function GrowthDirectionsInner() {
     }
   }
 
-  async function checkInHabit(userTaskId: string) {
-    if (checkingIn.has(userTaskId)) return;
-    setCheckingIn((prev) => new Set(prev).add(userTaskId));
+  function openCheckInModal(userTaskId: string, task: Task) {
+    setShowCheckInModal({ userTaskId, task });
+    // Pre-fill post with task information
+    const taskInfo = `?? Task: ${task.title}\n\n?? Description: ${task.description}\n\n? Check-in`;
+    setCheckInPostForm({ body: taskInfo, image: null, video: null });
+  }
 
+  async function uploadToStorage(file: File, folder: 'images' | 'videos') {
+    const ext = file.name.split('.').pop() || 'bin';
+    const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const bucket = supabase.storage.from('posts');
+    const { error } = await bucket.upload(path, file, {
+      upsert: false,
+      contentType: file.type,
+    });
+    if (error) throw error;
+    const { data } = bucket.getPublicUrl(path);
+    return data.publicUrl as string;
+  }
+
+  async function publishCheckInPost() {
+    if (!showCheckInModal) return;
+    if (!checkInPostForm.body.trim() && !checkInPostForm.image && !checkInPostForm.video) {
+      alert('Post cannot be empty');
+      return;
+    }
+
+    setPublishingPost(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        alert('Sign in required');
+        return;
+      }
 
+      let image_url: string | null = null;
+      let video_url: string | null = null;
+      
+      if (checkInPostForm.image) {
+        image_url = await uploadToStorage(checkInPostForm.image, 'images');
+      }
+      if (checkInPostForm.video) {
+        video_url = await uploadToStorage(checkInPostForm.video, 'videos');
+      }
+
+      // Create post in feed
+      const { error: postError } = await supabase
+        .from('posts')
+        .insert({
+          user_id: session.user.id,
+          body: checkInPostForm.body.trim() || null,
+          image_url,
+          video_url,
+        });
+
+      if (postError) throw postError;
+
+      // Perform check-in after post is created
       const res = await fetch('/api/growth/habits.checkin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ userTaskId }),
+        body: JSON.stringify({ userTaskId: showCheckInModal.userTaskId }),
       });
 
       if (!res.ok) {
@@ -255,17 +307,30 @@ function GrowthDirectionsInner() {
         throw new Error(error.error || 'Failed to check in');
       }
 
+      // Reset form and close modal
+      setCheckInPostForm({ body: '', image: null, video: null });
+      setShowCheckInModal(null);
+      
+      // Reload tasks to show updated check-in status
       await loadTasks(selectedDirection!);
     } catch (error: any) {
-      console.error('Error checking in:', error);
-      alert(error.message || 'Failed to check in');
+      console.error('Error publishing check-in post:', error);
+      alert(error.message || 'Failed to publish post');
     } finally {
-      setCheckingIn((prev) => {
-        const next = new Set(prev);
-        next.delete(userTaskId);
-        return next;
-      });
+      setPublishingPost(false);
     }
+  }
+
+  async function checkInHabit(userTaskId: string) {
+    // Find the task to pass to modal
+    const allTasks = [...tasks.habits, ...tasks.goals];
+    const task = allTasks.find((t) => t.userTask?.id === userTaskId);
+    if (!task) {
+      alert('Task not found');
+      return;
+    }
+    
+    openCheckInModal(userTaskId, task);
   }
 
   async function completeGoal(userTaskId: string) {
@@ -359,18 +424,18 @@ function GrowthDirectionsInner() {
                             {(() => {
                               // Fix emoji mapping if they come as ?? from DB
                               const emojiMap: Record<string, string> = {
-                                'learning': '🧠',
-                                'career': '💼',
-                                'finance': '💰',
-                                'health': '🧘',
-                                'relationships': '❤️',
-                                'community': '🌍',
-                                'creativity': '🎨',
-                                'mindfulness': '🧘‍♂️',
-                                'personal': '🌱',
-                                'digital': '🌐',
-                                'education': '📚',
-                                'purpose': '🕊️',
+                                'learning': '??',
+                                'career': '??',
+                                'finance': '??',
+                                'health': '??',
+                                'relationships': '??',
+                                'community': '??',
+                                'creativity': '??',
+                                'mindfulness': '?????',
+                                'personal': '??',
+                                'digital': '??',
+                                'education': '??',
+                                'purpose': '???',
                               };
                               if (dir.emoji === '??' || dir.emoji === '???' || dir.emoji?.includes('?')) {
                                 return emojiMap[dir.slug] || dir.emoji;
@@ -420,18 +485,18 @@ function GrowthDirectionsInner() {
                           // Always use emoji map by slug to ensure correct display
                           if (!currentDirection) return '';
                           const emojiMap: Record<string, string> = {
-                            'learning': '🧠',
-                            'career': '💼',
-                            'finance': '💰',
-                            'health': '🧘',
-                            'relationships': '❤️',
-                            'community': '🌍',
-                            'creativity': '🎨',
-                            'mindfulness': '🧘‍♂️',
-                            'personal': '🌱',
-                            'digital': '🌐',
-                            'education': '📚',
-                            'purpose': '🕊️',
+                            'learning': '??',
+                            'career': '??',
+                            'finance': '??',
+                            'health': '??',
+                            'relationships': '??',
+                            'community': '??',
+                            'creativity': '??',
+                            'mindfulness': '?????',
+                            'personal': '??',
+                            'digital': '??',
+                            'education': '??',
+                            'purpose': '???',
                           };
                           // Always return emoji from map based on slug
                           return emojiMap[currentDirection.slug] || currentDirection.emoji || '??';
@@ -466,8 +531,8 @@ function GrowthDirectionsInner() {
                       ) : (
                         tasks.habits.map((habit) => {
                           const isActivating = activating.has(habit.id);
-                          const isCheckingIn = checkingIn.has(habit.userTask?.id || '');
                           const isActive = habit.isActivated && habit.userTask?.status === 'active';
+                          const isModalOpen = showCheckInModal?.userTaskId === habit.userTask?.id;
 
                           return (
                             <div
@@ -525,11 +590,11 @@ function GrowthDirectionsInner() {
                                   <>
                                     <Button
                                       onClick={() => checkInHabit(habit.userTask!.id)}
-                                      disabled={isCheckingIn}
+                                      disabled={publishingPost || isModalOpen}
                                       variant="primary"
                                       className="flex-1"
                                     >
-                                      {isCheckingIn ? 'Checking in?' : 'Check in'}
+                                      {publishingPost && isModalOpen ? 'Publishing...' : 'Check in'}
                                     </Button>
                                     <Button
                                       onClick={() => deactivateTask(habit.userTask!.id)}
@@ -695,6 +760,138 @@ function GrowthDirectionsInner() {
                   setShowCompleteModal(null);
                   setCompleteForm({ proofUrl: '', note: '' });
                 }}
+                variant="secondary"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Check-in Post Modal */}
+      {showCheckInModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className={`absolute inset-0 ${isLight ? 'bg-black/50' : 'bg-black/80'}`}
+            onClick={() => !publishingPost && setShowCheckInModal(null)}
+          />
+          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-white' : 'bg-[rgba(15,22,35,0.95)]'} rounded-2xl p-6 space-y-4`}>
+            <div className="flex items-center justify-between">
+              <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                Create Check-in Post
+              </h3>
+              <button
+                onClick={() => !publishingPost && setShowCheckInModal(null)}
+                className={`transition ${isLight ? 'text-telegram-text-secondary hover:text-telegram-blue' : 'text-telegram-text-secondary hover:text-telegram-blue-light'}`}
+                aria-label="Close"
+              >
+                ?
+              </button>
+            </div>
+            
+            {/* Task Info Display */}
+            <div className={`p-3 rounded-xl ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}>
+              <div className={`text-xs font-medium mb-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                Task Information
+              </div>
+              <div className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                {showCheckInModal.task.title}
+              </div>
+              <div className={`text-sm mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                {showCheckInModal.task.description}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Post Content
+                </label>
+                <textarea
+                  value={checkInPostForm.body}
+                  onChange={(e) => setCheckInPostForm((prev) => ({ ...prev, body: e.target.value }))}
+                  placeholder="Add your thoughts about this check-in..."
+                  rows={6}
+                  className={`input w-full ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Media (optional)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    id="checkin-image-input"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (file && file.type.startsWith('image/')) {
+                        setCheckInPostForm((prev) => ({ ...prev, image: file, video: null }));
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="checkin-image-input"
+                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
+                      isLight
+                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
+                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                    }`}
+                  >
+                    ?? Image
+                  </label>
+                  
+                  <input
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    id="checkin-video-input"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (file && file.type.startsWith('video/')) {
+                        setCheckInPostForm((prev) => ({ ...prev, video: file, image: null }));
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="checkin-video-input"
+                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
+                      isLight
+                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
+                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                    }`}
+                  >
+                    ?? Video
+                  </label>
+                  
+                  {(checkInPostForm.image || checkInPostForm.video) && (
+                    <span className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      {checkInPostForm.image ? `Image: ${checkInPostForm.image.name}` : `Video: ${checkInPostForm.video?.name}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={publishCheckInPost}
+                disabled={publishingPost}
+                variant="primary"
+                className="flex-1"
+              >
+                {publishingPost ? 'Publishing...' : 'Publish & Check-in'}
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowCheckInModal(null);
+                  setCheckInPostForm({ body: '', image: null, video: null });
+                }}
+                disabled={publishingPost}
                 variant="secondary"
               >
                 Cancel
