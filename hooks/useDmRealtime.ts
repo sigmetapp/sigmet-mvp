@@ -39,6 +39,14 @@ export function useDmRealtime(
       return;
     }
 
+    // Ensure threadId is a number for filtering
+    const threadIdNum = typeof threadId === 'string' ? Number(threadId) : threadId;
+    if (!threadIdNum || isNaN(threadIdNum)) {
+      console.error('Invalid threadId in useDmRealtime:', threadId);
+      setMessages(initialMessages);
+      return;
+    }
+
     // Update messages if initialMessages change
     setMessages(initialMessages);
 
@@ -46,14 +54,14 @@ export function useDmRealtime(
     let cancelled = false;
 
     const channel = supabase
-      .channel(`dms_messages:${threadId}`)
+      .channel(`dms_messages:${threadIdNum}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'dms_messages',
-          filter: `thread_id=eq.${threadId}`,
+          filter: `thread_id=eq.${threadIdNum}`,
         },
         (payload: MessageChange) => {
           if (cancelled) return;
@@ -64,8 +72,8 @@ export function useDmRealtime(
 
           if (payload.eventType === 'INSERT' && row) {
             const newMessage: Message = {
-              id: row.id,
-              thread_id: row.thread_id,
+              id: Number(row.id),
+              thread_id: Number(row.thread_id),
               sender_id: row.sender_id,
               kind: row.kind,
               body: row.body,
@@ -92,7 +100,7 @@ export function useDmRealtime(
           } else if (payload.eventType === 'UPDATE' && row) {
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === row.id
+                m.id === Number(row.id)
                   ? {
                       ...m,
                       body: row.body,
@@ -103,7 +111,7 @@ export function useDmRealtime(
               )
             );
           } else if (payload.eventType === 'DELETE' && row) {
-            setMessages((prev) => prev.filter((m) => m.id !== row.id));
+            setMessages((prev) => prev.filter((m) => m.id !== Number(row.id)));
           }
         }
       )

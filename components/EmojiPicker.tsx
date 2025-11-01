@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 type Props = {
   onEmojiSelect: (emoji: string) => void;
@@ -9,16 +10,12 @@ type Props = {
 const EMOJI_CATEGORIES = [
   { name: 'Recently Used', emojis: [] },
   {
-    name: 'Smileys',
+    name: 'Smileys & People',
     emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕'],
   },
   {
-    name: 'Gestures',
+    name: 'Gestures & Body Parts',
     emojis: ['👋', '🤚', '🖐', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁', '👅', '👄'],
-  },
-  {
-    name: 'People',
-    emojis: ['👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '👨‍🦰', '👨‍🦱', '👨‍🦳', '👨‍🦲', '👩', '👩‍🦰', '🧑‍🦰', '👩‍🦱', '🧑‍🦱', '👩‍🦳', '🧑‍🦳', '👩‍🦲', '🧑‍🦲', '👱‍♀️', '👱‍♂️', '🧓', '👴', '👵', '🙍', '🙍‍♂️', '🙍‍♀️', '🙎', '🙎‍♂️', '🙎‍♀️', '🙅', '🙅‍♂️', '🙅‍♀️', '🙆', '🙆‍♂️', '🙆‍♀️', '💁', '💁‍♂️', '💁‍♀️', '🙋', '🙋‍♂️', '🙋‍♀️', '🧏', '🧏‍♂️', '🧏‍♀️', '🤦', '🤦‍♂️', '🤦‍♀️', '🤷', '🤷‍♂️', '🤷‍♀️', '🙇', '🙇‍♂️', '🙇‍♀️'],
   },
   {
     name: 'Objects',
@@ -45,7 +42,62 @@ const EMOJI_CATEGORIES = [
 export default function EmojiPicker({ onEmojiSelect }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
+  const [mostUsedEmojis, setMostUsedEmojis] = useState<string[]>([]);
   const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Load most used emojis from user's message history
+  useEffect(() => {
+    const loadMostUsedEmojis = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Get user's messages from last 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const { data: messages } = await supabase
+          .from('dms_messages')
+          .select('body')
+          .eq('sender_id', user.id)
+          .not('body', 'is', null)
+          .gte('created_at', thirtyDaysAgo.toISOString())
+          .limit(500);
+
+        if (!messages || messages.length === 0) return;
+
+        // Extract emojis from messages using regex
+        // Regex for emojis: covers most emoji ranges
+        // Combine all emoji ranges into one character class
+        const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{1FA80}-\u{1FAFF}]/gu;
+        const emojiCounts: Record<string, number> = {};
+
+        messages.forEach((msg) => {
+          if (msg.body) {
+            // Match all emojis in the message
+            const emojiMatches = msg.body.match(emojiRegex);
+            if (emojiMatches) {
+              emojiMatches.forEach((emoji) => {
+                emojiCounts[emoji] = (emojiCounts[emoji] || 0) + 1;
+              });
+            }
+          }
+        });
+
+        // Sort by count and take top 30 (3 rows of 10)
+        const sortedEmojis = Object.entries(emojiCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 30)
+          .map(([emoji]) => emoji);
+
+        setMostUsedEmojis(sortedEmojis);
+      } catch (err) {
+        console.error('Error loading most used emojis:', err);
+      }
+    };
+
+    loadMostUsedEmojis();
+  }, []);
 
   useEffect(() => {
     // Load recent emojis from localStorage
@@ -85,6 +137,7 @@ export default function EmojiPicker({ onEmojiSelect }: Props) {
   };
 
   const allCategories = [
+    ...(mostUsedEmojis.length > 0 ? [{ name: 'Most Used', emojis: mostUsedEmojis }] : []),
     ...(recentEmojis.length > 0 ? [{ name: 'Recently Used', emojis: recentEmojis }] : []),
     ...EMOJI_CATEGORIES.slice(1),
   ];
@@ -94,7 +147,7 @@ export default function EmojiPicker({ onEmojiSelect }: Props) {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 text-lg"
+        className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 text-lg transition-colors"
         title="Add emoji"
       >
         😊
