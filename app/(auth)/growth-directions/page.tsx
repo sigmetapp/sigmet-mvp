@@ -507,15 +507,15 @@ function GrowthDirectionsInner() {
                         })()}
                       </span>
                       <div>
-                      <h2 className={`font-semibold text-xl ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                        {currentDirection?.title}
-                      </h2>
-                      <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                        {currentDirection?.stats.activeHabits} habits, {currentDirection?.stats.activeGoals} goals active
-                      </p>
+                        <h2 className={`font-semibold text-xl ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                          {currentDirection?.title}
+                        </h2>
+                        <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                          {currentDirection?.stats.activeHabits} habits, {currentDirection?.stats.activeGoals} goals active
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
                 {loadingTasks ? (
                   <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
