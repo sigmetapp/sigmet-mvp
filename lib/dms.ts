@@ -77,74 +77,99 @@ export async function getOrCreateThread(
     throw new Error('Blocked');
   }
 
-  // Try RPC first
-  const { data: rpcResult, error: rpcError } = await supabase
-    .rpc('ensure_1on1_thread', {
-      a: currentUserId,
-      b: partnerId,
-    })
-    .maybeSingle();
+  // Try RPC first (if exists)
+  try {
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc('ensure_1on1_thread', {
+        a: currentUserId,
+        b: partnerId,
+      })
+      .maybeSingle();
 
-  if (!rpcError && rpcResult) {
-    // Ensure id is a number (bigint from database may be string)
-    return {
-      ...rpcResult,
-      id: Number(rpcResult.id)
-    } as Thread;
+    // If RPC exists and returns result, use it
+    if (!rpcError && rpcResult && rpcResult.id) {
+      // Ensure id is a number (bigint from database may be string)
+      const threadId = Number(rpcResult.id);
+      if (!isNaN(threadId) && threadId > 0) {
+        return {
+          ...rpcResult,
+          id: threadId
+        } as Thread;
+      }
+    }
+    // If RPC doesn't exist or returns error, continue with fallback
+    // (this is fine - RPC is optional)
+  } catch (rpcErr) {
+    // RPC might not exist - continue with fallback
+    console.log('RPC ensure_1on1_thread not available or error, using fallback:', rpcErr);
   }
 
   // Fallback: find existing 1:1 thread
-  const [userThreads, partnerThreads] = await Promise.all([
-    supabase
-      .from('dms_thread_participants')
-      .select('thread_id')
-      .eq('user_id', currentUserId),
-    supabase
-      .from('dms_thread_participants')
-      .select('thread_id')
-      .eq('user_id', partnerId),
-  ]);
+  try {
+    const [userThreads, partnerThreads] = await Promise.all([
+      supabase
+        .from('dms_thread_participants')
+        .select('thread_id')
+        .eq('user_id', currentUserId),
+      supabase
+        .from('dms_thread_participants')
+        .select('thread_id')
+        .eq('user_id', partnerId),
+    ]);
 
-  if (userThreads.error) {
-    throw new Error(userThreads.error.message);
-  }
-  if (partnerThreads.error) {
-    throw new Error(partnerThreads.error.message);
-  }
-
-  const userThreadIds = new Set(
-    (userThreads.data || []).map((r) => Number(r.thread_id))
-  );
-  const partnerThreadIds = new Set(
-    (partnerThreads.data || []).map((r) => Number(r.thread_id))
-  );
-
-  const commonThreadIds: number[] = [];
-  for (const id of userThreadIds) {
-    if (partnerThreadIds.has(id)) {
-      commonThreadIds.push(id);
+    if (userThreads.error) {
+      throw new Error(`Failed to get user threads: ${userThreads.error.message}`);
     }
-  }
-
-  if (commonThreadIds.length > 0) {
-    const { data: existingThread, error: threadError } = await supabase
-      .from('dms_threads')
-      .select('*')
-      .in('id', commonThreadIds)
-      .eq('is_group', false)
-      .order('id', { ascending: false })
-      .maybeSingle();
-
-    if (threadError) {
-      throw new Error(threadError.message);
+    if (partnerThreads.error) {
+      throw new Error(`Failed to get partner threads: ${partnerThreads.error.message}`);
     }
-    if (existingThread) {
-      // Ensure id is a number (bigint from database may be string)
-      return {
-        ...existingThread,
-        id: Number(existingThread.id)
-      } as Thread;
+
+    const userThreadIds = new Set(
+      (userThreads.data || []).map((r) => {
+        const tid = Number(r.thread_id);
+        return isNaN(tid) ? null : tid;
+      }).filter((id): id is number => id !== null)
+    );
+    const partnerThreadIds = new Set(
+      (partnerThreads.data || []).map((r) => {
+        const tid = Number(r.thread_id);
+        return isNaN(tid) ? null : tid;
+      }).filter((id): id is number => id !== null)
+    );
+
+    const commonThreadIds: number[] = [];
+    for (const id of userThreadIds) {
+      if (partnerThreadIds.has(id)) {
+        commonThreadIds.push(id);
+      }
     }
+
+    if (commonThreadIds.length > 0) {
+      const { data: existingThread, error: threadError } = await supabase
+        .from('dms_threads')
+        .select('*')
+        .in('id', commonThreadIds)
+        .eq('is_group', false)
+        .order('id', { ascending: false })
+        .maybeSingle();
+
+      if (threadError) {
+        throw new Error(`Failed to get existing thread: ${threadError.message}`);
+      }
+      if (existingThread && existingThread.id) {
+        const threadId = Number(existingThread.id);
+        if (!isNaN(threadId) && threadId > 0) {
+          // Ensure id is a number (bigint from database may be string)
+          return {
+            ...existingThread,
+            id: threadId
+          } as Thread;
+        }
+      }
+    }
+  } catch (fallbackErr) {
+    console.error('Error in fallback thread search:', fallbackErr);
+    // Continue to create new thread
   }
 
   // Create new thread
@@ -157,26 +182,43 @@ export async function getOrCreateThread(
     .select('*')
     .single();
 
-  if (createError || !newThread) {
-    throw new Error(createError?.message || 'Failed to create thread');
+  if (createError) {
+    console.error('Error creating thread:', createError);
+    throw new Error(`Failed to create thread: ${createError.message}`);
+  }
+  
+  if (!newThread || !newThread.id) {
+    console.error('New thread is missing or has no id:', newThread);
+    throw new Error('Failed to create thread: thread created but missing data');
   }
 
   // Ensure id is a number (bigint from database may be string)
+  const threadId = Number(newThread.id);
+  if (isNaN(threadId) || threadId <= 0) {
+    console.error('Invalid thread id after creation:', newThread.id, typeof newThread.id);
+    throw new Error(`Failed to create thread: invalid thread ID ${newThread.id}`);
+  }
+
   const threadWithNumericId = {
     ...newThread,
-    id: Number(newThread.id)
+    id: threadId
   };
 
   // Add participants
   const { error: participantsError } = await supabase
     .from('dms_thread_participants')
     .insert([
-      { thread_id: threadWithNumericId.id, user_id: currentUserId, role: 'owner' },
-      { thread_id: threadWithNumericId.id, user_id: partnerId, role: 'member' },
+      { thread_id: threadId, user_id: currentUserId, role: 'owner' },
+      { thread_id: threadId, user_id: partnerId, role: 'member' },
     ]);
 
   if (participantsError) {
-    throw new Error(participantsError.message);
+    console.error('Error adding participants:', participantsError);
+    // Try to clean up the thread we just created
+    try {
+      await supabase.from('dms_threads').delete().eq('id', threadId);
+    } catch {}
+    throw new Error(`Failed to add participants: ${participantsError.message}`);
   }
 
   return threadWithNumericId as Thread;

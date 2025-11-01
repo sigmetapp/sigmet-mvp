@@ -225,18 +225,29 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
       try {
         // Get or create thread
-        const threadData = await getOrCreateThread(currentUserId, partnerId);
+        let threadData;
+        try {
+          threadData = await getOrCreateThread(currentUserId, partnerId);
+        } catch (threadErr: any) {
+          console.error('Error in getOrCreateThread:', threadErr);
+          throw new Error(threadErr?.message || 'Failed to create or get thread');
+        }
+        
         if (cancelled) return;
 
         // Ensure thread.id is a valid number
-        if (!threadData || !threadData.id) {
-          throw new Error('Failed to get thread');
+        if (!threadData) {
+          console.error('threadData is null or undefined');
+          throw new Error('Failed to get thread: threadData is null');
         }
         
-        const threadIdNum = Number(threadData.id);
-        if (!threadIdNum || isNaN(threadIdNum)) {
-          console.error('Invalid thread.id:', threadData.id, typeof threadData.id);
-          throw new Error('Invalid thread ID');
+        console.log('threadData received:', { id: threadData.id, type: typeof threadData.id, full: threadData });
+        
+        const threadIdNum = threadData.id != null ? (typeof threadData.id === 'string' ? Number(threadData.id) : Number(threadData.id)) : null;
+        
+        if (threadIdNum == null || isNaN(threadIdNum) || threadIdNum <= 0) {
+          console.error('Invalid thread.id:', threadData.id, typeof threadData.id, '->', threadIdNum);
+          throw new Error(`Invalid thread ID: ${threadData.id}`);
         }
 
         // Update thread data with numeric ID
@@ -247,7 +258,14 @@ export default function DmsChatWindow({ partnerId }: Props) {
         setThread(threadWithNumericId);
 
         // Load messages with numeric thread ID
-        const messagesData = await listMessages(threadIdNum, 50);
+        let messagesData;
+        try {
+          messagesData = await listMessages(threadIdNum, 50);
+        } catch (msgErr: any) {
+          console.error('Error in listMessages:', msgErr, 'threadIdNum:', threadIdNum);
+          // Continue without messages if we can't load them, but thread is valid
+          messagesData = [];
+        }
         if (cancelled) return;
 
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
@@ -629,7 +647,19 @@ export default function DmsChatWindow({ partnerId }: Props) {
   if (error && !thread) {
     return (
       <div className="card card-glow h-full flex items-center justify-center">
-        <div className="text-red-400">{error}</div>
+        <div className="text-red-400 max-w-md text-center">
+          <div className="font-semibold mb-2">Error loading conversation</div>
+          <div className="text-sm text-red-300">{error}</div>
+          <div className="text-xs text-red-400/70 mt-2">Check browser console for details</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!thread || !thread.id) {
+    return (
+      <div className="card card-glow h-full flex items-center justify-center">
+        <div className="text-white/70">No conversation selected</div>
       </div>
     );
   }
