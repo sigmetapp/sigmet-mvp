@@ -134,7 +134,16 @@ function GrowthDirectionsInner() {
       }
 
       const { habits, goals } = await res.json();
-      setTasks({ habits: habits || [], goals: goals || [] });
+      
+      // Remove duplicates by task id
+      const uniqueHabits = Array.from(
+        new Map((habits || []).map((h: Task) => [h.id, h])).values()
+      );
+      const uniqueGoals = Array.from(
+        new Map((goals || []).map((g: Task) => [g.id, g])).values()
+      );
+      
+      setTasks({ habits: uniqueHabits, goals: uniqueGoals });
     } catch (error: any) {
       console.error('Error loading tasks:', error);
     } finally {
@@ -313,9 +322,9 @@ function GrowthDirectionsInner() {
   function openCheckInModal(userTaskId: string, task: Task) {
     setShowCheckInModal({ userTaskId, task });
     // Pre-fill post with task information
-    const taskInfo = `📋 Task: ${task.title}
+    const taskInfo = `?? Task: ${task.title}
 
-📝 Description: ${task.description}
+?? Description: ${task.description}
 
 ? Check-in progress`;
     setCheckInPostForm({ body: taskInfo, image: null, video: null });
@@ -466,20 +475,20 @@ function GrowthDirectionsInner() {
   // Helper function to get emoji for direction
   const getDirectionEmoji = (slug: string) => {
     const emojiMap: Record<string, string> = {
-      'learning': '🧠',
-      'career': '💼',
-      'finance': '💰',
-      'health': '💚',
-      'relationships': '❤️',
-      'community': '🌍',
-      'creativity': '🎨',
-      'mindfulness': '🧘‍♂️',
-      'personal': '🌱',
-      'digital': '🌐',
-      'education': '📚',
-      'purpose': '🕊️',
+      'learning': '??',
+      'career': '??',
+      'finance': '??',
+      'health': '??',
+      'relationships': '??',
+      'community': '??',
+      'creativity': '??',
+      'mindfulness': '?????',
+      'personal': '??',
+      'digital': '??',
+      'education': '??',
+      'purpose': '???',
     };
-    return emojiMap[slug] || '🌱';
+    return emojiMap[slug] || '??';
   };
 
   return (
@@ -498,7 +507,7 @@ function GrowthDirectionsInner() {
       {!loading && (
         <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
           <h2 className={`font-semibold text-lg mb-4 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-            📊 Summary for Work & Analysis
+            ?? Summary for Work & Analysis
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -557,7 +566,7 @@ function GrowthDirectionsInner() {
                           </p>
                           {habit.userTask && (
                             <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                              🔥 Streak: {habit.userTask.current_streak} | ✅ Check-ins: {habit.userTask.total_checkins}
+                              ?? Streak: {habit.userTask.current_streak} | ? Check-ins: {habit.userTask.total_checkins}
                             </p>
                           )}
                         </div>
@@ -648,23 +657,23 @@ function GrowthDirectionsInner() {
                             {(() => {
                               // Fix emoji mapping if they come as ?? from DB
                               const emojiMap: Record<string, string> = {
-                                'learning': '🧠',
-                            'career': '💼',
-                            'finance': '💰',
-                            'health': '💚',
-                            'relationships': '❤️',
-                            'community': '🌍',
-                            'creativity': '🎨',
-                            'mindfulness': '🧘‍♂️',
-                            'personal': '🌱',
-                            'digital': '🌐',
-                            'education': '📚',
-                            'purpose': '🕊️',
+                                'learning': '??',
+                            'career': '??',
+                            'finance': '??',
+                            'health': '??',
+                            'relationships': '??',
+                            'community': '??',
+                            'creativity': '??',
+                            'mindfulness': '?????',
+                            'personal': '??',
+                            'digital': '??',
+                            'education': '??',
+                            'purpose': '???',
                               };
                               if (dir.emoji === '??' || dir.emoji === '???' || dir.emoji?.includes('?')) {
                                 return emojiMap[dir.slug] || dir.emoji;
                               }
-                              return dir.emoji || emojiMap[dir.slug] || '🌱';
+                              return dir.emoji || emojiMap[dir.slug] || '??';
                             })()}
                           </span>
                           <span className="font-medium text-sm">{dir.title}</span>
@@ -709,21 +718,21 @@ function GrowthDirectionsInner() {
                           // Always use emoji map by slug to ensure correct display
                           if (!currentDirection) return '';
                           const emojiMap: Record<string, string> = {
-                            'learning': '🧠',
-                            'career': '💼',
-                            'finance': '💰',
-                            'health': '💚',
-                            'relationships': '❤️',
-                            'community': '🌍',
-                            'creativity': '🎨',
-                            'mindfulness': '🧘‍♂️',
-                            'personal': '🌱',
-                            'digital': '🌐',
-                            'education': '📚',
-                            'purpose': '🕊️',
+                            'learning': '??',
+                            'career': '??',
+                            'finance': '??',
+                            'health': '??',
+                            'relationships': '??',
+                            'community': '??',
+                            'creativity': '??',
+                            'mindfulness': '?????',
+                            'personal': '??',
+                            'digital': '??',
+                            'education': '??',
+                            'purpose': '???',
                           };
                           // Always return emoji from map based on slug
-                          return emojiMap[currentDirection.slug] || currentDirection.emoji || '🌱';
+                          return emojiMap[currentDirection.slug] || currentDirection.emoji || '??';
                         })()}
                       </span>
                       <div>
@@ -795,7 +804,7 @@ function GrowthDirectionsInner() {
                                       Current Streak
                                     </div>
                                     <div className={`text-lg font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                                      🔥 {habit.userTask.current_streak}
+                                      ?? {habit.userTask.current_streak}
                                     </div>
                                   </div>
                                   <div>
@@ -1066,7 +1075,7 @@ function GrowthDirectionsInner() {
                         : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
                     }`}
                   >
-                    📷 Image
+                    ?? Image
                   </label>
                   
                   <input
@@ -1089,7 +1098,7 @@ function GrowthDirectionsInner() {
                         : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
                     }`}
                   >
-                    🎥 Video
+                    ?? Video
                   </label>
                   
                   {(checkInPostForm.image || checkInPostForm.video) && (
