@@ -146,7 +146,7 @@ function AdminTicketsInner() {
 
   if (isAdmin === null) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isLight ? 'text-black' : 'text-white'}`}>
+      <div className={`min-h-[60vh] flex items-center justify-center ${isLight ? 'text-black/80' : 'text-white/80'}`}>
         Loading...
       </div>
     );
@@ -157,7 +157,7 @@ function AdminTicketsInner() {
   }
 
   return (
-    <div className={`min-h-screen ${isLight ? 'text-black bg-white' : 'text-white bg-black'}`}>
+    <div className="min-h-[60vh]">
       <div className={`max-w-7xl mx-auto px-4 py-6 ${selectedTicket ? 'hidden' : 'block'}`}>
         <div className="flex items-center justify-between mb-6">
           <h1 className={`text-2xl font-semibold ${isLight ? 'text-black' : 'text-white'}`}>
@@ -186,8 +186,8 @@ function AdminTicketsInner() {
           </div>
         ) : (
           <div className={`rounded-xl border ${
-            isLight ? 'border-black/10 bg-white' : 'border-white/10 bg-black/30'
-          } overflow-hidden`}>
+            isLight ? 'border-black/10 bg-white/90 backdrop-blur' : 'border-white/10 bg-black/30 backdrop-blur'
+          } overflow-hidden shadow-lg`}>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -195,32 +195,32 @@ function AdminTicketsInner() {
                     isLight ? 'border-black/10 bg-black/5' : 'border-white/10 bg-white/5'
                   }`}>
                     <th className={`px-4 py-3 text-left text-sm font-medium ${
-                      isLight ? 'text-black/80' : 'text-white/80'
+                      isLight ? 'text-black font-semibold' : 'text-white font-semibold'
                     }`}>
                       ID
                     </th>
                     <th className={`px-4 py-3 text-left text-sm font-medium ${
-                      isLight ? 'text-black/80' : 'text-white/80'
+                      isLight ? 'text-black font-semibold' : 'text-white font-semibold'
                     }`}>
                       Title
                     </th>
                     <th className={`px-4 py-3 text-left text-sm font-medium ${
-                      isLight ? 'text-black/80' : 'text-white/80'
+                      isLight ? 'text-black font-semibold' : 'text-white font-semibold'
                     }`}>
                       Author
                     </th>
                     <th className={`px-4 py-3 text-left text-sm font-medium ${
-                      isLight ? 'text-black/80' : 'text-white/80'
+                      isLight ? 'text-black font-semibold' : 'text-white font-semibold'
                     }`}>
                       Date
                     </th>
                     <th className={`px-4 py-3 text-left text-sm font-medium ${
-                      isLight ? 'text-black/80' : 'text-white/80'
+                      isLight ? 'text-black font-semibold' : 'text-white font-semibold'
                     }`}>
                       Status
                     </th>
                     <th className={`px-4 py-3 text-left text-sm font-medium ${
-                      isLight ? 'text-black/80' : 'text-white/80'
+                      isLight ? 'text-black font-semibold' : 'text-white font-semibold'
                     }`}>
                       Action
                     </th>
@@ -237,7 +237,7 @@ function AdminTicketsInner() {
                       <td className={`px-4 py-3 text-sm ${isLight ? 'text-black/70' : 'text-white/70'}`}>
                         #{ticket.id}
                       </td>
-                      <td className={`px-4 py-3 text-sm ${isLight ? 'text-black' : 'text-white'}`}>
+                      <td className={`px-4 py-3 text-sm font-medium ${isLight ? 'text-black' : 'text-white'}`}>
                         {ticket.title}
                       </td>
                       <td className={`px-4 py-3 text-sm ${isLight ? 'text-black/70' : 'text-white/70'}`}>
@@ -294,7 +294,7 @@ function AdminTicketsInner() {
 
       {/* Ticket Detail View */}
       {selectedTicket && (
-        <div className={`max-w-4xl mx-auto px-4 py-6 ${isLight ? 'text-black' : 'text-white'}`}>
+        <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="mb-4">
             <button
               onClick={closeTicket}
@@ -309,8 +309,8 @@ function AdminTicketsInner() {
           </div>
 
           <div className={`rounded-2xl border p-6 space-y-6 ${
-            isLight ? 'border-black/10 bg-white' : 'border-white/10 bg-black/30'
-          }`}>
+            isLight ? 'border-black/10 bg-white/90 backdrop-blur' : 'border-white/10 bg-black/30 backdrop-blur'
+          } shadow-lg`}>
             <div className="flex items-start justify-between">
               <div>
                 <h2 className={`text-2xl font-semibold mb-2 ${isLight ? 'text-black' : 'text-white'}`}>
@@ -389,14 +389,15 @@ function AdminTicketsInner() {
                   onChange={(e) => setStatus(e.target.value)}
                   className={`w-full rounded-xl border px-4 py-2 outline-none transition ${
                     isLight
-                      ? 'border-black/10 bg-white focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/20'
-                      : 'border-white/10 bg-white/5 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/30'
+                      ? 'border-black/10 bg-white text-black focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/20'
+                      : 'border-white/10 bg-white/5 text-white focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/30'
                   }`}
+                  style={isLight ? {} : { colorScheme: 'dark' }}
                 >
-                  <option value="open">Open</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
+                  <option value="open" className={isLight ? 'bg-white text-black' : 'bg-black text-white'}>Open</option>
+                  <option value="in_progress" className={isLight ? 'bg-white text-black' : 'bg-black text-white'}>In Progress</option>
+                  <option value="resolved" className={isLight ? 'bg-white text-black' : 'bg-black text-white'}>Resolved</option>
+                  <option value="closed" className={isLight ? 'bg-white text-black' : 'bg-black text-white'}>Closed</option>
                 </select>
               </div>
 
