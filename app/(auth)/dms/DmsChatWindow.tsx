@@ -44,6 +44,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const presenceChannelRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const hasScrolledToBottomRef = useRef<boolean>(false);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -175,6 +176,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
         });
         setInitialMessages(sorted);
         setMessages(sorted);
+        
+        // Reset scroll flag when loading new thread
+        hasScrolledToBottomRef.current = false;
         
         // Calculate days streak after thread is loaded
         try {
@@ -331,12 +335,18 @@ export default function DmsChatWindow({ partnerId }: Props) {
     };
   }, [messages]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages or when dialog opens
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current && messages.length > 0) {
+      // Use setTimeout to ensure DOM is updated
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          hasScrolledToBottomRef.current = true;
+        }
+      }, 100);
     }
-  }, [messages.length]);
+  }, [messages.length, thread?.id]);
 
   // Close emoji picker on outside click
   useEffect(() => {
@@ -474,7 +484,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   if (loading) {
     return (
-      <div className="card card-glow h-full flex items-center justify-center">
+      <div className="card card-glow h-[600px] flex items-center justify-center">
         <div className="text-white/70">Loading conversation...</div>
       </div>
     );
@@ -482,7 +492,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   if (error && !thread) {
     return (
-      <div className="card card-glow h-full flex items-center justify-center">
+      <div className="card card-glow h-[600px] flex items-center justify-center">
         <div className="text-red-400">{error}</div>
       </div>
     );
