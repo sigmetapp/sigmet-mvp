@@ -94,37 +94,42 @@ function DmsInner() {
           new Set(otherParticipants.map((p) => p.thread_id))
         );
 
-        // Check which threads have messages
-        const { data: messages, error: messagesError } = await supabase
-          .from('dms_messages')
-          .select('thread_id')
-          .in('thread_id', allThreadIdsFromParticipants);
+        let validParticipants = otherParticipants;
+        let threadsWithMessages: Set<number> | null = null;
 
-        if (messagesError) {
-          console.error('Error loading messages:', messagesError);
+        if (allThreadIdsFromParticipants.length > 0) {
+          const { data: messages, error: messagesError } = await supabase
+            .from('dms_messages')
+            .select('thread_id')
+            .in('thread_id', allThreadIdsFromParticipants);
+
+          if (messagesError) {
+            console.warn('[DMs] Falling back to participants without message filter:', messagesError);
+          } else {
+            const threadsWithMessagesLocal = new Set(
+              (messages || [])
+                .map((msg) => normalizeThreadId(msg.thread_id))
+                .filter((id): id is number => id !== null)
+            );
+
+            threadsWithMessages = threadsWithMessagesLocal;
+
+            console.log('[DMs] Debug:', {
+              totalThreadIds: threadIds.length,
+              totalOtherParticipants: otherParticipants.length,
+              totalThreadIdsFromParticipants: allThreadIdsFromParticipants.length,
+              messagesFound: messages?.length || 0,
+              threadsWithMessagesCount: threadsWithMessagesLocal.size,
+            });
+
+            validParticipants = otherParticipants.filter((participant) => {
+              const normalizedId = normalizeThreadId(participant.thread_id);
+              return normalizedId !== null && threadsWithMessagesLocal.has(normalizedId);
+            });
+
+            console.log('[DMs] Valid participants after filtering:', validParticipants.length);
+          }
         }
-
-        const threadsWithMessages = new Set(
-          (messages || [])
-            .map((msg) => normalizeThreadId(msg.thread_id))
-            .filter((id): id is number => id !== null)
-        );
-
-        console.log('[DMs] Debug:', {
-          totalThreadIds: threadIds.length,
-          totalOtherParticipants: otherParticipants.length,
-          totalThreadIdsFromParticipants: allThreadIdsFromParticipants.length,
-          messagesFound: messages?.length || 0,
-          threadsWithMessagesCount: threadsWithMessages.size,
-        });
-
-        // Filter participants to only include those from threads with messages
-        const validParticipants = otherParticipants.filter((participant) => {
-          const normalizedId = normalizeThreadId(participant.thread_id);
-          return normalizedId !== null && threadsWithMessages.has(normalizedId);
-        });
-
-        console.log('[DMs] Valid participants after filtering:', validParticipants.length);
 
         if (cancelled || validParticipants.length === 0) {
           setPartners([]);
