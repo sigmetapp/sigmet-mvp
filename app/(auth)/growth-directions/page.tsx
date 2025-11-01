@@ -238,7 +238,7 @@ function GrowthDirectionsInner() {
   function openCheckInModal(userTaskId: string, task: Task) {
     setShowCheckInModal({ userTaskId, task });
     // Pre-fill post with task information
-    const taskInfo = `?? Task: ${task.title}\n\n?? Description: ${task.description}\n\n? Check-in`;
+    const taskInfo = `📋 Task: ${task.title}\n\n📝 Description: ${task.description}\n\n✅ Check-in progress`;
     setCheckInPostForm({ body: taskInfo, image: null, video: null });
   }
 
@@ -571,7 +571,7 @@ function GrowthDirectionsInner() {
                                       Current Streak
                                     </div>
                                     <div className={`text-lg font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                                      ?? {habit.userTask.current_streak}
+                                      🔥 {habit.userTask.current_streak}
                                     </div>
                                   </div>
                                   <div>
