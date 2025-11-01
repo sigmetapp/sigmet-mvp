@@ -38,9 +38,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [messages, setMessages] = useDmRealtime(thread?.id || null, initialMessages);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMoreMessages, setHasMoreMessages] = useState(true);
-  const oldestMessageIdRef = useRef<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const presenceChannelRef = useRef<any>(null);
@@ -164,8 +161,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
         setThread(threadData);
 
-        // Load last 10 messages initially
-        const messagesData = await listMessages(threadData.id, 10);
+        // Load last 20 messages
+        const messagesData = await listMessages(threadData.id, 20);
         if (cancelled) return;
 
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
@@ -177,15 +174,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
         });
         setInitialMessages(sorted);
         setMessages(sorted);
-        
-        // Set oldest message ID for pagination
-        if (sorted.length > 0) {
-          oldestMessageIdRef.current = sorted[0].id;
-          // If we got fewer than 10 messages, there are no more to load
-          setHasMoreMessages(messagesData.length >= 10);
-        } else {
-          setHasMoreMessages(false);
-        }
         
         // Calculate days streak after thread is loaded
         try {
@@ -300,113 +288,12 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages, currentUserId, partnerId]);
 
-  // Load older messages function
-  async function loadOlderMessages() {
-    if (!thread || loadingMore || !hasMoreMessages || !oldestMessageIdRef.current) return;
-
-    setLoadingMore(true);
-    try {
-      const olderMessages = await listMessages(thread.id, 20, oldestMessageIdRef.current);
-      
-      if (olderMessages.length === 0) {
-        setHasMoreMessages(false);
-        setLoadingMore(false);
-        return;
-      }
-
-      // Sort by created_at ascending (oldest first, newest last)
-      const sorted = olderMessages.sort((a, b) => {
-        const timeA = new Date(a.created_at).getTime();
-        const timeB = new Date(b.created_at).getTime();
-        if (timeA !== timeB) return timeA - timeB;
-        return a.id - b.id;
-      });
-
-      // Preserve scroll position
-      const scrollElement = scrollRef.current;
-      if (scrollElement) {
-        const previousScrollHeight = scrollElement.scrollHeight;
-        
-        // Prepend older messages
-        setMessages((prev) => {
-          const combined = [...sorted, ...prev];
-          return combined.sort((a, b) => {
-            const timeA = new Date(a.created_at).getTime();
-            const timeB = new Date(b.created_at).getTime();
-            if (timeA !== timeB) return timeA - timeB;
-            return a.id - b.id;
-          });
-        });
-
-        // Restore scroll position after render
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (scrollElement) {
-              const newScrollHeight = scrollElement.scrollHeight;
-              const scrollDiff = newScrollHeight - previousScrollHeight;
-              scrollElement.scrollTop = scrollDiff;
-            }
-          });
-        });
-      } else {
-        setMessages((prev) => {
-          const combined = [...sorted, ...prev];
-          return combined.sort((a, b) => {
-            const timeA = new Date(a.created_at).getTime();
-            const timeB = new Date(b.created_at).getTime();
-            if (timeA !== timeB) return timeA - timeB;
-            return a.id - b.id;
-          });
-        });
-      }
-
-      // Update oldest message ID
-      if (sorted.length > 0) {
-        oldestMessageIdRef.current = sorted[0].id;
-        setHasMoreMessages(olderMessages.length >= 20);
-      } else {
-        setHasMoreMessages(false);
-      }
-    } catch (err: any) {
-      console.error('Error loading older messages:', err);
-      setError(err?.message || 'Failed to load older messages');
-    } finally {
-      setLoadingMore(false);
-    }
-  }
-
-  // Handle scroll to detect when near top
+  // Scroll to bottom on new messages
   useEffect(() => {
-    const scrollElement = scrollRef.current;
-    if (!scrollElement || !thread) return;
-
-    let loadingTimeout: NodeJS.Timeout | null = null;
-
-    const handleScroll = () => {
-      const scrollTop = scrollElement.scrollTop;
-      // Load more when within 200px of top
-      if (scrollTop < 200 && hasMoreMessages && !loadingMore) {
-        // Debounce to avoid multiple rapid calls
-        if (loadingTimeout) clearTimeout(loadingTimeout);
-        loadingTimeout = setTimeout(() => {
-          void loadOlderMessages();
-        }, 100);
-      }
-    };
-
-    scrollElement.addEventListener('scroll', handleScroll);
-    return () => {
-      scrollElement.removeEventListener('scroll', handleScroll);
-      if (loadingTimeout) clearTimeout(loadingTimeout);
-    };
-  }, [hasMoreMessages, loadingMore, thread]);
-
-  // Scroll to bottom on new messages (but not when loading older messages)
-  useEffect(() => {
-    if (scrollRef.current && !loadingMore) {
+    if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length, loadingMore]);
+  }, [messages.length]);
 
   // Close emoji picker on outside click
   useEffect(() => {
@@ -635,11 +522,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
       </div>
 
       {/* Error message */}
-            {loadingMore && (
-              <div className="text-center text-white/50 text-sm py-2">
-                Loading older messages...
-              </div>
-            )}
       {error && (
         <div className="px-4 py-2 bg-red-500/20 text-red-400 text-sm border-b border-red-500/30">
           {error}
@@ -821,7 +703,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
               className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 text-lg"
               title="Add emoji"
             >
-              😊
+              ??
             </button>
             {showEmojiPicker && (
               <div className="absolute bottom-full right-0 mb-2 z-50">

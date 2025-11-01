@@ -156,7 +156,7 @@ function DmsInner() {
   }
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-120px)]">
+    <div className="flex gap-4 h-full overflow-hidden">
       {/* Partners list - left side */}
       <div className="w-80 flex-shrink-0">
         <div className="card card-glow h-full flex flex-col">

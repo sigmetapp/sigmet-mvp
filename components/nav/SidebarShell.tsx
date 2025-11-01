@@ -51,7 +51,7 @@ export default function SidebarShell({ user, children }: { user: User; children:
         )}
 
         {/* Main content */}
-        <main className={`min-h-screen flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6 transition-colors ${
+        <main className={`flex-1 h-full overflow-hidden px-4 py-4 lg:px-8 lg:py-6 transition-colors ${
           isLight ? "text-telegram-text" : "text-telegram-text"
         }`}>
           {children}

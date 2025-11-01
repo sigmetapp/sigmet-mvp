@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 
-export const DM_ATTACHMENTS_BUCKET = 'dm-attachments';
+export const DM_ATTACHMENTS_BUCKET = 'posts'; // Using posts bucket as it exists
 
 export type DmAttachment = {
   type: 'image' | 'video' | 'audio' | 'file';
@@ -53,13 +53,13 @@ export async function uploadAttachment(file: File): Promise<DmAttachment> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id || 'anon';
 
-  // path: userId/YYYY/MM/<uuid><ext>
+  // path: dm-attachments/userId/YYYY/MM/<uuid><ext>
   const now = new Date();
   const yyyy = String(now.getUTCFullYear());
   const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
   const ext = getExtensionFromName(sanitizeFilename(file.name)) || (mime && `.${mime.split('/')[1]}`) || '';
   const uuid = (typeof crypto !== 'undefined' && 'randomUUID' in crypto) ? crypto.randomUUID() : `${now.getTime()}-${Math.random().toString(36).slice(2, 10)}`;
-  const path = `${userId}/${yyyy}/${mm}/${uuid}${ext}`;
+  const path = `dm-attachments/${userId}/${yyyy}/${mm}/${uuid}${ext}`;
 
   const { error: uploadErr } = await supabase.storage
     .from(DM_ATTACHMENTS_BUCKET)
