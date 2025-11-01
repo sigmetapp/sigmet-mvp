@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import DmsChatWindow from './DmsChatWindow';
@@ -24,6 +25,7 @@ type Profile = {
 };
 
 function DmsInner() {
+  const searchParams = useSearchParams();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [partners, setPartners] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,14 @@ function DmsInner() {
 
         const threadIds = participants.map((p) => p.thread_id);
 
-        // Get other participants from these threads
+        // Normalize thread IDs for comparison
+        const normalizeThreadId = (id: number | string | null | undefined): number | null => {
+          if (id === null || id === undefined) return null;
+          const numId = typeof id === 'string' ? Number.parseInt(id, 10) : id;
+          return typeof numId === 'number' && Number.isFinite(numId) ? numId : null;
+        };
+
+        // Get other participants from all threads first
         const { data: otherParticipants } = await supabase
           .from('dms_thread_participants')
           .select('user_id, thread_id')
@@ -80,8 +89,52 @@ function DmsInner() {
           return;
         }
 
+        // Get all unique thread IDs from other participants
+        const allThreadIdsFromParticipants = Array.from(
+          new Set(otherParticipants.map((p) => p.thread_id))
+        );
+
+        // Check which threads have messages
+        const { data: messages, error: messagesError } = await supabase
+          .from('dms_messages')
+          .select('thread_id')
+          .in('thread_id', allThreadIdsFromParticipants);
+
+        if (messagesError) {
+          console.error('Error loading messages:', messagesError);
+        }
+
+        const threadsWithMessages = new Set(
+          (messages || [])
+            .map((msg) => normalizeThreadId(msg.thread_id))
+            .filter((id): id is number => id !== null)
+        );
+
+        console.log('[DMs] Debug:', {
+          totalThreadIds: threadIds.length,
+          totalOtherParticipants: otherParticipants.length,
+          totalThreadIdsFromParticipants: allThreadIdsFromParticipants.length,
+          messagesFound: messages?.length || 0,
+          threadsWithMessagesCount: threadsWithMessages.size,
+        });
+
+        // Filter participants to only include those from threads with messages
+        const validParticipants = otherParticipants.filter((participant) => {
+          const normalizedId = normalizeThreadId(participant.thread_id);
+          return normalizedId !== null && threadsWithMessages.has(normalizedId);
+        });
+
+        console.log('[DMs] Valid participants after filtering:', validParticipants.length);
+
+        if (cancelled || validParticipants.length === 0) {
+          setPartners([]);
+          setSelectedPartnerId(null);
+          setLoading(false);
+          return;
+        }
+
         const partnerThreadMap = new Map<string, number>();
-        for (const participant of otherParticipants) {
+        for (const participant of validParticipants) {
           const threadIdValue = participant.thread_id;
           const normalizedThreadId =
             typeof threadIdValue === 'string'
@@ -107,10 +160,12 @@ function DmsInner() {
           .limit(20);
 
         if (!cancelled && profiles) {
+          // Get thread IDs that have messages for metadata query
+          const threadIdsForMeta = Array.from(partnerThreadMap.values());
           const { data: threadMeta } = await supabase
             .from('dms_threads')
             .select('id, last_message_at, created_at')
-            .in('id', threadIds);
+            .in('id', threadIdsForMeta);
 
           const threadMetaMap = new Map<number, { last_message_at: string | null; created_at: string }>();
           for (const meta of threadMeta || []) {
@@ -149,7 +204,48 @@ function DmsInner() {
             .map(({ last_message_at: _last, created_at: _created, ...rest }) => rest);
 
           setPartners(basePartners);
-          setSelectedPartnerId((prev) => prev ?? basePartners[0]?.user_id ?? null);
+          
+          // Check if there's a partnerId in query params
+          const partnerIdFromQuery = searchParams.get('partnerId');
+          if (partnerIdFromQuery) {
+            // Check if this partner is already in the list
+            const existingPartner = basePartners.find(p => p.user_id === partnerIdFromQuery);
+            if (existingPartner) {
+              setSelectedPartnerId(partnerIdFromQuery);
+            } else {
+              // Load profile for the partner from query params
+              (async () => {
+                try {
+                  const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('user_id, username, full_name, avatar_url')
+                    .eq('user_id', partnerIdFromQuery)
+                    .maybeSingle();
+                  
+                  if (profile && !cancelled) {
+                    // Add this partner to the list
+                    const newPartner: Profile = {
+                      ...profile,
+                      thread_id: null,
+                      messages24h: undefined,
+                    };
+                    setPartners((prev) => [newPartner, ...prev]);
+                    setSelectedPartnerId(partnerIdFromQuery);
+                  } else if (!cancelled) {
+                    // If not found, still select it (chat window will handle thread creation)
+                    setSelectedPartnerId(partnerIdFromQuery);
+                  }
+                } catch (err) {
+                  console.error('Error loading partner from query:', err);
+                  if (!cancelled) {
+                    setSelectedPartnerId(partnerIdFromQuery);
+                  }
+                }
+              })();
+            }
+          } else {
+            setSelectedPartnerId((prev) => prev ?? basePartners[0]?.user_id ?? null);
+          }
 
           const last24h = new Date();
           last24h.setHours(last24h.getHours() - 24);
@@ -202,7 +298,7 @@ function DmsInner() {
     return () => {
       cancelled = true;
     };
-  }, [currentUserId]);
+  }, [currentUserId, searchParams]);
 
   function handlePartnerClick(partnerId: string) {
     setSelectedPartnerId(partnerId);

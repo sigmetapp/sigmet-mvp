@@ -592,7 +592,7 @@ export default function PublicProfilePage() {
           <div className="text-white/70">Profile not found</div>
         ) : (
           <div className="flex items-start gap-4">
-            <div className="relative">
+            <div className="relative flex flex-col items-center">
               <img
                 src={profile.avatar_url || AVATAR_FALLBACK}
                 alt="avatar"
@@ -615,6 +615,14 @@ export default function PublicProfilePage() {
                     {avatarUploading ? '...' : 'Edit'}
                   </button>
                 </>
+              )}
+              {!isMe && (
+                <Link
+                  href={`/dms?partnerId=${encodeURIComponent(profile.user_id)}`}
+                  className="mt-3 px-4 py-2 rounded-lg text-sm font-medium border border-white/20 bg-white/10 hover:bg-white/20 text-white/90 transition"
+                >
+                  Write
+                </Link>
               )}
             </div>
             <div className="min-w-0 flex-1">
