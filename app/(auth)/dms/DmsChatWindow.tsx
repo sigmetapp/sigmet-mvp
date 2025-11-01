@@ -658,7 +658,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
                   title="Days streak"
                 >
-                  <span className="text-xs leading-none" role="img" aria-label="fire">??</span>
+                  <span className="text-xs leading-none" role="img" aria-label="fire">🔥</span>
                   {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
                 </span>
               )}

@@ -13,16 +13,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { client: authedClient, user } = await getAuthedClient(req);
-    
-    // Create service role client to bypass RLS for message insertion
-    // We still verify user permissions above, but use service role for the insert
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const client = serviceRoleKey 
-      ? createClient(url, serviceRoleKey, {
-          auth: { persistSession: false, autoRefreshToken: false },
-        })
-      : authedClient; // Fallback to authed client if no service role key
     // Helper to support both real supabase-js and test doubles that expose `.exec()`
     const execOrFetch = async (q: any): Promise<{ data: any; error: any }> => {
       if (typeof q?.exec === 'function') {
@@ -133,42 +123,83 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Use service role client for insert to bypass RLS, but verify permissions first
-    // We already verified membership and blocks above with authedClient
-    const { data: message, error: msgErr } = await client
-      .from('dms_messages')
-      .insert({ 
-        thread_id: threadId, 
-        sender_id: user.id, 
-        kind: 'text', 
-        body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
-        attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : null
-      })
-      .select('*')
-      .single();
+    // Use PostgreSQL function to insert message (bypasses RLS via SECURITY DEFINER)
+    // This is more reliable than service role key
+    const { data: message, error: msgErr } = await authedClient.rpc('insert_dms_message', {
+      p_thread_id: threadId,
+      p_sender_id: user.id,
+      p_kind: 'text',
+      p_body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
+      p_attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : []
+    });
+    
+    // If RPC doesn't work, fallback to direct insert with service role
+    let finalMessage = message;
+    if (msgErr || !message) {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const fallbackClient = serviceRoleKey 
+        ? createClient(url, serviceRoleKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          })
+        : authedClient;
+      
+      const { data: fallbackMsg, error: fallbackErr } = await fallbackClient
+        .from('dms_messages')
+        .insert({ 
+          thread_id: threadId, 
+          sender_id: user.id, 
+          kind: 'text', 
+          body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
+          attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : null
+        })
+        .select('*')
+        .single();
+      
+      if (fallbackErr || !fallbackMsg) {
+        return res.status(400).json({ ok: false, error: msgErr?.message || fallbackErr?.message || 'Failed to send' });
+      }
+      finalMessage = fallbackMsg;
+    }
 
-    if (msgErr || !message) return res.status(400).json({ ok: false, error: msgErr?.message || 'Failed to send' });
+    if (!finalMessage) return res.status(400).json({ ok: false, error: msgErr?.message || 'Failed to send' });
 
-    // Update thread last message refs (best-effort)
+    // Thread update is handled by the function, but try to update anyway if function failed
     // Use service role client for update to bypass RLS
     try {
-      await client
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const updateClient = serviceRoleKey 
+        ? createClient(url, serviceRoleKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          })
+        : authedClient;
+      
+      await updateClient
         .from('dms_threads')
         .update({
-          last_message_id: message.id,
-          last_message_at: message.created_at,
+          last_message_id: finalMessage.id,
+          last_message_at: finalMessage.created_at,
           updated_at: new Date().toISOString(),
         })
         .eq('id', threadId);
     } catch {}
 
     // Attempt to fetch receipts created by trigger (best-effort)
-    let messageWithReceipts = message;
+    let messageWithReceipts = finalMessage;
     try {
-      const { data: enriched } = await client
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const fetchClient = serviceRoleKey 
+        ? createClient(url, serviceRoleKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          })
+        : authedClient;
+      
+      const { data: enriched } = await fetchClient
         .from('dms_messages')
         .select('*, receipts:dms_message_receipts(user_id, status, updated_at)')
-        .eq('id', message.id)
+        .eq('id', finalMessage.id)
         .single();
       if (enriched) messageWithReceipts = enriched as typeof message & { receipts?: any[] };
     } catch {}
@@ -183,7 +214,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     //   body: JSON.stringify({ toUserId, title, body, url }),
     // });
 
-    return res.status(200).json({ ok: true, message: messageWithReceipts });
+    return res.status(200).json({ ok: true, message: messageWithReceipts || finalMessage });
   } catch (e: any) {
     const status = e?.status || 500;
     return res.status(status).json({ ok: false, error: e?.message || 'Internal error' });
