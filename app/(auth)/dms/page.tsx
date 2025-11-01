@@ -66,11 +66,32 @@ function DmsInner() {
 
         const threadIds = participants.map((p) => p.thread_id);
 
-        // Get other participants from these threads
+        // Filter threads that have at least one message
+        const { data: messages } = await supabase
+          .from('dms_messages')
+          .select('thread_id')
+          .in('thread_id', threadIds);
+
+        const threadsWithMessages = new Set(
+          (messages || []).map((msg) => msg.thread_id)
+        );
+
+        const validThreadIds = threadIds.filter((threadId) =>
+          threadsWithMessages.has(threadId)
+        );
+
+        if (cancelled || validThreadIds.length === 0) {
+          setPartners([]);
+          setSelectedPartnerId(null);
+          setLoading(false);
+          return;
+        }
+
+        // Get other participants from these threads (only threads with messages)
         const { data: otherParticipants } = await supabase
           .from('dms_thread_participants')
           .select('user_id, thread_id')
-          .in('thread_id', threadIds)
+          .in('thread_id', validThreadIds)
           .neq('user_id', currentUserId);
 
         if (cancelled || !otherParticipants || otherParticipants.length === 0) {
@@ -110,7 +131,7 @@ function DmsInner() {
           const { data: threadMeta } = await supabase
             .from('dms_threads')
             .select('id, last_message_at, created_at')
-            .in('id', threadIds);
+            .in('id', validThreadIds);
 
           const threadMetaMap = new Map<number, { last_message_at: string | null; created_at: string }>();
           for (const meta of threadMeta || []) {
