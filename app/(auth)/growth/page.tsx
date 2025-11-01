@@ -179,7 +179,27 @@ function GrowthInner() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-2xl" aria-hidden>
-                      {dir.emoji}
+                      {(() => {
+                        // Fix emoji mapping if they come as ?? from DB
+                        const emojiMap: Record<string, string> = {
+                          'learning': '??',
+                          'career': '??',
+                          'finance': '??',
+                          'health': '??',
+                          'relationships': '??',
+                          'community': '??',
+                          'creativity': '??',
+                          'mindfulness': '?????',
+                          'personal': '??',
+                          'digital': '??',
+                          'education': '??',
+                          'purpose': '???',
+                        };
+                        if (dir.emoji === '??' || dir.emoji === '???' || dir.emoji?.includes('?')) {
+                          return emojiMap[dir.slug] || dir.emoji;
+                        }
+                        return dir.emoji;
+                      })()}
                     </span>
                     <h3 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                       {dir.title}

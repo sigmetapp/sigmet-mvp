@@ -324,7 +324,7 @@ function GrowthDirectionsInner() {
 
       {loading ? (
         <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-          Loading…
+          Loading?
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -355,7 +355,29 @@ function GrowthDirectionsInner() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg">{dir.emoji}</span>
+                          <span className="text-lg">
+                            {(() => {
+                              // Fix emoji mapping if they come as ?? from DB
+                              const emojiMap: Record<string, string> = {
+                                'learning': '??',
+                                'career': '??',
+                                'finance': '??',
+                                'health': '??',
+                                'relationships': '??',
+                                'community': '??',
+                                'creativity': '??',
+                                'mindfulness': '?????',
+                                'personal': '??',
+                                'digital': '??',
+                                'education': '??',
+                                'purpose': '???',
+                              };
+                              if (dir.emoji === '??' || dir.emoji === '???' || dir.emoji?.includes('?')) {
+                                return emojiMap[dir.slug] || dir.emoji;
+                              }
+                              return dir.emoji;
+                            })()}
+                          </span>
                           <span className="font-medium text-sm">{dir.title}</span>
                         </div>
                         <button
@@ -372,7 +394,7 @@ function GrowthDirectionsInner() {
                               : 'border border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
                           }`}
                         >
-                          {isToggling ? '…' : dir.isSelected ? 'Selected' : 'Add'}
+                          {isToggling ? '?' : dir.isSelected ? 'Selected' : 'Add'}
                         </button>
                       </div>
                       {dir.stats.swPoints > 0 && (
@@ -391,10 +413,33 @@ function GrowthDirectionsInner() {
           <div className="lg:col-span-2 space-y-6">
             {selectedDirection ? (
               <>
-                <div className={`telegram-card-glow p-4 ${isLight ? '' : ''}`}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-3xl">{currentDirection?.emoji}</span>
-                    <div>
+                  <div className={`telegram-card-glow p-4 ${isLight ? '' : ''}`}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-3xl">
+                        {(() => {
+                          // Fix emoji mapping if they come as ?? from DB
+                          if (!currentDirection) return '';
+                          const emojiMap: Record<string, string> = {
+                            'learning': '??',
+                            'career': '??',
+                            'finance': '??',
+                            'health': '??',
+                            'relationships': '??',
+                            'community': '??',
+                            'creativity': '??',
+                            'mindfulness': '?????',
+                            'personal': '??',
+                            'digital': '??',
+                            'education': '??',
+                            'purpose': '???',
+                          };
+                          if (currentDirection.emoji === '??' || currentDirection.emoji === '???' || currentDirection.emoji?.includes('?')) {
+                            return emojiMap[currentDirection.slug] || currentDirection.emoji;
+                          }
+                          return currentDirection.emoji;
+                        })()}
+                      </span>
+                      <div>
                       <h2 className={`font-semibold text-xl ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                         {currentDirection?.title}
                       </h2>
@@ -407,7 +452,7 @@ function GrowthDirectionsInner() {
 
                 {loadingTasks ? (
                   <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                    Loading tasks…
+                    Loading tasks?
                   </div>
                 ) : (
                   <>
@@ -463,7 +508,7 @@ function GrowthDirectionsInner() {
                                       Current Streak
                                     </div>
                                     <div className={`text-lg font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                                      🔥 {habit.userTask.current_streak}
+                                      ?? {habit.userTask.current_streak}
                                     </div>
                                   </div>
                                   <div>
@@ -486,7 +531,7 @@ function GrowthDirectionsInner() {
                                       variant="primary"
                                       className="flex-1"
                                     >
-                                      {isCheckingIn ? 'Checking in…' : 'Check in'}
+                                      {isCheckingIn ? 'Checking in?' : 'Check in'}
                                     </Button>
                                     <Button
                                       onClick={() => deactivateTask(habit.userTask!.id)}
@@ -503,7 +548,7 @@ function GrowthDirectionsInner() {
                                     variant="primary"
                                     className="flex-1"
                                   >
-                                    {isActivating ? 'Activating…' : 'Activate'}
+                                    {isActivating ? 'Activating?' : 'Activate'}
                                   </Button>
                                 )}
                               </div>
@@ -563,7 +608,7 @@ function GrowthDirectionsInner() {
                               <div className="flex gap-2">
                                 {isCompleted ? (
                                   <div className={`text-sm ${isLight ? 'text-green-600' : 'text-green-400'}`}>
-                                    Completed on {goal.userTask?.id ? '✓' : ''}
+                                    Completed on {goal.userTask?.id ? '?' : ''}
                                   </div>
                                 ) : isActive ? (
                                   <Button
@@ -572,7 +617,7 @@ function GrowthDirectionsInner() {
                                     variant="primary"
                                     className="flex-1"
                                   >
-                                    {isCompleting ? 'Completing…' : 'Complete'}
+                                    {isCompleting ? 'Completing?' : 'Complete'}
                                   </Button>
                                 ) : (
                                   <Button
@@ -581,7 +626,7 @@ function GrowthDirectionsInner() {
                                     variant="primary"
                                     className="flex-1"
                                   >
-                                    {isActivating ? 'Activating…' : 'Activate'}
+                                    {isActivating ? 'Activating?' : 'Activate'}
                                   </Button>
                                 )}
                               </div>

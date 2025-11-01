@@ -309,7 +309,29 @@ function DirectionDetailInner() {
           ? Back to Growth
         </Link>
         <div className="flex items-center gap-3">
-          <span className="text-4xl">{direction.emoji}</span>
+          <span className="text-4xl">
+            {(() => {
+              // Fix emoji mapping if they come as ?? from DB
+              const emojiMap: Record<string, string> = {
+                'learning': '??',
+                'career': '??',
+                'finance': '??',
+                'health': '??',
+                'relationships': '??',
+                'community': '??',
+                'creativity': '??',
+                'mindfulness': '?????',
+                'personal': '??',
+                'digital': '??',
+                'education': '??',
+                'purpose': '???',
+              };
+              if (direction.emoji === '??' || direction.emoji === '???' || direction.emoji?.includes('?')) {
+                return emojiMap[direction.slug] || direction.emoji;
+              }
+              return direction.emoji;
+            })()}
+          </span>
           <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' : 'gradient-text'}`}>
             {direction.title}
           </h1>
