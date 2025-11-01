@@ -41,15 +41,15 @@ const iconSizeClasses: Record<ButtonSize, string> = {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "text-[#0b1220] bg-[linear-gradient(90deg,#00ffc8,#7affc0)] shadow-[0_0_0_0_rgba(0,0,0,0)] hover:shadow-[0_0_24px_0_rgba(122,255,192,0.35)] focus-visible:ring-2 focus-visible:ring-[rgba(122,255,192,0.45)]",
+    "text-white bg-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)] hover:bg-telegram-blue-dark hover:shadow-[0_4px_16px_rgba(51,144,236,0.35)] focus-visible:ring-2 focus-visible:ring-telegram-blue/50 active:scale-[0.98] transition-all duration-200",
   secondary:
-    "text-[var(--accent)] border border-[color:var(--accent)]/60 bg-transparent hover:bg-[color:var(--accent)]/10 focus-visible:ring-2 focus-visible:ring-[rgba(122,255,192,0.35)]",
+    "text-telegram-blue border border-telegram-blue/40 bg-white/80 backdrop-blur-sm hover:bg-telegram-blue/10 hover:border-telegram-blue/60 focus-visible:ring-2 focus-visible:ring-telegram-blue/30 active:scale-[0.98] transition-all duration-200",
   ghost:
-    "bg-transparent text-[var(--accent)] hover:text-white hover:[text-shadow:0_0_12px_rgba(122,255,192,0.6)] focus-visible:ring-2 focus-visible:ring-[rgba(122,255,192,0.25)]",
+    "bg-transparent text-telegram-blue hover:text-telegram-blue-dark hover:bg-telegram-hover focus-visible:ring-2 focus-visible:ring-telegram-blue/25 active:scale-[0.98] transition-all duration-200",
   icon:
-    "text-[var(--text)]/80 bg-white/0 border border-white/15 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-[rgba(122,255,192,0.25)]",
+    "text-telegram-text-secondary bg-telegram-bg-secondary/50 border border-telegram-text-secondary/10 hover:bg-telegram-hover hover:text-telegram-text focus-visible:ring-2 focus-visible:ring-telegram-blue/25 active:scale-[0.98] transition-all duration-200",
   orange:
-    "text-[#0b1220] bg-[linear-gradient(90deg,#ffd48a,#ff9b4a)] shadow-[0_0_0_0_rgba(0,0,0,0)] hover:shadow-[0_0_24px_0_rgba(255,155,74,0.35)] focus-visible:ring-2 focus-visible:ring-[rgba(255,155,74,0.45)]",
+    "text-white bg-[linear-gradient(90deg,#ffd48a,#ff9b4a)] shadow-[0_2px_8px_rgba(255,155,74,0.25)] hover:shadow-[0_4px_16px_rgba(255,155,74,0.35)] focus-visible:ring-2 focus-visible:ring-[rgba(255,155,74,0.45)] active:scale-[0.98] transition-all duration-200",
 };
 
 export function Button(props: ButtonProps) {
