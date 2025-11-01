@@ -89,53 +89,104 @@ export async function getOrCreateThread(
 
   if (userThreadParticipants && userThreadParticipants.length > 0) {
     // Get threads where partner is also participant
-    const userThreadIds = userThreadParticipants.map(p => p.thread_id);
-    
-    const { data: partnerThreadParticipants, error: partnerThreadsErr } = await supabase
-      .from('dms_thread_participants')
-      .select('thread_id')
-      .eq('user_id', partnerId)
-      .in('thread_id', userThreadIds);
-
-    if (partnerThreadsErr) {
-      throw new Error(`Failed to get partner threads: ${partnerThreadsErr.message}`);
-    }
-
-    if (partnerThreadParticipants && partnerThreadParticipants.length > 0) {
-      // Find common threads
-      const userThreadIdSet = new Set(userThreadIds);
-      const commonThreadIds = partnerThreadParticipants
-        .map(p => p.thread_id)
-        .filter(id => userThreadIdSet.has(id));
-
-      if (commonThreadIds.length > 0) {
-      // Get the first matching 1:1 thread
-      const { data: existingThreads, error: threadsErr } = await supabase
-        .from('dms_threads')
-        .select('id, created_by, is_group, title, created_at, last_message_at')
-        .in('id', commonThreadIds)
-        .eq('is_group', false)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-        if (threadsErr) {
-          throw new Error(`Failed to get existing thread: ${threadsErr.message}`);
+    // Filter out any UUIDs (should be bigint)
+    const userThreadIds = userThreadParticipants
+      .map(p => {
+        const tid = p.thread_id;
+        // Check if thread_id is UUID instead of bigint
+        if (typeof tid === 'string' && tid.includes('-')) {
+          console.error('CRITICAL: thread_id in dms_thread_participants is UUID:', tid);
+          return null;
         }
+        const numTid = typeof tid === 'string' ? parseInt(tid, 10) : Number(tid);
+        return isNaN(numTid) || numTid <= 0 ? null : numTid;
+      })
+      .filter((id): id is number => id !== null);
+    
+    console.log('User thread IDs (filtered):', userThreadIds);
+    
+    if (userThreadIds.length === 0) {
+      // No valid thread IDs found, will create new thread
+    } else {
+      const { data: partnerThreadParticipants, error: partnerThreadsErr } = await supabase
+        .from('dms_thread_participants')
+        .select('thread_id')
+        .eq('user_id', partnerId)
+        .in('thread_id', userThreadIds);
 
-        if (existingThreads && existingThreads.length > 0) {
+      if (partnerThreadsErr) {
+        throw new Error(`Failed to get partner threads: ${partnerThreadsErr.message}`);
+      }
+
+      if (partnerThreadParticipants && partnerThreadParticipants.length > 0) {
+        // Find common threads, also filter out UUIDs
+        const partnerThreadIds = partnerThreadParticipants
+          .map(p => {
+            const tid = p.thread_id;
+            if (typeof tid === 'string' && tid.includes('-')) {
+              console.error('CRITICAL: partner thread_id is UUID:', tid);
+              return null;
+            }
+            const numTid = typeof tid === 'string' ? parseInt(tid, 10) : Number(tid);
+            return isNaN(numTid) || numTid <= 0 ? null : numTid;
+          })
+          .filter((id): id is number => id !== null);
+        
+        const userThreadIdSet = new Set(userThreadIds);
+        const commonThreadIds = partnerThreadIds.filter(id => userThreadIdSet.has(id));
+
+        if (commonThreadIds.length > 0) {
+          console.log('Common thread IDs:', commonThreadIds);
+          
+          // Get the first matching 1:1 thread
+          const { data: existingThreads, error: threadsErr } = await supabase
+            .from('dms_threads')
+            .select('id, created_by, is_group, title, created_at, last_message_at')
+            .in('id', commonThreadIds)
+            .eq('is_group', false)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (threadsErr) {
+            throw new Error(`Failed to get existing thread: ${threadsErr.message}`);
+          }
+
+          if (existingThreads && existingThreads.length > 0) {
           const thread = existingThreads[0];
+          
+          console.log('Found existing thread:', { 
+            id: thread.id, 
+            idType: typeof thread.id, 
+            created_by: thread.created_by,
+            created_byType: typeof thread.created_by,
+            full: thread 
+          });
+          
+          // Check if id is actually a UUID (should be bigint)
+          if (typeof thread.id === 'string' && thread.id.includes('-')) {
+            console.error('CRITICAL: thread.id is UUID string (should be bigint):', thread.id);
+            console.error('Full thread object:', JSON.stringify(thread, null, 2));
+            // Check if id equals created_by - this would indicate a bug in the response
+            if (thread.id === thread.created_by) {
+              console.error('CRITICAL: thread.id equals created_by - Supabase returned wrong field!');
+              throw new Error(`Database error: thread.id is UUID (${thread.id}) instead of bigint. This indicates a database/API bug.`);
+            }
+            throw new Error(`Invalid thread ID format: expected bigint, got UUID string: ${thread.id}`);
+          }
+          
           // Ensure id is a number (bigint may come as string)
           const threadId = typeof thread.id === 'string' ? parseInt(thread.id, 10) : Number(thread.id);
           
           if (isNaN(threadId) || threadId <= 0) {
-            console.error('Invalid thread.id from database:', thread.id, typeof thread.id);
-            throw new Error(`Invalid thread ID: ${thread.id}`);
+            console.error('Invalid thread.id from database:', thread.id, typeof thread.id, '->', threadId);
+            throw new Error(`Invalid thread ID: ${thread.id} (expected bigint, got ${typeof thread.id})`);
           }
 
-          return {
-            ...thread,
-            id: threadId
-          } as Thread;
+            return {
+              ...thread,
+              id: threadId
+            } as Thread;
+          }
         }
       }
     }
