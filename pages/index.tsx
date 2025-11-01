@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import React, { useEffect } from "react";
 import { useRouter } from "next/router";
 import Button from "@/components/Button";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const supabase = createClient(
@@ -86,7 +87,7 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Клиентская проверка авторизации (fallback)
+    // Client-side auth check (fallback)
     const checkAuth = async () => {
       const { supabase } = await import("@/lib/supabaseClient");
       const { data: { session } } = await supabase.auth.getSession();
@@ -105,6 +106,11 @@ export default function Home() {
       </Head>
 
       <section className="relative overflow-hidden min-h-screen bg-telegram-gradient">
+        {/* Theme toggle button */}
+        <div className="fixed top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
+
         {/* Telegram-style gradient background */}
         <div
           aria-hidden
@@ -120,34 +126,34 @@ export default function Home() {
           <div className="grid md:grid-cols-2 gap-10 items-center mb-20">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-telegram-blue/20 bg-telegram-blue/10 px-3 py-1 text-xs text-telegram-blue mb-4 backdrop-blur-sm">
-                ✨ Новое: Быстрая лента и аналитика
+                ✨ New: Faster feed and analytics
               </div>
               <h1 className="text-4xl md:text-6xl font-bold text-telegram-text tracking-tight mb-4">
-                Создавай свой{" "}
+                Build your{" "}
                 <span className="bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent">
-                  социальный вес
+                  social weight
                 </span>{" "}
-                через реальный прогресс
+                through real progress
               </h1>
               <p className="mt-4 text-telegram-text-secondary text-lg leading-relaxed">
-                Sigmet помогает тебе расти целенаправленно. Делись контентом, отслеживай цели и наблюдай свою эволюцию через данные.
+                Sigmet helps you grow with purpose. Share content, track goals, and see your evolution through data.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Button href="/signup" variant="primary">Создать аккаунт</Button>
-                <Button href="/login" variant="secondary">Войти</Button>
+                <Button href="/signup" variant="primary">Create account</Button>
+                <Button href="/login" variant="secondary">Sign in</Button>
               </div>
             </div>
 
             <div className="relative">
               <div className="telegram-card-glow p-6 md:p-8 backdrop-blur-sm">
-                <h3 className="text-telegram-text font-semibold text-xl mb-4">🚀 Быстрый старт</h3>
+                <h3 className="text-telegram-text font-semibold text-xl mb-4">🚀 Quick start</h3>
                 <ol className="mt-4 space-y-3 text-telegram-text-secondary list-decimal list-inside">
-                  <li className="pl-2">Зарегистрируйся и подтверди email</li>
-                  <li className="pl-2">Настрой профиль и аватар</li>
-                  <li className="pl-2">Выбери 3 ключевых направления роста</li>
-                  <li className="pl-2">Начни делиться и отслеживать прогресс</li>
+                  <li className="pl-2">Sign up and confirm your email</li>
+                  <li className="pl-2">Set up your profile and avatar</li>
+                  <li className="pl-2">Choose 3 key growth directions</li>
+                  <li className="pl-2">Start sharing and tracking progress</li>
                 </ol>
-                <Button href="/signup" variant="primary" className="mt-6 w-full">Начать</Button>
+                <Button href="/signup" variant="primary" className="mt-6 w-full">Get started</Button>
               </div>
             </div>
           </div>
@@ -160,9 +166,9 @@ export default function Home() {
                   🎯
                 </div>
               </div>
-              <h3 className="text-telegram-text font-semibold text-xl mb-2">Целевые сообщества</h3>
+              <h3 className="text-telegram-text font-semibold text-xl mb-2">Purpose-driven communities</h3>
               <p className="text-telegram-text-secondary leading-relaxed">
-                Фокус на важном. Присоединяйся к группам, которые соответствуют твоим целям — меньше шума, больше смысла.
+                Focus on what matters. Join groups that align with your goals — less noise, more meaning.
               </p>
             </div>
             
@@ -172,9 +178,9 @@ export default function Home() {
                   ⚖️
                 </div>
               </div>
-              <h3 className="text-telegram-text font-semibold text-xl mb-2">Прозрачный социальный вес</h3>
+              <h3 className="text-telegram-text font-semibold text-xl mb-2">Transparent social weight</h3>
               <p className="text-telegram-text-secondary leading-relaxed">
-                Репутация, построенная на проверенной активности, вкладе и обучении.
+                Reputation built from verified activity, contributions, and learning.
               </p>
             </div>
             
@@ -184,20 +190,20 @@ export default function Home() {
                   🪶
                 </div>
               </div>
-              <h3 className="text-telegram-text font-semibold text-xl mb-2">Экосистема для создателей</h3>
+              <h3 className="text-telegram-text font-semibold text-xl mb-2">Creator-first ecosystem</h3>
               <p className="text-telegram-text-secondary leading-relaxed">
-                Полная аналитика, справедливое авторство и видимость для каждого создателя.
+                Full analytics, fair authorship, and visibility for every creator.
               </p>
             </div>
           </div>
 
           {/* Updates Section */}
           <div className="mt-20 telegram-card-glow p-6 md:p-8 backdrop-blur-sm">
-            <h3 className="text-telegram-text text-xl font-semibold mb-4">📢 Последние обновления</h3>
+            <h3 className="text-telegram-text text-xl font-semibold mb-4">📢 Latest updates</h3>
             <ul className="text-telegram-text-secondary list-disc list-inside space-y-2">
-              <li>Новая панель профиля с аналитикой</li>
-              <li>Быстрая загрузка контента в ленте</li>
-              <li>Улучшенный процесс онбординга</li>
+              <li>New profile dashboard with analytics</li>
+              <li>Faster content loading in feed</li>
+              <li>Improved onboarding flow</li>
             </ul>
           </div>
         </div>
