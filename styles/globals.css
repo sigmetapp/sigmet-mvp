@@ -51,9 +51,14 @@ body {
 
 .card {
   @apply bg-white/5 border border-white/10 rounded-2xl;
+  background: rgba(31, 41, 55, 0.6);
+  border: 1px solid rgba(51, 144, 236, 0.15);
+  backdrop-filter: blur(10px);
 }
 html.theme-light .card {
   @apply bg-black/5 border border-black/10;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(51, 144, 236, 0.12);
 }
 .card-glow {
   position: relative;
@@ -98,19 +103,77 @@ html.theme-light .card {
   @apply bg-white text-black hover:opacity-90;
 }
 .input {
-  @apply w-full rounded-xl bg-white/10 text-white px-3 py-3 outline-none focus:ring-2 focus:ring-white/30;
+  @apply w-full rounded-xl px-3 py-3 outline-none focus:ring-2 transition-colors;
+  background: rgba(31, 41, 55, 0.7);
+  border: 1px solid rgba(51, 144, 236, 0.15);
+  color: #E5EDF7;
+  backdrop-filter: blur(10px);
+}
+.input::placeholder {
+  color: rgba(168, 181, 199, 0.5);
+}
+.input:focus {
+  border-color: rgba(51, 144, 236, 0.4);
+  box-shadow: 0 0 0 3px rgba(51, 144, 236, 0.15);
+  background: rgba(31, 41, 55, 0.85);
 }
 html.theme-light .input {
-  @apply bg-black/5 text-black focus:ring-black/20;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(51, 144, 236, 0.2);
+  color: #000000;
+}
+html.theme-light .input::placeholder {
+  color: rgba(112, 117, 121, 0.6);
+}
+html.theme-light .input:focus {
+  border-color: rgba(51, 144, 236, 0.4);
+  box-shadow: 0 0 0 3px rgba(51, 144, 236, 0.1);
+  background: rgba(255, 255, 255, 0.95);
 }
 .label {
-  @apply block text-white/80 text-sm mb-2;
+  @apply block text-sm mb-2 font-medium;
+  color: #E5EDF7;
 }
-html.theme-light .label { @apply text-black/70; }
+html.theme-light .label {
+  color: #000000;
+}
 .text-muted { @apply text-white/70; }
 .text-dim { @apply text-white/50; }
 html.theme-light .text-muted { @apply text-black/60; }
 html.theme-light .text-dim { @apply text-black/40; }
+
+/* Global text contrast utilities */
+html:not(.theme-light) {
+  color: #E5EDF7;
+}
+
+html:not(.theme-light) h1,
+html:not(.theme-light) h2,
+html:not(.theme-light) h3,
+html:not(.theme-light) h4,
+html:not(.theme-light) h5,
+html:not(.theme-light) h6 {
+  color: #E5EDF7;
+}
+
+html:not(.theme-light) p,
+html:not(.theme-light) span,
+html:not(.theme-light) div {
+  color: inherit;
+}
+
+html.theme-light {
+  color: #000000;
+}
+
+html.theme-light h1,
+html.theme-light h2,
+html.theme-light h3,
+html.theme-light h4,
+html.theme-light h5,
+html.theme-light h6 {
+  color: #000000;
+}
 
 /* Telegram text colors */
 .text-telegram-text {

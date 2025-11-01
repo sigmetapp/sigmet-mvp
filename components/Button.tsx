@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useTheme } from "./ThemeProvider";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "icon" | "orange";
 type ButtonSize = "sm" | "md" | "lg";
@@ -43,13 +44,22 @@ const variantClasses: Record<ButtonVariant, string> = {
   primary:
     "text-white bg-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)] hover:bg-telegram-blue-dark hover:shadow-[0_4px_16px_rgba(51,144,236,0.35)] focus-visible:ring-2 focus-visible:ring-telegram-blue/50 active:scale-[0.98] transition-all duration-200",
   secondary:
-    "text-telegram-blue border border-telegram-blue/40 bg-white/80 backdrop-blur-sm hover:bg-telegram-blue/10 hover:border-telegram-blue/60 focus-visible:ring-2 focus-visible:ring-telegram-blue/30 active:scale-[0.98] transition-all duration-200",
+    "text-telegram-blue border-2 border-telegram-blue bg-transparent hover:bg-telegram-blue/15 hover:border-telegram-blue-dark focus-visible:ring-2 focus-visible:ring-telegram-blue/30 active:scale-[0.98] transition-all duration-200 backdrop-blur-sm",
   ghost:
-    "bg-transparent text-telegram-blue hover:text-telegram-blue-dark hover:bg-telegram-hover focus-visible:ring-2 focus-visible:ring-telegram-blue/25 active:scale-[0.98] transition-all duration-200",
+    "bg-transparent text-telegram-blue hover:text-telegram-blue-light hover:bg-telegram-blue/10 focus-visible:ring-2 focus-visible:ring-telegram-blue/25 active:scale-[0.98] transition-all duration-200",
   icon:
-    "text-telegram-text-secondary bg-telegram-bg-secondary/50 border border-telegram-text-secondary/10 hover:bg-telegram-hover hover:text-telegram-text focus-visible:ring-2 focus-visible:ring-telegram-blue/25 active:scale-[0.98] transition-all duration-200",
+    "text-telegram-text-secondary bg-telegram-bg-secondary/50 border border-telegram-text-secondary/20 hover:bg-telegram-blue/15 hover:text-telegram-blue hover:border-telegram-blue/30 focus-visible:ring-2 focus-visible:ring-telegram-blue/25 active:scale-[0.98] transition-all duration-200",
   orange:
     "text-white bg-[linear-gradient(90deg,#ffd48a,#ff9b4a)] shadow-[0_2px_8px_rgba(255,155,74,0.25)] hover:shadow-[0_4px_16px_rgba(255,155,74,0.35)] focus-visible:ring-2 focus-visible:ring-[rgba(255,155,74,0.45)] active:scale-[0.98] transition-all duration-200",
+};
+
+// Light theme overrides for buttons
+const lightThemeVariantClasses: Record<ButtonVariant, string> = {
+  primary: "text-white bg-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.2)] hover:bg-telegram-blue-dark hover:shadow-[0_4px_16px_rgba(51,144,236,0.3)]",
+  secondary: "text-telegram-blue border-2 border-telegram-blue bg-white/80 backdrop-blur-sm hover:bg-telegram-blue/10 hover:border-telegram-blue-dark",
+  ghost: "bg-transparent text-telegram-blue hover:text-telegram-blue-dark hover:bg-telegram-hover",
+  icon: "text-telegram-text-secondary bg-telegram-hover border border-telegram-text-secondary/20 hover:bg-telegram-blue/10 hover:text-telegram-blue",
+  orange: "text-white bg-[linear-gradient(90deg,#ffd48a,#ff9b4a)] shadow-[0_2px_8px_rgba(255,155,74,0.2)] hover:shadow-[0_4px_16px_rgba(255,155,74,0.3)]",
 };
 
 export function Button(props: ButtonProps) {
@@ -64,11 +74,13 @@ export function Button(props: ButtonProps) {
     ...rest
   } = props as any;
 
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const isIconOnly = variant === "icon" && !children;
 
   const classes = cx(
     baseClasses,
-    variantClasses[variant],
+    isLight ? lightThemeVariantClasses[variant] : variantClasses[variant],
     isIconOnly ? iconSizeClasses[size] : sizeClasses[size],
     isIconOnly ? "rounded-full" : "rounded-xl",
     className
