@@ -16,6 +16,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [agree, setAgree] = useState(true);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -55,6 +56,36 @@ export default function SignupPage() {
       });
       if (signErr) throw signErr;
 
+      // If invite code was provided, try to accept the invite after signup
+      let inviteAccepted = false;
+      if (inviteCode && inviteCode.trim() && signData?.user) {
+        try {
+          const { data: inviteId, error: inviteErr } = await supabase.rpc('accept_invite_by_code', {
+            invite_code: inviteCode.trim().toUpperCase()
+          });
+          
+          if (!inviteErr && inviteId) {
+            inviteAccepted = true;
+            // Track invite acceptance
+            const { trackInviteAccepted } = await import('@/lib/invite-tracking');
+            await trackInviteAccepted(inviteId, signData.user.id);
+          }
+          // If invite code is invalid, don't fail registration - just log it
+          if (inviteErr) {
+            console.warn('Invalid invite code:', inviteErr.message);
+          }
+        } catch (inviteErr: any) {
+          console.warn('Error accepting invite:', inviteErr);
+          // Don't fail registration if invite code is invalid
+        }
+      }
+
+      setNotice(
+        inviteAccepted 
+          ? 'Invite accepted! Please check your email inbox. A confirmation link has been sent.'
+          : 'Please check your email inbox. A confirmation link has been sent.'
+      );
+
       try {
         await fetch('/api/notify-signup', {
           method: 'POST',
@@ -63,7 +94,6 @@ export default function SignupPage() {
         });
       } catch {}
 
-      setNotice('Please check your email inbox. A confirmation link has been sent.');
     } catch (err: any) {
       console.error('signup error', err);
       setErrorMsg(err?.message || 'Signup failed.');
@@ -141,6 +171,25 @@ export default function SignupPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
+              </div>
+
+              <div className="formRow">
+                <label htmlFor="inviteCode" className="label">
+                  Invite Code <span className="text-white/50 text-xs">(optional)</span>
+                </label>
+                <input
+                  id="inviteCode"
+                  type="text"
+                  className="input"
+                  placeholder="ABCD1234"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                  maxLength={8}
+                  style={{ textTransform: 'uppercase', fontFamily: 'monospace', letterSpacing: '2px' }}
+                />
+                <p className="text-white/50 text-xs mt-1">
+                  If you have an invite code from a friend, enter it here.
+                </p>
               </div>
 
               <div className="checkboxRow">

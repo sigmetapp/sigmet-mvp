@@ -8,6 +8,7 @@ export default function AuthPage() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [pending, setPending] = useState(false);
   const [msg, setMsg] = useState<string>();
   const [showForgot, setShowForgot] = useState(false);
@@ -22,13 +23,42 @@ export default function AuthPage() {
     try {
       if (mode === 'signup') {
         const origin = process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin;
-        const { error } = await supabase.auth.signUp({
+        const { data: signData, error } = await supabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: `${origin}/auth/callback` },
         });
         if (error) throw error;
-        setMsg('Account created. Please confirm your email.');
+
+        // If invite code was provided, try to accept the invite after signup
+        let inviteAccepted = false;
+        if (inviteCode && inviteCode.trim() && signData?.user) {
+          try {
+            const { data: inviteId, error: inviteErr } = await supabase.rpc('accept_invite_by_code', {
+              invite_code: inviteCode.trim().toUpperCase()
+            });
+            
+            if (!inviteErr && inviteId) {
+              inviteAccepted = true;
+              // Track invite acceptance
+              const { trackInviteAccepted } = await import('@/lib/invite-tracking');
+              await trackInviteAccepted(inviteId, signData.user.id);
+            }
+            // If invite code is invalid, don't fail registration - just log it
+            if (inviteErr) {
+              console.warn('Invalid invite code:', inviteErr.message);
+            }
+          } catch (inviteErr: any) {
+            console.warn('Error accepting invite:', inviteErr);
+            // Don't fail registration if invite code is invalid
+          }
+        }
+
+        setMsg(
+          inviteAccepted
+            ? 'Invite accepted! Account created. Please confirm your email.'
+            : 'Account created. Please confirm your email.'
+        );
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -100,6 +130,26 @@ export default function AuthPage() {
               <label className="label">Password</label>
               <input className="input" type="password" value={password} onChange={e=>setPassword(e.target.value)} required placeholder="Minimum 6 characters"/>
             </div>
+
+            {mode === 'signup' && (
+              <div>
+                <label className="label">
+                  Invite Code <span className="text-white/50 text-xs">(optional)</span>
+                </label>
+                <input 
+                  className="input" 
+                  type="text" 
+                  value={inviteCode} 
+                  onChange={e => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                  placeholder="ABCD1234"
+                  maxLength={8}
+                  style={{ textTransform: 'uppercase', fontFamily: 'monospace', letterSpacing: '2px' }}
+                />
+                <p className="text-white/50 text-xs mt-1">
+                  If you have an invite code from a friend, enter it here.
+                </p>
+              </div>
+            )}
 
             {msg && <div className="text-white/80 text-sm">{msg}</div>}
 
