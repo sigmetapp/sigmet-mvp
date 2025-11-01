@@ -17,11 +17,6 @@ function SettingsInner() {
   const [saving, setSaving] = useState(false);
   const [invitesOnly, setInvitesOnly] = useState<boolean>(!!invites_only);
   const [continents, setContinents] = useState<string[]>(Array.isArray(allowed_continents) ? allowed_continents! : []);
-  const [tickets, setTickets] = useState<any[] | null>(null);
-  const [loadingTickets, setLoadingTickets] = useState(false);
-  const [editingTicket, setEditingTicket] = useState<number | null>(null);
-  const [ticketStatus, setTicketStatus] = useState<string>('');
-  const [ticketNotes, setTicketNotes] = useState<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -93,84 +88,6 @@ function SettingsInner() {
       alert(e?.message || 'Save failed');
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function loadTickets() {
-    setLoadingTickets(true);
-    try {
-      const resp = await fetch('/api/admin/tickets.list');
-      const json = await resp.json();
-      if (!resp.ok) throw new Error(json?.error || 'Failed to load tickets');
-      setTickets(json.tickets || []);
-    } catch (e) {
-      setTickets(null);
-    } finally {
-      setLoadingTickets(false);
-    }
-  }
-
-  async function updateTicket(ticketId: number) {
-    try {
-      const resp = await fetch('/api/admin/tickets.update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticket_id: ticketId,
-          status: ticketStatus || undefined,
-          admin_notes: ticketNotes !== '' ? ticketNotes : undefined,
-        }),
-      });
-      const json = await resp.json();
-      if (!resp.ok) throw new Error(json?.error || 'Failed to update ticket');
-      setEditingTicket(null);
-      setTicketStatus('');
-      setTicketNotes('');
-      await loadTickets();
-    } catch (e: any) {
-      alert(e?.message || 'Failed to update ticket');
-    }
-  }
-
-  function startEditTicket(ticket: any) {
-    setEditingTicket(ticket.id);
-    setTicketStatus(ticket.status);
-    setTicketNotes(ticket.admin_notes || '');
-  }
-
-  function cancelEditTicket() {
-    setEditingTicket(null);
-    setTicketStatus('');
-    setTicketNotes('');
-  }
-
-  function getStatusColor(status: string) {
-    switch (status) {
-      case 'open':
-        return 'bg-blue-500/20 text-blue-300';
-      case 'in_progress':
-        return 'bg-yellow-500/20 text-yellow-300';
-      case 'resolved':
-        return 'bg-green-500/20 text-green-300';
-      case 'closed':
-        return 'bg-gray-500/20 text-gray-300';
-      default:
-        return 'bg-gray-500/20 text-gray-300';
-    }
-  }
-
-  function getStatusLabel(status: string) {
-    switch (status) {
-      case 'open':
-        return 'Open';
-      case 'in_progress':
-        return 'In Progress';
-      case 'resolved':
-        return 'Resolved';
-      case 'closed':
-        return 'Closed';
-      default:
-        return status;
     }
   }
 
@@ -257,109 +174,6 @@ function SettingsInner() {
             ))}
           </div>
         </div>
-      </div>
-
-      <div id="tickets" className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-white/90 font-medium">Ticket Management</h2>
-          <button onClick={loadTickets} className="h-9 px-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10">
-            {loadingTickets ? 'Loading?' : 'Load tickets'}
-          </button>
-        </div>
-        {tickets && tickets.length === 0 && (
-          <div className="text-white/60 text-sm text-center py-4">No tickets found.</div>
-        )}
-        {tickets && tickets.length > 0 && (
-          <div className="space-y-3">
-            {tickets.map((ticket) => (
-              <div key={ticket.id} className="rounded-xl border border-white/10 p-4 space-y-3">
-                {editingTicket === ticket.id ? (
-                  <div className="space-y-3">
-                    <div>
-                      <div className="text-white/70 text-sm mb-1">Title</div>
-                      <div className="text-white/90 font-medium">{ticket.title}</div>
-                    </div>
-                    <div>
-                      <div className="text-white/70 text-sm mb-1">Description</div>
-                      <div className="text-white/80 text-sm">{ticket.description}</div>
-                    </div>
-                    <div>
-                      <label className="block text-white/70 text-sm mb-1">Status</label>
-                      <select
-                        value={ticketStatus}
-                        onChange={(e) => setTicketStatus(e.target.value)}
-                        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white/90 outline-none focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/30"
-                      >
-                        <option value="open">Open</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="closed">Closed</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-white/70 text-sm mb-1">Admin Notes</label>
-                      <textarea
-                        value={ticketNotes}
-                        onChange={(e) => setTicketNotes(e.target.value)}
-                        placeholder="Add admin notes or response..."
-                        rows={3}
-                        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white/90 placeholder-white/40 outline-none focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/30 resize-none"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => updateTicket(ticket.id)}
-                        className="h-9 px-4 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white/90"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={cancelEditTicket}
-                        className="h-9 px-4 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white/60"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <h3 className="text-white/90 font-medium">{ticket.title}</h3>
-                        <p className="text-white/70 text-sm mt-1">{ticket.description}</p>
-                      </div>
-                      <span className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap ${getStatusColor(ticket.status)}`}>
-                        {getStatusLabel(ticket.status)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs text-white/50">
-                      <span>User: {ticket.user_id?.substring(0, 8)}...</span>
-                      <span>Created: {new Date(ticket.created_at).toLocaleString()}</span>
-                      {ticket.updated_at !== ticket.created_at && (
-                        <span>Updated: {new Date(ticket.updated_at).toLocaleString()}</span>
-                      )}
-                      {ticket.resolved_at && (
-                        <span>Resolved: {new Date(ticket.resolved_at).toLocaleString()}</span>
-                      )}
-                    </div>
-                    {ticket.admin_notes && (
-                      <div className="rounded-lg border border-telegram-blue/30 bg-telegram-blue/10 p-3">
-                        <div className="text-xs font-medium mb-1 text-telegram-blue-light">Admin Notes:</div>
-                        <div className="text-sm text-white/80">{ticket.admin_notes}</div>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => startEditTicket(ticket)}
-                      className="h-8 px-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white/80 text-sm"
-                    >
-                      Edit
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
