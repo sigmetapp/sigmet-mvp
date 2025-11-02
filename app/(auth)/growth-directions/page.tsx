@@ -810,11 +810,7 @@ function GrowthDirectionsInner() {
   function openCheckInModal(userTaskId: string, task: Task) {
     setShowCheckInModal({ userTaskId, task });
     // Pre-fill post with task information
-    const taskInfo = `${String.fromCodePoint(0x1F4CB)} Task: ${task.title}
-
-${String.fromCodePoint(0x1F4DD)} Description: ${task.description}
-
-${String.fromCodePoint(0x2705)} Check-in progress`;
+    const taskInfo = `${task.title}\n${task.description}`;
     setCheckInPostForm({ body: taskInfo, image: null, video: null, reactions: [] });
   }
 
@@ -1191,7 +1187,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       {!loading && (
         <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''} min-h-[400px]`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-            <h2 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+            <h2 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
               {String.fromCodePoint(0x1F4CA)} Work & Focus Overview
             </h2>
             <div className="flex flex-col md:flex-row gap-2 md:items-center">
@@ -1300,7 +1296,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
         <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>
-              <h2 className={`font-semibold text-xl mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              <h2 className={`font-semibold text-base mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                 {String.fromCodePoint(0x1F389)} Completed Tasks & Points
               </h2>
               <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
@@ -1580,7 +1576,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                   <div className={`telegram-card-glow p-4 ${isLight ? '' : ''}`}>
                     <div className="flex items-center gap-3 mb-4">
                       <div>
-                        <h2 className={`font-semibold text-xl ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <h2 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                           {currentDirection?.title}
                         </h2>
                         <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
@@ -1599,7 +1595,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                     {/* Habits */}
                     <section className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <h3 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                           Habits ({displayedHabits.length})
                         </h3>
                         {extraHabits > 0 && (
@@ -1713,7 +1709,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                     {/* Goals */}
                     <section className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <h3 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                           Goals ({displayedGoals.length})
                         </h3>
                         {extraGoals > 0 && (
@@ -1781,7 +1777,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                                         // Use goal directly since it's already a Task object from displayedGoals
                                         setShowCompleteModal({ userTaskId: goal.userTask!.id, task: goal });
                                         // Pre-fill post with goal information
-                                        const goalInfo = `${String.fromCodePoint(0x1F4CB)} Goal: ${goal.title}\n\n${String.fromCodePoint(0x1F4DD)} Description: ${goal.description}\n\n${String.fromCodePoint(0x2705)} Goal completed!`;
+                                        const goalInfo = `${goal.title}\n${goal.description}`;
                                         setCompleteForm({ proofUrl: '', note: '', body: goalInfo, image: null, video: null, reactions: [] });
                                       }}
                                       disabled={isCompleting || publishingCompletePost}
@@ -1833,9 +1829,9 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingCompletePost && !completing.has(showCompleteModal.userTaskId) && setShowCompleteModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/30 bg-white' : 'bg-gradient-to-br from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-2xl p-6 space-y-4 shadow-2xl`}>
+          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/30 bg-white' : 'bg-gradient-to-br from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 space-y-2 shadow-2xl`}>
             <div className="flex items-center justify-between">
-              <h3 className={`font-semibold text-xl ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              <h3 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                 Complete Goal & Publish
               </h3>
               <button
@@ -1848,38 +1844,74 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             </div>
             
             {/* Task Info Display */}
-            <div className={`p-3 rounded-xl ${isLight ? 'bg-telegram-blue/10 border border-telegram-blue/20' : 'bg-telegram-blue/15 border border-telegram-blue/30'}`}>
-              <div className={`text-xs font-medium mb-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            <div className={`p-2 rounded-lg ${isLight ? 'bg-telegram-blue/10 border border-telegram-blue/20' : 'bg-telegram-blue/15 border border-telegram-blue/30'}`}>
+              <div className={`text-[10px] font-medium mb-0.5 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                 Goal Information
               </div>
-              <div className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              <div className={`font-semibold text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                 {showCompleteModal.task.title}
               </div>
-              <div className={`text-sm mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <div className={`text-xs mt-0.5 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                 {showCompleteModal.task.description}
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                   Post Content
                 </label>
-                <textarea
-                  value={completeForm.body}
-                  onChange={(e) => setCompleteForm((prev) => ({ ...prev, body: e.target.value }))}
-                  placeholder="Share your achievement and thoughts about completing this goal..."
-                  rows={6}
-                  className={`input w-full ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
-                />
+                <div className="relative">
+                  <textarea
+                    value={completeForm.body}
+                    onChange={(e) => setCompleteForm((prev) => ({ ...prev, body: e.target.value }))}
+                    placeholder="Share your achievement and thoughts about completing this goal..."
+                    rows={6}
+                    className={`input w-full pr-10 ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
+                  />
+                  <div className="absolute bottom-2 right-2">
+                    <input
+                      type="file"
+                      accept="image/*,video/*"
+                      className="hidden"
+                      id="complete-media-input"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file) {
+                          if (file.type.startsWith('image/')) {
+                            setCompleteForm((prev) => ({ ...prev, image: file, video: null }));
+                          } else if (file.type.startsWith('video/')) {
+                            setCompleteForm((prev) => ({ ...prev, video: file, image: null }));
+                          }
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="complete-media-input"
+                      className={`inline-flex items-center px-2 py-1.5 rounded-lg border text-xs cursor-pointer transition ${
+                        isLight
+                          ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10 bg-white'
+                          : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15 bg-[rgba(15,22,35,0.98)]'
+                      }`}
+                      title="Attach photo or video"
+                    >
+                      {String.fromCodePoint(0x1F4F7)}
+                    </label>
+                  </div>
+                  {(completeForm.image || completeForm.video) && (
+                    <div className={`mt-1 text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      {completeForm.image ? completeForm.image.name : completeForm.video?.name}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                  Category (automatically set)
+                <label className={`block text-xs font-medium mb-0.5 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Category (auto)
                 </label>
-                <div className={`p-2 rounded-lg ${isLight ? 'bg-telegram-blue/10 border border-telegram-blue/20' : 'bg-telegram-blue/15 border border-telegram-blue/30'}`}>
-                  <span className={`text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <div className={`p-1.5 rounded-lg ${isLight ? 'bg-telegram-blue/10 border border-telegram-blue/20' : 'bg-telegram-blue/15 border border-telegram-blue/30'}`}>
+                  <span className={`text-xs ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                     {(() => {
                       const taskDirection = directions.find((d) => d.id === showCompleteModal.task.direction_id);
                       return taskDirection ? `${resolveDirectionEmoji(taskDirection.slug, taskDirection.emoji)} ${taskDirection.title}` : 'Not specified';
@@ -1928,90 +1960,6 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                   })}
                 </div>
               </div>
-              
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                  Media (optional)
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    id="complete-image-input"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (file && file.type.startsWith('image/')) {
-                        setCompleteForm((prev) => ({ ...prev, image: file, video: null }));
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="complete-image-input"
-                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                      isLight
-                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
-                    }`}
-                  >
-                    {`${String.fromCodePoint(0x1F5BC)} Image`}
-                  </label>
-                  
-                  <input
-                    type="file"
-                    accept="video/*"
-                    className="hidden"
-                    id="complete-video-input"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (file && file.type.startsWith('video/')) {
-                        setCompleteForm((prev) => ({ ...prev, video: file, image: null }));
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="complete-video-input"
-                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                      isLight
-                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
-                    }`}
-                  >
-                    {`${String.fromCodePoint(0x1F3A5)} Video`}
-                  </label>
-                  
-                  {(completeForm.image || completeForm.video) && (
-                    <span className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                      {completeForm.image ? `Image: ${completeForm.image.name}` : `Video: ${completeForm.video?.name}`}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                  Proof URL (optional)
-                </label>
-                <input
-                  type="url"
-                  value={completeForm.proofUrl}
-                  onChange={(e) => setCompleteForm((prev) => ({ ...prev, proofUrl: e.target.value }))}
-                  placeholder="https://..."
-                  className={`input w-full ${isLight ? '' : ''}`}
-                />
-              </div>
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                  Note (optional)
-                </label>
-                <textarea
-                  value={completeForm.note}
-                  onChange={(e) => setCompleteForm((prev) => ({ ...prev, note: e.target.value }))}
-                  placeholder="Add a note about completing this goal..."
-                  rows={3}
-                  className={`input w-full ${isLight ? '' : ''}`}
-                />
-              </div>
             </div>
             <div className="flex gap-2">
               <Button
@@ -2044,9 +1992,9 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingPost && setShowCheckInModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/30 bg-white' : 'bg-gradient-to-br from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-2xl p-6 space-y-4 shadow-2xl`}>
+          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/30 bg-white' : 'bg-gradient-to-br from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 space-y-2 shadow-2xl`}>
             <div className="flex items-center justify-between">
-              <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              <h3 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                 Create Check-in Post
               </h3>
               <button
@@ -2059,30 +2007,66 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             </div>
             
             {/* Task Info Display */}
-            <div className={`p-3 rounded-xl ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}>
-              <div className={`text-xs font-medium mb-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            <div className={`p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}>
+              <div className={`text-[10px] font-medium mb-0.5 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                 Task Information
               </div>
-              <div className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              <div className={`font-semibold text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                 {showCheckInModal.task.title}
               </div>
-              <div className={`text-sm mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <div className={`text-xs mt-0.5 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                 {showCheckInModal.task.description}
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                   Post Content
                 </label>
-                <textarea
-                  value={checkInPostForm.body}
-                  onChange={(e) => setCheckInPostForm((prev) => ({ ...prev, body: e.target.value }))}
-                  placeholder="Add your thoughts about this check-in..."
-                  rows={6}
-                  className={`input w-full ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
-                />
+                <div className="relative">
+                  <textarea
+                    value={checkInPostForm.body}
+                    onChange={(e) => setCheckInPostForm((prev) => ({ ...prev, body: e.target.value }))}
+                    placeholder="Add your thoughts about this check-in..."
+                    rows={6}
+                    className={`input w-full pr-10 ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
+                  />
+                  <div className="absolute bottom-2 right-2">
+                    <input
+                      type="file"
+                      accept="image/*,video/*"
+                      className="hidden"
+                      id="checkin-media-input"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file) {
+                          if (file.type.startsWith('image/')) {
+                            setCheckInPostForm((prev) => ({ ...prev, image: file, video: null }));
+                          } else if (file.type.startsWith('video/')) {
+                            setCheckInPostForm((prev) => ({ ...prev, video: file, image: null }));
+                          }
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="checkin-media-input"
+                      className={`inline-flex items-center px-2 py-1.5 rounded-lg border text-xs cursor-pointer transition ${
+                        isLight
+                          ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10 bg-white'
+                          : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15 bg-[rgba(15,22,35,0.98)]'
+                      }`}
+                      title="Attach photo or video"
+                    >
+                      {String.fromCodePoint(0x1F4F7)}
+                    </label>
+                  </div>
+                  {(checkInPostForm.image || checkInPostForm.video) && (
+                    <div className={`mt-1 text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      {checkInPostForm.image ? checkInPostForm.image.name : checkInPostForm.video?.name}
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div>
@@ -2137,65 +2121,6 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                       </button>
                     );
                   })}
-                </div>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                  Media (optional)
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    id="checkin-image-input"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (file && file.type.startsWith('image/')) {
-                        setCheckInPostForm((prev) => ({ ...prev, image: file, video: null }));
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="checkin-image-input"
-                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                      isLight
-                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
-                    }`}
-                  >
-                    {`${String.fromCodePoint(0x1F5BC)} Image`}
-                  </label>
-                  
-                  <input
-                    type="file"
-                    accept="video/*"
-                    className="hidden"
-                    id="checkin-video-input"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (file && file.type.startsWith('video/')) {
-                        setCheckInPostForm((prev) => ({ ...prev, video: file, image: null }));
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="checkin-video-input"
-                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                      isLight
-                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
-                    }`}
-                  >
-                    {`${String.fromCodePoint(0x1F3A5)} Video`}
-                  </label>
-                  
-                  {(checkInPostForm.image || checkInPostForm.video) && (
-                    <span className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                      {checkInPostForm.image ? `Image: ${checkInPostForm.image.name}` : `Video: ${checkInPostForm.video?.name}`}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
