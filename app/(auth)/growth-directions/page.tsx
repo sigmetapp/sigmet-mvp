@@ -101,7 +101,12 @@ function GrowthDirectionsInner() {
   const [showCompleteModal, setShowCompleteModal] = useState<{ taskId: string; userTaskId: string } | null>(null);
   const [completeForm, setCompleteForm] = useState({ proofUrl: '', note: '' });
   const [showCheckInModal, setShowCheckInModal] = useState<{ userTaskId: string; task: Task } | null>(null);
-  const [checkInPostForm, setCheckInPostForm] = useState({ body: '', image: null as File | null, video: null as File | null });
+  const [checkInPostForm, setCheckInPostForm] = useState({ 
+    body: '', 
+    image: null as File | null, 
+    video: null as File | null,
+    reactions: [] as string[] // Array of reaction kinds: 'proud', 'grateful', 'drained'
+  });
   const [publishingPost, setPublishingPost] = useState(false);
   const [summaryTasks, setSummaryTasks] = useState<{ primary: TaskSummaryItem[]; secondary: TaskSummaryItem[] }>({
     primary: [],
@@ -802,7 +807,7 @@ function GrowthDirectionsInner() {
 ${String.fromCodePoint(0x1F4DD)} Description: ${task.description}
 
 ${String.fromCodePoint(0x2705)} Check-in progress`;
-    setCheckInPostForm({ body: taskInfo, image: null, video: null });
+    setCheckInPostForm({ body: taskInfo, image: null, video: null, reactions: [] });
   }
 
   async function uploadToStorage(file: File, folder: 'images' | 'videos') {
@@ -843,17 +848,42 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
         video_url = await uploadToStorage(checkInPostForm.video, 'videos');
       }
 
+      // Get direction for category
+      const taskDirection = directions.find((d) => d.id === showCheckInModal.task.direction_id);
+      const category = taskDirection?.slug || taskDirection?.title || null;
+
       // Create post in feed
-      const { error: postError } = await supabase
+      const { data: newPost, error: postError } = await supabase
         .from('posts')
         .insert({
           user_id: session.user.id,
           body: checkInPostForm.body.trim() || null,
           image_url,
           video_url,
-        });
+          category,
+        })
+        .select('id')
+        .single();
 
       if (postError) throw postError;
+
+      // Add reactions if any selected
+      if (newPost && checkInPostForm.reactions.length > 0) {
+        const reactionInserts = checkInPostForm.reactions.map((kind) => ({
+          post_id: newPost.id,
+          user_id: session.user.id,
+          kind,
+        }));
+
+        const { error: reactionsError } = await supabase
+          .from('post_reactions')
+          .insert(reactionInserts);
+
+        if (reactionsError) {
+          console.error('Error adding reactions:', reactionsError);
+          // Don't fail the whole operation if reactions fail
+        }
+      }
 
       // Perform check-in after post is created
       const res = await fetch('/api/growth/habits.checkin', {
@@ -871,7 +901,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       }
 
       // Reset form and close modal
-      setCheckInPostForm({ body: '', image: null, video: null });
+      setCheckInPostForm({ body: '', image: null, video: null, reactions: [] });
       setShowCheckInModal(null);
       
       // Reload tasks to show updated check-in status
@@ -1796,6 +1826,61 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
               
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Category (automatically set)
+                </label>
+                <div className={`p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}>
+                  <span className={`text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                    {(() => {
+                      const taskDirection = directions.find((d) => d.id === showCheckInModal.task.direction_id);
+                      return taskDirection ? `${resolveDirectionEmoji(taskDirection.slug, taskDirection.emoji)} ${taskDirection.title}` : 'Not specified';
+                    })()}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Reactions
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[
+                    { kind: 'proud', emoji: '??', label: 'Proud' },
+                    { kind: 'grateful', emoji: '??', label: 'Grateful' },
+                    { kind: 'drained', emoji: '?', label: 'Drained' },
+                  ].map((reaction) => {
+                    const isSelected = checkInPostForm.reactions.includes(reaction.kind);
+                    return (
+                      <button
+                        key={reaction.kind}
+                        type="button"
+                        onClick={() => {
+                          setCheckInPostForm((prev) => ({
+                            ...prev,
+                            reactions: isSelected
+                              ? prev.reactions.filter((r) => r !== reaction.kind)
+                              : [...prev.reactions, reaction.kind],
+                          }));
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+                          isSelected
+                            ? isLight
+                              ? 'bg-telegram-blue text-white border-telegram-blue'
+                              : 'bg-telegram-blue text-white border-telegram-blue'
+                            : isLight
+                            ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
+                            : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                        }`}
+                      >
+                        <span className="mr-1">{reaction.emoji}</span>
+                        {reaction.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                   Media (optional)
                 </label>
                 <div className="flex items-center gap-3">
@@ -1866,7 +1951,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
               <Button
                 onClick={() => {
                   setShowCheckInModal(null);
-                  setCheckInPostForm({ body: '', image: null, video: null });
+                  setCheckInPostForm({ body: '', image: null, video: null, reactions: [] });
                 }}
                 disabled={publishingPost}
                 variant="secondary"
