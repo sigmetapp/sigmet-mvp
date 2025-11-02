@@ -919,13 +919,16 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       {notification && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-5">
           <div className="flex items-center gap-3">
-            <span className="text-lg">??</span>
+            <span className="text-lg" aria-hidden="true">
+              {String.fromCodePoint(0x26A0)}
+            </span>
             <p className="font-medium">{notification.message}</p>
             <button
               onClick={() => setNotification(null)}
               className="ml-4 text-white/80 hover:text-white transition"
+              aria-label="Close notification"
             >
-              ?
+              {String.fromCodePoint(0x2715)}
             </button>
           </div>
         </div>
