@@ -129,6 +129,7 @@ function GrowthDirectionsInner() {
   }>>([]);
   const [totalPoints, setTotalPoints] = useState(0);
   const [loadingCompleted, setLoadingCompleted] = useState(false);
+  const [resettingAllTasks, setResettingAllTasks] = useState(false);
 
   useEffect(() => {
     loadDirections();
@@ -712,6 +713,63 @@ function GrowthDirectionsInner() {
     }
   }
 
+  async function resetAllTasks() {
+    const activeTasksCount = summaryTasks.primary.length + summaryTasks.secondary.length;
+    
+    if (activeTasksCount === 0) {
+      setNotification({ message: 'No active tasks to reset' });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to reset all ${activeTasksCount} active tasks? This will deactivate all habits and goals currently in work.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setResettingAllTasks(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setNotification({ message: 'Session expired. Please refresh the page.' });
+        return;
+      }
+
+      const res = await fetch('/api/growth/tasks.resetAll', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Failed to reset tasks' }));
+        throw new Error(errorData.error || 'Failed to reset tasks');
+      }
+
+      const { count } = await res.json();
+      setNotification({ 
+        message: `Successfully reset ${count || activeTasksCount} task${count !== 1 ? 's' : ''}` 
+      });
+
+      // Reload all data
+      await loadSummary();
+      if (selectedDirection) {
+        await loadTasks(selectedDirection);
+      }
+      await loadCompletedTasks();
+    } catch (error: any) {
+      console.error('Error resetting all tasks:', error);
+      setNotification({ message: error.message || 'Failed to reset tasks' });
+    } finally {
+      setResettingAllTasks(false);
+    }
+  }
+
   function openCheckInModal(userTaskId: string, task: Task) {
     setShowCheckInModal({ userTaskId, task });
     // Pre-fill post with task information
@@ -986,6 +1044,17 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                 Active tasks: {summaryTasks.primary.length + summaryTasks.secondary.length} total
               </span>
+              {(summaryTasks.primary.length > 0 || summaryTasks.secondary.length > 0) && (
+                <Button
+                  onClick={resetAllTasks}
+                  disabled={resettingAllTasks || loadingSummary}
+                  variant="secondary"
+                  className="text-xs px-3 py-1.5"
+                  title="Reset all active tasks"
+                >
+                  {resettingAllTasks ? 'Resetting...' : 'Reset All Tasks'}
+                </Button>
+              )}
             </div>
           </div>
 
