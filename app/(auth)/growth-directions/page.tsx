@@ -1861,13 +1861,49 @@ function GrowthDirectionsInner() {
                 <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                   Post Content
                 </label>
-                <textarea
-                  value={completeForm.body}
-                  onChange={(e) => setCompleteForm((prev) => ({ ...prev, body: e.target.value }))}
-                  placeholder="Share your achievement and thoughts about completing this goal..."
-                  rows={6}
-                  className={`input w-full ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
-                />
+                <div className="relative">
+                  <textarea
+                    value={completeForm.body}
+                    onChange={(e) => setCompleteForm((prev) => ({ ...prev, body: e.target.value }))}
+                    placeholder="Share your achievement and thoughts about completing this goal..."
+                    rows={6}
+                    className={`input w-full pr-10 ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
+                  />
+                  <div className="absolute bottom-2 right-2">
+                    <input
+                      type="file"
+                      accept="image/*,video/*"
+                      className="hidden"
+                      id="complete-media-input"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file) {
+                          if (file.type.startsWith('image/')) {
+                            setCompleteForm((prev) => ({ ...prev, image: file, video: null }));
+                          } else if (file.type.startsWith('video/')) {
+                            setCompleteForm((prev) => ({ ...prev, video: file, image: null }));
+                          }
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="complete-media-input"
+                      className={`inline-flex items-center px-2 py-1.5 rounded-lg border text-xs cursor-pointer transition ${
+                        isLight
+                          ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10 bg-white'
+                          : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15 bg-[rgba(15,22,35,0.98)]'
+                      }`}
+                      title="Attach photo or video"
+                    >
+                      {String.fromCodePoint(0x1F4F7)}
+                    </label>
+                  </div>
+                  {(completeForm.image || completeForm.video) && (
+                    <div className={`mt-1 text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      {completeForm.image ? completeForm.image.name : completeForm.video?.name}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -1925,77 +1961,10 @@ function GrowthDirectionsInner() {
                 </div>
               </div>
               
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                  Media (optional)
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    id="complete-image-input"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (file && file.type.startsWith('image/')) {
-                        setCompleteForm((prev) => ({ ...prev, image: file, video: null }));
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="complete-image-input"
-                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                      isLight
-                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
-                    }`}
-                  >
-                    {`${String.fromCodePoint(0x1F5BC)} Image`}
-                  </label>
-                  
-                  <input
-                    type="file"
-                    accept="video/*"
-                    className="hidden"
-                    id="complete-video-input"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (file && file.type.startsWith('video/')) {
-                        setCompleteForm((prev) => ({ ...prev, video: file, image: null }));
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="complete-video-input"
-                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                      isLight
-                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
-                    }`}
-                  >
-                    {`${String.fromCodePoint(0x1F3A5)} Video`}
-                  </label>
-                  
-                  {(completeForm.image || completeForm.video) && (
-                    <span className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                      {completeForm.image ? `Image: ${completeForm.image.name}` : `Video: ${completeForm.video?.name}`}
-                    </span>
-                  )}
-                </div>
+
               </div>
 
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                  Note (optional)
-                </label>
-                <textarea
-                  value={completeForm.note}
-                  onChange={(e) => setCompleteForm((prev) => ({ ...prev, note: e.target.value }))}
-                  placeholder="Add a note about completing this goal..."
-                  rows={3}
-                  className={`input w-full ${isLight ? '' : ''}`}
-                />
-              </div>
+
             </div>
             <div className="flex gap-2">
               <Button
@@ -2060,13 +2029,49 @@ function GrowthDirectionsInner() {
                 <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                   Post Content
                 </label>
-                <textarea
-                  value={checkInPostForm.body}
-                  onChange={(e) => setCheckInPostForm((prev) => ({ ...prev, body: e.target.value }))}
-                  placeholder="Add your thoughts about this check-in..."
-                  rows={6}
-                  className={`input w-full ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
-                />
+                <div className="relative">
+                  <textarea
+                    value={checkInPostForm.body}
+                    onChange={(e) => setCheckInPostForm((prev) => ({ ...prev, body: e.target.value }))}
+                    placeholder="Add your thoughts about this check-in..."
+                    rows={6}
+                    className={`input w-full pr-10 ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
+                  />
+                  <div className="absolute bottom-2 right-2">
+                    <input
+                      type="file"
+                      accept="image/*,video/*"
+                      className="hidden"
+                      id="checkin-media-input"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file) {
+                          if (file.type.startsWith('image/')) {
+                            setCheckInPostForm((prev) => ({ ...prev, image: file, video: null }));
+                          } else if (file.type.startsWith('video/')) {
+                            setCheckInPostForm((prev) => ({ ...prev, video: file, image: null }));
+                          }
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="checkin-media-input"
+                      className={`inline-flex items-center px-2 py-1.5 rounded-lg border text-xs cursor-pointer transition ${
+                        isLight
+                          ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10 bg-white'
+                          : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15 bg-[rgba(15,22,35,0.98)]'
+                      }`}
+                      title="Attach photo or video"
+                    >
+                      {String.fromCodePoint(0x1F4F7)}
+                    </label>
+                  </div>
+                  {(checkInPostForm.image || checkInPostForm.video) && (
+                    <div className={`mt-1 text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      {checkInPostForm.image ? checkInPostForm.image.name : checkInPostForm.video?.name}
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div>
@@ -2124,63 +2129,7 @@ function GrowthDirectionsInner() {
                 </div>
               </div>
               
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                  Media (optional)
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    id="checkin-image-input"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (file && file.type.startsWith('image/')) {
-                        setCheckInPostForm((prev) => ({ ...prev, image: file, video: null }));
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="checkin-image-input"
-                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                      isLight
-                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
-                    }`}
-                  >
-                    {`${String.fromCodePoint(0x1F5BC)} Image`}
-                  </label>
-                  
-                  <input
-                    type="file"
-                    accept="video/*"
-                    className="hidden"
-                    id="checkin-video-input"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (file && file.type.startsWith('video/')) {
-                        setCheckInPostForm((prev) => ({ ...prev, video: file, image: null }));
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="checkin-video-input"
-                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                      isLight
-                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
-                    }`}
-                  >
-                    {`${String.fromCodePoint(0x1F3A5)} Video`}
-                  </label>
-                  
-                  {(checkInPostForm.image || checkInPostForm.video) && (
-                    <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                      {checkInPostForm.image ? checkInPostForm.image.name : checkInPostForm.video?.name}
-                    </span>
-                  )}
-                </div>
+
               </div>
             </div>
 
