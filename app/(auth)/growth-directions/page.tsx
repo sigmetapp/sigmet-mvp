@@ -1024,9 +1024,6 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg">
-                            {resolveDirectionEmoji(dir.slug, dir.emoji)}
-                          </span>
                           <div>
                             <span className="font-medium text-sm">{dir.title}</span>
                             <div className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-white/70' : isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
