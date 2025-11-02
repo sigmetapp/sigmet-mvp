@@ -1226,14 +1226,35 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                 Directions
               </h2>
               <div className="space-y-2">
-                {directions.map((dir) => {
+                {directions
+                  .sort((a, b) => {
+                    // Helper function to check if direction is in development
+                    const isInDev = (slug: string) => 
+                      slug === 'creativity' || 
+                      slug === 'mindfulness_purpose' || 
+                      slug === 'relationships' ||
+                      slug === 'career' ||
+                      slug === 'finance';
+                    
+                    const aInDev = isInDev(a.slug);
+                    const bInDev = isInDev(b.slug);
+                    
+                    // Active directions first (not in development), then inactive (in development)
+                    if (aInDev && !bInDev) return 1;
+                    if (!aInDev && bInDev) return -1;
+                    // If both have same status, maintain original order
+                    return 0;
+                  })
+                  .map((dir) => {
                   const isToggling = toggling.has(dir.id);
                   const isSelected = selectedDirection === dir.id;
                   
                   // Check if direction is in development
                   const isInDevelopment = dir.slug === 'creativity' || 
                                          dir.slug === 'mindfulness_purpose' || 
-                                         dir.slug === 'relationships';
+                                         dir.slug === 'relationships' ||
+                                         dir.slug === 'career' ||
+                                         dir.slug === 'finance';
                   
                   // Determine if this direction would be Primary or Additional when added
                   // Use the same logic as in the API: directions with sort_index <= 8 can be Primary
