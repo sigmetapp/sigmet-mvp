@@ -1074,20 +1074,20 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
         <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <h2 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-              🎉 Завершенные задачи и баллы
+              ?? ??????????? ?????? ? ?????
             </h2>
             <div className={`text-2xl font-bold ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
-              Всего баллов: {totalPoints.toLocaleString('ru-RU')}
+              ????? ??????: {totalPoints.toLocaleString('ru-RU')}
             </div>
           </div>
 
           {loadingCompleted ? (
             <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-              Загрузка завершенных задач...
+              ???????? ??????????? ?????...
             </div>
           ) : completedTasks.length === 0 ? (
             <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-              <p className="text-sm">Пока нет завершенных задач</p>
+              <p className="text-sm">???? ??? ??????????? ?????</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1112,15 +1112,15 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                               : 'bg-blue-500/15 text-blue-400'
                           }`}
                         >
-                          {task.taskType === 'habit' ? 'Привычка' : 'Цель'}
+                          {task.taskType === 'habit' ? '????????' : '????'}
                         </span>
                       </div>
                       <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                        Направление: {task.direction.title}
+                        ???????????: {task.direction.title}
                       </div>
                       {task.completedAt && (
                         <div className={`text-xs mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                          Завершено: {new Date(task.completedAt).toLocaleDateString('ru-RU', {
+                          ?????????: {new Date(task.completedAt).toLocaleDateString('ru-RU', {
                             year: 'numeric',
                             month: 'long',
                             day: 'numeric',
@@ -1130,11 +1130,11 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                     </div>
                     <div className={`text-right ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
                       <div className="text-lg font-bold">
-                        {task.pointsAwarded.toLocaleString('ru-RU')} баллов
+                        {task.pointsAwarded.toLocaleString('ru-RU')} ??????
                       </div>
                       {task.pointsAwarded !== task.basePoints && (
                         <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                          (базовые: {task.basePoints.toLocaleString('ru-RU')})
+                          (???????: {task.basePoints.toLocaleString('ru-RU')})
                         </div>
                       )}
                     </div>
@@ -1163,6 +1163,11 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                   const isToggling = toggling.has(dir.id);
                   const isSelected = selectedDirection === dir.id;
                   
+                  // Check if direction is in development
+                  const isInDevelopment = dir.slug === 'creativity' || 
+                                         dir.slug === 'mindfulness_purpose' || 
+                                         dir.slug === 'relationships';
+                  
                   // Determine if this direction would be Primary or Additional when added
                   // Use the same logic as in the API: directions with sort_index <= 8 can be Primary
                   // But only if primaryCount < 3
@@ -1170,11 +1175,13 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                   
                   const disableSelectionPrimary = !dir.isSelected && wouldBePrimary && primaryLimitReached;
                   const disableSelectionSecondary = !dir.isSelected && !wouldBePrimary && secondaryLimitReached;
-                  const disableSelection = disableSelectionPrimary || disableSelectionSecondary;
+                  const disableSelection = disableSelectionPrimary || disableSelectionSecondary || isInDevelopment;
                   const buttonLabel = isToggling
                     ? '...'
                     : dir.isSelected
                     ? 'Selected'
+                    : isInDevelopment
+                    ? 'In development'
                     : disableSelection
                     ? 'Limit'
                     : 'Add';
@@ -1182,7 +1189,11 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                   return (
                     <div
                       key={dir.id}
-                      className={`p-3 rounded-xl transition cursor-pointer ${
+                      className={`p-3 rounded-xl transition ${
+                        isInDevelopment 
+                          ? 'cursor-not-allowed opacity-60' 
+                          : 'cursor-pointer'
+                      } ${
                         isSelected
                           ? isLight
                             ? 'bg-telegram-blue text-white'
@@ -1191,14 +1202,18 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                           ? 'border border-telegram-blue/20 hover:bg-telegram-blue/10'
                           : 'border border-telegram-blue/30 hover:bg-telegram-blue/15'
                       }`}
-                      onClick={() => setSelectedDirection(dir.id)}
+                      onClick={() => {
+                        if (!isInDevelopment) {
+                          setSelectedDirection(dir.id);
+                        }
+                      }}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div>
                             <span className="font-medium text-sm">{dir.title}</span>
                             <div className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-white/70' : isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                              {dir.isPrimary ? 'Primary direction' : 'Additional direction'}
+                              {isInDevelopment ? 'In development' : dir.isPrimary ? 'Primary direction' : 'Additional direction'}
                             </div>
                           </div>
                         </div>
@@ -1206,18 +1221,28 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (disableSelection) return;
+                            if (disableSelection || isInDevelopment) return;
                             toggleDirection(dir.id);
                           }}
-                          disabled={isToggling || disableSelection}
-                          title={disableSelectionPrimary ? 'Cannot add more than 3 primary directions' : disableSelectionSecondary ? 'Cannot add more than 3 additional directions' : undefined}
+                          disabled={isToggling || disableSelection || isInDevelopment}
+                          title={
+                            isInDevelopment 
+                              ? 'This direction is currently in development' 
+                              : disableSelectionPrimary 
+                              ? 'Cannot add more than 3 primary directions' 
+                              : disableSelectionSecondary 
+                              ? 'Cannot add more than 3 additional directions' 
+                              : undefined
+                          }
                           className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
                             dir.isSelected
                               ? 'bg-white/20 text-white'
+                              : isInDevelopment
+                              ? 'border border-gray-400/30 text-gray-400 cursor-not-allowed'
                               : isLight
                               ? 'border border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
                               : 'border border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
-                          } ${disableSelection && !dir.isSelected ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          } ${(disableSelection || isInDevelopment) && !dir.isSelected ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           {buttonLabel}
                         </button>
