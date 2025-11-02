@@ -521,11 +521,16 @@ function GrowthDirectionsInner() {
     );
 
     if (!direction.isSelected) {
-      if (direction.isPrimary && selectedPrimaryCount >= 3) {
+      // Determine if this direction would be Primary or Additional when added
+      // Use the same logic as in the API: directions with sort_index <= 8 can be Primary
+      // But only if primaryCount < 3
+      const wouldBePrimary = direction.sort_index <= 8 && selectedPrimaryCount < 3;
+
+      if (wouldBePrimary && selectedPrimaryCount >= 3) {
         setNotification({ message: 'Cannot add more than 3 primary directions' });
         return;
       }
-      if (!direction.isPrimary && selectedSecondaryCount >= 3) {
+      if (!wouldBePrimary && selectedSecondaryCount >= 3) {
         setNotification({ message: 'Cannot add more than 3 additional directions' });
         return;
       }
@@ -1023,8 +1028,14 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                 {directions.map((dir) => {
                   const isToggling = toggling.has(dir.id);
                   const isSelected = selectedDirection === dir.id;
-                  const disableSelectionPrimary = !dir.isSelected && dir.isPrimary && primaryLimitReached;
-                  const disableSelectionSecondary = !dir.isSelected && !dir.isPrimary && secondaryLimitReached;
+                  
+                  // Determine if this direction would be Primary or Additional when added
+                  // Use the same logic as in the API: directions with sort_index <= 8 can be Primary
+                  // But only if primaryCount < 3
+                  const wouldBePrimary = dir.sort_index <= 8 && selectedPrimaryCount < 3;
+                  
+                  const disableSelectionPrimary = !dir.isSelected && wouldBePrimary && primaryLimitReached;
+                  const disableSelectionSecondary = !dir.isSelected && !wouldBePrimary && secondaryLimitReached;
                   const disableSelection = disableSelectionPrimary || disableSelectionSecondary;
                   const buttonLabel = isToggling
                     ? '...'
