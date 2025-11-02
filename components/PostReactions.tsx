@@ -95,7 +95,7 @@ export default function PostReactions({
   };
 
   return (
-    <div className={`w-full ${isLight ? 'bg-white/10' : 'bg-gray-900/10'} rounded-2xl p-3 md:p-4`}>
+    <div className={`w-full ${isLight ? 'bg-white/10' : 'bg-gray-900/10'} rounded-2xl p-3 md:p-4 backdrop-blur-sm`}>
       {/* Desktop: horizontal row, Mobile: grid 2 columns */}
       <div className="grid grid-cols-2 md:flex md:flex-row items-center justify-center gap-2 md:gap-3">
         {REACTIONS.map((reaction) => {
@@ -141,7 +141,14 @@ export default function PostReactions({
                   : undefined,
               }}
             >
-              <span className="text-xl md:text-2xl leading-none">{reaction.emoji}</span>
+              <span 
+                className="text-2xl md:text-3xl leading-none select-none" 
+                role="img" 
+                aria-label={reaction.label}
+                style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif' }}
+              >
+                {reaction.emoji}
+              </span>
               <span className={`text-xs md:text-sm font-medium hidden sm:inline ${isLight ? 'text-gray-900' : 'text-white/90'}`}>
                 {reaction.label}
               </span>

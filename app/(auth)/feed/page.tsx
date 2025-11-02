@@ -764,25 +764,35 @@ function FeedInner() {
                       
                       // Remove previous reaction if exists
                       if (previousReaction) {
-                        const { error } = await supabase
+                        const { error: deleteError } = await supabase
                           .from("post_reactions")
                           .delete()
                           .eq("post_id", p.id)
                           .eq("user_id", uid)
                           .eq("kind", previousReaction);
-                        if (error) throw error;
+                        if (deleteError) {
+                          console.error("Error deleting reaction:", deleteError);
+                          throw deleteError;
+                        }
                       }
 
                       // Add new reaction if selected
                       if (reaction) {
-                        const { error } = await supabase
+                        const { error: insertError } = await supabase
                           .from("post_reactions")
                           .insert({
                             post_id: p.id,
                             user_id: uid,
                             kind: reaction,
                           });
-                        if (error) throw error;
+                        if (insertError) {
+                          console.error("Error inserting reaction:", insertError);
+                          // Check if it's a constraint error (maybe migration not applied)
+                          if (insertError.code === '23514' || insertError.message?.includes('check constraint')) {
+                            throw new Error(`Reaction type '${reaction}' is not allowed. Please apply migration 129_add_new_post_reaction_types.sql`);
+                          }
+                          throw insertError;
+                        }
                       }
 
                       // Reload reactions from DB to get accurate counts
@@ -825,9 +835,10 @@ function FeedInner() {
                         ...prev,
                         [p.id]: reaction,
                       }));
-                    } catch (error) {
+                    } catch (error: any) {
                       console.error("Error updating reaction:", error);
-                      alert("Failed to update reaction");
+                      const errorMessage = error?.message || error?.details || "Unknown error";
+                      alert(`Failed to update reaction: ${errorMessage}`);
                     }
                   }}
                 />
