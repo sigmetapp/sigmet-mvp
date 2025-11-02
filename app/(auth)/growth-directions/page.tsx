@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import Button from '@/components/Button';
-import Link from 'next/link';
 import { useTheme } from '@/components/ThemeProvider';
+import { resolveDirectionEmoji } from '@/lib/directions';
 
 type Direction = {
   id: string;
@@ -43,24 +43,6 @@ type Task = {
   lastChecked?: string | null;
 };
 
-const DIRECTION_EMOJI_MAP: Record<string, string> = {
-  learning: '\u{1F4DA}',
-  career: '\u{1F4BC}',
-  finance: '\u{1F4B0}',
-  health: '\u{1F4AA}',
-  relationships: '\u{1F496}',
-  community: '\u{1F30D}',
-  creativity: '\u{1F3A8}',
-  mindfulness: '\u{1F9D8}',
-  mindfulness_purpose: '\u{2728}',
-  personal: '\u{1F331}',
-  digital: '\u{1F4BB}',
-  education: '\u{1F393}',
-  purpose: '\u{1F9ED}',
-};
-
-const FALLBACK_DIRECTION_EMOJI = '\u2728';
-
 type TaskSummaryItem = {
   id: string;
   type: Task['task_type'];
@@ -74,21 +56,6 @@ type TaskSummaryItem = {
   basePoints: number;
 };
 
-const isLikelyValidEmoji = (value?: string | null) => {
-  if (!value) return false;
-  if (value.includes('?')) return false;
-  if (value.includes('\\')) return false;
-  if (value.startsWith('U&')) return false;
-  return true;
-};
-
-const resolveDirectionEmoji = (slug: string, emoji?: string | null) => {
-  if (isLikelyValidEmoji(emoji)) {
-    return emoji as string;
-  }
-  return DIRECTION_EMOJI_MAP[slug] ?? FALLBACK_DIRECTION_EMOJI;
-};
-
 const toTitleCase = (value: string | null | undefined) => {
   if (!value) return '';
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -96,8 +63,6 @@ const toTitleCase = (value: string | null | undefined) => {
 
 const getTaskElementId = (item: Pick<TaskSummaryItem, 'id' | 'type'>) =>
   item.type === 'habit' ? `habit-card-${item.id}` : `goal-card-${item.id}`;
-
-const MAX_SUMMARY_ITEMS_PER_GROUP = 3;
 
 const prepareDirections = (rawDirections: Direction[]) => {
   const uniqueSortedDirections = Array.from(
@@ -592,21 +557,6 @@ function GrowthDirectionsInner() {
       return;
     }
     
-    // Check limits separately: 3 for primary directions, 3 for secondary directions
-    if (taskDirection.isPrimary) {
-      // Check limit for primary directions (max 3)
-      if (summaryTasks.primary.length >= 3) {
-        setNotification({ message: 'Cannot add more than 3 active tasks from priority directions' });
-        return;
-      }
-    } else {
-      // Check limit for secondary directions (max 3)
-      if (summaryTasks.secondary.length >= 3) {
-        setNotification({ message: 'Cannot add more than 3 active tasks from additional directions' });
-        return;
-      }
-    }
-
     setActivating((prev) => new Set(prev).add(taskId));
 
     try {
@@ -855,12 +805,10 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       );
     }
 
-    const itemsToShow = list.slice(0, MAX_SUMMARY_ITEMS_PER_GROUP);
-
     return (
       <>
         <div className="space-y-2 min-h-[120px]">
-          {itemsToShow.map((item) => (
+          {list.map((item) => (
             <button
               key={`${item.directionId}-${item.id}-${item.type}`}
               type="button"
@@ -942,10 +890,10 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             </h2>
             <div className="flex flex-col md:flex-row gap-2 md:items-center">
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                {selectedPrimaryCount}/3 primary directions selected
+                Primary directions selected: {selectedPrimaryCount}
               </span>
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Active tasks: {summaryTasks.primary.length}/3 priority, {summaryTasks.secondary.length}/3 additional
+                Active tasks: {summaryTasks.primary.length} priority, {summaryTasks.secondary.length} additional
               </span>
             </div>
           </div>

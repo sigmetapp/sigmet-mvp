@@ -6,7 +6,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import Button from '@/components/Button';
 import Link from 'next/link';
 import { useTheme } from '@/components/ThemeProvider';
-import { captureServer } from '@/lib/analytics.server';
+import { resolveDirectionEmoji } from '@/lib/directions';
 
 type Direction = {
   id: string;
@@ -179,29 +179,7 @@ function GrowthInner() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-2xl" aria-hidden>
-                      {(() => {
-                        // Fix emoji mapping if they come as ?? from DB
-                        const emojiMap: Record<string, string> = {
-                          'learning': '??', // Learning & Knowledge (merged with education, digital)
-                          'career': '??',
-                          'finance': '??',
-                          'health': '??', // Health & Vitality
-                          'relationships': '??',
-                          'community': '??',
-                          'creativity': '??',
-                          'mindfulness_purpose': '??', // Mindfulness & Purpose (merged from mindfulness, personal, purpose)
-                          // Legacy mappings for backward compatibility
-                          'mindfulness': '??', // Maps to mindfulness_purpose
-                          'purpose': '??', // Maps to mindfulness_purpose
-                          'personal': '??', // Maps to mindfulness_purpose
-                          'digital': '??', // Maps to learning
-                          'education': '??', // Maps to learning
-                        };
-                        if (dir.emoji === '??' || dir.emoji === '???' || dir.emoji?.includes('?')) {
-                          return emojiMap[dir.slug] || dir.emoji;
-                        }
-                        return dir.emoji;
-                      })()}
+                      {resolveDirectionEmoji(dir.slug, dir.emoji)}
                     </span>
                     <h3 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                       {dir.title}
