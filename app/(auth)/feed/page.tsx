@@ -7,6 +7,7 @@ import Button from "@/components/Button";
 import { useTheme } from "@/components/ThemeProvider";
 import PostReactions, { ReactionType } from "@/components/PostReactions";
 import PostActionMenu from "@/components/PostActionMenu";
+import PostCommentsBadge from "@/components/PostCommentsBadge";
 
 export default function FeedPage() {
   return (
@@ -813,18 +814,25 @@ function FeedInner() {
                   }}
                 />
 
-                <button
-                  className={`ml-auto text-sm underline hover:no-underline transition ${isLight ? "text-telegram-blue hover:text-telegram-blue-dark" : "text-telegram-blue-light hover:text-telegram-blue"}`}
-                  onClick={async () => {
+                <PostCommentsBadge
+                  count={commentCounts[p.id] ?? 0}
+                  size="md"
+                  onOpen={async () => {
                     const willOpen = !openComments[p.id];
                     setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
                     if (willOpen && !(comments[p.id]?.length > 0)) {
                       await loadComments(p.id);
                     }
                   }}
-                >
-                  Comments ({commentCounts[p.id] ?? 0})
-                </button>
+                  onFocusComposer={() => {
+                    const composer = document.getElementById(`comment-composer-${p.id}`);
+                    if (composer) {
+                      composer.focus();
+                      composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                  }}
+                  className="ml-auto"
+                />
               </div>
 
               {/* comments */}
@@ -936,6 +944,7 @@ function FeedInner() {
                   })()}
                   <div className="flex gap-2 items-center">
                     <input
+                      id={`comment-composer-${p.id}`}
                       value={commentInput[p.id] || ""}
                       onChange={(e) =>
                         setCommentInput((prev) => ({
