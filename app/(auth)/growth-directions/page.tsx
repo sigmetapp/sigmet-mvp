@@ -52,6 +52,7 @@ const DIRECTION_EMOJI_MAP: Record<string, string> = {
   community: '\u{1F30D}',
   creativity: '\u{1F3A8}',
   mindfulness: '\u{1F9D8}',
+  mindfulness_purpose: '\u{2728}',
   personal: '\u{1F331}',
   digital: '\u{1F4BB}',
   education: '\u{1F393}',
@@ -73,9 +74,17 @@ type TaskSummaryItem = {
   basePoints: number;
 };
 
+const isLikelyValidEmoji = (value?: string | null) => {
+  if (!value) return false;
+  if (value.includes('?')) return false;
+  if (value.includes('\\')) return false;
+  if (value.startsWith('U&')) return false;
+  return true;
+};
+
 const resolveDirectionEmoji = (slug: string, emoji?: string | null) => {
-  if (emoji && !emoji.includes('?')) {
-    return emoji;
+  if (isLikelyValidEmoji(emoji)) {
+    return emoji as string;
   }
   return DIRECTION_EMOJI_MAP[slug] ?? FALLBACK_DIRECTION_EMOJI;
 };
@@ -87,6 +96,8 @@ const toTitleCase = (value: string | null | undefined) => {
 
 const getTaskElementId = (item: Pick<TaskSummaryItem, 'id' | 'type'>) =>
   item.type === 'habit' ? `habit-card-${item.id}` : `goal-card-${item.id}`;
+
+const MAX_SUMMARY_ITEMS_PER_GROUP = 3;
 
 const prepareDirections = (rawDirections: Direction[]) => {
   const uniqueSortedDirections = Array.from(
@@ -351,14 +362,24 @@ function GrowthDirectionsInner() {
         return;
       }
 
-      const selectedDirs = directions.filter((d) => d.isSelected);
+      const relevantDirections = directions.filter(
+        (dir) =>
+          dir.isSelected ||
+          dir.stats.activeHabits > 0 ||
+          dir.stats.activeGoals > 0
+      );
+
+      if (relevantDirections.length === 0) {
+        setSummaryTasks({ primary: [], secondary: [] });
+        return;
+      }
 
       const summaryItems: TaskSummaryItem[] = [];
       const isTaskInWork = (task: Task) => task.isActivated && (!task.userTask || task.userTask.status === 'active');
 
-      // Load tasks for all selected directions
+      // Load tasks for all relevant directions (selected or currently active)
       await Promise.all(
-        selectedDirs.map(async (dir) => {
+        relevantDirections.map(async (dir) => {
           try {
             let directionTasks: { habits: Task[]; goals: Task[] } = { habits: [], goals: [] };
 
@@ -834,8 +855,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       );
     }
 
-    // Show all items, not limited to 3
-    const itemsToShow = list;
+    const itemsToShow = list.slice(0, MAX_SUMMARY_ITEMS_PER_GROUP);
 
     return (
       <>
@@ -898,13 +918,16 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       {notification && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-5">
           <div className="flex items-center gap-3">
-            <span className="text-lg">??</span>
+            <span className="text-lg" aria-hidden="true">
+              {String.fromCodePoint(0x26A0)}
+            </span>
             <p className="font-medium">{notification.message}</p>
             <button
               onClick={() => setNotification(null)}
               className="ml-4 text-white/80 hover:text-white transition"
+              aria-label="Close notification"
             >
-              ?
+              {String.fromCodePoint(0x2715)}
             </button>
           </div>
         </div>
