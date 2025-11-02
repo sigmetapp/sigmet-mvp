@@ -40,7 +40,7 @@ export default async function handler(
     // Check if direction exists
     const { data: direction, error: dirError } = await supabase
       .from('growth_directions')
-      .select('id')
+      .select('id, sort_index')
       .eq('id', directionId)
       .single();
 
@@ -73,59 +73,38 @@ export default async function handler(
 
       return res.status(200).json({ success: true, action: 'removed' });
     } else {
-      // Check how many primary directions user already has
+      // Count total selected directions
       const { data: existingSelections, error: countError } = await supabase
         .from('user_selected_directions')
-        .select('is_primary')
-        .eq('user_id', user.id)
-        .eq('is_primary', true);
+        .select('id')
+        .eq('user_id', user.id);
 
       if (countError) {
         return res.status(500).json({ error: countError.message });
       }
 
-      // Count primary and secondary directions
-      const primaryCount = (existingSelections || []).filter((s) => s.is_primary === true).length;
-      const secondaryCount = (existingSelections || []).filter((s) => s.is_primary === false).length;
-      
-      // Determine if this should be primary or secondary
-      // Check if direction has a primary field or use sort_index logic
-      const { data: fullDirection, error: dirFullError } = await supabase
-        .from('growth_directions')
-        .select('sort_index, is_primary')
-        .eq('id', directionId)
-        .single();
+      const totalCount = (existingSelections || []).length;
 
-      if (dirFullError) {
-        return res.status(500).json({ error: dirFullError.message });
+      // Check limit: maximum 3 directions
+      if (totalCount >= 3) {
+        return res.status(400).json({ error: '???????? ????? ??????? 3 ???????????' });
       }
 
-      // Determine is_primary:
-      // 1. If direction has explicit is_primary field, use it
-      // 2. Otherwise, use sort_index: first 8 directions (sort_index <= 8) are potential primary
-      //    But only allow 3 primary total, so if already 3 primary, make this secondary
-      // 3. If sort_index > 8, it's always secondary
-      let isPrimary = false;
-      if (fullDirection.is_primary !== undefined && fullDirection.is_primary !== null) {
-        isPrimary = fullDirection.is_primary;
-      } else {
-        // Use sort_index logic: directions with sort_index <= 8 can be primary
-        // But limit to max 3 primary total
-        if (fullDirection.sort_index <= 8 && primaryCount < 3) {
-          isPrimary = true;
-        } else {
-          isPrimary = false;
-        }
+      // Determine is_primary: first 3 selected directions are primary
+      // Get existing primary count to determine if this should be primary
+      const { data: existingPrimary, error: primaryError } = await supabase
+        .from('user_selected_directions')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_primary', true);
+
+      if (primaryError) {
+        return res.status(500).json({ error: primaryError.message });
       }
 
-      // Check limits before adding
-      if (isPrimary && primaryCount >= 3) {
-        return res.status(400).json({ error: 'Cannot add more than 3 primary directions' });
-      }
-      
-      if (!isPrimary && secondaryCount >= 3) {
-        return res.status(400).json({ error: 'Cannot add more than 3 additional directions' });
-      }
+      const primaryCount = (existingPrimary || []).length;
+      // First 3 directions are primary, rest (if any) are secondary
+      const isPrimary = primaryCount < 3;
 
       // Add selection
       const { error: insertError } = await supabase
