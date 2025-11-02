@@ -88,6 +88,21 @@ const toTitleCase = (value: string | null | undefined) => {
 const getTaskElementId = (item: Pick<TaskSummaryItem, 'id' | 'type'>) =>
   item.type === 'habit' ? `habit-card-${item.id}` : `goal-card-${item.id}`;
 
+const prepareDirections = (rawDirections: Direction[]) => {
+  const uniqueSortedDirections = Array.from(
+    new Map(rawDirections.map((dir) => [dir.id, dir])).values()
+  )
+    .sort((a, b) => a.sort_index - b.sort_index)
+    .map((dir) => ({
+      ...dir,
+      emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
+    }));
+
+  return uniqueSortedDirections.filter(
+    (dir, index, array) => array.findIndex((candidate) => candidate.slug === dir.slug) === index
+  );
+};
+
 export default function GrowthDirectionsPage() {
   return (
     <RequireAuth>
@@ -138,6 +153,12 @@ function GrowthDirectionsInner() {
   }, [directions, selectedDirection, tasks]);
 
   useEffect(() => {
+    if (pinnedTask && pinnedTask.directionId !== selectedDirection) {
+      setPinnedTask(null);
+    }
+  }, [selectedDirection, pinnedTask]);
+
+  useEffect(() => {
     if (!focusTask) return;
     if (focusTask.directionId !== selectedDirection) return;
 
@@ -180,18 +201,41 @@ function GrowthDirectionsInner() {
       const { directions: dirs } = await res.json();
       const rawDirections: Direction[] = Array.isArray(dirs) ? dirs : [];
 
-      const uniqueSortedDirections = Array.from(
-        new Map(rawDirections.map((dir) => [dir.id, dir])).values()
-      )
-        .sort((a, b) => a.sort_index - b.sort_index)
-        .map((dir) => ({
-          ...dir,
-          emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
-        }));
+      let dedupedBySlug = prepareDirections(rawDirections);
 
-      const dedupedBySlug = uniqueSortedDirections.filter(
-        (dir, index, array) => array.findIndex((candidate) => candidate.slug === dir.slug) === index
-      );
+      const selectedPrimaryDirections = dedupedBySlug.filter((dir) => dir.isSelected && dir.isPrimary);
+      if (selectedPrimaryDirections.length > 3) {
+        const extraPrimary = selectedPrimaryDirections.slice(3);
+        alert('You can only keep three primary directions. The most recently added extras were deselected.');
+
+        for (const extra of extraPrimary) {
+          try {
+            await fetch('/api/growth/directions.toggle', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ directionId: extra.id }),
+            });
+          } catch (toggleError) {
+            console.error('Error enforcing primary limit:', toggleError);
+          }
+        }
+
+        const refreshedRes = await fetch('/api/growth/directions.list', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (!refreshedRes.ok) {
+          throw new Error('Failed to refresh directions after enforcing primary limit');
+        }
+
+        const { directions: refreshedDirs } = await refreshedRes.json();
+        dedupedBySlug = prepareDirections(Array.isArray(refreshedDirs) ? refreshedDirs : []);
+      }
 
       setDirections(dedupedBySlug);
 
@@ -270,6 +314,7 @@ function GrowthDirectionsInner() {
       }
 
       const summaryItems: TaskSummaryItem[] = [];
+      const isTaskInWork = (task: Task) => task.isActivated && (!task.userTask || task.userTask.status === 'active');
 
       await Promise.all(
         selectedDirs.map(async (dir) => {
@@ -301,12 +346,8 @@ function GrowthDirectionsInner() {
               directionTasks = { habits: uniqueHabits, goals: uniqueGoals };
             }
 
-            const activeHabits = (directionTasks.habits || []).filter(
-              (habit) => habit.isActivated && habit.userTask?.status === 'active'
-            );
-            const activeGoals = (directionTasks.goals || []).filter(
-              (goal) => goal.isActivated && goal.userTask?.status === 'active'
-            );
+            const activeHabits = (directionTasks.habits || []).filter(isTaskInWork);
+            const activeGoals = (directionTasks.goals || []).filter(isTaskInWork);
 
             activeHabits.forEach((habit) => {
               summaryItems.push({
