@@ -20,6 +20,7 @@ type Post = {
   body: string | null;
   image_url: string | null;
   video_url: string | null;
+  category: string | null;
   created_at: string;
   views: number;
   likes_count: number;
@@ -660,6 +661,11 @@ function FeedInner() {
                         />
                         <div className="flex flex-col min-w-0">
                           <div className={`text-sm truncate ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{username}</div>
+                          {p.category && (
+                            <div className={`text-xs ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                              {p.category}
+                            </div>
+                          )}
                         </div>
                       </>
                     );
