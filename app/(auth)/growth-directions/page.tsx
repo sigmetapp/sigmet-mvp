@@ -135,6 +135,7 @@ function GrowthDirectionsInner() {
   const [pinnedTask, setPinnedTask] = useState<TaskSummaryItem | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [notification, setNotification] = useState<{ message: string } | null>(null);
 
   useEffect(() => {
     loadDirections();
@@ -177,6 +178,13 @@ function GrowthDirectionsInner() {
     const timeout = window.setTimeout(() => setHighlightedTaskId(null), 2000);
     return () => window.clearTimeout(timeout);
   }, [highlightedTaskId]);
+
+  useEffect(() => {
+    if (!notification) return;
+
+    const timeout = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [notification]);
 
   async function loadDirections() {
     setLoading(true);
@@ -308,14 +316,10 @@ function GrowthDirectionsInner() {
 
       const selectedDirs = directions.filter((d) => d.isSelected);
 
-      if (selectedDirs.length === 0) {
-        setSummaryTasks({ primary: [], secondary: [] });
-        return;
-      }
-
       const summaryItems: TaskSummaryItem[] = [];
       const isTaskInWork = (task: Task) => task.isActivated && (!task.userTask || task.userTask.status === 'active');
 
+      // Load tasks for all selected directions
       await Promise.all(
         selectedDirs.map(async (dir) => {
           try {
@@ -464,7 +468,7 @@ function GrowthDirectionsInner() {
     );
 
     if (!direction.isSelected && direction.isPrimary && selectedPrimaryCount >= 3) {
-      alert('You can select only three primary directions. Please remove an existing focus area first.');
+      setNotification({ message: 'Cannot add more than 3 priority directions' });
       return;
     }
 
@@ -502,6 +506,15 @@ function GrowthDirectionsInner() {
 
   async function activateTask(taskId: string) {
     if (activating.has(taskId)) return;
+    
+    // Check limits before activating - max 3 total active tasks
+    const totalActiveTasks = summaryTasks.primary.length + summaryTasks.secondary.length;
+    
+    if (totalActiveTasks >= 3) {
+      setNotification({ message: 'Cannot add more than 3 active tasks total' });
+      return;
+    }
+
     setActivating((prev) => new Set(prev).add(taskId));
 
     try {
@@ -526,7 +539,7 @@ function GrowthDirectionsInner() {
       await loadSummary();
     } catch (error: any) {
       console.error('Error activating task:', error);
-      alert(error.message || 'Failed to activate task');
+      setNotification({ message: error.message || 'Failed to activate task' });
     } finally {
       setActivating((prev) => {
         const next = new Set(prev);
@@ -732,34 +745,42 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
   const renderSummaryTaskList = (list: TaskSummaryItem[]) => {
     if (loadingSummary) {
       return (
-        <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-          Loading...
-        </p>
+        <div className="min-h-[120px] flex items-center">
+          <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            Loading...
+          </p>
+        </div>
       );
     }
 
     if (list.length === 0) {
       return (
-        <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-          No cards in work yet
-        </p>
+        <div className="min-h-[120px] flex items-center">
+          <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            No cards in work yet
+          </p>
+        </div>
       );
     }
 
-    const itemsToShow = list.slice(0, 3);
+    // Show all items, not limited to 3
+    const itemsToShow = list;
 
     return (
       <>
-        <div className="space-y-2">
+        <div className="space-y-2 min-h-[120px]">
           {itemsToShow.map((item) => (
             <button
               key={`${item.directionId}-${item.id}-${item.type}`}
               type="button"
               onClick={() => handleSummaryTaskClick(item)}
-              className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition ${
+              className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition relative ${
                 isLight ? 'bg-telegram-bg-secondary hover:bg-telegram-blue/10' : 'bg-white/5 hover:bg-white/10'
-              }`}
+              } ${item.directionIsPrimary ? 'ring-2 ring-telegram-blue/30' : ''}`}
             >
+              {item.directionIsPrimary && (
+                <div className="absolute top-0 right-0 w-2 h-2 bg-telegram-blue rounded-full"></div>
+              )}
               <span className="text-lg">
                 {resolveDirectionEmoji(item.directionSlug)}
               </span>
@@ -786,11 +807,6 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             </button>
           ))}
         </div>
-        {list.length > 3 && (
-          <p className={`text-xs mt-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-            +{list.length - 3} more in progress
-          </p>
-        )}
       </>
     );
   };
@@ -807,9 +823,25 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
         </p>
       </div>
 
+      {/* Notification */}
+      {notification && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-5">
+          <div className="flex items-center gap-3">
+            <span className="text-lg">??</span>
+            <p className="font-medium">{notification.message}</p>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-4 text-white/80 hover:text-white transition"
+            >
+              ?
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Summary Section */}
       {!loading && (
-        <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
+        <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''} min-h-[400px]`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <h2 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
               {`${String.fromCodePoint(0x1F4CA)} Work & Focus Overview`}
@@ -819,62 +851,31 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-            <section>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+            <section className="min-h-[200px]">
               <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Primary focus directions{selectedPrimaryDirections.length > 0 ? ` (${selectedPrimaryDirections.length})` : ''}
+                Habits
+                {(() => {
+                  const allHabits = [...summaryTasks.primary, ...summaryTasks.secondary].filter(item => item.type === 'habit');
+                  return allHabits.length > 0 ? ` (${allHabits.length})` : '';
+                })()}
               </h3>
-              {selectedPrimaryDirections.length === 0 ? (
-                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                  Select up to three primary directions to stay focused.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {selectedPrimaryDirections.slice(0, 3).map((dir) => (
-                    <div
-                      key={dir.id}
-                      className={`flex items-center gap-3 p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}
-                    >
-                      <span className="text-lg">{resolveDirectionEmoji(dir.slug, dir.emoji)}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                          {dir.title}
-                        </p>
-                        <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                          {dir.stats.activeHabits} habits, {dir.stats.activeGoals} goals active
-                        </p>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-telegram-blue/15 text-telegram-blue">
-                        Primary
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {primaryLimitReached && (
-                <p className={`text-xs mt-3 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                  Deselect one of the current focus areas to pick a new primary direction.
-                </p>
-              )}
-              {selectedSecondaryDirections.length > 0 && (
-                <p className={`text-xs mt-3 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                  Additional directions in work: {selectedSecondaryDirections.length}
-                </p>
+              {renderSummaryTaskList(
+                [...summaryTasks.primary, ...summaryTasks.secondary].filter(item => item.type === 'habit')
               )}
             </section>
 
-            <section>
+            <section className="min-h-[200px]">
               <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Cards in work (primary){summaryTasks.primary.length > 0 ? ` (${summaryTasks.primary.length})` : ''}
+                Goals
+                {(() => {
+                  const allGoals = [...summaryTasks.primary, ...summaryTasks.secondary].filter(item => item.type === 'goal');
+                  return allGoals.length > 0 ? ` (${allGoals.length})` : '';
+                })()}
               </h3>
-              {renderSummaryTaskList(summaryTasks.primary)}
-            </section>
-
-            <section>
-              <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Cards in work (other){summaryTasks.secondary.length > 0 ? ` (${summaryTasks.secondary.length})` : ''}
-              </h3>
-              {renderSummaryTaskList(summaryTasks.secondary)}
+              {renderSummaryTaskList(
+                [...summaryTasks.primary, ...summaryTasks.secondary].filter(item => item.type === 'goal')
+              )}
             </section>
           </div>
         </div>

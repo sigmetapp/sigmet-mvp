@@ -313,18 +313,20 @@ function DirectionDetailInner() {
             {(() => {
               // Fix emoji mapping if they come as ?? from DB
               const emojiMap: Record<string, string> = {
-                'learning': '??',
+                'learning': '??', // Learning & Knowledge (merged with education, digital)
                 'career': '??',
                 'finance': '??',
-                'health': '??',
+                'health': '??', // Health & Vitality
                 'relationships': '??',
                 'community': '??',
                 'creativity': '??',
-                'mindfulness': '?????',
-                'personal': '??',
-                'digital': '??',
-                'education': '??',
-                'purpose': '???',
+                'mindfulness_purpose': '??', // Mindfulness & Purpose (merged from mindfulness, personal, purpose)
+                // Legacy mappings for backward compatibility
+                'mindfulness': '??', // Maps to mindfulness_purpose
+                'purpose': '??', // Maps to mindfulness_purpose
+                'personal': '??', // Maps to mindfulness_purpose
+                'digital': '??', // Maps to learning
+                'education': '??', // Maps to learning
               };
               if (direction.emoji === '??' || direction.emoji === '???' || direction.emoji?.includes('?')) {
                 return emojiMap[direction.slug] || direction.emoji;

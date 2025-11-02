@@ -16,7 +16,7 @@ insert into public.badge_types (id, name, emoji, description, requirement_descri
   ('first_step', 'First Step', '🕊️', 'Earned for registration and profile completion.', 'Register and complete your profile fully.', 1),
   ('active_spark', 'Active Spark', '🔥', 'Earned for first week of activity (post, comment, or interaction).', 'Be active for your first week: post, comment, or interact.', 2),
   ('connector', 'Connector', '💬', 'Earned for first 3 invited friends or first mutual follows.', 'Invite 3 friends or establish mutual follows.', 3),
-  ('growth_seeker', 'Growth Seeker', '🌱', 'Earned for selecting 3 growth directions in profile.', 'Choose 3 growth directions from the 12 SW-directions.', 4),
+  ('growth_seeker', 'Growth Seeker', '🌱', 'Earned for selecting 3 growth directions in profile.', 'Choose 3 growth directions from the 8 SW-directions.', 4),
   ('consistency', 'Consistency', '🧭', 'Earned for 7 consecutive days of activity.', 'Be active for 7 days in a row (any action: post, progress mark, comment).', 5)
 on conflict (id) do update set
   name = excluded.name,
