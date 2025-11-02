@@ -686,10 +686,10 @@ function FeedInner() {
                         ⋯
                       </Button>
                       {openMenuFor === p.id && (
-                        <div className={`absolute right-0 mt-2 w-40 rounded-xl border backdrop-blur-md z-50 transition-colors ${
+                        <div className={`absolute right-0 mt-2 w-40 rounded-xl border z-50 transition-colors ${
                           isLight
-                            ? "border-telegram-blue/20 bg-white/90 shadow-[0_8px_24px_rgba(51,144,236,0.15)]"
-                            : "border-telegram-blue/30 bg-[rgba(15,22,35,0.95)] shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+                            ? "border-telegram-blue/20 bg-white shadow-[0_8px_24px_rgba(51,144,236,0.15)]"
+                            : "border-telegram-blue/30 bg-[#0f1623] shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
                         }`}>
                           <button
                             onClick={() => {
