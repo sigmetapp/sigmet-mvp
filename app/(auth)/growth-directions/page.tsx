@@ -485,14 +485,24 @@ function GrowthDirectionsInner() {
     const direction = directions.find((d) => d.id === directionId);
     if (!direction) return;
 
-    const selectedCount = directions.reduce(
-      (count, dir) => (dir.isSelected ? count + 1 : count),
+    const selectedPrimaryCount = directions.reduce(
+      (count, dir) => (dir.isSelected && dir.isPrimary ? count + 1 : count),
+      0
+    );
+    const selectedSecondaryCount = directions.reduce(
+      (count, dir) => (dir.isSelected && !dir.isPrimary ? count + 1 : count),
       0
     );
 
-    if (!direction.isSelected && selectedCount >= 3) {
-      setNotification({ message: '???????? ????? ??????? 3 ???????????' });
-      return;
+    if (!direction.isSelected) {
+      if (direction.isPrimary && selectedPrimaryCount >= 3) {
+        setNotification({ message: 'Cannot add more than 3 primary directions' });
+        return;
+      }
+      if (!direction.isPrimary && selectedSecondaryCount >= 3) {
+        setNotification({ message: 'Cannot add more than 3 additional directions' });
+        return;
+      }
     }
 
     setToggling((prev) => new Set(prev).add(directionId));
@@ -766,9 +776,12 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
 
   const currentDirection = directions.find((d) => d.id === selectedDirection);
 
-  const selectedDirections = directions.filter((d) => d.isSelected);
-  const selectedCount = selectedDirections.length;
-  const limitReached = selectedCount >= 3;
+  const selectedPrimaryDirections = directions.filter((d) => d.isSelected && d.isPrimary);
+  const selectedSecondaryDirections = directions.filter((d) => d.isSelected && !d.isPrimary);
+  const selectedPrimaryCount = selectedPrimaryDirections.length;
+  const selectedSecondaryCount = selectedSecondaryDirections.length;
+  const primaryLimitReached = selectedPrimaryCount >= 3;
+  const secondaryLimitReached = selectedSecondaryCount >= 3;
   const displayedHabits = getDisplayedTasks(tasks.habits, 'habit');
   const displayedGoals = getDisplayedTasks(tasks.goals, 'goal');
   const extraHabits = Math.max(0, tasks.habits.length - displayedHabits.length);
@@ -880,7 +893,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             </h2>
             <div className="flex flex-col md:flex-row gap-2 md:items-center">
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Выбрано направлений: {selectedCount} / 3
+                Primary: {selectedPrimaryCount} / 3, Additional: {selectedSecondaryCount} / 3
               </span>
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                 Active tasks: {summaryTasks.primary.length + summaryTasks.secondary.length} total
@@ -984,7 +997,9 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                 {directions.map((dir) => {
                   const isToggling = toggling.has(dir.id);
                   const isSelected = selectedDirection === dir.id;
-                  const disableSelection = !dir.isSelected && limitReached;
+                  const disableSelectionPrimary = !dir.isSelected && dir.isPrimary && primaryLimitReached;
+                  const disableSelectionSecondary = !dir.isSelected && !dir.isPrimary && secondaryLimitReached;
+                  const disableSelection = disableSelectionPrimary || disableSelectionSecondary;
                   const buttonLabel = isToggling
                     ? '...'
                     : dir.isSelected
@@ -1027,7 +1042,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                             toggleDirection(dir.id);
                           }}
                           disabled={isToggling || disableSelection}
-                          title={disableSelection ? '???????? ????? ??????? 3 ???????????' : undefined}
+                          title={disableSelectionPrimary ? 'Cannot add more than 3 primary directions' : disableSelectionSecondary ? 'Cannot add more than 3 additional directions' : undefined}
                           className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
                             dir.isSelected
                               ? 'bg-white/20 text-white'
