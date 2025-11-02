@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from './ThemeProvider';
 
@@ -46,6 +46,21 @@ export default function PostReactions({
   const [selectedReaction, setSelectedReaction] = useState<ReactionType | null>(initialSelected);
   const [counts, setCounts] = useState<Record<ReactionType, number>>(initialCounts);
   const [popAnimation, setPopAnimation] = useState<ReactionType | null>(null);
+
+  // Sync with props when they change
+  useEffect(() => {
+    setSelectedReaction(initialSelected);
+  }, [initialSelected]);
+
+  useEffect(() => {
+    // Only update if counts actually changed
+    const countsChanged = Object.keys(initialCounts).some(
+      (key) => counts[key as ReactionType] !== initialCounts[key as ReactionType]
+    );
+    if (countsChanged) {
+      setCounts(initialCounts);
+    }
+  }, [initialCounts]);
 
   const handleReactionClick = (reactionId: ReactionType) => {
     const wasSelected = selectedReaction === reactionId;

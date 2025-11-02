@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { RequireAuth } from "@/components/RequireAuth";
 import Button from "@/components/Button";
 import { useTheme } from "@/components/ThemeProvider";
+import PostReactions, { ReactionType } from "@/components/PostReactions";
 
 export default function FeedPage() {
   return (
@@ -70,6 +71,14 @@ function FeedInner() {
   const [likedByMe, setLikedByMe] = useState<Set<number>>(new Set());
   const viewedOnce = useRef<Set<number>>(new Set());
   const [openMenuFor, setOpenMenuFor] = useState<number | null>(null);
+
+  // Post reactions state
+  const [reactionsByPostId, setReactionsByPostId] = useState<
+    Record<number, Record<ReactionType, number>>
+  >({});
+  const [selectedReactionsByPostId, setSelectedReactionsByPostId] = useState<
+    Record<number, ReactionType | null>
+  >({});
 
   // Directions toggle (from profile selections)
   const GROWTH_AREAS = useMemo(
@@ -160,6 +169,81 @@ function FeedInner() {
         .eq("user_id", uid)
         .in("post_id", ids);
       setLikedByMe(new Set((data || []).map((r) => r.post_id as number)));
+    })();
+  }, [uid, posts]);
+
+  // Load reactions for posts
+  useEffect(() => {
+    if (posts.length === 0) return;
+    (async () => {
+      try {
+        const ids = posts.map((p) => p.id);
+        // Map new reaction types to DB types (for now, we'll use the kind field as-is)
+        // Note: You may need to update the DB schema to support new reaction types
+        const { data } = await supabase
+          .from("post_reactions")
+          .select("post_id, kind, user_id")
+          .in("post_id", ids);
+
+        const counts: Record<number, Record<ReactionType, number>> = {};
+        const selected: Record<number, ReactionType | null> = {};
+
+        for (const post of posts) {
+          counts[post.id] = {
+            inspire: 0,
+            respect: 0,
+            relate: 0,
+            support: 0,
+            celebrate: 0,
+          };
+          selected[post.id] = null;
+        }
+
+        if (data) {
+          for (const r of data as any[]) {
+            const pid = r.post_id as number;
+            const kind = r.kind as string;
+            const userId = r.user_id as string;
+
+            // Map DB reaction types to component types
+            const reactionMap: Record<string, ReactionType> = {
+              inspire: 'inspire',
+              respect: 'respect',
+              relate: 'relate',
+              support: 'support',
+              celebrate: 'celebrate',
+            };
+
+            const reactionType = reactionMap[kind];
+            if (reactionType && counts[pid]) {
+              counts[pid][reactionType] = (counts[pid][reactionType] || 0) + 1;
+              if (uid && userId === uid) {
+                selected[pid] = reactionType;
+              }
+            }
+          }
+        }
+
+        setReactionsByPostId(counts);
+        setSelectedReactionsByPostId(selected);
+      } catch (error) {
+        console.error('Error loading reactions:', error);
+        // Initialize with zeros even on error
+        const counts: Record<number, Record<ReactionType, number>> = {};
+        const selected: Record<number, ReactionType | null> = {};
+        for (const post of posts) {
+          counts[post.id] = {
+            inspire: 0,
+            respect: 0,
+            relate: 0,
+            support: 0,
+            celebrate: 0,
+          };
+          selected[post.id] = null;
+        }
+        setReactionsByPostId(counts);
+        setSelectedReactionsByPostId(selected);
+      }
     })();
   }, [uid, posts]);
 
@@ -656,6 +740,98 @@ function FeedInner() {
               )}
 
               {/* author actions moved to header near date */}
+
+              {/* Post reactions */}
+              <div className="mt-4">
+                <PostReactions
+                  postId={p.id}
+                  initialCounts={reactionsByPostId[p.id] || {
+                    inspire: 0,
+                    respect: 0,
+                    relate: 0,
+                    support: 0,
+                    celebrate: 0,
+                  }}
+                  initialSelected={selectedReactionsByPostId[p.id] || null}
+                  onReactionChange={async (reaction, counts) => {
+                    if (!uid) {
+                      alert("Sign in required");
+                      return;
+                    }
+
+                    try {
+                      const previousReaction = selectedReactionsByPostId[p.id];
+                      
+                      // Remove previous reaction if exists
+                      if (previousReaction) {
+                        const { error } = await supabase
+                          .from("post_reactions")
+                          .delete()
+                          .eq("post_id", p.id)
+                          .eq("user_id", uid)
+                          .eq("kind", previousReaction);
+                        if (error) throw error;
+                      }
+
+                      // Add new reaction if selected
+                      if (reaction) {
+                        const { error } = await supabase
+                          .from("post_reactions")
+                          .insert({
+                            post_id: p.id,
+                            user_id: uid,
+                            kind: reaction,
+                          });
+                        if (error) throw error;
+                      }
+
+                      // Reload reactions from DB to get accurate counts
+                      const { data } = await supabase
+                        .from("post_reactions")
+                        .select("post_id, kind, user_id")
+                        .eq("post_id", p.id);
+
+                      const newCounts: Record<ReactionType, number> = {
+                        inspire: 0,
+                        respect: 0,
+                        relate: 0,
+                        support: 0,
+                        celebrate: 0,
+                      };
+
+                      if (data) {
+                        for (const r of data as any[]) {
+                          const kind = r.kind as string;
+                          const reactionMap: Record<string, ReactionType> = {
+                            inspire: 'inspire',
+                            respect: 'respect',
+                            relate: 'relate',
+                            support: 'support',
+                            celebrate: 'celebrate',
+                          };
+                          const reactionType = reactionMap[kind];
+                          if (reactionType) {
+                            newCounts[reactionType] = (newCounts[reactionType] || 0) + 1;
+                          }
+                        }
+                      }
+
+                      // Update local state with accurate counts
+                      setReactionsByPostId((prev) => ({
+                        ...prev,
+                        [p.id]: newCounts,
+                      }));
+                      setSelectedReactionsByPostId((prev) => ({
+                        ...prev,
+                        [p.id]: reaction,
+                      }));
+                    } catch (error) {
+                      console.error("Error updating reaction:", error);
+                      alert("Failed to update reaction");
+                    }
+                  }}
+                />
+              </div>
 
               {/* footer */}
               <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
