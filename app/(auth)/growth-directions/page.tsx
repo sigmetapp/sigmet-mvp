@@ -327,6 +327,7 @@ function GrowthDirectionsInner() {
         return;
       }
 
+      // Include all selected directions and directions with active tasks
       const relevantDirections = directions.filter(
         (dir) =>
           dir.isSelected ||
@@ -343,6 +344,7 @@ function GrowthDirectionsInner() {
       const isTaskInWork = (task: Task) => task.isActivated && (!task.userTask || task.userTask.status === 'active');
 
       // Load tasks for all relevant directions (selected or currently active)
+      // Process each direction to ensure all tasks are included
       await Promise.all(
         relevantDirections.map(async (dir) => {
           try {
@@ -376,6 +378,9 @@ function GrowthDirectionsInner() {
             const activeHabits = (directionTasks.habits || []).filter(isTaskInWork);
             const activeGoals = (directionTasks.goals || []).filter(isTaskInWork);
 
+            // Ensure isPrimary is correctly set - use dir.isPrimary from the directions list
+            const directionIsPrimary = dir.isPrimary ?? false;
+
             activeHabits.forEach((habit) => {
               summaryItems.push({
                 id: habit.id,
@@ -385,7 +390,7 @@ function GrowthDirectionsInner() {
                 directionId: dir.id,
                 directionTitle: dir.title,
                 directionSlug: dir.slug,
-                directionIsPrimary: dir.isPrimary,
+                directionIsPrimary: directionIsPrimary,
                 userTaskId: habit.userTask?.id ?? null,
                 basePoints: habit.base_points,
               });
@@ -400,7 +405,7 @@ function GrowthDirectionsInner() {
                 directionId: dir.id,
                 directionTitle: dir.title,
                 directionSlug: dir.slug,
-                directionIsPrimary: dir.isPrimary,
+                directionIsPrimary: directionIsPrimary,
                 userTaskId: goal.userTask?.id ?? null,
                 basePoints: goal.base_points,
               });
@@ -425,10 +430,11 @@ function GrowthDirectionsInner() {
         return a.directionTitle.localeCompare(b.directionTitle);
       });
 
-      const primaryTasks = uniqueSummaryItems.filter((item) => item.directionIsPrimary);
-      const secondaryTasks = uniqueSummaryItems.filter((item) => !item.directionIsPrimary);
+      // Filter tasks by isPrimary - ensure strict boolean comparison
+      const primaryTasks = uniqueSummaryItems.filter((item) => item.directionIsPrimary === true);
+      const secondaryTasks = uniqueSummaryItems.filter((item) => item.directionIsPrimary === false);
 
-      // Ensure secondary tasks are properly included
+      // Ensure all tasks are properly categorized and included
       setSummaryTasks({
         primary: primaryTasks,
         secondary: secondaryTasks,
