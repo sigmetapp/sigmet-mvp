@@ -848,9 +848,27 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
         video_url = await uploadToStorage(checkInPostForm.video, 'videos');
       }
 
-      // Get direction for category - use title instead of slug
+      // Get direction for category - use title without emoji
       const taskDirection = directions.find((d) => d.id === showCheckInModal.task.direction_id);
-      const category = taskDirection?.title || null;
+      // Clean title from emoji or extra characters - take only text
+      let category = taskDirection?.title || null;
+      if (category) {
+        // Remove emoji and special characters - keep only alphanumeric, spaces, &, and common punctuation
+        // Remove emoji pattern: match emoji unicode ranges
+        category = category
+          .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Emoji range 1
+          .replace(/[\u{2600}-\u{26FF}]/gu, '') // Emoji range 2
+          .replace(/[\u{2700}-\u{27BF}]/gu, '') // Emoji range 3
+          .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoji range 4
+          .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Emoji range 5
+          .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Emoji range 6
+          .replace(/[\u{1FA00}-\u{1FAFF}]/gu, '') // Emoji range 7
+          .trim();
+        // If after removing emoji the string is empty or only whitespace, use original title
+        if (!category || category.length === 0) {
+          category = taskDirection?.title || null;
+        }
+      }
 
       // Create post in feed
       const { data: newPost, error: postError } = await supabase
