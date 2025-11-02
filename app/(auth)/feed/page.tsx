@@ -837,8 +837,15 @@ function FeedInner() {
                       }));
                     } catch (error: any) {
                       console.error("Error updating reaction:", error);
-                      const errorMessage = error?.message || error?.details || "Unknown error";
-                      alert(`Failed to update reaction: ${errorMessage}`);
+                      const errorMessage = error?.message || error?.details || error?.hint || "Unknown error";
+                      
+                      // If table doesn't exist, provide helpful message
+                      if (errorMessage.includes("table") && errorMessage.includes("not found") || 
+                          errorMessage.includes("schema cache")) {
+                        alert(`Database table not found. Please apply migration 130_create_post_reactions_if_not_exists.sql`);
+                      } else {
+                        alert(`Failed to update reaction: ${errorMessage}`);
+                      }
                     }
                   }}
                 />

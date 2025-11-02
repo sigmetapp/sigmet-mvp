@@ -13,12 +13,38 @@ export interface Reaction {
   color: string;
 }
 
+// Use Unicode escape sequences for emojis to ensure they're properly encoded
 const REACTIONS: Reaction[] = [
-  { id: 'inspire', emoji: '??', label: 'Inspire', color: '#ff7b00' },
-  { id: 'respect', emoji: '??', label: 'Respect', color: '#00c46b' },
-  { id: 'relate', emoji: '??', label: 'Relate', color: '#4db8ff' },
-  { id: 'support', emoji: '?', label: 'Support', color: '#a259ff' },
-  { id: 'celebrate', emoji: '?', label: 'Celebrate', color: '#ffd700' },
+  { 
+    id: 'inspire', 
+    emoji: String.fromCharCode(0xD83D, 0xDD25), // ??
+    label: 'Inspire', 
+    color: '#ff7b00' 
+  },
+  { 
+    id: 'respect', 
+    emoji: String.fromCharCode(0xD83D, 0xDC9A), // ??
+    label: 'Respect', 
+    color: '#00c46b' 
+  },
+  { 
+    id: 'relate', 
+    emoji: String.fromCharCode(0xD83C, 0xDF3F), // ??
+    label: 'Relate', 
+    color: '#4db8ff' 
+  },
+  { 
+    id: 'support', 
+    emoji: String.fromCharCode(0x26A1), // ?
+    label: 'Support', 
+    color: '#a259ff' 
+  },
+  { 
+    id: 'celebrate', 
+    emoji: String.fromCharCode(0x2728), // ?
+    label: 'Celebrate', 
+    color: '#ffd700' 
+  },
 ];
 
 export interface PostReactionsProps {
@@ -142,12 +168,21 @@ export default function PostReactions({
               }}
             >
               <span 
-                className="text-2xl md:text-3xl leading-none select-none" 
+                className="text-3xl md:text-4xl leading-none select-none inline-flex items-center justify-center" 
                 role="img" 
                 aria-label={reaction.label}
-                style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif' }}
+                style={{ 
+                  fontSize: '2rem',
+                  minWidth: '2.5rem',
+                  minHeight: '2.5rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontVariant: 'normal',
+                  textRendering: 'optimizeLegibility'
+                }}
               >
-                {reaction.emoji}
+                <span style={{ fontSize: 'inherit', lineHeight: '1', display: 'block' }}>{reaction.emoji}</span>
               </span>
               <span className={`text-xs md:text-sm font-medium hidden sm:inline ${isLight ? 'text-gray-900' : 'text-white/90'}`}>
                 {reaction.label}
