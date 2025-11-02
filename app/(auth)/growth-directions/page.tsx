@@ -848,9 +848,9 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
         video_url = await uploadToStorage(checkInPostForm.video, 'videos');
       }
 
-      // Get direction for category
+      // Get direction for category - use title instead of slug
       const taskDirection = directions.find((d) => d.id === showCheckInModal.task.direction_id);
-      const category = taskDirection?.slug || taskDirection?.title || null;
+      const category = taskDirection?.title || null;
 
       // Create post in feed
       const { data: newPost, error: postError } = await supabase
@@ -1844,9 +1844,9 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
                   {[
-                    { kind: 'proud', emoji: '??', label: 'Proud' },
-                    { kind: 'grateful', emoji: '??', label: 'Grateful' },
-                    { kind: 'drained', emoji: '?', label: 'Drained' },
+                    { kind: 'proud', emoji: String.fromCodePoint(0x1F7E2), label: 'Proud' }, // ??
+                    { kind: 'grateful', emoji: String.fromCodePoint(0x1FA75), label: 'Grateful' }, // ??
+                    { kind: 'drained', emoji: String.fromCodePoint(0x26AB), label: 'Drained' }, // ?
                   ].map((reaction) => {
                     const isSelected = checkInPostForm.reactions.includes(reaction.kind);
                     return (
