@@ -565,6 +565,18 @@ function GrowthDirectionsInner() {
     const direction = directions.find((d) => d.id === directionId);
     if (!direction) return;
 
+    // Check if direction is in development (inactive)
+    const isInDevelopment = direction.slug === 'creativity' || 
+                           direction.slug === 'mindfulness_purpose' || 
+                           direction.slug === 'relationships' ||
+                           direction.slug === 'career' ||
+                           direction.slug === 'finance';
+
+    if (isInDevelopment) {
+      setNotification({ message: 'This direction is currently in development and cannot be selected' });
+      return;
+    }
+
     const selectedPrimaryCount = directions.reduce(
       (count, dir) => (dir.isSelected && dir.isPrimary ? count + 1 : count),
       0
@@ -640,6 +652,18 @@ function GrowthDirectionsInner() {
     
     if (!taskDirection) {
       setNotification({ message: 'Direction not found for task' });
+      return;
+    }
+
+    // Check if direction is in development (inactive)
+    const isInDevelopment = taskDirection.slug === 'creativity' || 
+                           taskDirection.slug === 'mindfulness_purpose' || 
+                           taskDirection.slug === 'relationships' ||
+                           taskDirection.slug === 'career' ||
+                           taskDirection.slug === 'finance';
+
+    if (isInDevelopment) {
+      setNotification({ message: 'Cannot activate tasks from directions that are currently in development' });
       return;
     }
     
