@@ -642,9 +642,53 @@ function FeedInner() {
           posts.map((p) => (
             <div
               key={p.id}
-              className="telegram-card-feature p-4 md:p-6 space-y-4"
+              className="telegram-card-feature p-4 md:p-6 space-y-4 relative"
               onMouseEnter={() => addViewOnce(p.id)}
             >
+              {/* Overlay - перекрывает весь контент поста когда меню открыто */}
+              {openMenuFor === p.id && uid === p.user_id && editingId !== p.id && (
+                <>
+                  <div 
+                    className={`absolute inset-0 rounded-xl z-[100] ${isLight ? "bg-white" : "bg-[#0f1623]"}`}
+                    onClick={() => setOpenMenuFor(null)}
+                  />
+                  {/* Меню с кнопками */}
+                  <div className={`absolute right-4 top-1/2 -translate-y-1/2 w-48 rounded-xl border z-[101] transition-colors ${
+                    isLight
+                      ? "border-telegram-blue/20 bg-white shadow-[0_8px_24px_rgba(51,144,236,0.15)]"
+                      : "border-telegram-blue/30 bg-[#0f1623] shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+                  }`}>
+                    <button
+                      onClick={() => {
+                        setOpenMenuFor(null);
+                        setEditingId(p.id);
+                        setEditBody(p.body || "");
+                      }}
+                      className={`w-full text-left px-4 py-3 rounded-t-xl transition ${
+                        isLight
+                          ? "text-telegram-text hover:bg-telegram-blue/10"
+                          : "text-telegram-text hover:bg-telegram-blue/15"
+                      }`}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        setOpenMenuFor(null);
+                        deletePost(p);
+                      }}
+                      className={`w-full text-left px-4 py-3 rounded-b-xl transition ${
+                        isLight
+                          ? "text-red-600 hover:bg-red-50"
+                          : "text-red-400 hover:bg-red-500/10"
+                      }`}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
+
               {/* header */}
               <div className="flex items-center justify-between relative z-10">
                 <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
@@ -674,7 +718,7 @@ function FeedInner() {
                 <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                   <span className="whitespace-nowrap">{new Date(p.created_at).toLocaleString()}</span>
                   {uid === p.user_id && editingId !== p.id && (
-                    <div className="ml-2 relative z-20">
+                    <div className="ml-2 relative z-[110]">
                       <Button
                         variant="icon"
                         size="sm"
@@ -685,41 +729,6 @@ function FeedInner() {
                       >
                         ⋯
                       </Button>
-                      {openMenuFor === p.id && (
-                        <div className={`absolute right-0 mt-2 w-40 rounded-xl border z-50 transition-colors ${
-                          isLight
-                            ? "border-telegram-blue/20 bg-white shadow-[0_8px_24px_rgba(51,144,236,0.15)]"
-                            : "border-telegram-blue/30 bg-[#0f1623] shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
-                        }`}>
-                          <button
-                            onClick={() => {
-                              setOpenMenuFor(null);
-                              setEditingId(p.id);
-                              setEditBody(p.body || "");
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-t-xl transition ${
-                              isLight
-                                ? "text-telegram-text hover:bg-telegram-blue/10"
-                                : "text-telegram-text hover:bg-telegram-blue/15"
-                            }`}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => {
-                              setOpenMenuFor(null);
-                              deletePost(p);
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-b-xl transition ${
-                              isLight
-                                ? "text-red-600 hover:bg-red-50"
-                                : "text-red-400 hover:bg-red-500/10"
-                            }`}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
