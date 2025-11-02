@@ -674,18 +674,19 @@ function FeedInner() {
                 <div className={`relative flex items-center gap-2 text-xs ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                   <span>{new Date(p.created_at).toLocaleString()}</span>
                   {uid === p.user_id && editingId !== p.id && (
-                    <div className="ml-2">
+                    <div className="ml-2 relative">
                       <Button
                         variant="icon"
                         size="sm"
                         ariaLabel="Post actions"
                         title="Actions"
                         onClick={() => setOpenMenuFor((cur) => (cur === p.id ? null : p.id))}
+                        className="!h-6 !w-6 !text-xs"
                       >
                         ⋯
                       </Button>
                       {openMenuFor === p.id && (
-                        <div className={`absolute right-0 mt-2 w-40 rounded-xl border backdrop-blur-md z-10 transition-colors ${
+                        <div className={`absolute right-0 mt-2 w-40 rounded-xl border backdrop-blur-md z-50 transition-colors ${
                           isLight
                             ? "border-telegram-blue/20 bg-white/90 shadow-[0_8px_24px_rgba(51,144,236,0.15)]"
                             : "border-telegram-blue/30 bg-[rgba(15,22,35,0.95)] shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
