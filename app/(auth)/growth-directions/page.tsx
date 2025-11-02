@@ -85,6 +85,9 @@ const toTitleCase = (value: string | null | undefined) => {
   return value.charAt(0).toUpperCase() + value.slice(1);
 };
 
+const getTaskElementId = (item: Pick<TaskSummaryItem, 'id' | 'type'>) =>
+  item.type === 'habit' ? `habit-card-${item.id}` : `goal-card-${item.id}`;
+
 export default function GrowthDirectionsPage() {
   return (
     <RequireAuth>
@@ -113,6 +116,9 @@ function GrowthDirectionsInner() {
     primary: [],
     secondary: [],
   });
+  const [focusTask, setFocusTask] = useState<TaskSummaryItem | null>(null);
+  const [pinnedTask, setPinnedTask] = useState<TaskSummaryItem | null>(null);
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   useEffect(() => {
@@ -130,6 +136,26 @@ function GrowthDirectionsInner() {
       loadSummary();
     }
   }, [directions, selectedDirection, tasks]);
+
+  useEffect(() => {
+    if (!focusTask) return;
+    if (focusTask.directionId !== selectedDirection) return;
+
+    const targetId = getTaskElementId(focusTask);
+    const timeout = window.setTimeout(() => {
+      focusTaskCard(targetId);
+      setFocusTask(null);
+    }, 150);
+
+    return () => window.clearTimeout(timeout);
+  }, [focusTask, selectedDirection, tasks]);
+
+  useEffect(() => {
+    if (!highlightedTaskId) return;
+
+    const timeout = window.setTimeout(() => setHighlightedTaskId(null), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [highlightedTaskId]);
 
   async function loadDirections() {
     setLoading(true);
@@ -341,6 +367,49 @@ function GrowthDirectionsInner() {
     } finally {
       setLoadingSummary(false);
     }
+  }
+
+  const getDisplayedTasks = (list: Task[], type: Task['task_type']) => {
+    const targetId =
+      pinnedTask && pinnedTask.type === type && pinnedTask.directionId === selectedDirection
+        ? pinnedTask.id
+        : undefined;
+
+    if (!targetId) {
+      return list.slice(0, 3);
+    }
+
+    const targetIndex = list.findIndex((task) => task.id === targetId);
+    if (targetIndex === -1) {
+      return list.slice(0, 3);
+    }
+
+    const prioritized = [
+      list[targetIndex],
+      ...list.slice(0, targetIndex),
+      ...list.slice(targetIndex + 1),
+    ];
+
+    return prioritized.slice(0, 3);
+  };
+
+  function focusTaskCard(targetId: string) {
+    const element = document.getElementById(targetId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedTaskId(targetId);
+    }
+  }
+
+  function handleSummaryTaskClick(item: TaskSummaryItem) {
+    setPinnedTask(item);
+    if (item.directionId !== selectedDirection) {
+      setFocusTask(item);
+      setSelectedDirection(item.directionId);
+      return;
+    }
+
+    setFocusTask(item);
   }
 
   async function toggleDirection(directionId: string) {
@@ -614,6 +683,10 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
   const selectedSecondaryDirections = directions.filter((d) => d.isSelected && !d.isPrimary);
   const selectedPrimaryCount = selectedPrimaryDirections.length;
   const primaryLimitReached = selectedPrimaryCount >= 3;
+  const displayedHabits = getDisplayedTasks(tasks.habits, 'habit');
+  const displayedGoals = getDisplayedTasks(tasks.goals, 'goal');
+  const extraHabits = Math.max(0, tasks.habits.length - displayedHabits.length);
+  const extraGoals = Math.max(0, tasks.goals.length - displayedGoals.length);
 
   const renderSummaryTaskList = (list: TaskSummaryItem[]) => {
     if (loadingSummary) {
@@ -638,9 +711,13 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       <>
         <div className="space-y-2">
           {itemsToShow.map((item) => (
-            <div
+            <button
               key={`${item.directionId}-${item.id}-${item.type}`}
-              className={`flex items-center gap-3 p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}
+              type="button"
+              onClick={() => handleSummaryTaskClick(item)}
+              className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition ${
+                isLight ? 'bg-telegram-bg-secondary hover:bg-telegram-blue/10' : 'bg-white/5 hover:bg-white/10'
+              }`}
             >
               <span className="text-lg">
                 {resolveDirectionEmoji(item.directionSlug)}
@@ -665,7 +742,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
               >
                 {item.type === 'habit' ? 'Habit' : 'Goal'}
               </span>
-            </div>
+            </button>
           ))}
         </div>
         {list.length > 3 && (
@@ -870,26 +947,38 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                     Loading tasks...
                   </div>
                 ) : (
-                  <>
+                  <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                     {/* Habits */}
-                    <div className="space-y-4">
-                      <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                        Habits ({tasks.habits.length})
-                      </h3>
-                      {tasks.habits.length === 0 ? (
+                    <section className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                          Habits ({displayedHabits.length})
+                        </h3>
+                        {extraHabits > 0 && (
+                          <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                            +{extraHabits} more available
+                          </span>
+                        )}
+                      </div>
+                      {displayedHabits.length === 0 ? (
                         <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                           No habits available
                         </div>
                       ) : (
-                        tasks.habits.map((habit) => {
+                        displayedHabits.map((habit) => {
                           const isActivating = activating.has(habit.id);
                           const isActive = habit.isActivated && habit.userTask?.status === 'active';
                           const isModalOpen = showCheckInModal?.userTaskId === habit.userTask?.id;
+                          const elementId = `habit-card-${habit.id}`;
+                          const isHighlighted = highlightedTaskId === elementId;
 
                           return (
                             <div
                               key={habit.id}
-                              className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? '' : ''}`}
+                              id={elementId}
+                              className={`telegram-card-glow p-4 md:p-6 space-y-4 transition ${
+                                isHighlighted ? 'ring-2 ring-telegram-blue shadow-lg' : ''
+                              } ${isLight ? '' : ''}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -971,28 +1060,40 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                           );
                         })
                       )}
-                    </div>
+                    </section>
 
                     {/* Goals */}
-                    <div className="space-y-4 mt-8">
-                      <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                        Goals ({tasks.goals.length})
-                      </h3>
-                      {tasks.goals.length === 0 ? (
+                    <section className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                          Goals ({displayedGoals.length})
+                        </h3>
+                        {extraGoals > 0 && (
+                          <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                            +{extraGoals} more available
+                          </span>
+                        )}
+                      </div>
+                      {displayedGoals.length === 0 ? (
                         <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                           No goals available
                         </div>
                       ) : (
-                        tasks.goals.map((goal) => {
+                        displayedGoals.map((goal) => {
                           const isActivating = activating.has(goal.id);
                           const isCompleting = completing.has(goal.userTask?.id || '');
                           const isActive = goal.isActivated && goal.userTask?.status === 'active';
                           const isCompleted = goal.userTask?.status === 'completed';
+                          const elementId = `goal-card-${goal.id}`;
+                          const isHighlighted = highlightedTaskId === elementId;
 
                           return (
                             <div
                               key={goal.id}
-                              className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? '' : ''}`}
+                              id={elementId}
+                              className={`telegram-card-glow p-4 md:p-6 space-y-4 transition ${
+                                isHighlighted ? 'ring-2 ring-telegram-blue shadow-lg' : ''
+                              } ${isLight ? '' : ''}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -1023,7 +1124,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                               <div className="flex gap-2">
                                 {isCompleted ? (
                                   <div className={`text-sm ${isLight ? 'text-green-600' : 'text-green-400'}`}>
-                                    Completed on {goal.userTask?.id ? '?' : ''}
+                                    Completed
                                   </div>
                                 ) : isActive ? (
                                   <Button
@@ -1032,7 +1133,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                                     variant="primary"
                                     className="flex-1"
                                   >
-                                    {isCompleting ? 'Completing?' : 'Complete'}
+                                    {isCompleting ? 'Completing...' : 'Complete'}
                                   </Button>
                                 ) : (
                                   <Button
@@ -1049,8 +1150,8 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                           );
                         })
                       )}
-                    </div>
-                  </>
+                    </section>
+                  </div>
                 )}
               </>
             ) : (
