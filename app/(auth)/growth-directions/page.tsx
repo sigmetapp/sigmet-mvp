@@ -1072,75 +1072,142 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       {/* Completed Tasks & Total Points Section */}
       {!loading && (
         <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-            <h2 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-              ?? ??????????? ?????? ? ?????
-            </h2>
-            <div className={`text-2xl font-bold ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
-              ????? ??????: {totalPoints.toLocaleString('ru-RU')}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+            <div>
+              <h2 className={`font-semibold text-xl mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                ?? Completed Tasks & Points
+              </h2>
+              <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                Track your achievements and earned points
+              </p>
+            </div>
+            <div className={`relative inline-flex items-center justify-center px-6 py-4 rounded-2xl ${
+              isLight 
+                ? 'bg-gradient-to-r from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/20' 
+                : 'bg-gradient-to-r from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/30'
+            }`}>
+              <div className="text-center">
+                <div className={`text-xs uppercase tracking-wider mb-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  Total Points
+                </div>
+                <div className={`text-3xl font-bold bg-gradient-to-r ${isLight ? 'from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' : 'from-telegram-blue-light to-telegram-blue bg-clip-text text-transparent'}`}>
+                  {totalPoints.toLocaleString('en-US')}
+                </div>
+              </div>
             </div>
           </div>
 
           {loadingCompleted ? (
-            <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-              ???????? ??????????? ?????...
+            <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <div className="inline-flex items-center gap-2">
+                <div className="w-5 h-5 border-2 border-telegram-blue border-t-transparent rounded-full animate-spin"></div>
+                <span>Loading completed tasks...</span>
+              </div>
             </div>
           ) : completedTasks.length === 0 ? (
-            <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-              <p className="text-sm">???? ??? ??????????? ?????</p>
+            <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <div className="text-4xl mb-3">??</div>
+              <p className="text-sm font-medium">No completed tasks yet</p>
+              <p className="text-xs mt-1 opacity-70">Complete your first goal to see it here!</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {completedTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`p-4 rounded-xl ${isLight ? 'bg-telegram-bg-secondary border border-telegram-blue/10' : 'bg-white/5 border border-telegram-blue/20'}`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-lg">
-                          {resolveDirectionEmoji(task.direction.slug, task.direction.emoji)}
-                        </span>
-                        <h3 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                          {task.title}
-                        </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className={`border-b ${isLight ? 'border-telegram-blue/10' : 'border-telegram-blue/20'}`}>
+                    <th className={`text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      Task
+                    </th>
+                    <th className={`text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      Type
+                    </th>
+                    <th className={`text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      Direction
+                    </th>
+                    <th className={`text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      Completed
+                    </th>
+                    <th className={`text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      Points
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {completedTasks.map((task, index) => (
+                    <tr
+                      key={task.id}
+                      className={`transition-colors ${
+                        isLight
+                          ? 'hover:bg-telegram-blue/5 border-b border-telegram-blue/5'
+                          : 'hover:bg-white/5 border-b border-white/5'
+                      } ${index % 2 === 0 ? (isLight ? 'bg-telegram-bg-secondary/50' : 'bg-white/2') : ''}`}
+                    >
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${
+                            task.taskType === 'habit'
+                              ? 'bg-emerald-500/10'
+                              : 'bg-blue-500/10'
+                          }`}>
+                            <span className="text-xl">
+                              {resolveDirectionEmoji(task.direction.slug, task.direction.emoji)}
+                            </span>
+                          </div>
+                          <div>
+                            <div className={`font-semibold text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                              {task.title}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
                             task.taskType === 'habit'
                               ? 'bg-emerald-500/15 text-emerald-400'
                               : 'bg-blue-500/15 text-blue-400'
                           }`}
                         >
-                          {task.taskType === 'habit' ? '????????' : '????'}
+                          {task.taskType === 'habit' ? 'Habit' : 'Goal'}
                         </span>
-                      </div>
-                      <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                        ???????????: {task.direction.title}
-                      </div>
-                      {task.completedAt && (
-                        <div className={`text-xs mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                          ?????????: {new Date(task.completedAt).toLocaleDateString('ru-RU', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })}
+                      </td>
+                      <td className={`py-4 px-4 text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        {task.direction.title}
+                      </td>
+                      <td className={`py-4 px-4 text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        {task.completedAt ? (
+                          <div className="flex flex-col">
+                            <span>{new Date(task.completedAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}</span>
+                            <span className="text-xs opacity-70">
+                              {new Date(task.completedAt).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                              })}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="opacity-50">?</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex flex-col items-end">
+                          <div className={`text-lg font-bold ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
+                            {task.pointsAwarded.toLocaleString('en-US')}
+                          </div>
+                          {task.pointsAwarded !== task.basePoints && (
+                            <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                              <span className="opacity-70">base: {task.basePoints.toLocaleString('en-US')}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <div className={`text-right ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
-                      <div className="text-lg font-bold">
-                        {task.pointsAwarded.toLocaleString('ru-RU')} ??????
-                      </div>
-                      {task.pointsAwarded !== task.basePoints && (
-                        <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                          (???????: {task.basePoints.toLocaleString('ru-RU')})
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
