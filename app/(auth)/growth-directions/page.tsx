@@ -112,6 +112,23 @@ function GrowthDirectionsInner() {
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [notification, setNotification] = useState<{ message: string } | null>(null);
+  const [completedTasks, setCompletedTasks] = useState<Array<{
+    id: string;
+    taskId: string;
+    title: string;
+    taskType: 'habit' | 'goal';
+    pointsAwarded: number;
+    basePoints: number;
+    completedAt: string;
+    direction: {
+      id: string;
+      title: string;
+      slug: string;
+      emoji: string;
+    };
+  }>>([]);
+  const [totalPoints, setTotalPoints] = useState(0);
+  const [loadingCompleted, setLoadingCompleted] = useState(false);
 
   useEffect(() => {
     loadDirections();
@@ -128,6 +145,10 @@ function GrowthDirectionsInner() {
       loadSummary();
     }
   }, [directions, selectedDirection, tasks]);
+
+  useEffect(() => {
+    loadCompletedTasks();
+  }, []);
 
   useEffect(() => {
     if (pinnedTask && pinnedTask.directionId !== selectedDirection) {
@@ -463,6 +484,38 @@ function GrowthDirectionsInner() {
     }
   }
 
+  async function loadCompletedTasks() {
+    setLoadingCompleted(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setCompletedTasks([]);
+        setTotalPoints(0);
+        return;
+      }
+
+      const res = await fetch('/api/growth/completed.tasks', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to load completed tasks');
+      }
+
+      const { completedTasks: tasks, totalPoints: points } = await res.json();
+      setCompletedTasks(Array.isArray(tasks) ? tasks : []);
+      setTotalPoints(points || 0);
+    } catch (error: any) {
+      console.error('Error loading completed tasks:', error);
+      setCompletedTasks([]);
+      setTotalPoints(0);
+    } finally {
+      setLoadingCompleted(false);
+    }
+  }
+
   const getDisplayedTasks = (list: Task[], type: Task['task_type']) => {
     const targetId =
       pinnedTask && pinnedTask.type === type && pinnedTask.directionId === selectedDirection
@@ -743,6 +796,8 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       await loadTasks(selectedDirection!);
       // Reload summary after check-in
       await loadSummary();
+      // Reload completed tasks to update total points
+      await loadCompletedTasks();
     } catch (error: any) {
       console.error('Error publishing check-in post:', error);
       alert(error.message || 'Failed to publish post');
@@ -793,6 +848,8 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       await loadTasks(selectedDirection!);
       // Reload summary after completing goal
       await loadSummary();
+      // Reload completed tasks to show new completion
+      await loadCompletedTasks();
     } catch (error: any) {
       console.error('Error completing goal:', error);
       alert(error.message || 'Failed to complete goal');
@@ -1009,6 +1066,83 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
               )}
             </section>
           </div>
+        </div>
+      )}
+
+      {/* Completed Tasks & Total Points Section */}
+      {!loading && (
+        <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+            <h2 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              ?? ??????????? ?????? ? ?????
+            </h2>
+            <div className={`text-2xl font-bold ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
+              ????? ??????: {totalPoints.toLocaleString('ru-RU')}
+            </div>
+          </div>
+
+          {loadingCompleted ? (
+            <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              ???????? ??????????? ?????...
+            </div>
+          ) : completedTasks.length === 0 ? (
+            <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <p className="text-sm">???? ??? ??????????? ?????</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {completedTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className={`p-4 rounded-xl ${isLight ? 'bg-telegram-bg-secondary border border-telegram-blue/10' : 'bg-white/5 border border-telegram-blue/20'}`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg">
+                          {resolveDirectionEmoji(task.direction.slug, task.direction.emoji)}
+                        </span>
+                        <h3 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                          {task.title}
+                        </h3>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                            task.taskType === 'habit'
+                              ? 'bg-emerald-500/15 text-emerald-400'
+                              : 'bg-blue-500/15 text-blue-400'
+                          }`}
+                        >
+                          {task.taskType === 'habit' ? '????????' : '????'}
+                        </span>
+                      </div>
+                      <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        ???????????: {task.direction.title}
+                      </div>
+                      {task.completedAt && (
+                        <div className={`text-xs mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                          ?????????: {new Date(task.completedAt).toLocaleDateString('ru-RU', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div className={`text-right ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
+                      <div className="text-lg font-bold">
+                        {task.pointsAwarded.toLocaleString('ru-RU')} ??????
+                      </div>
+                      {task.pointsAwarded !== task.basePoints && (
+                        <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                          (???????: {task.basePoints.toLocaleString('ru-RU')})
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
