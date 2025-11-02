@@ -327,6 +327,7 @@ function GrowthDirectionsInner() {
         return;
       }
 
+      // Include all selected directions and directions with active tasks
       const relevantDirections = directions.filter(
         (dir) =>
           dir.isSelected ||
@@ -343,6 +344,7 @@ function GrowthDirectionsInner() {
       const isTaskInWork = (task: Task) => task.isActivated && (!task.userTask || task.userTask.status === 'active');
 
       // Load tasks for all relevant directions (selected or currently active)
+      // Process each direction to ensure all tasks are included
       await Promise.all(
         relevantDirections.map(async (dir) => {
           try {
@@ -376,6 +378,20 @@ function GrowthDirectionsInner() {
             const activeHabits = (directionTasks.habits || []).filter(isTaskInWork);
             const activeGoals = (directionTasks.goals || []).filter(isTaskInWork);
 
+            // Ensure isPrimary is correctly set - use dir.isPrimary from the directions list
+            // For selected directions, dir.isPrimary comes from user_selected_directions.is_primary
+            // true = Primary, false = Additional
+            // For unselected directions with active tasks, treat as Additional (false)
+            let directionIsPrimary = false;
+            if (dir.isSelected) {
+              // For selected directions, use the isPrimary value from the API
+              // This comes from user_selected_directions.is_primary
+              directionIsPrimary = dir.isPrimary === true;
+            } else {
+              // For unselected directions with active tasks, treat as Additional
+              directionIsPrimary = false;
+            }
+
             activeHabits.forEach((habit) => {
               summaryItems.push({
                 id: habit.id,
@@ -385,7 +401,7 @@ function GrowthDirectionsInner() {
                 directionId: dir.id,
                 directionTitle: dir.title,
                 directionSlug: dir.slug,
-                directionIsPrimary: dir.isPrimary,
+                directionIsPrimary: directionIsPrimary,
                 userTaskId: habit.userTask?.id ?? null,
                 basePoints: habit.base_points,
               });
@@ -400,7 +416,7 @@ function GrowthDirectionsInner() {
                 directionId: dir.id,
                 directionTitle: dir.title,
                 directionSlug: dir.slug,
-                directionIsPrimary: dir.isPrimary,
+                directionIsPrimary: directionIsPrimary,
                 userTaskId: goal.userTask?.id ?? null,
                 basePoints: goal.base_points,
               });
@@ -425,9 +441,19 @@ function GrowthDirectionsInner() {
         return a.directionTitle.localeCompare(b.directionTitle);
       });
 
+      // Filter tasks by isPrimary - ensure strict boolean comparison
+      // Primary tasks: directionIsPrimary === true
+      // Secondary tasks: directionIsPrimary === false (including undefined/null)
+      const primaryTasks = uniqueSummaryItems.filter((item) => item.directionIsPrimary === true);
+      const secondaryTasks = uniqueSummaryItems.filter((item) => {
+        // Include all tasks that are NOT primary (false, undefined, null)
+        return item.directionIsPrimary !== true;
+      });
+
+      // Ensure all tasks are properly categorized and included
       setSummaryTasks({
-        primary: uniqueSummaryItems.filter((item) => item.directionIsPrimary),
-        secondary: uniqueSummaryItems.filter((item) => !item.directionIsPrimary),
+        primary: primaryTasks,
+        secondary: secondaryTasks,
       });
     } catch (error: any) {
       console.error('Error loading summary:', error);
@@ -495,11 +521,16 @@ function GrowthDirectionsInner() {
     );
 
     if (!direction.isSelected) {
-      if (direction.isPrimary && selectedPrimaryCount >= 3) {
-        setNotification({ message: 'Cannot add more than 3 priority directions' });
+      // Determine if this direction would be Primary or Additional when added
+      // Use the same logic as in the API: directions with sort_index <= 8 can be Primary
+      // But only if primaryCount < 3
+      const wouldBePrimary = direction.sort_index <= 8 && selectedPrimaryCount < 3;
+
+      if (wouldBePrimary && selectedPrimaryCount >= 3) {
+        setNotification({ message: 'Cannot add more than 3 primary directions' });
         return;
       }
-      if (!direction.isPrimary && selectedSecondaryCount >= 3) {
+      if (!wouldBePrimary && selectedSecondaryCount >= 3) {
         setNotification({ message: 'Cannot add more than 3 additional directions' });
         return;
       }
@@ -521,13 +552,14 @@ function GrowthDirectionsInner() {
       });
 
       if (!res.ok) {
-        throw new Error('Failed to toggle direction');
+        const errorData = await res.json().catch(() => ({ error: 'Failed to toggle direction' }));
+        throw new Error(errorData.error || 'Failed to toggle direction');
       }
 
       await loadDirections();
     } catch (error: any) {
       console.error('Error toggling direction:', error);
-      alert(error.message || 'Failed to toggle direction');
+      setNotification({ message: error.message || 'Failed to toggle direction' });
     } finally {
       setToggling((prev) => {
         const next = new Set(prev);
@@ -778,7 +810,9 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
   const selectedPrimaryDirections = directions.filter((d) => d.isSelected && d.isPrimary);
   const selectedSecondaryDirections = directions.filter((d) => d.isSelected && !d.isPrimary);
   const selectedPrimaryCount = selectedPrimaryDirections.length;
+  const selectedSecondaryCount = selectedSecondaryDirections.length;
   const primaryLimitReached = selectedPrimaryCount >= 3;
+  const secondaryLimitReached = selectedSecondaryCount >= 3;
   const displayedHabits = getDisplayedTasks(tasks.habits, 'habit');
   const displayedGoals = getDisplayedTasks(tasks.goals, 'goal');
   const extraHabits = Math.max(0, tasks.habits.length - displayedHabits.length);
@@ -886,14 +920,14 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
         <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''} min-h-[400px]`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <h2 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-              {`${String.fromCodePoint(0x1F4CA)} Work & Focus Overview`}
+              {String.fromCodePoint(0x1F4CA)} Work & Focus Overview
             </h2>
             <div className="flex flex-col md:flex-row gap-2 md:items-center">
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Primary directions selected: {selectedPrimaryCount}
+                Primary: {selectedPrimaryCount} / 3, Additional: {selectedSecondaryCount} / 3
               </span>
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Active tasks: {summaryTasks.primary.length} priority, {summaryTasks.secondary.length} additional
+                Active tasks: {summaryTasks.primary.length + summaryTasks.secondary.length} total
               </span>
             </div>
           </div>
@@ -994,7 +1028,15 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                 {directions.map((dir) => {
                   const isToggling = toggling.has(dir.id);
                   const isSelected = selectedDirection === dir.id;
-                  const disableSelection = !dir.isSelected && dir.isPrimary && primaryLimitReached;
+                  
+                  // Determine if this direction would be Primary or Additional when added
+                  // Use the same logic as in the API: directions with sort_index <= 8 can be Primary
+                  // But only if primaryCount < 3
+                  const wouldBePrimary = dir.sort_index <= 8 && selectedPrimaryCount < 3;
+                  
+                  const disableSelectionPrimary = !dir.isSelected && wouldBePrimary && primaryLimitReached;
+                  const disableSelectionSecondary = !dir.isSelected && !wouldBePrimary && secondaryLimitReached;
+                  const disableSelection = disableSelectionPrimary || disableSelectionSecondary;
                   const buttonLabel = isToggling
                     ? '...'
                     : dir.isSelected
@@ -1019,9 +1061,6 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg">
-                            {resolveDirectionEmoji(dir.slug, dir.emoji)}
-                          </span>
                           <div>
                             <span className="font-medium text-sm">{dir.title}</span>
                             <div className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-white/70' : isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
@@ -1037,7 +1076,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                             toggleDirection(dir.id);
                           }}
                           disabled={isToggling || disableSelection}
-                          title={disableSelection ? 'Only three primary directions are allowed' : undefined}
+                          title={disableSelectionPrimary ? 'Cannot add more than 3 primary directions' : disableSelectionSecondary ? 'Cannot add more than 3 additional directions' : undefined}
                           className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
                             dir.isSelected
                               ? 'bg-white/20 text-white'
@@ -1067,9 +1106,6 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
               <>
                   <div className={`telegram-card-glow p-4 ${isLight ? '' : ''}`}>
                     <div className="flex items-center gap-3 mb-4">
-                      <span className="text-3xl">
-                        {currentDirection ? resolveDirectionEmoji(currentDirection.slug, currentDirection.emoji) : ''}
-                      </span>
                       <div>
                         <h2 className={`font-semibold text-xl ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                           {currentDirection?.title}
