@@ -507,12 +507,36 @@ function GrowthDirectionsInner() {
   async function activateTask(taskId: string) {
     if (activating.has(taskId)) return;
     
-    // Check limits before activating - max 3 total active tasks
-    const totalActiveTasks = summaryTasks.primary.length + summaryTasks.secondary.length;
+    // Find the task to determine its direction
+    const allTasks = [...tasks.habits, ...tasks.goals];
+    const task = allTasks.find((t) => t.id === taskId);
     
-    if (totalActiveTasks >= 3) {
-      setNotification({ message: 'Cannot add more than 3 active tasks total' });
+    if (!task) {
+      setNotification({ message: 'Task not found' });
       return;
+    }
+    
+    // Find the direction for this task
+    const taskDirection = directions.find((d) => d.id === task.direction_id);
+    
+    if (!taskDirection) {
+      setNotification({ message: 'Direction not found for task' });
+      return;
+    }
+    
+    // Check limits separately: 3 for primary directions, 3 for secondary directions
+    if (taskDirection.isPrimary) {
+      // Check limit for primary directions (max 3)
+      if (summaryTasks.primary.length >= 3) {
+        setNotification({ message: 'Cannot add more than 3 active tasks from priority directions' });
+        return;
+      }
+    } else {
+      // Check limit for secondary directions (max 3)
+      if (summaryTasks.secondary.length >= 3) {
+        setNotification({ message: 'Cannot add more than 3 active tasks from additional directions' });
+        return;
+      }
     }
 
     setActivating((prev) => new Set(prev).add(taskId));
@@ -846,9 +870,14 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             <h2 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
               {`${String.fromCodePoint(0x1F4CA)} Work & Focus Overview`}
             </h2>
-            <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-              {selectedPrimaryCount}/3 primary directions selected
-            </span>
+            <div className="flex flex-col md:flex-row gap-2 md:items-center">
+              <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                {selectedPrimaryCount}/3 primary directions selected
+              </span>
+              <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                Active tasks: {summaryTasks.primary.length}/3 priority, {summaryTasks.secondary.length}/3 additional
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -860,8 +889,33 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                   return allHabits.length > 0 ? ` (${allHabits.length})` : '';
                 })()}
               </h3>
-              {renderSummaryTaskList(
-                [...summaryTasks.primary, ...summaryTasks.secondary].filter(item => item.type === 'habit')
+              {/* Priority Habits */}
+              {summaryTasks.primary.filter(item => item.type === 'habit').length > 0 && (
+                <div className="mb-4">
+                  <h4 className={`text-xs font-medium mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    Priority Directions ({summaryTasks.primary.filter(item => item.type === 'habit').length})
+                  </h4>
+                  {renderSummaryTaskList(summaryTasks.primary.filter(item => item.type === 'habit'))}
+                </div>
+              )}
+              {/* Additional Habits */}
+              {summaryTasks.secondary.filter(item => item.type === 'habit').length > 0 && (
+                <div>
+                  <h4 className={`text-xs font-medium mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    Additional Directions ({summaryTasks.secondary.filter(item => item.type === 'habit').length})
+                  </h4>
+                  {renderSummaryTaskList(summaryTasks.secondary.filter(item => item.type === 'habit'))}
+                </div>
+              )}
+              {/* Empty state */}
+              {summaryTasks.primary.filter(item => item.type === 'habit').length === 0 && 
+               summaryTasks.secondary.filter(item => item.type === 'habit').length === 0 && 
+               !loadingSummary && (
+                <div className="min-h-[120px] flex items-center">
+                  <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    No habits in work yet
+                  </p>
+                </div>
               )}
             </section>
 
@@ -873,8 +927,33 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                   return allGoals.length > 0 ? ` (${allGoals.length})` : '';
                 })()}
               </h3>
-              {renderSummaryTaskList(
-                [...summaryTasks.primary, ...summaryTasks.secondary].filter(item => item.type === 'goal')
+              {/* Priority Goals */}
+              {summaryTasks.primary.filter(item => item.type === 'goal').length > 0 && (
+                <div className="mb-4">
+                  <h4 className={`text-xs font-medium mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    Priority Directions ({summaryTasks.primary.filter(item => item.type === 'goal').length})
+                  </h4>
+                  {renderSummaryTaskList(summaryTasks.primary.filter(item => item.type === 'goal'))}
+                </div>
+              )}
+              {/* Additional Goals */}
+              {summaryTasks.secondary.filter(item => item.type === 'goal').length > 0 && (
+                <div>
+                  <h4 className={`text-xs font-medium mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    Additional Directions ({summaryTasks.secondary.filter(item => item.type === 'goal').length})
+                  </h4>
+                  {renderSummaryTaskList(summaryTasks.secondary.filter(item => item.type === 'goal'))}
+                </div>
+              )}
+              {/* Empty state */}
+              {summaryTasks.primary.filter(item => item.type === 'goal').length === 0 && 
+               summaryTasks.secondary.filter(item => item.type === 'goal').length === 0 && 
+               !loadingSummary && (
+                <div className="min-h-[120px] flex items-center">
+                  <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    No goals in work yet
+                  </p>
+                </div>
               )}
             </section>
           </div>
