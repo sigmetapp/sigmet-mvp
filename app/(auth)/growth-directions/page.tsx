@@ -425,9 +425,13 @@ function GrowthDirectionsInner() {
         return a.directionTitle.localeCompare(b.directionTitle);
       });
 
+      const primaryTasks = uniqueSummaryItems.filter((item) => item.directionIsPrimary);
+      const secondaryTasks = uniqueSummaryItems.filter((item) => !item.directionIsPrimary);
+
+      // Ensure secondary tasks are properly included
       setSummaryTasks({
-        primary: uniqueSummaryItems.filter((item) => item.directionIsPrimary),
-        secondary: uniqueSummaryItems.filter((item) => !item.directionIsPrimary),
+        primary: primaryTasks,
+        secondary: secondaryTasks,
       });
     } catch (error: any) {
       console.error('Error loading summary:', error);
