@@ -1778,13 +1778,11 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                                   <>
                                     <Button
                                       onClick={() => {
-                                        const goalTask = goals.find((g) => g.id === goal.id);
-                                        if (goalTask) {
-                                          setShowCompleteModal({ userTaskId: goal.userTask!.id, task: goalTask });
-                                          // Pre-fill post with goal information
-                                          const goalInfo = `${String.fromCodePoint(0x1F4CB)} Goal: ${goalTask.title}\n\n${String.fromCodePoint(0x1F4DD)} Description: ${goalTask.description}\n\n${String.fromCodePoint(0x2705)} Goal completed!`;
-                                          setCompleteForm({ proofUrl: '', note: '', body: goalInfo, image: null, video: null, reactions: [] });
-                                        }
+                                        // Use goal directly since it's already a Task object from displayedGoals
+                                        setShowCompleteModal({ userTaskId: goal.userTask!.id, task: goal });
+                                        // Pre-fill post with goal information
+                                        const goalInfo = `${String.fromCodePoint(0x1F4CB)} Goal: ${goal.title}\n\n${String.fromCodePoint(0x1F4DD)} Description: ${goal.description}\n\n${String.fromCodePoint(0x2705)} Goal completed!`;
+                                        setCompleteForm({ proofUrl: '', note: '', body: goalInfo, image: null, video: null, reactions: [] });
                                       }}
                                       disabled={isCompleting || publishingCompletePost}
                                       variant="primary"
