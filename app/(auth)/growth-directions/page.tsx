@@ -1075,7 +1075,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>
               <h2 className={`font-semibold text-xl mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                ?? Completed Tasks & Points
+                {String.fromCodePoint(0x1F389)} Completed Tasks & Points
               </h2>
               <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                 Track your achievements and earned points
@@ -1106,7 +1106,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             </div>
           ) : completedTasks.length === 0 ? (
             <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-              <div className="text-4xl mb-3">??</div>
+              <div className="text-4xl mb-3">{String.fromCodePoint(0x1F4ED)}</div>
               <p className="text-sm font-medium">No completed tasks yet</p>
               <p className="text-xs mt-1 opacity-70">Complete your first goal to see it here!</p>
             </div>
@@ -1189,7 +1189,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                             </span>
                           </div>
                         ) : (
-                          <span className="opacity-50">?</span>
+                          <span className="opacity-50">{String.fromCodePoint(0x2014)}</span>
                         )}
                       </td>
                       <td className="py-4 px-4">
