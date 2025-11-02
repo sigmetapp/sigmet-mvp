@@ -112,16 +112,6 @@ html.theme-light .card {
   animation: messageSlideIn 0.2s ease-out;
 }
 
-/* Reaction button hover */
-@keyframes reactionPop {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
-}
-.reaction-pop {
-  animation: reactionPop 0.2s ease-out;
-}
-
 /* Menu fade in slide animation */
 @keyframes fadeInSlide {
   from {
