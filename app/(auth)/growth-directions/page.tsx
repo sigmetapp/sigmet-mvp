@@ -507,24 +507,11 @@ function GrowthDirectionsInner() {
   async function activateTask(taskId: string) {
     if (activating.has(taskId)) return;
     
-    // Check limits before activating
-    const currentDirection = directions.find((d) => d.id === selectedDirection);
-    if (!currentDirection) return;
-
-    const isPrimaryDirection = currentDirection.isPrimary;
+    // Check limits before activating - max 3 total active tasks
+    const totalActiveTasks = summaryTasks.primary.length + summaryTasks.secondary.length;
     
-    // Count active tasks in the same category
-    const activeTasksCount = isPrimaryDirection 
-      ? summaryTasks.primary.length 
-      : summaryTasks.secondary.length;
-
-    if (isPrimaryDirection && activeTasksCount >= 3) {
-      setNotification({ message: 'Cannot add more than 3 active tasks from priority directions' });
-      return;
-    }
-
-    if (!isPrimaryDirection && activeTasksCount >= 3) {
-      setNotification({ message: 'Cannot add more than 3 active tasks from non-priority directions' });
+    if (totalActiveTasks >= 3) {
+      setNotification({ message: 'Cannot add more than 3 active tasks total' });
       return;
     }
 
@@ -776,7 +763,8 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       );
     }
 
-    const itemsToShow = list.slice(0, 3);
+    // Show all items, not limited to 3
+    const itemsToShow = list;
 
     return (
       <>
@@ -819,11 +807,6 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             </button>
           ))}
         </div>
-        {list.length > 3 && (
-          <p className={`text-xs mt-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-            +{list.length - 3} more in progress
-          </p>
-        )}
       </>
     );
   };
