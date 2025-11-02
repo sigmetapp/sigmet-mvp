@@ -1069,9 +1069,6 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
               <>
                   <div className={`telegram-card-glow p-4 ${isLight ? '' : ''}`}>
                     <div className="flex items-center gap-3 mb-4">
-                      <span className="text-3xl">
-                        {currentDirection ? resolveDirectionEmoji(currentDirection.slug, currentDirection.emoji) : ''}
-                      </span>
                       <div>
                         <h2 className={`font-semibold text-xl ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                           {currentDirection?.title}
