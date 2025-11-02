@@ -189,10 +189,11 @@ function GrowthInner() {
                           'relationships': '??',
                           'community': '??',
                           'creativity': '??',
-                          'mindfulness': '?????', // Mindfulness & Inner Balance (merged with personal)
-                          'purpose': '???',
+                          'mindfulness_purpose': '??', // Mindfulness & Purpose (merged from mindfulness, personal, purpose)
                           // Legacy mappings for backward compatibility
-                          'personal': '?????', // Maps to mindfulness
+                          'mindfulness': '??', // Maps to mindfulness_purpose
+                          'purpose': '??', // Maps to mindfulness_purpose
+                          'personal': '??', // Maps to mindfulness_purpose
                           'digital': '??', // Maps to learning
                           'education': '??', // Maps to learning
                         };
