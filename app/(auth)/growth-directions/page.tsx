@@ -98,8 +98,16 @@ function GrowthDirectionsInner() {
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [activating, setActivating] = useState<Set<string>>(new Set());
   const [completing, setCompleting] = useState<Set<string>>(new Set());
-  const [showCompleteModal, setShowCompleteModal] = useState<{ taskId: string; userTaskId: string } | null>(null);
-  const [completeForm, setCompleteForm] = useState({ proofUrl: '', note: '' });
+  const [showCompleteModal, setShowCompleteModal] = useState<{ userTaskId: string; task: Task } | null>(null);
+  const [completeForm, setCompleteForm] = useState({ 
+    proofUrl: '', 
+    note: '',
+    body: '',
+    image: null as File | null,
+    video: null as File | null,
+    reactions: [] as string[] // Array of reaction kinds: 'proud', 'grateful', 'drained'
+  });
+  const [publishingCompletePost, setPublishingCompletePost] = useState(false);
   const [showCheckInModal, setShowCheckInModal] = useState<{ userTaskId: string; task: Task } | null>(null);
   const [checkInPostForm, setCheckInPostForm] = useState({ 
     body: '', 
@@ -949,13 +957,89 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
   }
 
   async function completeGoal(userTaskId: string) {
-    if (completing.has(userTaskId)) return;
+    if (!showCompleteModal) return;
+    if (completing.has(userTaskId) || publishingCompletePost) return;
+    
+    // Check if post should be created
+    const shouldCreatePost = completeForm.body.trim() || completeForm.image || completeForm.video || completeForm.reactions.length > 0;
+
+    setPublishingCompletePost(shouldCreatePost);
     setCompleting((prev) => new Set(prev).add(userTaskId));
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        alert('Sign in required');
+        return;
+      }
 
+      // Create post if needed
+      if (shouldCreatePost) {
+        let image_url: string | null = null;
+        let video_url: string | null = null;
+        
+        if (completeForm.image) {
+          image_url = await uploadToStorage(completeForm.image, 'images');
+        }
+        if (completeForm.video) {
+          video_url = await uploadToStorage(completeForm.video, 'videos');
+        }
+
+        // Get direction for category - use title without emoji
+        const taskDirection = directions.find((d) => d.id === showCompleteModal.task.direction_id);
+        // Clean title from emoji or extra characters - take only text
+        let category = taskDirection?.title || null;
+        if (category) {
+          // Remove emoji and special characters - keep only alphanumeric, spaces, &, and common punctuation
+          category = category
+            .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Emoji range 1
+            .replace(/[\u{2600}-\u{26FF}]/gu, '') // Emoji range 2
+            .replace(/[\u{2700}-\u{27BF}]/gu, '') // Emoji range 3
+            .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoji range 4
+            .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Emoji range 5
+            .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Emoji range 6
+            .replace(/[\u{1FA00}-\u{1FAFF}]/gu, '') // Emoji range 7
+            .trim();
+          if (!category || category.length === 0) {
+            category = taskDirection?.title || null;
+          }
+        }
+
+        // Create post in feed
+        const { data: newPost, error: postError } = await supabase
+          .from('posts')
+          .insert({
+            user_id: session.user.id,
+            body: completeForm.body.trim() || null,
+            image_url,
+            video_url,
+            category,
+          })
+          .select('id')
+          .single();
+
+        if (postError) throw postError;
+
+        // Add reactions if any selected
+        if (newPost && completeForm.reactions.length > 0) {
+          const reactionInserts = completeForm.reactions.map((kind) => ({
+            post_id: newPost.id,
+            user_id: session.user.id,
+            kind,
+          }));
+
+          const { error: reactionsError } = await supabase
+            .from('post_reactions')
+            .insert(reactionInserts);
+
+          if (reactionsError) {
+            console.error('Error adding reactions:', reactionsError);
+            // Don't fail the whole operation if reactions fail
+          }
+        }
+      }
+
+      // Complete the goal
       const res = await fetch('/api/growth/goals.complete', {
         method: 'POST',
         headers: {
@@ -974,7 +1058,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       }
 
       setShowCompleteModal(null);
-      setCompleteForm({ proofUrl: '', note: '' });
+      setCompleteForm({ proofUrl: '', note: '', body: '', image: null, video: null, reactions: [] });
       await loadTasks(selectedDirection!);
       // Reload summary after completing goal
       await loadSummary();
@@ -984,6 +1068,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       console.error('Error completing goal:', error);
       alert(error.message || 'Failed to complete goal');
     } finally {
+      setPublishingCompletePost(false);
       setCompleting((prev) => {
         const next = new Set(prev);
         next.delete(userTaskId);
@@ -1541,7 +1626,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                               id={elementId}
                               className={`telegram-card-glow p-4 md:p-6 space-y-4 transition ${
                                 isHighlighted ? 'ring-2 ring-telegram-blue shadow-lg' : ''
-                              } ${isLight ? '' : ''}`}
+                              } ${isLight ? 'bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5 border border-telegram-blue/20' : 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border border-telegram-blue/30'}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -1656,7 +1741,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                               id={elementId}
                               className={`telegram-card-glow p-4 md:p-6 space-y-4 transition ${
                                 isHighlighted ? 'ring-2 ring-telegram-blue shadow-lg' : ''
-                              } ${isLight ? '' : ''}`}
+                              } ${isLight ? 'bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5 border border-telegram-blue/20' : 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border border-telegram-blue/30'}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -1692,12 +1777,20 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                                 ) : isActive ? (
                                   <>
                                     <Button
-                                      onClick={() => setShowCompleteModal({ taskId: goal.id, userTaskId: goal.userTask!.id })}
-                                      disabled={isCompleting}
+                                      onClick={() => {
+                                        const goalTask = goals.find((g) => g.id === goal.id);
+                                        if (goalTask) {
+                                          setShowCompleteModal({ userTaskId: goal.userTask!.id, task: goalTask });
+                                          // Pre-fill post with goal information
+                                          const goalInfo = `${String.fromCodePoint(0x1F4CB)} Goal: ${goalTask.title}\n\n${String.fromCodePoint(0x1F4DD)} Description: ${goalTask.description}\n\n${String.fromCodePoint(0x2705)} Goal completed!`;
+                                          setCompleteForm({ proofUrl: '', note: '', body: goalInfo, image: null, video: null, reactions: [] });
+                                        }
+                                      }}
+                                      disabled={isCompleting || publishingCompletePost}
                                       variant="primary"
                                       className="flex-1"
                                     >
-                                      {isCompleting ? 'Completing...' : 'Complete'}
+                                      {(isCompleting || publishingCompletePost) ? 'Completing...' : 'Complete'}
                                     </Button>
                                     <Button
                                       onClick={() => deactivateTask(goal.userTask!.id)}
@@ -1739,14 +1832,164 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       {showCompleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            className={`absolute inset-0 ${isLight ? 'bg-black/50' : 'bg-black/80'}`}
-            onClick={() => setShowCompleteModal(null)}
+            className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
+            onClick={() => !publishingCompletePost && !completing.has(showCompleteModal.userTaskId) && setShowCompleteModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-md mx-4 ${isLight ? 'bg-white' : 'bg-[rgba(15,22,35,0.95)]'} rounded-2xl p-6 space-y-4`}>
-            <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-              Complete Goal
-            </h3>
+          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/30 bg-white' : 'bg-gradient-to-br from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-2xl p-6 space-y-4 shadow-2xl`}>
+            <div className="flex items-center justify-between">
+              <h3 className={`font-semibold text-xl ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                Complete Goal & Publish
+              </h3>
+              <button
+                onClick={() => !publishingCompletePost && !completing.has(showCompleteModal.userTaskId) && setShowCompleteModal(null)}
+                className={`transition ${isLight ? 'text-telegram-text-secondary hover:text-telegram-blue' : 'text-telegram-text-secondary hover:text-telegram-blue-light'}`}
+                aria-label="Close"
+              >
+                ?
+              </button>
+            </div>
+            
+            {/* Task Info Display */}
+            <div className={`p-3 rounded-xl ${isLight ? 'bg-telegram-blue/10 border border-telegram-blue/20' : 'bg-telegram-blue/15 border border-telegram-blue/30'}`}>
+              <div className={`text-xs font-medium mb-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                Goal Information
+              </div>
+              <div className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                {showCompleteModal.task.title}
+              </div>
+              <div className={`text-sm mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                {showCompleteModal.task.description}
+              </div>
+            </div>
+
             <div className="space-y-3">
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Post Content
+                </label>
+                <textarea
+                  value={completeForm.body}
+                  onChange={(e) => setCompleteForm((prev) => ({ ...prev, body: e.target.value }))}
+                  placeholder="Share your achievement and thoughts about completing this goal..."
+                  rows={6}
+                  className={`input w-full ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
+                />
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Category (automatically set)
+                </label>
+                <div className={`p-2 rounded-lg ${isLight ? 'bg-telegram-blue/10 border border-telegram-blue/20' : 'bg-telegram-blue/15 border border-telegram-blue/30'}`}>
+                  <span className={`text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                    {(() => {
+                      const taskDirection = directions.find((d) => d.id === showCompleteModal.task.direction_id);
+                      return taskDirection ? `${resolveDirectionEmoji(taskDirection.slug, taskDirection.emoji)} ${taskDirection.title}` : 'Not specified';
+                    })()}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Reactions
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[
+                    { kind: 'proud', emoji: String.fromCodePoint(0x1F7E2), label: 'Proud' }, // ??
+                    { kind: 'grateful', emoji: String.fromCodePoint(0x1FA75), label: 'Grateful' }, // ??
+                    { kind: 'drained', emoji: String.fromCodePoint(0x26AB), label: 'Drained' }, // ?
+                  ].map((reaction) => {
+                    const isSelected = completeForm.reactions.includes(reaction.kind);
+                    return (
+                      <button
+                        key={reaction.kind}
+                        type="button"
+                        onClick={() => {
+                          setCompleteForm((prev) => ({
+                            ...prev,
+                            reactions: isSelected
+                              ? prev.reactions.filter((r) => r !== reaction.kind)
+                              : [...prev.reactions, reaction.kind],
+                          }));
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+                          isSelected
+                            ? isLight
+                              ? 'bg-telegram-blue text-white border-telegram-blue shadow-md'
+                              : 'bg-telegram-blue text-white border-telegram-blue shadow-md'
+                            : isLight
+                            ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
+                            : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                        }`}
+                      >
+                        <span className="mr-1">{reaction.emoji}</span>
+                        {reaction.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Media (optional)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    id="complete-image-input"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (file && file.type.startsWith('image/')) {
+                        setCompleteForm((prev) => ({ ...prev, image: file, video: null }));
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="complete-image-input"
+                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
+                      isLight
+                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
+                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                    }`}
+                  >
+                    {`${String.fromCodePoint(0x1F5BC)} Image`}
+                  </label>
+                  
+                  <input
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    id="complete-video-input"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (file && file.type.startsWith('video/')) {
+                        setCompleteForm((prev) => ({ ...prev, video: file, image: null }));
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="complete-video-input"
+                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
+                      isLight
+                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
+                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                    }`}
+                  >
+                    {`${String.fromCodePoint(0x1F3A5)} Video`}
+                  </label>
+                  
+                  {(completeForm.image || completeForm.video) && (
+                    <span className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      {completeForm.image ? `Image: ${completeForm.image.name}` : `Video: ${completeForm.video?.name}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                   Proof URL (optional)
@@ -1775,16 +2018,18 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             <div className="flex gap-2">
               <Button
                 onClick={() => completeGoal(showCompleteModal.userTaskId)}
+                disabled={publishingCompletePost || completing.has(showCompleteModal.userTaskId)}
                 variant="primary"
                 className="flex-1"
               >
-                Complete
+                {publishingCompletePost ? 'Publishing...' : completing.has(showCompleteModal.userTaskId) ? 'Completing...' : 'Complete & Publish'}
               </Button>
               <Button
                 onClick={() => {
                   setShowCompleteModal(null);
-                  setCompleteForm({ proofUrl: '', note: '' });
+                  setCompleteForm({ proofUrl: '', note: '', body: '', image: null, video: null, reactions: [] });
                 }}
+                disabled={publishingCompletePost || completing.has(showCompleteModal.userTaskId)}
                 variant="secondary"
               >
                 Cancel
@@ -1798,10 +2043,10 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       {showCheckInModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            className={`absolute inset-0 ${isLight ? 'bg-black/50' : 'bg-black/80'}`}
+            className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingPost && setShowCheckInModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-white' : 'bg-[rgba(15,22,35,0.95)]'} rounded-2xl p-6 space-y-4`}>
+          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/30 bg-white' : 'bg-gradient-to-br from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-2xl p-6 space-y-4 shadow-2xl`}>
             <div className="flex items-center justify-between">
               <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                 Create Check-in Post
