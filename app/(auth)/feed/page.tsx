@@ -741,8 +741,14 @@ function FeedInner() {
 
               {/* author actions moved to header near date */}
 
-              {/* Post reactions */}
-              <div className="mt-4">
+              {/* footer */}
+              <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                <div className="flex items-center gap-1" title="Views">
+                  <Eye />
+                  <span className="text-sm">{p.views ?? 0}</span>
+                </div>
+
+                {/* Post reactions */}
                 <PostReactions
                   postId={p.id}
                   initialCounts={reactionsByPostId[p.id] || {
@@ -849,14 +855,6 @@ function FeedInner() {
                     }
                   }}
                 />
-              </div>
-
-              {/* footer */}
-              <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                <div className="flex items-center gap-1" title="Views">
-                  <Eye />
-                  <span className="text-sm">{p.views ?? 0}</span>
-                </div>
 
                 <button
                   className={`ml-auto text-sm underline hover:no-underline transition ${isLight ? "text-telegram-blue hover:text-telegram-blue-dark" : "text-telegram-blue-light hover:text-telegram-blue"}`}

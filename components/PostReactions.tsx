@@ -121,9 +121,9 @@ export default function PostReactions({
   };
 
   return (
-    <div className={`w-full ${isLight ? 'bg-white/10' : 'bg-gray-900/10'} rounded-2xl p-3 md:p-4 backdrop-blur-sm`}>
+    <div className={`${isLight ? 'bg-white/10' : 'bg-gray-900/10'} rounded-lg p-1.5 md:p-2 backdrop-blur-sm`}>
       {/* Desktop: horizontal row, Mobile: grid 2 columns */}
-      <div className="grid grid-cols-2 md:flex md:flex-row items-center justify-center gap-2 md:gap-3">
+      <div className="flex flex-row items-center justify-center gap-1 md:gap-2">
         {REACTIONS.map((reaction) => {
           const isSelected = selectedReaction === reaction.id;
           const count = counts[reaction.id] || 0;
@@ -148,7 +148,7 @@ export default function PostReactions({
                   : {}
               }
               className={`
-                relative flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-xl
+                relative flex items-center justify-center gap-1 md:gap-1.5 px-1.5 md:px-2 py-1 md:py-1.5 rounded-lg
                 transition-all duration-200 ease-out
                 ${isSelected 
                   ? 'shadow-lg' 
@@ -168,13 +168,13 @@ export default function PostReactions({
               }}
             >
               <span 
-                className="text-3xl md:text-4xl leading-none select-none inline-flex items-center justify-center" 
+                className="text-base md:text-lg leading-none select-none inline-flex items-center justify-center" 
                 role="img" 
                 aria-label={reaction.label}
                 style={{ 
-                  fontSize: '2rem',
-                  minWidth: '2.5rem',
-                  minHeight: '2.5rem',
+                  fontSize: '1rem',
+                  minWidth: '1.25rem',
+                  minHeight: '1.25rem',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -184,7 +184,7 @@ export default function PostReactions({
               >
                 <span style={{ fontSize: 'inherit', lineHeight: '1', display: 'block' }}>{reaction.emoji}</span>
               </span>
-              <span className={`text-xs md:text-sm font-medium hidden sm:inline ${isLight ? 'text-gray-900' : 'text-white/90'}`}>
+              <span className={`text-xs font-medium hidden sm:inline ${isLight ? 'text-gray-900' : 'text-white/90'}`}>
                 {reaction.label}
               </span>
               
@@ -195,7 +195,7 @@ export default function PostReactions({
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.7, opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className={`text-xs md:text-sm font-medium ml-1 ${
+                  className={`text-xs font-medium ml-0.5 ${
                     isLight ? 'text-gray-700' : 'text-white/70'
                   }`}
                 >
