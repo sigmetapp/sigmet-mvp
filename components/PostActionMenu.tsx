@@ -263,20 +263,12 @@ export default function PostActionMenu({
               }}
             />
 
-            {/* Menu - positioned relative to button using fixed to be above all content */}
+            {/* Menu - positioned relative to button, above all content */}
             <motion.div
               {...menuAnimation}
               ref={menuRef}
-              className="fixed z-[9999] w-44 rounded-xl border border-white/10 bg-white dark:bg-zinc-900 shadow-xl p-1"
+              className="absolute z-[9999] right-0 top-full mt-2 w-44 rounded-xl border border-white/10 bg-white dark:bg-zinc-900 shadow-xl p-1"
               data-testid="action-menu"
-              style={(() => {
-                if (!buttonRef.current) return {};
-                const rect = buttonRef.current.getBoundingClientRect();
-                return {
-                  top: `${rect.bottom + 8}px`,
-                  right: `${window.innerWidth - rect.right}px`,
-                };
-              })()}
             >
               {!isConfirm ? (
                 <>
