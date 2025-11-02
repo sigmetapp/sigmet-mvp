@@ -1359,10 +1359,10 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                   const disableSelection = disableSelectionPrimary || disableSelectionSecondary || isInDevelopment;
                   const buttonLabel = isToggling
                     ? '...'
-                    : dir.isSelected
-                    ? 'Selected'
                     : isInDevelopment
                     ? 'In development'
+                    : dir.isSelected
+                    ? 'Selected'
                     : disableSelection
                     ? 'Limit'
                     : 'Add';
@@ -1416,10 +1416,10 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                               : undefined
                           }
                           className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
-                            dir.isSelected
-                              ? 'bg-white/20 text-white'
-                              : isInDevelopment
+                            isInDevelopment
                               ? 'border border-gray-400/30 text-gray-400 cursor-not-allowed'
+                              : dir.isSelected
+                              ? 'bg-white/20 text-white'
                               : isLight
                               ? 'border border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
                               : 'border border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
