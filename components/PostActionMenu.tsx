@@ -210,6 +210,7 @@ export default function PostActionMenu({
         transition: { duration: 0.12 },
       };
 
+
   return (
     <div ref={containerRef} className={`relative inline-flex ${className}`}>
       {/* Trigger button */}
@@ -222,7 +223,7 @@ export default function PostActionMenu({
         aria-expanded={isOpen}
         aria-label="Post actions"
         data-testid="action-trigger"
-        className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-telegram-text-secondary hover:text-telegram-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 active:scale-[0.95] z-50"
+        className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-telegram-text-secondary hover:text-telegram-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 active:scale-[0.95] relative z-[105]"
       >
         <motion.div
           whileHover={{ scale: 1.05 }}
@@ -239,7 +240,7 @@ export default function PostActionMenu({
             {/* Local overlay inside card - positioned relative to nearest relative parent (card) */}
             <motion.div
               {...overlayAnimation}
-              className="absolute inset-0 backdrop-blur-sm bg-black/20 dark:bg-black/30 z-40"
+              className="absolute inset-0 backdrop-blur-sm bg-black/20 dark:bg-black/30 z-[100]"
               data-testid="overlay"
               onClick={() => {
                 setIsOpen(false);
@@ -253,14 +254,29 @@ export default function PostActionMenu({
               }}
               tabIndex={-1}
               aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+              }}
             />
 
-            {/* Menu - positioned relative to button */}
+            {/* Menu - positioned relative to button using fixed to be above all content */}
             <motion.div
               {...menuAnimation}
               ref={menuRef}
-              className="absolute z-50 right-0 top-full mt-2 w-44 rounded-xl border border-white/10 bg-white dark:bg-zinc-900 shadow-xl p-1"
+              className="fixed z-[9999] w-44 rounded-xl border border-white/10 bg-white dark:bg-zinc-900 shadow-xl p-1"
               data-testid="action-menu"
+              style={(() => {
+                if (!buttonRef.current) return {};
+                const rect = buttonRef.current.getBoundingClientRect();
+                return {
+                  top: `${rect.bottom + 8}px`,
+                  right: `${window.innerWidth - rect.right}px`,
+                };
+              })()}
             >
               {!isConfirm ? (
                 <>
