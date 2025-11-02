@@ -182,18 +182,19 @@ function GrowthInner() {
                       {(() => {
                         // Fix emoji mapping if they come as ?? from DB
                         const emojiMap: Record<string, string> = {
-                          'learning': '??',
+                          'learning': '??', // Learning & Knowledge (merged with education, digital)
                           'career': '??',
                           'finance': '??',
-                          'health': '??',
+                          'health': '??', // Health & Vitality
                           'relationships': '??',
                           'community': '??',
                           'creativity': '??',
-                          'mindfulness': '?????',
-                          'personal': '??',
-                          'digital': '??',
-                          'education': '??',
+                          'mindfulness': '?????', // Mindfulness & Inner Balance (merged with personal)
                           'purpose': '???',
+                          // Legacy mappings for backward compatibility
+                          'personal': '?????', // Maps to mindfulness
+                          'digital': '??', // Maps to learning
+                          'education': '??', // Maps to learning
                         };
                         if (dir.emoji === '??' || dir.emoji === '???' || dir.emoji?.includes('?')) {
                           return emojiMap[dir.slug] || dir.emoji;
