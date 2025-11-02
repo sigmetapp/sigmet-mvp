@@ -6,6 +6,7 @@ import { RequireAuth } from "@/components/RequireAuth";
 import Button from "@/components/Button";
 import { useTheme } from "@/components/ThemeProvider";
 import PostReactions, { ReactionType } from "@/components/PostReactions";
+import PostActionMenu from "@/components/PostActionMenu";
 
 export default function FeedPage() {
   return (
@@ -70,7 +71,6 @@ function FeedInner() {
   const [commenterProfiles, setCommenterProfiles] = useState<Record<string, { username: string | null; avatar_url: string | null }>>({});
   const [likedByMe, setLikedByMe] = useState<Set<number>>(new Set());
   const viewedOnce = useRef<Set<number>>(new Set());
-  const [openMenuFor, setOpenMenuFor] = useState<number | null>(null);
 
   // Post reactions state
   const [reactionsByPostId, setReactionsByPostId] = useState<
@@ -380,7 +380,6 @@ function FeedInner() {
 
   // --- edit/delete
   async function deletePost(p: Post) {
-    if (!confirm("Delete this post?")) return;
     const { error } = await supabase.from("posts").delete().eq("id", p.id);
     if (error) return alert(error.message);
     setPosts((prev) => prev.filter((x) => x.id !== p.id));
@@ -658,56 +657,14 @@ function FeedInner() {
                 <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                   <span className="whitespace-nowrap">{new Date(p.created_at).toLocaleString()}</span>
                   {uid === p.user_id && editingId !== p.id && (
-                    <div className="ml-2 relative z-[110]">
-                      <Button
-                        variant="icon"
-                        size="sm"
-                        ariaLabel="Post actions"
-                        title="Actions"
-                        onClick={() => setOpenMenuFor((cur) => (cur === p.id ? null : p.id))}
-                        className="!h-6 !w-6 !text-xs"
-                      >
-                        ⋯
-                      </Button>
-                      {openMenuFor === p.id && (
-                        <div className={`absolute right-0 top-full mt-2 w-40 rounded-xl border z-[111] transition-all duration-300 ease-out ${
-                          isLight
-                            ? "border-telegram-blue/20 bg-white shadow-[0_8px_24px_rgba(51,144,236,0.15)]"
-                            : "border-telegram-blue/30 bg-[#0f1623] shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
-                        }`}
-                        style={{
-                          animation: 'fadeInSlide 0.3s ease-out forwards'
-                        }}>
-                          <button
-                            onClick={() => {
-                              setOpenMenuFor(null);
-                              setEditingId(p.id);
-                              setEditBody(p.body || "");
-                            }}
-                            className={`w-full text-left px-4 py-3 rounded-t-xl transition ${
-                              isLight
-                                ? "text-telegram-text hover:bg-telegram-blue/10"
-                                : "text-telegram-text hover:bg-telegram-blue/15"
-                            }`}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => {
-                              setOpenMenuFor(null);
-                              deletePost(p);
-                            }}
-                            className={`w-full text-left px-4 py-3 rounded-b-xl transition ${
-                              isLight
-                                ? "text-red-600 hover:bg-red-50"
-                                : "text-red-400 hover:bg-red-500/10"
-                            }`}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    <PostActionMenu
+                      onEdit={() => {
+                        setEditingId(p.id);
+                        setEditBody(p.body || "");
+                      }}
+                      onDelete={() => deletePost(p)}
+                      className="ml-2"
+                    />
                   )}
                 </div>
               </div>
