@@ -810,7 +810,7 @@ function GrowthDirectionsInner() {
   function openCheckInModal(userTaskId: string, task: Task) {
     setShowCheckInModal({ userTaskId, task });
     // Pre-fill post with task information
-    const taskInfo = `${task.title}\n\n${task.description}`;
+    const taskInfo = `${task.title}\n${task.description}`;
     setCheckInPostForm({ body: taskInfo, image: null, video: null, reactions: [] });
   }
 
@@ -1777,7 +1777,7 @@ function GrowthDirectionsInner() {
                                         // Use goal directly since it's already a Task object from displayedGoals
                                         setShowCompleteModal({ userTaskId: goal.userTask!.id, task: goal });
                                         // Pre-fill post with goal information
-                                        const goalInfo = `${String.fromCodePoint(0x1F4CB)} Goal: ${goal.title}\n\n${String.fromCodePoint(0x1F4DD)} Description: ${goal.description}\n\n${String.fromCodePoint(0x2705)} Goal completed!`;
+                                        const goalInfo = `${goal.title}\n${goal.description}`;
                                         setCompleteForm({ proofUrl: '', note: '', body: goalInfo, image: null, video: null, reactions: [] });
                                       }}
                                       disabled={isCompleting || publishingCompletePost}
