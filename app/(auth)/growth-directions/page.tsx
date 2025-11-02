@@ -876,11 +876,11 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
         <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''} min-h-[400px]`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <h2 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-              {`${String.fromCodePoint(0x1F4CA)} Work & Focus Overview`}
+              {String.fromCodePoint(0x1F4CA)} Work & Focus Overview
             </h2>
             <div className="flex flex-col md:flex-row gap-2 md:items-center">
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                ??????? ???????????: {selectedCount} / 3
+                Выбрано направлений: {selectedCount} / 3
               </span>
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                 Active tasks: {summaryTasks.primary.length + summaryTasks.secondary.length} total
