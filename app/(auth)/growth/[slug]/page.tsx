@@ -7,6 +7,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import Button from '@/components/Button';
 import Link from 'next/link';
 import { useTheme } from '@/components/ThemeProvider';
+import { resolveDirectionEmoji } from '@/lib/directions';
 
 type Task = {
   id: string;
@@ -310,29 +311,7 @@ function DirectionDetailInner() {
         </Link>
         <div className="flex items-center gap-3">
           <span className="text-4xl">
-            {(() => {
-              // Fix emoji mapping if they come as ?? from DB
-              const emojiMap: Record<string, string> = {
-                'learning': '??', // Learning & Knowledge (merged with education, digital)
-                'career': '??',
-                'finance': '??',
-                'health': '??', // Health & Vitality
-                'relationships': '??',
-                'community': '??',
-                'creativity': '??',
-                'mindfulness_purpose': '??', // Mindfulness & Purpose (merged from mindfulness, personal, purpose)
-                // Legacy mappings for backward compatibility
-                'mindfulness': '??', // Maps to mindfulness_purpose
-                'purpose': '??', // Maps to mindfulness_purpose
-                'personal': '??', // Maps to mindfulness_purpose
-                'digital': '??', // Maps to learning
-                'education': '??', // Maps to learning
-              };
-              if (direction.emoji === '??' || direction.emoji === '???' || direction.emoji?.includes('?')) {
-                return emojiMap[direction.slug] || direction.emoji;
-              }
-              return direction.emoji;
-            })()}
+            {resolveDirectionEmoji(direction.slug, direction.emoji)}
           </span>
           <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' : 'gradient-text'}`}>
             {direction.title}
