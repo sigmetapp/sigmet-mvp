@@ -671,7 +671,7 @@ function FeedInner() {
 
               {/* content */}
               {editingId === p.id ? (
-                <div className="space-y-3">
+                <div className="relative z-20 space-y-3">
                   <textarea
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
