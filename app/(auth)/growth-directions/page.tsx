@@ -379,7 +379,18 @@ function GrowthDirectionsInner() {
             const activeGoals = (directionTasks.goals || []).filter(isTaskInWork);
 
             // Ensure isPrimary is correctly set - use dir.isPrimary from the directions list
-            const directionIsPrimary = dir.isPrimary ?? false;
+            // For selected directions, dir.isPrimary comes from user_selected_directions.is_primary
+            // true = Primary, false = Additional
+            // For unselected directions with active tasks, treat as Additional (false)
+            let directionIsPrimary = false;
+            if (dir.isSelected) {
+              // For selected directions, use the isPrimary value from the API
+              // This comes from user_selected_directions.is_primary
+              directionIsPrimary = dir.isPrimary === true;
+            } else {
+              // For unselected directions with active tasks, treat as Additional
+              directionIsPrimary = false;
+            }
 
             activeHabits.forEach((habit) => {
               summaryItems.push({
@@ -431,8 +442,13 @@ function GrowthDirectionsInner() {
       });
 
       // Filter tasks by isPrimary - ensure strict boolean comparison
+      // Primary tasks: directionIsPrimary === true
+      // Secondary tasks: directionIsPrimary === false (including undefined/null)
       const primaryTasks = uniqueSummaryItems.filter((item) => item.directionIsPrimary === true);
-      const secondaryTasks = uniqueSummaryItems.filter((item) => item.directionIsPrimary === false);
+      const secondaryTasks = uniqueSummaryItems.filter((item) => {
+        // Include all tasks that are NOT primary (false, undefined, null)
+        return item.directionIsPrimary !== true;
+      });
 
       // Ensure all tasks are properly categorized and included
       setSummaryTasks({
