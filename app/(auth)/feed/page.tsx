@@ -642,12 +642,12 @@ function FeedInner() {
           posts.map((p) => (
             <div
               key={p.id}
-              className="telegram-card-feature p-4 md:p-6 space-y-4"
+              className="telegram-card-feature p-4 md:p-6 space-y-4 relative"
               onMouseEnter={() => addViewOnce(p.id)}
             >
               {/* header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center justify-between relative z-10">
+                <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
                   {(() => {
                     const prof = p.user_id ? profilesByUserId[p.user_id] : undefined;
                     const avatar = prof?.avatar_url || AVATAR_FALLBACK;
@@ -671,32 +671,36 @@ function FeedInner() {
                     );
                   })()}
                 </div>
-                <div className={`relative flex items-center gap-2 text-xs ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                  <span>{new Date(p.created_at).toLocaleString()}</span>
+                <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                  <span className="whitespace-nowrap">{new Date(p.created_at).toLocaleString()}</span>
                   {uid === p.user_id && editingId !== p.id && (
-                    <div className="ml-2">
+                    <div className="ml-2 relative z-[110]">
                       <Button
                         variant="icon"
                         size="sm"
                         ariaLabel="Post actions"
                         title="Actions"
                         onClick={() => setOpenMenuFor((cur) => (cur === p.id ? null : p.id))}
+                        className="!h-6 !w-6 !text-xs"
                       >
                         ⋯
                       </Button>
                       {openMenuFor === p.id && (
-                        <div className={`absolute right-0 mt-2 w-40 rounded-xl border backdrop-blur-md z-10 transition-colors ${
+                        <div className={`absolute right-0 top-full mt-2 w-40 rounded-xl border z-[111] transition-all duration-300 ease-out ${
                           isLight
-                            ? "border-telegram-blue/20 bg-white/90 shadow-[0_8px_24px_rgba(51,144,236,0.15)]"
-                            : "border-telegram-blue/30 bg-[rgba(15,22,35,0.95)] shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
-                        }`}>
+                            ? "border-telegram-blue/20 bg-white shadow-[0_8px_24px_rgba(51,144,236,0.15)]"
+                            : "border-telegram-blue/30 bg-[#0f1623] shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+                        }`}
+                        style={{
+                          animation: 'fadeInSlide 0.3s ease-out forwards'
+                        }}>
                           <button
                             onClick={() => {
                               setOpenMenuFor(null);
                               setEditingId(p.id);
                               setEditBody(p.body || "");
                             }}
-                            className={`w-full text-left px-3 py-2 rounded-t-xl transition ${
+                            className={`w-full text-left px-4 py-3 rounded-t-xl transition ${
                               isLight
                                 ? "text-telegram-text hover:bg-telegram-blue/10"
                                 : "text-telegram-text hover:bg-telegram-blue/15"
@@ -709,7 +713,7 @@ function FeedInner() {
                               setOpenMenuFor(null);
                               deletePost(p);
                             }}
-                            className={`w-full text-left px-3 py-2 rounded-b-xl transition ${
+                            className={`w-full text-left px-4 py-3 rounded-b-xl transition ${
                               isLight
                                 ? "text-red-600 hover:bg-red-50"
                                 : "text-red-400 hover:bg-red-500/10"
@@ -738,17 +742,17 @@ function FeedInner() {
                   </div>
                 </div>
               ) : (
-                <>
-                  {p.body && <p className={`leading-relaxed ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
+                <div className="relative">
+                  {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
                   {p.image_url && (
-                    <img src={p.image_url} loading="lazy" className={`rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
+                    <img src={p.image_url} loading="lazy" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
                   )}
                   {p.video_url && (
                     <video controls preload="metadata" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}>
                       <source src={p.video_url} />
                     </video>
                   )}
-                </>
+                </div>
               )}
 
               {/* author actions moved to header near date */}
