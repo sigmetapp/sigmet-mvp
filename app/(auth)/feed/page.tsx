@@ -646,8 +646,8 @@ function FeedInner() {
               onMouseEnter={() => addViewOnce(p.id)}
             >
               {/* header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center justify-between relative z-10">
+                <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
                   {(() => {
                     const prof = p.user_id ? profilesByUserId[p.user_id] : undefined;
                     const avatar = prof?.avatar_url || AVATAR_FALLBACK;
@@ -671,10 +671,10 @@ function FeedInner() {
                     );
                   })()}
                 </div>
-                <div className={`relative flex items-center gap-2 text-xs ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                  <span>{new Date(p.created_at).toLocaleString()}</span>
+                <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                  <span className="whitespace-nowrap">{new Date(p.created_at).toLocaleString()}</span>
                   {uid === p.user_id && editingId !== p.id && (
-                    <div className="ml-2 relative">
+                    <div className="ml-2 relative z-20">
                       <Button
                         variant="icon"
                         size="sm"
@@ -739,17 +739,17 @@ function FeedInner() {
                   </div>
                 </div>
               ) : (
-                <>
-                  {p.body && <p className={`leading-relaxed ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
+                <div className="relative">
+                  {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
                   {p.image_url && (
-                    <img src={p.image_url} loading="lazy" className={`rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
+                    <img src={p.image_url} loading="lazy" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
                   )}
                   {p.video_url && (
                     <video controls preload="metadata" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}>
                       <source src={p.video_url} />
                     </video>
                   )}
-                </>
+                </div>
               )}
 
               {/* author actions moved to header near date */}
