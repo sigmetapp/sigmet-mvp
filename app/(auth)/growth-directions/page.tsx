@@ -1960,11 +1960,6 @@ function GrowthDirectionsInner() {
                   })}
                 </div>
               </div>
-              
-
-              </div>
-
-
             </div>
             <div className="flex gap-2">
               <Button
@@ -2127,9 +2122,6 @@ function GrowthDirectionsInner() {
                     );
                   })}
                 </div>
-              </div>
-              
-
               </div>
             </div>
 
