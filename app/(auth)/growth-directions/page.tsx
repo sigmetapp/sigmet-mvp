@@ -1986,18 +1986,6 @@ function GrowthDirectionsInner() {
 
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                  Proof URL (optional)
-                </label>
-                <input
-                  type="url"
-                  value={completeForm.proofUrl}
-                  onChange={(e) => setCompleteForm((prev) => ({ ...prev, proofUrl: e.target.value }))}
-                  placeholder="https://..."
-                  className={`input w-full ${isLight ? '' : ''}`}
-                />
-              </div>
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                   Note (optional)
                 </label>
                 <textarea
