@@ -36,15 +36,22 @@ export default async function handler(
   }
 
   try {
-    // Check if task exists
+    // Check if task exists and get its direction
     const { data: task, error: taskError } = await supabase
       .from('growth_tasks')
-      .select('id')
+      .select('id, direction_id, growth_directions!inner(slug)')
       .eq('id', taskId)
       .single();
 
     if (taskError || !task) {
       return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Check if direction is in development (inactive)
+    const inactiveDirections = ['creativity', 'mindfulness_purpose', 'relationships', 'career', 'finance'];
+    const directionSlug = (task.growth_directions as any)?.slug;
+    if (directionSlug && inactiveDirections.includes(directionSlug)) {
+      return res.status(400).json({ error: 'Cannot activate tasks from directions that are currently in development' });
     }
 
     // Check if already activated

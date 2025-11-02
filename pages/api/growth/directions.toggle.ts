@@ -37,15 +37,21 @@ export default async function handler(
   }
 
   try {
-    // Check if direction exists and get its sort_index
+    // Check if direction exists and get its sort_index and slug
     const { data: direction, error: dirError } = await supabase
       .from('growth_directions')
-      .select('id, sort_index')
+      .select('id, sort_index, slug')
       .eq('id', directionId)
       .single();
 
     if (dirError || !direction) {
       return res.status(404).json({ error: 'Direction not found' });
+    }
+
+    // Check if direction is in development (inactive)
+    const inactiveDirections = ['creativity', 'mindfulness_purpose', 'relationships', 'career', 'finance'];
+    if (inactiveDirections.includes(direction.slug)) {
+      return res.status(400).json({ error: 'This direction is currently in development and cannot be selected' });
     }
 
     // Check if already selected

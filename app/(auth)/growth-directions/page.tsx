@@ -112,6 +112,24 @@ function GrowthDirectionsInner() {
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [notification, setNotification] = useState<{ message: string } | null>(null);
+  const [completedTasks, setCompletedTasks] = useState<Array<{
+    id: string;
+    taskId: string;
+    title: string;
+    taskType: 'habit' | 'goal';
+    pointsAwarded: number;
+    basePoints: number;
+    completedAt: string;
+    direction: {
+      id: string;
+      title: string;
+      slug: string;
+      emoji: string;
+    };
+  }>>([]);
+  const [totalPoints, setTotalPoints] = useState(0);
+  const [loadingCompleted, setLoadingCompleted] = useState(false);
+  const [resettingAllTasks, setResettingAllTasks] = useState(false);
 
   useEffect(() => {
     loadDirections();
@@ -128,6 +146,10 @@ function GrowthDirectionsInner() {
       loadSummary();
     }
   }, [directions, selectedDirection, tasks]);
+
+  useEffect(() => {
+    loadCompletedTasks();
+  }, []);
 
   useEffect(() => {
     if (pinnedTask && pinnedTask.directionId !== selectedDirection) {
@@ -463,6 +485,38 @@ function GrowthDirectionsInner() {
     }
   }
 
+  async function loadCompletedTasks() {
+    setLoadingCompleted(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setCompletedTasks([]);
+        setTotalPoints(0);
+        return;
+      }
+
+      const res = await fetch('/api/growth/completed.tasks', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to load completed tasks');
+      }
+
+      const { completedTasks: tasks, totalPoints: points } = await res.json();
+      setCompletedTasks(Array.isArray(tasks) ? tasks : []);
+      setTotalPoints(points || 0);
+    } catch (error: any) {
+      console.error('Error loading completed tasks:', error);
+      setCompletedTasks([]);
+      setTotalPoints(0);
+    } finally {
+      setLoadingCompleted(false);
+    }
+  }
+
   const getDisplayedTasks = (list: Task[], type: Task['task_type']) => {
     const targetId =
       pinnedTask && pinnedTask.type === type && pinnedTask.directionId === selectedDirection
@@ -510,6 +564,18 @@ function GrowthDirectionsInner() {
     if (toggling.has(directionId)) return;
     const direction = directions.find((d) => d.id === directionId);
     if (!direction) return;
+
+    // Check if direction is in development (inactive)
+    const isInDevelopment = direction.slug === 'creativity' || 
+                           direction.slug === 'mindfulness_purpose' || 
+                           direction.slug === 'relationships' ||
+                           direction.slug === 'career' ||
+                           direction.slug === 'finance';
+
+    if (isInDevelopment) {
+      setNotification({ message: 'This direction is currently in development and cannot be selected' });
+      return;
+    }
 
     const selectedPrimaryCount = directions.reduce(
       (count, dir) => (dir.isSelected && dir.isPrimary ? count + 1 : count),
@@ -588,6 +654,18 @@ function GrowthDirectionsInner() {
       setNotification({ message: 'Direction not found for task' });
       return;
     }
+
+    // Check if direction is in development (inactive)
+    const isInDevelopment = taskDirection.slug === 'creativity' || 
+                           taskDirection.slug === 'mindfulness_purpose' || 
+                           taskDirection.slug === 'relationships' ||
+                           taskDirection.slug === 'career' ||
+                           taskDirection.slug === 'finance';
+
+    if (isInDevelopment) {
+      setNotification({ message: 'Cannot activate tasks from directions that are currently in development' });
+      return;
+    }
     
     setActivating((prev) => new Set(prev).add(taskId));
 
@@ -656,6 +734,63 @@ function GrowthDirectionsInner() {
         next.delete(userTaskId);
         return next;
       });
+    }
+  }
+
+  async function resetAllTasks() {
+    const activeTasksCount = summaryTasks.primary.length + summaryTasks.secondary.length;
+    
+    if (activeTasksCount === 0) {
+      setNotification({ message: 'No active tasks to reset' });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to reset all ${activeTasksCount} active tasks? This will deactivate all habits and goals currently in work.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setResettingAllTasks(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setNotification({ message: 'Session expired. Please refresh the page.' });
+        return;
+      }
+
+      const res = await fetch('/api/growth/tasks.resetAll', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Failed to reset tasks' }));
+        throw new Error(errorData.error || 'Failed to reset tasks');
+      }
+
+      const { count } = await res.json();
+      setNotification({ 
+        message: `Successfully reset ${count || activeTasksCount} task${count !== 1 ? 's' : ''}` 
+      });
+
+      // Reload all data
+      await loadSummary();
+      if (selectedDirection) {
+        await loadTasks(selectedDirection);
+      }
+      await loadCompletedTasks();
+    } catch (error: any) {
+      console.error('Error resetting all tasks:', error);
+      setNotification({ message: error.message || 'Failed to reset tasks' });
+    } finally {
+      setResettingAllTasks(false);
     }
   }
 
@@ -743,6 +878,8 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       await loadTasks(selectedDirection!);
       // Reload summary after check-in
       await loadSummary();
+      // Reload completed tasks to update total points
+      await loadCompletedTasks();
     } catch (error: any) {
       console.error('Error publishing check-in post:', error);
       alert(error.message || 'Failed to publish post');
@@ -793,6 +930,8 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       await loadTasks(selectedDirection!);
       // Reload summary after completing goal
       await loadSummary();
+      // Reload completed tasks to show new completion
+      await loadCompletedTasks();
     } catch (error: any) {
       console.error('Error completing goal:', error);
       alert(error.message || 'Failed to complete goal');
@@ -929,6 +1068,17 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                 Active tasks: {summaryTasks.primary.length + summaryTasks.secondary.length} total
               </span>
+              {(summaryTasks.primary.length > 0 || summaryTasks.secondary.length > 0) && (
+                <Button
+                  onClick={resetAllTasks}
+                  disabled={resettingAllTasks || loadingSummary}
+                  variant="secondary"
+                  className="text-xs px-3 py-1.5"
+                  title="Reset all active tasks"
+                >
+                  {resettingAllTasks ? 'Resetting...' : 'Reset All Tasks'}
+                </Button>
+              )}
             </div>
           </div>
 
@@ -1012,6 +1162,150 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
         </div>
       )}
 
+      {/* Completed Tasks & Total Points Section */}
+      {!loading && (
+        <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+            <div>
+              <h2 className={`font-semibold text-xl mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                {String.fromCodePoint(0x1F389)} Completed Tasks & Points
+              </h2>
+              <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                Track your achievements and earned points
+              </p>
+            </div>
+            <div className={`relative inline-flex items-center justify-center px-6 py-4 rounded-2xl ${
+              isLight 
+                ? 'bg-gradient-to-r from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/20' 
+                : 'bg-gradient-to-r from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/30'
+            }`}>
+              <div className="text-center">
+                <div className={`text-xs uppercase tracking-wider mb-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  Total Points
+                </div>
+                <div className={`text-3xl font-bold bg-gradient-to-r ${isLight ? 'from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' : 'from-telegram-blue-light to-telegram-blue bg-clip-text text-transparent'}`}>
+                  {totalPoints.toLocaleString('en-US')}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {loadingCompleted ? (
+            <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <div className="inline-flex items-center gap-2">
+                <div className="w-5 h-5 border-2 border-telegram-blue border-t-transparent rounded-full animate-spin"></div>
+                <span>Loading completed tasks...</span>
+              </div>
+            </div>
+          ) : completedTasks.length === 0 ? (
+            <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <div className="text-4xl mb-3">{String.fromCodePoint(0x1F4ED)}</div>
+              <p className="text-sm font-medium">No completed tasks yet</p>
+              <p className="text-xs mt-1 opacity-70">Complete your first goal to see it here!</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className={`border-b ${isLight ? 'border-telegram-blue/10' : 'border-telegram-blue/20'}`}>
+                    <th className={`text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      Task
+                    </th>
+                    <th className={`text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      Type
+                    </th>
+                    <th className={`text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      Direction
+                    </th>
+                    <th className={`text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      Completed
+                    </th>
+                    <th className={`text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      Points
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {completedTasks.map((task, index) => (
+                    <tr
+                      key={task.id}
+                      className={`transition-colors ${
+                        isLight
+                          ? 'hover:bg-telegram-blue/5 border-b border-telegram-blue/5'
+                          : 'hover:bg-white/5 border-b border-white/5'
+                      } ${index % 2 === 0 ? (isLight ? 'bg-telegram-bg-secondary/50' : 'bg-white/2') : ''}`}
+                    >
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${
+                            task.taskType === 'habit'
+                              ? 'bg-emerald-500/10'
+                              : 'bg-blue-500/10'
+                          }`}>
+                            <span className="text-xl">
+                              {resolveDirectionEmoji(task.direction.slug, task.direction.emoji)}
+                            </span>
+                          </div>
+                          <div>
+                            <div className={`font-semibold text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                              {task.title}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                            task.taskType === 'habit'
+                              ? 'bg-emerald-500/15 text-emerald-400'
+                              : 'bg-blue-500/15 text-blue-400'
+                          }`}
+                        >
+                          {task.taskType === 'habit' ? 'Habit' : 'Goal'}
+                        </span>
+                      </td>
+                      <td className={`py-4 px-4 text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        {task.direction.title}
+                      </td>
+                      <td className={`py-4 px-4 text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        {task.completedAt ? (
+                          <div className="flex flex-col">
+                            <span>{new Date(task.completedAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}</span>
+                            <span className="text-xs opacity-70">
+                              {new Date(task.completedAt).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                              })}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="opacity-50">{String.fromCodePoint(0x2014)}</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex flex-col items-end">
+                          <div className={`text-lg font-bold ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
+                            {task.pointsAwarded.toLocaleString('en-US')}
+                          </div>
+                          {task.pointsAwarded !== task.basePoints && (
+                            <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                              <span className="opacity-70">base: {task.basePoints.toLocaleString('en-US')}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
           Loading...
@@ -1025,9 +1319,35 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                 Directions
               </h2>
               <div className="space-y-2">
-                {directions.map((dir) => {
+                {directions
+                  .sort((a, b) => {
+                    // Helper function to check if direction is in development
+                    const isInDev = (slug: string) => 
+                      slug === 'creativity' || 
+                      slug === 'mindfulness_purpose' || 
+                      slug === 'relationships' ||
+                      slug === 'career' ||
+                      slug === 'finance';
+                    
+                    const aInDev = isInDev(a.slug);
+                    const bInDev = isInDev(b.slug);
+                    
+                    // Active directions first (not in development), then inactive (in development)
+                    if (aInDev && !bInDev) return 1;
+                    if (!aInDev && bInDev) return -1;
+                    // If both have same status, maintain original order
+                    return 0;
+                  })
+                  .map((dir) => {
                   const isToggling = toggling.has(dir.id);
                   const isSelected = selectedDirection === dir.id;
+                  
+                  // Check if direction is in development
+                  const isInDevelopment = dir.slug === 'creativity' || 
+                                         dir.slug === 'mindfulness_purpose' || 
+                                         dir.slug === 'relationships' ||
+                                         dir.slug === 'career' ||
+                                         dir.slug === 'finance';
                   
                   // Determine if this direction would be Primary or Additional when added
                   // Use the same logic as in the API: directions with sort_index <= 8 can be Primary
@@ -1036,9 +1356,11 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                   
                   const disableSelectionPrimary = !dir.isSelected && wouldBePrimary && primaryLimitReached;
                   const disableSelectionSecondary = !dir.isSelected && !wouldBePrimary && secondaryLimitReached;
-                  const disableSelection = disableSelectionPrimary || disableSelectionSecondary;
+                  const disableSelection = disableSelectionPrimary || disableSelectionSecondary || isInDevelopment;
                   const buttonLabel = isToggling
                     ? '...'
+                    : isInDevelopment
+                    ? 'In development'
                     : dir.isSelected
                     ? 'Selected'
                     : disableSelection
@@ -1048,7 +1370,11 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                   return (
                     <div
                       key={dir.id}
-                      className={`p-3 rounded-xl transition cursor-pointer ${
+                      className={`p-3 rounded-xl transition ${
+                        isInDevelopment 
+                          ? 'cursor-not-allowed opacity-60' 
+                          : 'cursor-pointer'
+                      } ${
                         isSelected
                           ? isLight
                             ? 'bg-telegram-blue text-white'
@@ -1057,14 +1383,18 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                           ? 'border border-telegram-blue/20 hover:bg-telegram-blue/10'
                           : 'border border-telegram-blue/30 hover:bg-telegram-blue/15'
                       }`}
-                      onClick={() => setSelectedDirection(dir.id)}
+                      onClick={() => {
+                        if (!isInDevelopment) {
+                          setSelectedDirection(dir.id);
+                        }
+                      }}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div>
                             <span className="font-medium text-sm">{dir.title}</span>
                             <div className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-white/70' : isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                              {dir.isPrimary ? 'Primary direction' : 'Additional direction'}
+                              {isInDevelopment ? 'In development' : dir.isPrimary ? 'Primary direction' : 'Additional direction'}
                             </div>
                           </div>
                         </div>
@@ -1072,18 +1402,28 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (disableSelection) return;
+                            if (disableSelection || isInDevelopment) return;
                             toggleDirection(dir.id);
                           }}
-                          disabled={isToggling || disableSelection}
-                          title={disableSelectionPrimary ? 'Cannot add more than 3 primary directions' : disableSelectionSecondary ? 'Cannot add more than 3 additional directions' : undefined}
+                          disabled={isToggling || disableSelection || isInDevelopment}
+                          title={
+                            isInDevelopment 
+                              ? 'This direction is currently in development' 
+                              : disableSelectionPrimary 
+                              ? 'Cannot add more than 3 primary directions' 
+                              : disableSelectionSecondary 
+                              ? 'Cannot add more than 3 additional directions' 
+                              : undefined
+                          }
                           className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
-                            dir.isSelected
+                            isInDevelopment
+                              ? 'border border-gray-400/30 text-gray-400 cursor-not-allowed'
+                              : dir.isSelected
                               ? 'bg-white/20 text-white'
                               : isLight
                               ? 'border border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
                               : 'border border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
-                          } ${disableSelection && !dir.isSelected ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          } ${(disableSelection || isInDevelopment) && !dir.isSelected ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           {buttonLabel}
                         </button>
