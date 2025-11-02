@@ -3,13 +3,13 @@ begin;
 
 -- Ensure directions are present with updated titles, emojis, and ordering
 insert into public.growth_directions (slug, title, emoji, sort_index) values
-  ('learning', 'Learning & Knowledge', U&'\1F4DA', 1),
-  ('career', 'Career & Projects', U&'\1F4BC', 2),
-  ('finance', 'Finance & Stability', U&'\1F4B0', 3),
-  ('health', 'Health & Vitality', U&'\1F4AA', 4),
-  ('relationships', 'Relationships & Family', U&'\1F496', 5),
-  ('community', 'Community & Society', U&'\1F30D', 6),
-  ('creativity', 'Creativity & Expression', U&'\1F3A8', 7),
+  ('learning', 'Learning & Knowledge', U&'\+1F4DA', 1),
+  ('career', 'Career & Projects', U&'\+1F4BC', 2),
+  ('finance', 'Finance & Stability', U&'\+1F4B0', 3),
+  ('health', 'Health & Vitality', U&'\+1F4AA', 4),
+  ('relationships', 'Relationships & Family', U&'\+1F496', 5),
+  ('community', 'Community & Society', U&'\+1F30D', 6),
+  ('creativity', 'Creativity & Expression', U&'\+1F3A8', 7),
   ('mindfulness_purpose', 'Mindfulness & Purpose', U&'\2728', 8)
 on conflict (slug) do update
   set title = excluded.title,
