@@ -847,7 +847,6 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
     }
 
     const itemsToShow = list.slice(0, MAX_SUMMARY_ITEMS_PER_GROUP);
-    const remainingCount = Math.max(0, list.length - itemsToShow.length);
 
     return (
       <>
@@ -890,15 +889,6 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             </button>
           ))}
         </div>
-        {remainingCount > 0 && (
-          <p
-            className={`mt-2 text-[11px] ${
-              isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'
-            }`}
-          >
-            +{remainingCount} more in queue
-          </p>
-        )}
       </>
     );
   };
