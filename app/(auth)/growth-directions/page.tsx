@@ -1074,20 +1074,20 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
         <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <h2 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-              ?? ??????????? ?????? ? ?????
+              🎉 Завершенные задачи и баллы
             </h2>
             <div className={`text-2xl font-bold ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
-              ????? ??????: {totalPoints.toLocaleString('ru-RU')}
+              Всего баллов: {totalPoints.toLocaleString('ru-RU')}
             </div>
           </div>
 
           {loadingCompleted ? (
             <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-              ???????? ??????????? ?????...
+              Загрузка завершенных задач...
             </div>
           ) : completedTasks.length === 0 ? (
             <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-              <p className="text-sm">???? ??? ??????????? ?????</p>
+              <p className="text-sm">Пока нет завершенных задач</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1112,15 +1112,15 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                               : 'bg-blue-500/15 text-blue-400'
                           }`}
                         >
-                          {task.taskType === 'habit' ? '????????' : '????'}
+                          {task.taskType === 'habit' ? 'Привычка' : 'Цель'}
                         </span>
                       </div>
                       <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                        ???????????: {task.direction.title}
+                        Направление: {task.direction.title}
                       </div>
                       {task.completedAt && (
                         <div className={`text-xs mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                          ?????????: {new Date(task.completedAt).toLocaleDateString('ru-RU', {
+                          Завершено: {new Date(task.completedAt).toLocaleDateString('ru-RU', {
                             year: 'numeric',
                             month: 'long',
                             day: 'numeric',
@@ -1130,11 +1130,11 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                     </div>
                     <div className={`text-right ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
                       <div className="text-lg font-bold">
-                        {task.pointsAwarded.toLocaleString('ru-RU')} ??????
+                        {task.pointsAwarded.toLocaleString('ru-RU')} баллов
                       </div>
                       {task.pointsAwarded !== task.basePoints && (
                         <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                          (???????: {task.basePoints.toLocaleString('ru-RU')})
+                          (базовые: {task.basePoints.toLocaleString('ru-RU')})
                         </div>
                       )}
                     </div>
