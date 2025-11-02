@@ -61,10 +61,15 @@ function GrowthDirectionsInner() {
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [activating, setActivating] = useState<Set<string>>(new Set());
-  const [checkingIn, setCheckingIn] = useState<Set<string>>(new Set());
   const [completing, setCompleting] = useState<Set<string>>(new Set());
   const [showCompleteModal, setShowCompleteModal] = useState<{ taskId: string; userTaskId: string } | null>(null);
   const [completeForm, setCompleteForm] = useState({ proofUrl: '', note: '' });
+  const [showCheckInModal, setShowCheckInModal] = useState<{ userTaskId: string; task: Task } | null>(null);
+  const [checkInPostForm, setCheckInPostForm] = useState({ body: '', image: null as File | null, video: null as File | null });
+  const [publishingPost, setPublishingPost] = useState(false);
+  const [allActiveHabits, setAllActiveHabits] = useState<Task[]>([]);
+  const [allActiveGoals, setAllActiveGoals] = useState<Task[]>([]);
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
   useEffect(() => {
     loadDirections();
@@ -75,6 +80,12 @@ function GrowthDirectionsInner() {
       loadTasks(selectedDirection);
     }
   }, [selectedDirection]);
+
+  useEffect(() => {
+    if (directions.length > 0) {
+      loadSummary();
+    }
+  }, [directions, selectedDirection]);
 
   async function loadDirections() {
     setLoading(true);
@@ -123,11 +134,80 @@ function GrowthDirectionsInner() {
       }
 
       const { habits, goals } = await res.json();
-      setTasks({ habits: habits || [], goals: goals || [] });
+      
+      // Remove duplicates by task id
+      const uniqueHabits = Array.from(
+        new Map((habits || []).map((h: Task) => [h.id, h])).values()
+      );
+      const uniqueGoals = Array.from(
+        new Map((goals || []).map((g: Task) => [g.id, g])).values()
+      );
+      
+      setTasks({ habits: uniqueHabits, goals: uniqueGoals });
     } catch (error: any) {
       console.error('Error loading tasks:', error);
     } finally {
       setLoadingTasks(false);
+    }
+  }
+
+  async function loadSummary() {
+    setLoadingSummary(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Get all selected directions except the currently selected one
+      const selectedDirs = directions.filter((d) => d.isSelected && d.id !== selectedDirection);
+      
+      if (selectedDirs.length === 0) {
+        setAllActiveHabits([]);
+        setAllActiveGoals([]);
+        return;
+      }
+
+      // Load tasks from all selected directions (excluding current)
+      const allHabits: Task[] = [];
+      const allGoals: Task[] = [];
+
+      for (const dir of selectedDirs) {
+        try {
+          const res = await fetch(`/api/growth/tasks.list?directionId=${dir.id}`, {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+
+          if (res.ok) {
+            const { habits, goals } = await res.json();
+            
+            // Filter only active tasks
+            const activeHabits = (habits || []).filter(
+              (h: Task) => h.isActivated && h.userTask?.status === 'active'
+            );
+            const activeGoals = (goals || []).filter(
+              (g: Task) => g.isActivated && g.userTask?.status === 'active'
+            );
+
+            // Add direction info to tasks
+            activeHabits.forEach((h: Task) => {
+              allHabits.push({ ...h, direction_id: dir.id });
+            });
+            activeGoals.forEach((g: Task) => {
+              allGoals.push({ ...g, direction_id: dir.id });
+            });
+          }
+        } catch (error) {
+          console.error(`Error loading tasks for direction ${dir.id}:`, error);
+        }
+      }
+
+      setAllActiveHabits(allHabits);
+      setAllActiveGoals(allGoals);
+    } catch (error: any) {
+      console.error('Error loading summary:', error);
+    } finally {
+      setLoadingSummary(false);
     }
   }
 
@@ -153,6 +233,8 @@ function GrowthDirectionsInner() {
       }
 
       await loadDirections();
+      // Reload summary after toggling direction
+      setTimeout(() => loadSummary(), 500);
     } catch (error: any) {
       console.error('Error toggling direction:', error);
       alert(error.message || 'Failed to toggle direction');
@@ -187,6 +269,8 @@ function GrowthDirectionsInner() {
       }
 
       await loadTasks(selectedDirection!);
+      // Reload summary after activating task
+      await loadSummary();
     } catch (error: any) {
       console.error('Error activating task:', error);
       alert(error.message || 'Failed to activate task');
@@ -221,6 +305,8 @@ function GrowthDirectionsInner() {
       }
 
       await loadTasks(selectedDirection!);
+      // Reload summary after deactivating task
+      await loadSummary();
     } catch (error: any) {
       console.error('Error deactivating task:', error);
       alert(error.message || 'Failed to deactivate task');
@@ -233,21 +319,75 @@ function GrowthDirectionsInner() {
     }
   }
 
-  async function checkInHabit(userTaskId: string) {
-    if (checkingIn.has(userTaskId)) return;
-    setCheckingIn((prev) => new Set(prev).add(userTaskId));
+  function openCheckInModal(userTaskId: string, task: Task) {
+    setShowCheckInModal({ userTaskId, task });
+    // Pre-fill post with task information
+    const taskInfo = `?? Task: ${task.title}
 
+?? Description: ${task.description}
+
+? Check-in progress`;
+    setCheckInPostForm({ body: taskInfo, image: null, video: null });
+  }
+
+  async function uploadToStorage(file: File, folder: 'images' | 'videos') {
+    const ext = file.name.split('.').pop() || 'bin';
+    const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const bucket = supabase.storage.from('posts');
+    const { error } = await bucket.upload(path, file, {
+      upsert: false,
+      contentType: file.type,
+    });
+    if (error) throw error;
+    const { data } = bucket.getPublicUrl(path);
+    return data.publicUrl as string;
+  }
+
+  async function publishCheckInPost() {
+    if (!showCheckInModal) return;
+    if (!checkInPostForm.body.trim() && !checkInPostForm.image && !checkInPostForm.video) {
+      alert('Post cannot be empty');
+      return;
+    }
+
+    setPublishingPost(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        alert('Sign in required');
+        return;
+      }
 
+      let image_url: string | null = null;
+      let video_url: string | null = null;
+      
+      if (checkInPostForm.image) {
+        image_url = await uploadToStorage(checkInPostForm.image, 'images');
+      }
+      if (checkInPostForm.video) {
+        video_url = await uploadToStorage(checkInPostForm.video, 'videos');
+      }
+
+      // Create post in feed
+      const { error: postError } = await supabase
+        .from('posts')
+        .insert({
+          user_id: session.user.id,
+          body: checkInPostForm.body.trim() || null,
+          image_url,
+          video_url,
+        });
+
+      if (postError) throw postError;
+
+      // Perform check-in after post is created
       const res = await fetch('/api/growth/habits.checkin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ userTaskId }),
+        body: JSON.stringify({ userTaskId: showCheckInModal.userTaskId }),
       });
 
       if (!res.ok) {
@@ -255,17 +395,32 @@ function GrowthDirectionsInner() {
         throw new Error(error.error || 'Failed to check in');
       }
 
+      // Reset form and close modal
+      setCheckInPostForm({ body: '', image: null, video: null });
+      setShowCheckInModal(null);
+      
+      // Reload tasks to show updated check-in status
       await loadTasks(selectedDirection!);
+      // Reload summary after check-in
+      await loadSummary();
     } catch (error: any) {
-      console.error('Error checking in:', error);
-      alert(error.message || 'Failed to check in');
+      console.error('Error publishing check-in post:', error);
+      alert(error.message || 'Failed to publish post');
     } finally {
-      setCheckingIn((prev) => {
-        const next = new Set(prev);
-        next.delete(userTaskId);
-        return next;
-      });
+      setPublishingPost(false);
     }
+  }
+
+  async function checkInHabit(userTaskId: string) {
+    // Find the task to pass to modal
+    const allTasks = [...tasks.habits, ...tasks.goals];
+    const task = allTasks.find((t) => t.userTask?.id === userTaskId);
+    if (!task) {
+      alert('Task not found');
+      return;
+    }
+    
+    openCheckInModal(userTaskId, task);
   }
 
   async function completeGoal(userTaskId: string) {
@@ -296,6 +451,8 @@ function GrowthDirectionsInner() {
       setShowCompleteModal(null);
       setCompleteForm({ proofUrl: '', note: '' });
       await loadTasks(selectedDirection!);
+      // Reload summary after completing goal
+      await loadSummary();
     } catch (error: any) {
       console.error('Error completing goal:', error);
       alert(error.message || 'Failed to complete goal');
@@ -309,6 +466,30 @@ function GrowthDirectionsInner() {
   }
 
   const currentDirection = directions.find((d) => d.id === selectedDirection);
+  
+  // Get top 3 selected directions
+  const topSelectedDirections = directions
+    .filter((d) => d.isSelected)
+    .slice(0, 3);
+  
+  // Helper function to get emoji for direction
+  const getDirectionEmoji = (slug: string) => {
+    const emojiMap: Record<string, string> = {
+      'learning': '??',
+      'career': '??',
+      'finance': '??',
+      'health': '??',
+      'relationships': '??',
+      'community': '??',
+      'creativity': '??',
+      'mindfulness': '?????',
+      'personal': '??',
+      'digital': '??',
+      'education': '??',
+      'purpose': '???',
+    };
+    return emojiMap[slug] || '??';
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
@@ -321,6 +502,123 @@ function GrowthDirectionsInner() {
           Select directions and activate tasks to track your growth.
         </p>
       </div>
+
+      {/* Summary Section */}
+      {!loading && (
+        <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
+          <h2 className={`font-semibold text-lg mb-4 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+            ?? Summary for Work & Analysis
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+            {/* Top 3 Selected Directions */}
+            <div>
+              <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                Top 3 Selected Categories
+              </h3>
+              {topSelectedDirections.length === 0 ? (
+                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  No categories selected
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {topSelectedDirections.map((dir) => (
+                    <div
+                      key={dir.id}
+                      className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}
+                    >
+                      <span className="text-lg">{getDirectionEmoji(dir.slug)}</span>
+                      <span className={`text-sm font-medium ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        {dir.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Active Habits */}
+            <div>
+              <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                Active Habits ({allActiveHabits.length})
+              </h3>
+              {loadingSummary ? (
+                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  Loading...
+                </p>
+              ) : allActiveHabits.length === 0 ? (
+                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  No active habits
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {allActiveHabits.map((habit) => {
+                    const dir = directions.find((d) => d.id === habit.direction_id);
+                    return (
+                      <div
+                        key={habit.id}
+                        className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}
+                      >
+                        <span className="text-sm">{getDirectionEmoji(dir?.slug || '')}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium truncate ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                            {habit.title}
+                          </p>
+                          {habit.userTask && (
+                            <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                              ?? Streak: {habit.userTask.current_streak} | ? Check-ins: {habit.userTask.total_checkins}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Active Goals */}
+            <div>
+              <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                Active Goals ({allActiveGoals.length})
+              </h3>
+              {loadingSummary ? (
+                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  Loading...
+                </p>
+              ) : allActiveGoals.length === 0 ? (
+                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  No active goals
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {allActiveGoals.map((goal) => {
+                    const dir = directions.find((d) => d.id === goal.direction_id);
+                    return (
+                      <div
+                        key={goal.id}
+                        className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}
+                      >
+                        <span className="text-sm">{getDirectionEmoji(dir?.slug || '')}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium truncate ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                            {goal.title}
+                          </p>
+                          {goal.userTask && (
+                            <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                              Status: {goal.userTask.status === 'active' ? 'Active' : goal.userTask.status === 'completed' ? 'Completed' : 'Archived'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
@@ -359,18 +657,18 @@ function GrowthDirectionsInner() {
                             {(() => {
                               // Fix emoji mapping if they come as ?? from DB
                               const emojiMap: Record<string, string> = {
-                                'learning': '🧠',
-                                'career': '💼',
-                                'finance': '💰',
-                                'health': '🧘',
-                                'relationships': '❤️',
-                                'community': '🌍',
-                                'creativity': '🎨',
-                                'mindfulness': '🧘‍♂️',
-                                'personal': '🌱',
-                                'digital': '🌐',
-                                'education': '📚',
-                                'purpose': '🕊️',
+                                'learning': '??',
+                            'career': '??',
+                            'finance': '??',
+                            'health': '??',
+                            'relationships': '??',
+                            'community': '??',
+                            'creativity': '??',
+                            'mindfulness': '?????',
+                            'personal': '??',
+                            'digital': '??',
+                            'education': '??',
+                            'purpose': '???',
                               };
                               if (dir.emoji === '??' || dir.emoji === '???' || dir.emoji?.includes('?')) {
                                 return emojiMap[dir.slug] || dir.emoji;
@@ -420,33 +718,33 @@ function GrowthDirectionsInner() {
                           // Always use emoji map by slug to ensure correct display
                           if (!currentDirection) return '';
                           const emojiMap: Record<string, string> = {
-                            'learning': '🧠',
-                            'career': '💼',
-                            'finance': '💰',
-                            'health': '🧘',
-                            'relationships': '❤️',
-                            'community': '🌍',
-                            'creativity': '🎨',
-                            'mindfulness': '🧘‍♂️',
-                            'personal': '🌱',
-                            'digital': '🌐',
-                            'education': '📚',
-                            'purpose': '🕊️',
+                            'learning': '??',
+                            'career': '??',
+                            'finance': '??',
+                            'health': '??',
+                            'relationships': '??',
+                            'community': '??',
+                            'creativity': '??',
+                            'mindfulness': '?????',
+                            'personal': '??',
+                            'digital': '??',
+                            'education': '??',
+                            'purpose': '???',
                           };
                           // Always return emoji from map based on slug
                           return emojiMap[currentDirection.slug] || currentDirection.emoji || '??';
                         })()}
                       </span>
                       <div>
-                      <h2 className={`font-semibold text-xl ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                        {currentDirection?.title}
-                      </h2>
-                      <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                        {currentDirection?.stats.activeHabits} habits, {currentDirection?.stats.activeGoals} goals active
-                      </p>
+                        <h2 className={`font-semibold text-xl ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                          {currentDirection?.title}
+                        </h2>
+                        <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                          {currentDirection?.stats.activeHabits} habits, {currentDirection?.stats.activeGoals} goals active
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
                 {loadingTasks ? (
                   <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
@@ -466,8 +764,8 @@ function GrowthDirectionsInner() {
                       ) : (
                         tasks.habits.map((habit) => {
                           const isActivating = activating.has(habit.id);
-                          const isCheckingIn = checkingIn.has(habit.userTask?.id || '');
                           const isActive = habit.isActivated && habit.userTask?.status === 'active';
+                          const isModalOpen = showCheckInModal?.userTaskId === habit.userTask?.id;
 
                           return (
                             <div
@@ -525,11 +823,11 @@ function GrowthDirectionsInner() {
                                   <>
                                     <Button
                                       onClick={() => checkInHabit(habit.userTask!.id)}
-                                      disabled={isCheckingIn}
+                                      disabled={publishingPost || isModalOpen}
                                       variant="primary"
                                       className="flex-1"
                                     >
-                                      {isCheckingIn ? 'Checking in?' : 'Check in'}
+                                      {publishingPost && isModalOpen ? 'Publishing...' : 'Check in'}
                                     </Button>
                                     <Button
                                       onClick={() => deactivateTask(habit.userTask!.id)}
@@ -695,6 +993,138 @@ function GrowthDirectionsInner() {
                   setShowCompleteModal(null);
                   setCompleteForm({ proofUrl: '', note: '' });
                 }}
+                variant="secondary"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Check-in Post Modal */}
+      {showCheckInModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className={`absolute inset-0 ${isLight ? 'bg-black/50' : 'bg-black/80'}`}
+            onClick={() => !publishingPost && setShowCheckInModal(null)}
+          />
+          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-white' : 'bg-[rgba(15,22,35,0.95)]'} rounded-2xl p-6 space-y-4`}>
+            <div className="flex items-center justify-between">
+              <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                Create Check-in Post
+              </h3>
+              <button
+                onClick={() => !publishingPost && setShowCheckInModal(null)}
+                className={`transition ${isLight ? 'text-telegram-text-secondary hover:text-telegram-blue' : 'text-telegram-text-secondary hover:text-telegram-blue-light'}`}
+                aria-label="Close"
+              >
+                ?
+              </button>
+            </div>
+            
+            {/* Task Info Display */}
+            <div className={`p-3 rounded-xl ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}>
+              <div className={`text-xs font-medium mb-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                Task Information
+              </div>
+              <div className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                {showCheckInModal.task.title}
+              </div>
+              <div className={`text-sm mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                {showCheckInModal.task.description}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Post Content
+                </label>
+                <textarea
+                  value={checkInPostForm.body}
+                  onChange={(e) => setCheckInPostForm((prev) => ({ ...prev, body: e.target.value }))}
+                  placeholder="Add your thoughts about this check-in..."
+                  rows={6}
+                  className={`input w-full ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                  Media (optional)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    id="checkin-image-input"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (file && file.type.startsWith('image/')) {
+                        setCheckInPostForm((prev) => ({ ...prev, image: file, video: null }));
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="checkin-image-input"
+                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
+                      isLight
+                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
+                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                    }`}
+                  >
+                    ?? Image
+                  </label>
+                  
+                  <input
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    id="checkin-video-input"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (file && file.type.startsWith('video/')) {
+                        setCheckInPostForm((prev) => ({ ...prev, video: file, image: null }));
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="checkin-video-input"
+                    className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
+                      isLight
+                        ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
+                        : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                    }`}
+                  >
+                    ?? Video
+                  </label>
+                  
+                  {(checkInPostForm.image || checkInPostForm.video) && (
+                    <span className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      {checkInPostForm.image ? `Image: ${checkInPostForm.image.name}` : `Video: ${checkInPostForm.video?.name}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={publishCheckInPost}
+                disabled={publishingPost}
+                variant="primary"
+                className="flex-1"
+              >
+                {publishingPost ? 'Publishing...' : 'Publish & Check-in'}
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowCheckInModal(null);
+                  setCheckInPostForm({ body: '', image: null, video: null });
+                }}
+                disabled={publishingPost}
                 variant="secondary"
               >
                 Cancel
