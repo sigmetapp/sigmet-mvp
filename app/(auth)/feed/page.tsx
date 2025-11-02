@@ -628,17 +628,6 @@ function FeedInner() {
               className="telegram-card-feature p-4 md:p-6 space-y-4 relative"
               onMouseEnter={() => addViewOnce(p.id)}
             >
-              {/* Post action menu */}
-              {uid === p.user_id && editingId !== p.id && (
-                <PostActionMenu
-                  onEdit={() => {
-                    setEditingId(p.id);
-                    setEditBody(p.body || "");
-                  }}
-                  onDelete={() => deletePost(p)}
-                />
-              )}
-
               {/* header */}
               <div className="flex items-center justify-between relative z-10">
                 <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
@@ -667,6 +656,16 @@ function FeedInner() {
                 </div>
                 <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                   <span className="whitespace-nowrap">{new Date(p.created_at).toLocaleString()}</span>
+                  {uid === p.user_id && editingId !== p.id && (
+                    <PostActionMenu
+                      onEdit={() => {
+                        setEditingId(p.id);
+                        setEditBody(p.body || "");
+                      }}
+                      onDelete={() => deletePost(p)}
+                      className="ml-2"
+                    />
+                  )}
                 </div>
               </div>
 

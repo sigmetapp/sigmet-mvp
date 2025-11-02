@@ -21,6 +21,7 @@ export default function PostActionMenu({
   const [isConfirm, setIsConfirm] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const confirmDialogRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const deleteButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -210,7 +211,7 @@ export default function PostActionMenu({
       };
 
   return (
-    <div className={`relative ${className}`}>
+    <div ref={containerRef} className={`relative inline-flex ${className}`}>
       {/* Trigger button */}
       <motion.button
         ref={buttonRef}
@@ -221,7 +222,7 @@ export default function PostActionMenu({
         aria-expanded={isOpen}
         aria-label="Post actions"
         data-testid="action-trigger"
-        className="absolute top-2 right-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-telegram-text-secondary hover:text-telegram-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 active:scale-[0.95] z-50"
+        className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-telegram-text-secondary hover:text-telegram-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 active:scale-[0.95] z-50"
       >
         <motion.div
           whileHover={{ scale: 1.05 }}
@@ -235,7 +236,7 @@ export default function PostActionMenu({
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Local overlay inside card */}
+            {/* Local overlay inside card - positioned relative to nearest relative parent (card) */}
             <motion.div
               {...overlayAnimation}
               className="absolute inset-0 backdrop-blur-sm bg-black/20 dark:bg-black/30 z-40"
@@ -254,11 +255,11 @@ export default function PostActionMenu({
               aria-hidden="true"
             />
 
-            {/* Menu */}
+            {/* Menu - positioned relative to button */}
             <motion.div
               {...menuAnimation}
               ref={menuRef}
-              className="absolute z-50 right-2 top-10 w-44 rounded-xl border border-white/10 bg-white dark:bg-zinc-900 shadow-xl p-1"
+              className="absolute z-50 right-0 top-full mt-2 w-44 rounded-xl border border-white/10 bg-white dark:bg-zinc-900 shadow-xl p-1"
               data-testid="action-menu"
             >
               {!isConfirm ? (
