@@ -212,6 +212,8 @@ function GrowthDirectionsInner() {
       let dedupedBySlug = prepareDirections(rawDirections);
 
       const selectedPrimaryDirections = dedupedBySlug.filter((dir) => dir.isSelected && dir.isPrimary);
+      const selectedSecondaryDirections = dedupedBySlug.filter((dir) => dir.isSelected && !dir.isPrimary);
+      
       if (selectedPrimaryDirections.length > 3) {
         const extraPrimary = selectedPrimaryDirections.slice(3);
         alert('You can only keep three primary directions. The most recently added extras were deselected.');
@@ -239,6 +241,41 @@ function GrowthDirectionsInner() {
 
         if (!refreshedRes.ok) {
           throw new Error('Failed to refresh directions after enforcing primary limit');
+        }
+
+        const { directions: refreshedDirs } = await refreshedRes.json();
+        dedupedBySlug = prepareDirections(Array.isArray(refreshedDirs) ? refreshedDirs : []);
+      }
+      
+      // Also check secondary limit
+      const refreshedSecondaryCount = dedupedBySlug.filter((dir) => dir.isSelected && !dir.isPrimary).length;
+      if (refreshedSecondaryCount > 3) {
+        const extraSecondary = dedupedBySlug.filter((dir) => dir.isSelected && !dir.isPrimary).slice(3);
+        alert('You can only keep three additional directions. The most recently added extras were deselected.');
+
+        for (const extra of extraSecondary) {
+          try {
+            await fetch('/api/growth/directions.toggle', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ directionId: extra.id }),
+            });
+          } catch (toggleError) {
+            console.error('Error enforcing secondary limit:', toggleError);
+          }
+        }
+
+        const refreshedRes = await fetch('/api/growth/directions.list', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (!refreshedRes.ok) {
+          throw new Error('Failed to refresh directions after enforcing secondary limit');
         }
 
         const { directions: refreshedDirs } = await refreshedRes.json();
@@ -466,10 +503,20 @@ function GrowthDirectionsInner() {
       (count, dir) => (dir.isSelected && dir.isPrimary ? count + 1 : count),
       0
     );
+    const selectedSecondaryCount = directions.reduce(
+      (count, dir) => (dir.isSelected && !dir.isPrimary ? count + 1 : count),
+      0
+    );
 
-    if (!direction.isSelected && direction.isPrimary && selectedPrimaryCount >= 3) {
-      setNotification({ message: 'Cannot add more than 3 priority directions' });
-      return;
+    if (!direction.isSelected) {
+      if (direction.isPrimary && selectedPrimaryCount >= 3) {
+        setNotification({ message: 'Cannot add more than 3 priority directions' });
+        return;
+      }
+      if (!direction.isPrimary && selectedSecondaryCount >= 3) {
+        setNotification({ message: 'Cannot add more than 3 additional directions' });
+        return;
+      }
     }
 
     setToggling((prev) => new Set(prev).add(directionId));
@@ -1248,14 +1295,23 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                                     Completed
                                   </div>
                                 ) : isActive ? (
-                                  <Button
-                                    onClick={() => setShowCompleteModal({ taskId: goal.id, userTaskId: goal.userTask!.id })}
-                                    disabled={isCompleting}
-                                    variant="primary"
-                                    className="flex-1"
-                                  >
-                                    {isCompleting ? 'Completing...' : 'Complete'}
-                                  </Button>
+                                  <>
+                                    <Button
+                                      onClick={() => setShowCompleteModal({ taskId: goal.id, userTaskId: goal.userTask!.id })}
+                                      disabled={isCompleting}
+                                      variant="primary"
+                                      className="flex-1"
+                                    >
+                                      {isCompleting ? 'Completing...' : 'Complete'}
+                                    </Button>
+                                    <Button
+                                      onClick={() => deactivateTask(goal.userTask!.id)}
+                                      disabled={isActivating}
+                                      variant="secondary"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </>
                                 ) : (
                                   <Button
                                     onClick={() => activateTask(goal.id)}
