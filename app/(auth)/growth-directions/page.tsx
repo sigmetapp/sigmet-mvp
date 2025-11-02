@@ -521,13 +521,14 @@ function GrowthDirectionsInner() {
       });
 
       if (!res.ok) {
-        throw new Error('Failed to toggle direction');
+        const errorData = await res.json().catch(() => ({ error: 'Failed to toggle direction' }));
+        throw new Error(errorData.error || 'Failed to toggle direction');
       }
 
       await loadDirections();
     } catch (error: any) {
       console.error('Error toggling direction:', error);
-      alert(error.message || 'Failed to toggle direction');
+      setNotification({ message: error.message || 'Failed to toggle direction' });
     } finally {
       setToggling((prev) => {
         const next = new Set(prev);
@@ -778,7 +779,9 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
   const selectedPrimaryDirections = directions.filter((d) => d.isSelected && d.isPrimary);
   const selectedSecondaryDirections = directions.filter((d) => d.isSelected && !d.isPrimary);
   const selectedPrimaryCount = selectedPrimaryDirections.length;
+  const selectedSecondaryCount = selectedSecondaryDirections.length;
   const primaryLimitReached = selectedPrimaryCount >= 3;
+  const secondaryLimitReached = selectedSecondaryCount >= 3;
   const displayedHabits = getDisplayedTasks(tasks.habits, 'habit');
   const displayedGoals = getDisplayedTasks(tasks.goals, 'goal');
   const extraHabits = Math.max(0, tasks.habits.length - displayedHabits.length);
@@ -994,7 +997,9 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                 {directions.map((dir) => {
                   const isToggling = toggling.has(dir.id);
                   const isSelected = selectedDirection === dir.id;
-                  const disableSelection = !dir.isSelected && dir.isPrimary && primaryLimitReached;
+                  const disableSelectionPrimary = !dir.isSelected && dir.isPrimary && primaryLimitReached;
+                  const disableSelectionSecondary = !dir.isSelected && !dir.isPrimary && secondaryLimitReached;
+                  const disableSelection = disableSelectionPrimary || disableSelectionSecondary;
                   const buttonLabel = isToggling
                     ? '...'
                     : dir.isSelected
@@ -1037,7 +1042,7 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
                             toggleDirection(dir.id);
                           }}
                           disabled={isToggling || disableSelection}
-                          title={disableSelection ? 'Only three primary directions are allowed' : undefined}
+                          title={disableSelectionPrimary ? 'Only three primary directions are allowed' : disableSelectionSecondary ? 'Only three additional directions are allowed' : undefined}
                           className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
                             dir.isSelected
                               ? 'bg-white/20 text-white'
