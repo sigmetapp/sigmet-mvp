@@ -12,11 +12,13 @@ type PostCardPost = {
   commentsCount?: number;
 };
 
-type PostCardProps = {
+type PostCardProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'children' | 'onClick' | 'onKeyDown'> & {
   post: PostCardPost;
   onOpen?: (id: string) => void;
   children?: React.ReactNode;
   className?: string;
+  disableNavigation?: boolean;
+  renderContent?: (post: PostCardPost, defaultContent: React.ReactNode) => React.ReactNode;
 };
 
 type Ripple = {
@@ -29,7 +31,15 @@ type Ripple = {
 const INTERACTIVE_SELECTOR =
   'a, button, [role="button"], input, textarea, select, label, svg, [data-interactive], [data-prevent-card-navigation="true"]';
 
-export default function PostCard({ post, onOpen, children, className }: PostCardProps) {
+export default function PostCard({
+  post,
+  onOpen,
+  children,
+  className,
+  disableNavigation = false,
+  renderContent,
+  ...rest
+}: PostCardProps) {
   const router = useRouter();
   const cardRef = useRef<HTMLDivElement>(null);
   const rippleTimeouts = useRef<Array<ReturnType<typeof setTimeout>>>([]);
@@ -111,6 +121,7 @@ export default function PostCard({ post, onOpen, children, className }: PostCard
 
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
+      if (disableNavigation) return;
       if (event.defaultPrevented) return;
       if (event.button !== 0) return;
 
@@ -122,11 +133,12 @@ export default function PostCard({ post, onOpen, children, className }: PostCard
       triggerRipple(event);
       openPost();
     },
-    [openPost, triggerRipple]
+    [disableNavigation, openPost, triggerRipple]
   );
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (disableNavigation) return;
       if (event.key !== 'Enter' && event.key !== ' ') {
         return;
       }
@@ -139,11 +151,12 @@ export default function PostCard({ post, onOpen, children, className }: PostCard
       event.preventDefault();
       openPost();
     },
-    [openPost]
+    [disableNavigation, openPost]
   );
 
   const containerClassName = [
-    'relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900 cursor-pointer',
+    'relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900',
+    disableNavigation ? 'cursor-default' : 'cursor-pointer',
     className,
   ]
     .filter(Boolean)
@@ -156,66 +169,75 @@ export default function PostCard({ post, onOpen, children, className }: PostCard
     return `${count.toLocaleString()} ${suffix}`;
   }, [post.commentsCount]);
 
+  const defaultContent = (
+    <div className="relative z-10 flex flex-col gap-3">
+      <header className="flex items-start justify-between gap-4">
+        <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{post.author}</div>
+        {formattedCreatedAt && (
+          <time
+            dateTime={createdAtDate ? createdAtDate.toISOString() : undefined}
+            className="text-xs text-slate-500 dark:text-slate-400"
+          >
+            {formattedCreatedAt}
+          </time>
+        )}
+      </header>
+
+      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">{post.content}</p>
+
+      {commentsLabel && (
+        <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{commentsLabel}</div>
+      )}
+
+      {children && <div className="pt-1">{children}</div>}
+    </div>
+  );
+
+  const body = renderContent ? renderContent(post, defaultContent) : defaultContent;
+
   return (
     <motion.div
       ref={cardRef}
-      role="button"
-      aria-label="Open post"
-      tabIndex={0}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
+      role={disableNavigation ? undefined : 'button'}
+      aria-label={disableNavigation ? undefined : 'Open post'}
+      tabIndex={disableNavigation ? undefined : 0}
+      onClick={disableNavigation ? undefined : handleClick}
+      onKeyDown={disableNavigation ? undefined : handleKeyDown}
       initial={false}
       animate={{ y: 0, boxShadow: '0 0 0 rgba(15, 23, 42, 0)' }}
-      whileHover={supportsHover ? { y: -4, boxShadow: '0 18px 32px rgba(15, 23, 42, 0.12)' } : undefined}
-      whileTap={{ scale: 0.98 }}
+      whileHover={
+        !disableNavigation && supportsHover ? { y: -4, boxShadow: '0 18px 32px rgba(15, 23, 42, 0.12)' } : undefined
+      }
+      whileTap={!disableNavigation ? { scale: 0.98 } : undefined}
       transition={{ duration: 0.2, ease: 'easeOut' }}
       className={containerClassName}
       data-post-id={post.id}
+      {...rest}
     >
-      <div className="relative z-10 flex flex-col gap-3">
-        <header className="flex items-start justify-between gap-4">
-          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{post.author}</div>
-          {formattedCreatedAt && (
-            <time
-              dateTime={createdAtDate ? createdAtDate.toISOString() : undefined}
-              className="text-xs text-slate-500 dark:text-slate-400"
-            >
-              {formattedCreatedAt}
-            </time>
-          )}
-        </header>
+      {body}
 
-        <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">
-          {post.content}
-        </p>
-
-        {commentsLabel && (
-          <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{commentsLabel}</div>
-        )}
-
-        {children && <div className="pt-1">{children}</div>}
-      </div>
-
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <AnimatePresence>
-          {ripples.map((ripple) => (
-            <motion.span
-              key={ripple.id}
-              className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500/20"
-              style={{
-                left: ripple.x,
-                top: ripple.y,
-                width: ripple.size,
-                height: ripple.size,
-              }}
-              initial={{ opacity: 0.5, scale: 0 }}
-              animate={{ opacity: 0, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
-            />
-          ))}
-        </AnimatePresence>
-      </div>
+      {!disableNavigation && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <AnimatePresence>
+            {ripples.map((ripple) => (
+              <motion.span
+                key={ripple.id}
+                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500/20"
+                style={{
+                  left: ripple.x,
+                  top: ripple.y,
+                  width: ripple.size,
+                  height: ripple.size,
+                }}
+                initial={{ opacity: 0.5, scale: 0 }}
+                animate={{ opacity: 0, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+              />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
     </motion.div>
   );
 }

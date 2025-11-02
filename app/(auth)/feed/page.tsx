@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { RequireAuth } from "@/components/RequireAuth";
 import Button from "@/components/Button";
+import PostCard from "@/components/PostCard";
 import { useTheme } from "@/components/ThemeProvider";
 import PostReactions, { ReactionType } from "@/components/PostReactions";
 import PostActionMenu from "@/components/PostActionMenu";
@@ -624,11 +625,22 @@ function FeedInner() {
           <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading…</div>
         ) : (
           posts.map((p) => (
-            <div
+            <PostCard
               key={p.id}
-              className="telegram-card-feature p-4 md:p-6 space-y-4 relative"
+              post={{
+                id: String(p.id),
+                author: (() => {
+                  const prof = p.user_id ? profilesByUserId[p.user_id] : undefined;
+                  return prof?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
+                })(),
+                content: p.body ?? '',
+                createdAt: p.created_at,
+                commentsCount: commentCounts[p.id] ?? 0,
+              }}
+              className="telegram-card-feature md:p-6 space-y-4 relative"
               onMouseEnter={() => addViewOnce(p.id)}
-            >
+              renderContent={() => (
+                <div className="relative z-10 space-y-4">
               {/* header */}
               <div className="flex items-center justify-between relative z-10">
                 <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
@@ -981,7 +993,7 @@ function FeedInner() {
                   </div>
                 </div>
               )}
-            </div>
+            />
           ))
         )}
 
