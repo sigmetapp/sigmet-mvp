@@ -71,21 +71,6 @@ function FeedInner() {
   const viewedOnce = useRef<Set<number>>(new Set());
   const [openMenuFor, setOpenMenuFor] = useState<number | null>(null);
 
-  // Reactions state: per-post counts by kind and my reactions set
-  type ReactionKind = "growth" | "value" | "with_you";
-  const REACTION_META: Record<ReactionKind, { label: string; emoji: string }> = {
-    growth: { label: "Growth", emoji: "🌱" },
-    value: { label: "Value", emoji: "💎" },
-    with_you: { label: "With You", emoji: "🤝" },
-  };
-  const [reactionsByPostId, setReactionsByPostId] = useState<
-    Record<number, { growth: number; value: number; with_you: number }>
-  >({});
-  const [myReactionsByPostId, setMyReactionsByPostId] = useState<
-    Record<number, Set<ReactionKind>>
-  >({});
-  const [reactionBursts, setReactionBursts] = useState<Record<string, number>>({});
-
   // Directions toggle (from profile selections)
   const GROWTH_AREAS = useMemo(
     () => [
@@ -163,36 +148,6 @@ function FeedInner() {
     setLoading(false);
   }
 
-  // Preload reactions for current posts
-  useEffect(() => {
-    if (posts.length === 0) return;
-    (async () => {
-      try {
-        const ids = posts.map((p) => p.id);
-        const { data, error } = await supabase
-          .from("post_reactions")
-          .select("post_id, kind, user_id")
-          .in("post_id", ids);
-        if (error || !data) return;
-        const counts: Record<number, { growth: number; value: number; with_you: number }> = {};
-        const mine: Record<number, Set<ReactionKind>> = {};
-        for (const r of data as any[]) {
-          const pid = r.post_id as number;
-          const kind = (r.kind as string) as ReactionKind;
-          if (!counts[pid]) counts[pid] = { growth: 0, value: 0, with_you: 0 };
-          if (kind in counts[pid]) (counts[pid] as any)[kind] += 1;
-          if (r.user_id && r.user_id === uid) {
-            if (!mine[pid]) mine[pid] = new Set();
-            mine[pid].add(kind);
-          }
-        }
-        setReactionsByPostId(counts);
-        setMyReactionsByPostId(mine);
-      } catch {
-        // silently ignore if table not present
-      }
-    })();
-  }, [posts, uid]);
 
   // preload likes state for my user
   useEffect(() => {
@@ -338,61 +293,6 @@ function FeedInner() {
     }
   }
 
-  // --- reactions V2 (separate kinds)
-  async function toggleReaction(postId: number, kind: ReactionKind) {
-    if (!uid) return alert("Sign in required");
-    const mySet = myReactionsByPostId[postId] || new Set<ReactionKind>();
-    const has = mySet.has(kind);
-    try {
-      if (!has) {
-        const { error } = await supabase
-          .from("post_reactions")
-          .insert({ post_id: postId, user_id: uid, kind });
-        if (error) throw error;
-        setMyReactionsByPostId((prev) => {
-          const next = { ...prev };
-          const s = new Set(next[postId] || []);
-          s.add(kind);
-          next[postId] = s;
-          return next;
-        });
-        setReactionsByPostId((prev) => {
-          const base = prev[postId] || { growth: 0, value: 0, with_you: 0 };
-          return { ...prev, [postId]: { ...base, [kind]: (base as any)[kind] + 1 } } as any;
-        });
-        const key = `${postId}:${kind}`;
-        setReactionBursts((prev) => ({ ...prev, [key]: Date.now() }));
-        setTimeout(() => {
-          setReactionBursts((prev) => {
-            const next = { ...prev } as any;
-            delete next[key];
-            return next;
-          });
-        }, 500);
-      } else {
-        const { error } = await supabase
-          .from("post_reactions")
-          .delete()
-          .eq("post_id", postId)
-          .eq("user_id", uid)
-          .eq("kind", kind);
-        if (error) throw error;
-        setMyReactionsByPostId((prev) => {
-          const next = { ...prev };
-          const s = new Set(next[postId] || []);
-          s.delete(kind);
-          next[postId] = s;
-          return next;
-        });
-        setReactionsByPostId((prev) => {
-          const base = prev[postId] || { growth: 0, value: 0, with_you: 0 };
-          return { ...prev, [postId]: { ...base, [kind]: Math.max(0, (base as any)[kind] - 1) } } as any;
-        });
-      }
-    } catch (e: any) {
-      console.error(e);
-    }
-  }
 
   // --- edit/delete
   async function deletePost(p: Post) {
@@ -763,48 +663,6 @@ function FeedInner() {
                   <Eye />
                   <span className="text-sm">{p.views ?? 0}</span>
                 </div>
-
-              <div className="flex items-center gap-2">
-                {(["growth", "value", "with_you"] as ReactionKind[]).map((k) => {
-                  const active = myReactionsByPostId[p.id]?.has(k);
-                  const counts = reactionsByPostId[p.id] || { growth: 0, value: 0, with_you: 0 };
-                  const color =
-                    k === "growth"
-                      ? active
-                        ? "bg-emerald-300 text-black border-emerald-300"
-                        : "hover:bg-emerald-300/15 border-emerald-300/30"
-                      : k === "value"
-                      ? active
-                        ? "bg-cyan-300 text-black border-cyan-300"
-                        : "hover:bg-cyan-300/15 border-cyan-300/30"
-                      : active
-                      ? "bg-violet-300 text-black border-violet-300"
-                      : "hover:bg-violet-300/15 border-violet-300/30";
-                  return (
-                    <button
-                      key={k}
-                      onClick={() => toggleReaction(p.id, k)}
-                      className={`relative overflow-hidden px-2.5 py-1 rounded-lg text-sm border transition will-change-transform active:scale-95 ${color}`}
-                      title={REACTION_META[k].label}
-                    >
-                      <span className="mr-1">{REACTION_META[k].emoji}</span>
-                      <span>{REACTION_META[k].label}</span>
-                      <span className="ml-1 text-white/70">{(counts as any)[k] ?? 0}</span>
-                      {reactionBursts[`${p.id}:${k}`] && (
-                        <span
-                          className={`pointer-events-none absolute inset-0 animate-ping rounded-lg opacity-40 ${
-                            k === "growth"
-                              ? "bg-emerald-300"
-                              : k === "value"
-                              ? "bg-cyan-300"
-                              : "bg-violet-300"
-                          }`}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
 
                 <button
                   className={`ml-auto text-sm underline hover:no-underline transition ${isLight ? "text-telegram-blue hover:text-telegram-blue-dark" : "text-telegram-blue-light hover:text-telegram-blue"}`}

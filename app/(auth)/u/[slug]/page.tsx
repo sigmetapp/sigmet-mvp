@@ -73,12 +73,8 @@ export default function PublicProfilePage() {
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [presenceChannel, setPresenceChannel] = useState<RealtimeChannel | null>(null);
 
-  // comment/reaction stats for posts
-  type ReactionKind = 'growth' | 'value' | 'with_you';
+  // comment stats for posts
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
-  const [reactionsByPostId, setReactionsByPostId] = useState<
-    Record<number, { growth: number; value: number; with_you: number }>
-  >({});
   const [viewsByPostId, setViewsByPostId] = useState<Record<number, number>>({});
 
   // avatar upload (own profile)
@@ -299,23 +295,6 @@ export default function PublicProfilePage() {
           // ignore
         }
 
-        // reactions
-        try {
-          const { data } = await supabase
-            .from('post_reactions')
-            .select('post_id, kind')
-            .in('post_id', ids);
-          const counts: Record<number, { growth: number; value: number; with_you: number }> = {};
-          for (const r of ((data as any[]) || [])) {
-            const pid = r.post_id as number;
-            const kind = r.kind as ReactionKind;
-            if (!counts[pid]) counts[pid] = { growth: 0, value: 0, with_you: 0 };
-            if (kind in counts[pid]) (counts[pid] as any)[kind] += 1;
-          }
-          setReactionsByPostId(counts);
-        } catch {
-          // ignore
-        }
 
         // views (if present on posts rows)
         const vmap: Record<number, number> = {};
@@ -943,9 +922,6 @@ export default function PublicProfilePage() {
                 )}
                 <div className="flex items-center gap-4 text-sm text-white/70 pt-1">
                   <span>👁️ {viewsByPostId[p.id] ?? 0}</span>
-                  <span>🌱 {reactionsByPostId[p.id]?.growth ?? 0}</span>
-                  <span>💎 {reactionsByPostId[p.id]?.value ?? 0}</span>
-                  <span>🤝 {reactionsByPostId[p.id]?.with_you ?? 0}</span>
                   <span className="ml-auto">Comments: {commentCounts[p.id] ?? 0}</span>
                 </div>
               </div>
@@ -964,9 +940,6 @@ export default function PublicProfilePage() {
                   </video>
                 )}
                 <div className="flex items-center gap-3 text-sm text-white/80">
-                  <span>🌱 {reactionsByPostId[p.id]?.growth ?? 0}</span>
-                  <span>💎 {reactionsByPostId[p.id]?.value ?? 0}</span>
-                  <span>🤝 {reactionsByPostId[p.id]?.with_you ?? 0}</span>
                   <span className="ml-auto">Comments: {commentCounts[p.id] ?? 0}</span>
                 </div>
               </div>
