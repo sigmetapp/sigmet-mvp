@@ -88,6 +88,8 @@ const toTitleCase = (value: string | null | undefined) => {
 const getTaskElementId = (item: Pick<TaskSummaryItem, 'id' | 'type'>) =>
   item.type === 'habit' ? `habit-card-${item.id}` : `goal-card-${item.id}`;
 
+const MAX_SUMMARY_ITEMS_PER_GROUP = 3;
+
 const prepareDirections = (rawDirections: Direction[]) => {
   const uniqueSortedDirections = Array.from(
     new Map(rawDirections.map((dir) => [dir.id, dir])).values()
@@ -351,14 +353,24 @@ function GrowthDirectionsInner() {
         return;
       }
 
-      const selectedDirs = directions.filter((d) => d.isSelected);
+      const relevantDirections = directions.filter(
+        (dir) =>
+          dir.isSelected ||
+          dir.stats.activeHabits > 0 ||
+          dir.stats.activeGoals > 0
+      );
+
+      if (relevantDirections.length === 0) {
+        setSummaryTasks({ primary: [], secondary: [] });
+        return;
+      }
 
       const summaryItems: TaskSummaryItem[] = [];
       const isTaskInWork = (task: Task) => task.isActivated && (!task.userTask || task.userTask.status === 'active');
 
-      // Load tasks for all selected directions
+      // Load tasks for all relevant directions (selected or currently active)
       await Promise.all(
-        selectedDirs.map(async (dir) => {
+        relevantDirections.map(async (dir) => {
           try {
             let directionTasks: { habits: Task[]; goals: Task[] } = { habits: [], goals: [] };
 
@@ -834,8 +846,8 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
       );
     }
 
-    // Show all items, not limited to 3
-    const itemsToShow = list;
+    const itemsToShow = list.slice(0, MAX_SUMMARY_ITEMS_PER_GROUP);
+    const remainingCount = Math.max(0, list.length - itemsToShow.length);
 
     return (
       <>
@@ -878,6 +890,15 @@ ${String.fromCodePoint(0x2705)} Check-in progress`;
             </button>
           ))}
         </div>
+        {remainingCount > 0 && (
+          <p
+            className={`mt-2 text-[11px] ${
+              isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'
+            }`}
+          >
+            +{remainingCount} more in queue
+          </p>
+        )}
       </>
     );
   };
