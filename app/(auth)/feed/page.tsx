@@ -104,6 +104,20 @@ function FeedInner() {
     setText((prev) => prev + emoji);
   }, []);
   
+  const handleCommentEmojiSelect = useCallback((postId: number) => (emoji: string) => {
+    setCommentInput((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] || '') + emoji,
+    }));
+  }, []);
+  
+  const handleReplyEmojiSelect = useCallback((commentId: number) => (emoji: string) => {
+    setReplyInput((prev) => ({
+      ...prev,
+      [commentId]: (prev[commentId] || '') + emoji,
+    }));
+  }, []);
+  
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
   const [commentScores, setCommentScores] = useState<Record<number, number>>({});
@@ -1174,17 +1188,24 @@ function FeedInner() {
                                         placeholder="Write a reply?"
                                         className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
                                       />
-                                      <button
+                                      <div className="flex items-center gap-2">
+                                        <EmojiPicker
+                                          onEmojiSelect={handleReplyEmojiSelect(c.id)}
+                                          variant={isLight ? 'light' : 'dark'}
+                                          align="left"
+                                        />
+                                        <button
                                         onClick={() => {
-                                          addComment(p.id, c.id);
-                                          setReplyOpen((prev) => ({ ...prev, [c.id]: false }));
-                                          setReplyInput((prev) => ({ ...prev, [c.id]: "" }));
+                                        addComment(p.id, c.id);
+                                        setReplyOpen((prev) => ({ ...prev, [c.id]: false }));
+                                        setReplyInput((prev) => ({ ...prev, [c.id]: "" }));
                                         }}
                                         className="btn btn-primary"
-                                      >
+                                        >
                                         Reply
-                                      </button>
+                                        </button>
                                     </div>
+                                      </div>
                                   )}
                                 </div>
                                 {renderThread(c.id, depth + 1)}
@@ -1216,8 +1237,14 @@ function FeedInner() {
                               setCommentFile((prev) => ({ ...prev, [p.id]: file }));
                             }}
                           />
-                          <label
-                            htmlFor={`cfile-${p.id}`}
+                          <div className="flex items-center gap-2">
+                            <EmojiPicker
+                              onEmojiSelect={handleCommentEmojiSelect(p.id)}
+                              variant={isLight ? 'light' : 'dark'}
+                              align="left"
+                            />
+                            <label
+                              htmlFor={`cfile-${p.id}`}
                             className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition flex items-center justify-center gap-2 ${
                               isLight
                                 ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
@@ -1227,6 +1254,7 @@ function FeedInner() {
                             <Paperclip className="h-4 w-4" aria-hidden="true" />
                             <span className="sr-only">Attach file</span>
                           </label>
+                          </div>
                           {commentFile[p.id] && (
                             <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
                           )}
