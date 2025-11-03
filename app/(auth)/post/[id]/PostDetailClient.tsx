@@ -418,7 +418,14 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   <div className="flex flex-col min-w-0">
                     <span className={`text-sm font-medium truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{username}</span>
                     <time className="text-xs text-slate-500 dark:text-slate-400" dateTime={comment.created_at}>
-                      {new Date(comment.created_at).toLocaleString()}
+                      {new Intl.DateTimeFormat('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                      }).format(new Date(comment.created_at))}
                     </time>
                   </div>
                 </div>

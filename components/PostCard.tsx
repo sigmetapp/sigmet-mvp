@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTheme } from '@/components/ThemeProvider';
 
 type PostCardPost = {
   id: string;
@@ -41,6 +42,8 @@ export default function PostCard({
   ...rest
 }: PostCardProps) {
   const router = useRouter();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const cardRef = useRef<HTMLDivElement>(null);
   const rippleTimeouts = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const [ripples, setRipples] = useState<Ripple[]>([]);
@@ -180,7 +183,8 @@ export default function PostCard({
   );
 
   const containerClassName = [
-    'relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900',
+    'relative overflow-hidden rounded-xl border p-4 shadow-sm transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500',
+    isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-900',
     'post-card-glow',
     disableNavigation ? 'cursor-default' : 'cursor-pointer',
     className,
