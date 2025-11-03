@@ -56,7 +56,7 @@ export default function BadgeCard({
 
   const iconPixelSize = resolvedSize === 'sm' ? 24 : resolvedSize === 'md' ? 32 : 40;
   const wrapperSpacing = variant === 'compact' ? 'gap-2' : 'gap-3';
-  const wrapperWidth = variant === 'compact' ? 'w-[140px] shrink-0' : '';
+  const wrapperWidth = variant === 'compact' ? 'w-full max-w-[160px]' : '';
   const titleClass = variant === 'compact'
     ? 'text-white font-semibold text-xs leading-tight'
     : 'text-white font-medium text-sm';

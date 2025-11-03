@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useRef } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import React from 'react';
 import BadgeCard, { BadgeCardData } from './BadgeCard';
 
 interface BadgeGridProps {
@@ -9,7 +8,7 @@ interface BadgeGridProps {
   earnedFirst?: boolean;
   columns?: 2 | 3 | 4 | 5;
   onBadgeClick?: (badge: BadgeCardData) => void;
-  layout?: 'grid' | 'carousel';
+  cardVariant?: 'default' | 'compact';
 }
 
 export default function BadgeGrid({
@@ -17,7 +16,7 @@ export default function BadgeGrid({
   earnedFirst = true,
   columns = 3,
   onBadgeClick,
-  layout = 'grid',
+  cardVariant = 'default',
 }: BadgeGridProps) {
   // Sort badges: earned first if enabled
   const sortedBadges = earnedFirst
@@ -28,19 +27,11 @@ export default function BadgeGrid({
       })
     : badges;
 
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const scrollBy = (direction: -1 | 1) => {
-    const node = scrollRef.current;
-    if (!node) return;
-    const amount = node.clientWidth * 0.7 || 320;
-    node.scrollBy({ left: amount * direction, behavior: 'smooth' });
-  };
-
   const gridCols = {
-    2: 'grid-cols-2',
-    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-    4: 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4',
-    5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
+    2: 'grid-cols-2 sm:grid-cols-3',
+    3: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-3',
+    4: 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4',
+    5: 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-5',
   };
 
   if (badges.length === 0) {
@@ -51,56 +42,19 @@ export default function BadgeGrid({
     );
   }
 
-  if (layout === 'carousel') {
-    return (
-      <div className="relative group">
-        <button
-          type="button"
-          className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-          onClick={() => scrollBy(-1)}
-          aria-label="Scroll badges left"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-
-        <div
-          ref={scrollRef}
-          className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scroll-smooth -mx-1 px-1"
-        >
-          {sortedBadges.map((badge) => (
-            <div key={badge.key} className="snap-start">
-              <BadgeCard
-                badge={badge}
-                onClick={onBadgeClick ? () => onBadgeClick(badge) : undefined}
-                size="sm"
-                variant="compact"
-                showProgress={!badge.earned}
-              />
-            </div>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-          onClick={() => scrollBy(1)}
-          aria-label="Scroll badges right"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-    );
-  }
+  const cardSize = cardVariant === 'compact' ? 'sm' : 'md';
+  const gapClass = cardVariant === 'compact' ? 'gap-4' : 'gap-6';
+  const placementClass = cardVariant === 'compact' ? 'place-items-center' : '';
 
   return (
-    <div className={`grid ${gridCols[columns]} gap-5`}>
+    <div className={`grid ${gridCols[columns]} ${gapClass} ${placementClass}`}>
       {sortedBadges.map((badge) => (
         <BadgeCard
           key={badge.key}
           badge={badge}
           onClick={onBadgeClick ? () => onBadgeClick(badge) : undefined}
-          size="md"
-          variant="default"
+          size={cardSize}
+          variant={cardVariant}
           showProgress={!badge.earned}
         />
       ))}
