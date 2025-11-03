@@ -119,7 +119,7 @@ export default function EmojiPicker({
         >
           <Picker
             data={data}
-            set="apple"
+            set="twitter"
             theme={pickerTheme}
             onEmojiSelect={handleSelect}
             previewPosition="none"
