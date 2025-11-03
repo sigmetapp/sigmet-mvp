@@ -324,7 +324,7 @@ html.theme-light .telegram-card-glow:hover {
 
 .telegram-card-feature {
   position: relative;
-  background: rgba(39, 52, 70, 0.65);
+  background: rgba(60, 75, 100, 0.9);
   border: 1px solid rgba(51, 144, 236, 0.15);
   border-radius: 16px;
   padding: 24px;
@@ -349,7 +349,7 @@ html.theme-light .telegram-card-glow:hover {
   border-color: rgba(51, 144, 236, 0.3);
   box-shadow: 0 8px 32px rgba(51, 144, 236, 0.25), 0 4px 16px rgba(51, 144, 236, 0.15);
   transform: translateY(-4px) scale(1.02);
-  background: rgba(39, 52, 70, 0.85);
+  background: rgba(68, 85, 110, 0.95);
 }
 
 .telegram-card-feature:hover::after {
@@ -370,6 +370,72 @@ html.theme-light .telegram-card-feature:hover {
   border-color: rgba(51, 144, 236, 0.25);
   box-shadow: 0 8px 32px rgba(51, 144, 236, 0.18), 0 4px 16px rgba(51, 144, 236, 0.12);
   background: rgba(255, 255, 255, 0.9);
+}
+
+/* Post Card Glow Effect - ?????? ?????????? ????? ?????? ?????? */
+.post-card-glow {
+  position: relative;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* ?????? ???? - ?????? ???????? ??????? */
+.post-card-glow {
+  border-color: rgba(51, 144, 236, 0.2);
+  box-shadow: 0 0 0 1px rgba(51, 144, 236, 0.15);
+}
+
+/* ?????????? ????????? ????? */
+.post-card-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, 
+    rgba(51, 144, 236, 0.08) 0%, 
+    rgba(91, 168, 240, 0.05) 50%, 
+    rgba(51, 144, 236, 0.08) 100%);
+  opacity: 0.6;
+  z-index: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.post-card-glow:hover {
+  border-color: rgba(91, 168, 240, 0.4);
+  box-shadow: 0 0 0 1px rgba(91, 168, 240, 0.3);
+}
+
+.post-card-glow:hover::after {
+  opacity: 0.9;
+}
+
+/* ??????? ???? - ?????? ???????? ??????? */
+html.theme-light .post-card-glow {
+  border-color: rgba(51, 144, 236, 0.15);
+  box-shadow: 0 0 0 1px rgba(51, 144, 236, 0.12);
+}
+
+html.theme-light .post-card-glow::after {
+  background: linear-gradient(135deg, 
+    rgba(51, 144, 236, 0.06) 0%, 
+    rgba(91, 168, 240, 0.04) 50%, 
+    rgba(51, 144, 236, 0.06) 100%);
+  opacity: 0.5;
+}
+
+html.theme-light .post-card-glow:hover {
+  border-color: rgba(91, 168, 240, 0.3);
+  box-shadow: 0 0 0 1px rgba(91, 168, 240, 0.25);
+}
+
+html.theme-light .post-card-glow:hover::after {
+  opacity: 0.8;
+}
+
+/* Ensure content is above glow layers */
+.post-card-glow > * {
+  position: relative;
+  z-index: 1;
 }
 
 /*
