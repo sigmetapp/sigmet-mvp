@@ -907,22 +907,22 @@ function FeedInner() {
                           >
                             {username}
                           </a>
-                          {p.category && (
-                            <div className={`text-xs px-2 py-1 rounded-md font-medium inline-block mt-1 ${
-                              hasCategory && categoryDirection
-                                ? isLight
-                                  ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
-                                  : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
-                                : isLight
-                                ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
-                                : 'text-telegram-text-secondary bg-white/5'
-                            }`}>
-                              {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
-                            </div>
-                          )}
-                          {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && (
+                          {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              {growthStatusesByPostId[p.id].map((status) => {
+                              {p.category && (
+                                <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                  hasCategory && categoryDirection
+                                    ? isLight
+                                      ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                                      : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                                    : isLight
+                                    ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
+                                    : 'text-telegram-text-secondary bg-white/5'
+                                }`}>
+                                  {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                                </div>
+                              )}
+                              {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
                                 const statusConfig = {
                                   proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
                                   grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
