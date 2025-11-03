@@ -222,7 +222,6 @@ export default async function handler(
     const badgesWithProgress: BadgeWithProgress[] = (badges || []).map(
       (badge) => {
         const catalogBadge = BADGE_CATALOG.find((b) => b.key === badge.key);
-        const earned = earnedBadgeKeys.has(badge.key);
         const { progress, currentValue } = calculateProgress(
           catalogBadge || {
             key: badge.key,
@@ -231,6 +230,13 @@ export default async function handler(
           } as any,
           metrics as UserMetrics
         );
+
+        let earned = earnedBadgeKeys.has(badge.key);
+        const normalizedProgress = earned ? 1 : progress;
+
+        if (!earned && normalizedProgress >= 1) {
+          earned = true;
+        }
 
         return {
           key: badge.key,
@@ -246,7 +252,7 @@ export default async function handler(
           category: badge.category,
           earned,
           awardedAt: earned ? earnedBadgesMap.get(badge.key) : undefined,
-          progress: earned ? 1 : progress,
+          progress: earned ? 1 : normalizedProgress,
           currentValue,
           is_active: badge.is_active !== false, // Default to true if not set
         };
