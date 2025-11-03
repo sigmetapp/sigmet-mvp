@@ -96,21 +96,26 @@ function FeedInner() {
   const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
   const [myDirections, setMyDirections] = useState<string[]>([]);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'discuss' | 'direction'>( 'all');
 
-  const loadFeed = useCallback(async (directionId?: string | null) => {
+  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'discuss' | 'direction') => {
     setLoading(true);
     let query = supabase
       .from("posts")
       .select("*");
     
-    // Filter by direction if specified
-    if (directionId && availableDirections.length > 0) {
+    // Apply filter based on filterType
+    if (filterType === 'discuss') {
+      // Filter posts that contain "?" in body (body must not be null)
+      query = query.not('body', 'is', null).ilike('body', '%?%');
+    } else if (filterType === 'direction' && directionId && availableDirections.length > 0) {
       const direction = availableDirections.find((dir) => dir.id === directionId);
       if (direction) {
         // Filter posts where category matches direction title or slug
         query = query.or(`category.ilike.%${direction.title}%,category.ilike.%${direction.slug}%`);
       }
     }
+    // filterType === 'all' means no additional filtering
     
     const { data, error } = await query
       .order("created_at", { ascending: false })
@@ -145,15 +150,22 @@ function FeedInner() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
     // Initial load - load all posts without filter
-    loadFeed(null);
+    loadFeed(null, 'all');
   }, [loadFeed]);
 
-  // Reload feed when active direction changes
+  // Reload feed when active filter or direction changes
   useEffect(() => {
-    if (availableDirections.length > 0) {
-      loadFeed(activeDirection);
+    if (activeFilter === 'discuss') {
+      loadFeed(null, 'discuss');
+    } else if (activeFilter === 'direction') {
+      if (availableDirections.length > 0) {
+        loadFeed(activeDirection, 'direction');
+      }
+    } else {
+      // activeFilter === 'all'
+      loadFeed(null, 'all');
     }
-  }, [activeDirection, availableDirections, loadFeed]);
+  }, [activeFilter, activeDirection, availableDirections, loadFeed]);
 
   // Load directions from growth-directions API - only primary (priority) directions
   useEffect(() => {
@@ -683,52 +695,80 @@ function FeedInner() {
       </div>
 
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Directions toggle (selected in profile) */}
-        {myDirections.length > 0 && availableDirections.length > 0 && (
-          <div className="card p-3 md:p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setActiveDirection(null)}
-                className={`px-3 py-1.5 rounded-full text-sm transition border ${
-                  activeDirection === null
-                    ? isLight
-                      ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                      : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                    : isLight
-                    ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                    : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
-                }`}
-              >
-                All
-              </button>
-              {myDirections.map((id) => {
-                const meta = availableDirections.find((a) => a.id === id);
-                const slug = meta ? meta.slug : '';
-                const emoji = meta ? meta.emoji : resolveDirectionEmoji(slug, null);
-                const title = meta ? meta.title : id;
-                const label = `${emoji} ${title}`;
-                const active = activeDirection === id;
-                return (
-                  <button
-                    key={id}
-                    onClick={() => setActiveDirection(active ? null : id)}
-                    className={`px-3 py-1.5 rounded-full text-sm transition border ${
-                      active
-                        ? isLight
-                          ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                          : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                        : isLight
-                        ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                        : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
+        {/* Filters toggle */}
+        <div className="card p-3 md:p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                setActiveFilter('all');
+                setActiveDirection(null);
+              }}
+              className={`px-3 py-1.5 rounded-full text-sm transition border ${
+                activeFilter === 'all'
+                  ? isLight
+                    ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                    : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                  : isLight
+                  ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
+                  : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => {
+                setActiveFilter('discuss');
+                setActiveDirection(null);
+              }}
+              className={`px-3 py-1.5 rounded-full text-sm transition border ${
+                activeFilter === 'discuss'
+                  ? isLight
+                    ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                    : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                  : isLight
+                  ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
+                  : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+              }`}
+            >
+              ?? Discuss
+            </button>
+            {myDirections.length > 0 && availableDirections.length > 0 && myDirections.map((id) => {
+              const meta = availableDirections.find((a) => a.id === id);
+              const slug = meta ? meta.slug : '';
+              const emoji = meta ? meta.emoji : resolveDirectionEmoji(slug, null);
+              const title = meta ? meta.title : id;
+              const label = `${emoji} ${title}`;
+              const active = activeFilter === 'direction' && activeDirection === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => {
+                    if (active) {
+                      // Toggle off: switch back to 'all'
+                      setActiveFilter('all');
+                      setActiveDirection(null);
+                    } else {
+                      // Toggle on: switch to 'direction' filter
+                      setActiveFilter('direction');
+                      setActiveDirection(id);
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-sm transition border ${
+                    active
+                      ? isLight
+                        ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                        : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                      : isLight
+                      ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
+                      : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
 
         {/* Feed */}
         {loading ? (
@@ -853,12 +893,25 @@ function FeedInner() {
                       >
                         {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
                         {p.image_url && (
-                          <img src={p.image_url} loading="lazy" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
+                          <div className="mt-3 flex justify-center">
+                            <img 
+                              src={p.image_url} 
+                              loading="lazy" 
+                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} 
+                              alt="post image" 
+                            />
+                          </div>
                         )}
                         {p.video_url && (
-                          <video controls preload="metadata" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}>
-                            <source src={p.video_url} />
-                          </video>
+                          <div className="mt-3 flex justify-center">
+                            <video 
+                              controls 
+                              preload="metadata" 
+                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                            >
+                              <source src={p.video_url} />
+                            </video>
+                          </div>
                         )}
                       </div>
                     )}
@@ -1031,16 +1084,24 @@ function FeedInner() {
                                   {c.body && <div className={`mt-1 whitespace-pre-wrap ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{c.body}</div>}
                                   {c.media_url && (
                                     c.media_url.match(/\.(mp4|webm|ogg)(\?|$)/i) ? (
-                                      <video controls preload="metadata" className={`mt-2 w-full rounded-xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}>
-                                        <source src={c.media_url} />
-                                      </video>
+                                      <div className="mt-2 flex justify-center">
+                                        <video 
+                                          controls 
+                                          preload="metadata" 
+                                          className={`max-w-full max-h-[400px] w-auto h-auto rounded-xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                                        >
+                                          <source src={c.media_url} />
+                                        </video>
+                                      </div>
                                     ) : (
-                                      <img
-                                        src={c.media_url}
-                                        loading="lazy"
-                                        className={`mt-2 rounded-xl border max-h-80 object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
-                                        alt="comment media"
-                                      />
+                                      <div className="mt-2 flex justify-center">
+                                        <img
+                                          src={c.media_url}
+                                          loading="lazy"
+                                          className={`max-w-full max-h-[400px] w-auto h-auto rounded-xl border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                                          alt="comment media"
+                                        />
+                                      </div>
                                     )
                                   )}
                                   <div className="mt-2 flex items-center gap-2 text-xs">
