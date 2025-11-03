@@ -49,10 +49,6 @@ function calculateProgress(
   switch (badge.metric) {
     case 'total_posts':
       currentValue = metrics.total_posts || 0;
-      // Debug log for post_achiever badge
-      if (badge.key === 'post_achiever') {
-        console.log(`[calculateProgress] post_achiever: currentValue=${currentValue}, threshold=${badge.threshold}, total_posts=${metrics.total_posts}`);
-      }
       break;
     case 'total_comments':
       currentValue = metrics.total_comments || 0;
@@ -317,13 +313,6 @@ export default async function handler(
           metric: badge.metric,
           threshold: badge.threshold,
         } as any;
-        
-        // Debug log for post_achiever badge
-        if (badge.key === 'post_achiever') {
-          console.log(`[Badges API] Processing post_achiever badge for user ${id}`);
-          console.log(`[Badges API] Badge metric: ${badgeForProgress.metric}, threshold: ${badgeForProgress.threshold}`);
-          console.log(`[Badges API] MetricsObject total_posts: ${metricsObject.total_posts}`);
-        }
         
         const { progress, currentValue } = calculateProgress(
           badgeForProgress,
