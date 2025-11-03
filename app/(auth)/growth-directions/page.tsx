@@ -1051,6 +1051,8 @@ function GrowthDirectionsInner() {
   const displayedGoals = getDisplayedTasks(tasks.goals, 'goal');
   const extraHabits = Math.max(0, tasks.habits.length - displayedHabits.length);
   const extraGoals = Math.max(0, tasks.goals.length - displayedGoals.length);
+  const totalHabits = tasks.habits.length;
+  const totalGoals = tasks.goals.length;
 
   const renderSummaryTaskList = (list: TaskSummaryItem[]) => {
     if (loadingSummary) {
@@ -1430,7 +1432,7 @@ function GrowthDirectionsInner() {
                     <section className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                          Habits ({displayedHabits.length})
+                          Habits ({totalHabits})
                         </h3>
                         {extraHabits > 0 && (
                           <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
@@ -1544,7 +1546,7 @@ function GrowthDirectionsInner() {
                     <section className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                          Goals ({displayedGoals.length})
+                          Goals ({totalGoals})
                         </h3>
                         {extraGoals > 0 && (
                           <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
