@@ -26,6 +26,7 @@ interface BadgeCardProps {
   onClick?: () => void;
   size?: 'sm' | 'md' | 'lg';
   showProgress?: boolean;
+  variant?: 'default' | 'compact';
 }
 
 export default function BadgeCard({
@@ -33,22 +34,39 @@ export default function BadgeCard({
   onClick,
   size = 'md',
   showProgress = true,
+  variant = 'default',
 }: BadgeCardProps) {
   // Get icon component dynamically
   const IconComponent =
     (Icons as any)[badge.icon] || Icons.Award;
 
+  const resolvedSize = variant === 'compact' ? 'sm' : size;
+
   const sizeClasses = {
-    sm: 'w-20 h-20 text-2xl',
-    md: 'w-24 h-24 text-3xl',
-    lg: 'w-32 h-32 text-4xl',
+    sm: 'w-[3.75rem] h-[3.75rem] text-xl',
+    md: 'w-[4.5rem] h-[4.5rem] text-2xl',
+    lg: 'w-24 h-24 text-3xl',
   };
 
   const containerSizeClasses = {
-    sm: 'p-2',
-    md: 'p-3',
-    lg: 'p-4',
+    sm: 'p-1.5',
+    md: 'p-2.5',
+    lg: 'p-3',
   };
+
+  const iconPixelSize = resolvedSize === 'sm' ? 18 : resolvedSize === 'md' ? 24 : 30;
+  const wrapperSpacing = variant === 'compact' ? 'gap-2' : 'gap-3';
+  const wrapperWidth = variant === 'compact' ? 'w-full max-w-[120px]' : '';
+  const titleClass = variant === 'compact'
+    ? 'text-white font-semibold text-xs leading-tight'
+    : 'text-white font-medium text-sm';
+  const subtitleClass = variant === 'compact'
+    ? 'text-white/60 text-[11px]'
+    : 'text-white/60 text-xs';
+  const progressTextClass = variant === 'compact'
+    ? 'text-white/50 text-[10px]'
+    : 'text-white/50 text-xs';
+  const progressBarHeight = variant === 'compact' ? 'h-1' : 'h-1.5';
 
   // Shape-specific classes
   const shapeClasses = {
@@ -90,8 +108,8 @@ export default function BadgeCard({
   const gradientClasses = `bg-gradient-to-br ${gradientFrom} ${gradientTo}`;
 
   const badgeClasses = `
-    ${sizeClasses[size]}
-    ${containerSizeClasses[size]}
+    ${sizeClasses[resolvedSize]}
+    ${containerSizeClasses[resolvedSize]}
     ${shapeClasses[badge.shape]}
     flex items-center justify-center
     transition-all duration-300
@@ -100,20 +118,25 @@ export default function BadgeCard({
         ? 'border-2 border-white/40 shadow-lg shadow-white/10'
         : 'border-2 border-white/10 opacity-60 grayscale'
     }
-    ${onClick && badge.earned ? 'cursor-pointer hover:scale-110' : ''}
-    ${badge.earned ? 'hover:shadow-xl hover:shadow-white/20' : ''}
+    ${onClick ? 'cursor-pointer hover:scale-105' : ''}
+    ${badge.earned ? 'hover:shadow-xl hover:shadow-white/20' : 'hover:opacity-80'}
   `;
 
   const progressPercent = Math.round(badge.progress * 100);
+  const statusLabel = badge.earned
+    ? 'Earned'
+    : badge.progress > 0
+    ? `${progressPercent}%`
+    : 'Locked';
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className={`flex flex-col items-center ${wrapperSpacing} ${wrapperWidth}`}>
       <motion.div
         initial={badge.earned ? { scale: 0 } : false}
         animate={badge.earned ? { scale: 1 } : {}}
         transition={badge.earned ? { type: 'spring', duration: 0.6 } : {}}
         className={badgeClasses}
-        onClick={onClick && badge.earned ? onClick : undefined}
+        onClick={onClick ? onClick : undefined}
         style={{
           background: badge.earned
             ? undefined
@@ -124,31 +147,27 @@ export default function BadgeCard({
           <div
             className={`w-full h-full ${gradientClasses} ${shapeClasses[badge.shape]} flex items-center justify-center`}
           >
-            <IconComponent className="text-white" size={size === 'sm' ? 24 : size === 'md' ? 32 : 40} />
+            <IconComponent className="text-white" size={iconPixelSize} />
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <IconComponent className="text-white/40" size={size === 'sm' ? 24 : size === 'md' ? 32 : 40} />
+            <IconComponent className="text-white/40" size={iconPixelSize} />
           </div>
         )}
       </motion.div>
 
       <div className="text-center space-y-1 w-full">
-        <div className="text-white font-medium text-sm">{badge.title}</div>
-        {badge.earned ? (
-          <div className="text-white/60 text-xs">? Earned</div>
-        ) : (
-          <div className="text-white/40 text-xs">Locked</div>
-        )}
+        <div className={titleClass}>{badge.title}</div>
+        <div className={subtitleClass}>{statusLabel}</div>
         {showProgress && !badge.earned && badge.progress > 0 && (
-          <div className="mt-2 space-y-1">
-            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+          <div className={`mt-2 space-y-1 ${variant === 'compact' ? 'px-1' : ''}`}>
+            <div className={`w-full bg-white/10 rounded-full ${progressBarHeight} overflow-hidden`}>
               <div
                 className={`h-full bg-gradient-to-r ${gradientFrom} ${gradientTo}`}
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
-            <div className="text-white/50 text-xs">
+            <div className={progressTextClass}>
               {badge.currentValue} / {badge.threshold} ({progressPercent}%)
             </div>
           </div>

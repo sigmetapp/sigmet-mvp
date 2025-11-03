@@ -8,6 +8,7 @@ interface BadgeGridProps {
   earnedFirst?: boolean;
   columns?: 2 | 3 | 4 | 5;
   onBadgeClick?: (badge: BadgeCardData) => void;
+  cardVariant?: 'default' | 'compact';
 }
 
 export default function BadgeGrid({
@@ -15,6 +16,7 @@ export default function BadgeGrid({
   earnedFirst = true,
   columns = 3,
   onBadgeClick,
+  cardVariant = 'default',
 }: BadgeGridProps) {
   // Sort badges: earned first if enabled
   const sortedBadges = earnedFirst
@@ -26,10 +28,10 @@ export default function BadgeGrid({
     : badges;
 
   const gridCols = {
-    2: 'grid-cols-2',
-    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-    4: 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4',
-    5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
+    2: 'grid-cols-2 sm:grid-cols-3',
+    3: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-3',
+    4: 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4',
+    5: 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-5',
   };
 
   if (badges.length === 0) {
@@ -40,14 +42,19 @@ export default function BadgeGrid({
     );
   }
 
+  const cardSize = cardVariant === 'compact' ? 'sm' : 'md';
+  const gapClass = cardVariant === 'compact' ? 'gap-[18px]' : 'gap-[24px]';
+  const placementClass = cardVariant === 'compact' ? 'place-items-center' : '';
+
   return (
-    <div className={`grid ${gridCols[columns]} gap-6`}>
+    <div className={`grid ${gridCols[columns]} ${gapClass} ${placementClass}`}>
       {sortedBadges.map((badge) => (
         <BadgeCard
           key={badge.key}
           badge={badge}
           onClick={onBadgeClick ? () => onBadgeClick(badge) : undefined}
-          size="md"
+          size={cardSize}
+          variant={cardVariant}
           showProgress={!badge.earned}
         />
       ))}

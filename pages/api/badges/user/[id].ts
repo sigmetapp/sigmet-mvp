@@ -180,6 +180,73 @@ export default async function handler(
       metrics = newMetrics;
     }
 
+    // Refresh metrics from actual activity before calculating progress
+    const { error: recalcError } = await admin.rpc('recalculate_user_metrics', {
+      user_uuid: id,
+      recalc_all: false,
+    });
+    if (recalcError) {
+      console.error('Error recalculating metrics:', recalcError);
+    } else {
+      const { data: refreshedMetrics, error: refreshedMetricsError } = await admin
+        .from('user_metrics')
+        .select('*')
+        .eq('user_id', id)
+        .single();
+
+      if (!refreshedMetricsError && refreshedMetrics) {
+        metrics = refreshedMetrics as UserMetrics;
+      }
+    }
+
+    const metricsObject = { ...(metrics as UserMetrics) };
+
+    const parseCount = (value: unknown): number | null => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') {
+        const parsed = Number(value);
+        return Number.isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    };
+
+    const { data: totalPostsCount, error: totalPostsError } = await admin.rpc(
+      'count_user_posts',
+      { user_uuid: id }
+    );
+    if (totalPostsError) {
+      console.error('Error counting total posts:', totalPostsError);
+    } else {
+      const parsed = parseCount(totalPostsCount);
+      if (parsed !== null) {
+        metricsObject.total_posts = parsed;
+      }
+    }
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentPostsCount, error: recentPostsError } = await admin.rpc(
+      'count_user_posts',
+      { user_uuid: id, since: thirtyDaysAgo }
+    );
+    if (recentPostsError) {
+      console.error('Error counting recent posts:', recentPostsError);
+    } else {
+      const parsedRecent = parseCount(recentPostsCount);
+      if (parsedRecent !== null) {
+        metricsObject.total_posts_last_30d = parsedRecent;
+      }
+    }
+
+    metrics = metricsObject;
+
+    // Run evaluation to ensure badges are granted when thresholds met
+    const { error: evalError } = await admin.rpc('evaluate_user_badges', {
+      user_uuid: id,
+    });
+    if (evalError) {
+      console.error('Error evaluating badges:', evalError);
+    }
+
     // Get all badges (including inactive for admins to toggle)
     const { data: badges, error: badgesError } = await admin
       .from('badges')
@@ -214,7 +281,6 @@ export default async function handler(
     const badgesWithProgress: BadgeWithProgress[] = (badges || []).map(
       (badge) => {
         const catalogBadge = BADGE_CATALOG.find((b) => b.key === badge.key);
-        const earned = earnedBadgeKeys.has(badge.key);
         const { progress, currentValue } = calculateProgress(
           catalogBadge || {
             key: badge.key,
@@ -223,6 +289,13 @@ export default async function handler(
           } as any,
           metrics as UserMetrics
         );
+
+        let earned = earnedBadgeKeys.has(badge.key);
+        const normalizedProgress = earned ? 1 : progress;
+
+        if (!earned && normalizedProgress >= 1) {
+          earned = true;
+        }
 
         return {
           key: badge.key,
@@ -238,7 +311,7 @@ export default async function handler(
           category: badge.category,
           earned,
           awardedAt: earned ? earnedBadgesMap.get(badge.key) : undefined,
-          progress: earned ? 1 : progress,
+          progress: earned ? 1 : normalizedProgress,
           currentValue,
           is_active: badge.is_active !== false, // Default to true if not set
         };

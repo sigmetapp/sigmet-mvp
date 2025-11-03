@@ -19,6 +19,8 @@ export default function BadgesPage() {
     null
   );
   const [recomputing, setRecomputing] = useState(false);
+  const [grantingBadge, setGrantingBadge] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     loadBadges();
@@ -89,7 +91,6 @@ export default function BadgesPage() {
   const earnedCount = badges.filter((b) => b.earned).length;
   const totalCount = badges.length;
   const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
-  const [grantingBadge, setGrantingBadge] = useState<string | null>(null);
 
   async function grantOrRevokeBadge(badgeKey: string, action: 'grant' | 'revoke') {
     if (!isAdmin || !userId) return;
@@ -120,6 +121,36 @@ export default function BadgesPage() {
       setNote(error.message || `Failed to ${action} badge`);
     } finally {
       setGrantingBadge(null);
+    }
+  }
+
+  async function resetUserProgress() {
+    if (!isAdmin || !userId) return;
+
+    setResetting(true);
+    setNote(undefined);
+
+    try {
+      const response = await fetch('/api/badges/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user_id: userId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setNote(data.error || 'Failed to reset progress');
+      } else {
+        setNote('Progress reset to zero');
+        await loadBadges();
+      }
+    } catch (error: any) {
+      setNote(error.message || 'Failed to reset progress');
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -156,14 +187,24 @@ export default function BadgesPage() {
             </p>
           </div>
           {isAdmin && (
-            <Button
-              onClick={recomputeBadges}
-              variant="secondary"
-              disabled={recomputing}
-              className="ml-4 whitespace-nowrap"
-            >
-              {recomputing ? 'Recomputing...' : 'Recompute Badges'}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 ml-4">
+              <Button
+                onClick={recomputeBadges}
+                variant="secondary"
+                disabled={recomputing || resetting}
+                className="whitespace-nowrap"
+              >
+                {recomputing ? 'Recomputing...' : 'Recompute Badges'}
+              </Button>
+              <Button
+                onClick={resetUserProgress}
+                variant="ghost"
+                disabled={resetting || recomputing}
+                className="whitespace-nowrap border border-red-400/40 text-red-300 hover:bg-red-500/10"
+              >
+                {resetting ? 'Resetting...' : 'Reset Progress'}
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -211,7 +252,8 @@ export default function BadgesPage() {
               <BadgeGrid
                 badges={categoryBadges}
                 earnedFirst={true}
-                columns={3}
+                columns={4}
+                cardVariant="compact"
                 onBadgeClick={setSelectedBadge}
               />
               {isAdmin && (
