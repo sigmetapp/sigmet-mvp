@@ -598,7 +598,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           </header>
 
           {/* Content */}
-          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">
+          <p className={`whitespace-pre-wrap text-sm leading-6 ${isLight ? 'text-slate-900' : 'text-slate-300'}`}>
             {postCardPost.content}
           </p>
 
