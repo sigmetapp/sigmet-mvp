@@ -624,32 +624,29 @@ function FeedInner() {
         {loading ? (
           <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading…</div>
         ) : (
-          posts.map((p) => (
-            <PostCard
-              key={p.id}
-              post={{
-                id: String(p.id),
-                author: (() => {
-                  const prof = p.user_id ? profilesByUserId[p.user_id] : undefined;
-                  return prof?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
-                })(),
-                content: p.body ?? '',
-                createdAt: p.created_at,
-                commentsCount: commentCounts[p.id] ?? 0,
-              }}
-              className="telegram-card-feature md:p-6 space-y-4 relative"
-              onMouseEnter={() => addViewOnce(p.id)}
-              renderContent={() => (
-                <div className="relative z-10 space-y-4">
-              {/* header */}
-              <div className="flex items-center justify-between relative z-10">
-                <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                  {(() => {
-                    const prof = p.user_id ? profilesByUserId[p.user_id] : undefined;
-                    const avatar = prof?.avatar_url || AVATAR_FALLBACK;
-                    const username = prof?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
-                    return (
-                      <>
+          posts.map((p) => {
+            const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
+            const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+            const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
+            const commentCount = commentCounts[p.id] ?? 0;
+
+            return (
+              <PostCard
+                key={p.id}
+                post={{
+                  id: String(p.id),
+                  author: username,
+                  content: p.body ?? '',
+                  createdAt: p.created_at,
+                  commentsCount: commentCount,
+                }}
+                className="telegram-card-feature md:p-6 space-y-4 relative"
+                onMouseEnter={() => addViewOnce(p.id)}
+                renderContent={() => (
+                  <div className="relative z-10 space-y-4">
+                    {/* header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
                         <img
                           src={avatar}
                           alt="avatar"
@@ -663,338 +660,329 @@ function FeedInner() {
                             </div>
                           )}
                         </div>
-                      </>
-                    );
-                  })()}
-                </div>
-                <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                  <span className="whitespace-nowrap">{new Date(p.created_at).toLocaleString()}</span>
-                  {uid === p.user_id && editingId !== p.id && (
-                    <PostActionMenu
-                      onEdit={() => {
-                        setEditingId(p.id);
-                        setEditBody(p.body || "");
-                      }}
-                      onDelete={() => deletePost(p)}
-                      className="ml-2"
-                    />
-                  )}
-                </div>
-              </div>
+                      </div>
+                      <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                        <span className="whitespace-nowrap">{new Date(p.created_at).toLocaleString()}</span>
+                        {uid === p.user_id && editingId !== p.id && (
+                          <PostActionMenu
+                            onEdit={() => {
+                              setEditingId(p.id);
+                              setEditBody(p.body || "");
+                            }}
+                            onDelete={() => deletePost(p)}
+                            className="ml-2"
+                          />
+                        )}
+                      </div>
+                    </div>
 
-              {/* content */}
-              {editingId === p.id ? (
-                <div className="space-y-3">
-                  <textarea
-                    value={editBody}
-                    onChange={(e) => setEditBody(e.target.value)}
-                    className={`input w-full rounded-2xl p-3 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
-                  />
-                  <div className="flex gap-2">
-                    <Button onClick={() => saveEdit(p)} variant="primary">Save</Button>
-                    <Button onClick={() => setEditingId(null)} variant="secondary">Cancel</Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="relative">
-                  {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
-                  {p.image_url && (
-                    <img src={p.image_url} loading="lazy" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
-                  )}
-                  {p.video_url && (
-                    <video controls preload="metadata" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}>
-                      <source src={p.video_url} />
-                    </video>
-                  )}
-                </div>
-              )}
-
-              {/* author actions moved to header near date */}
-
-              {/* footer */}
-              <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                <div className="flex items-center gap-1" title="Views">
-                  <Eye />
-                  <span className="text-sm">{p.views ?? 0}</span>
-                </div>
-
-                {/* Post reactions */}
-                <PostReactions
-                  postId={p.id}
-                  initialCounts={reactionsByPostId[p.id] || {
-                    inspire: 0,
-                    respect: 0,
-                    relate: 0,
-                    support: 0,
-                    celebrate: 0,
-                  }}
-                  initialSelected={selectedReactionsByPostId[p.id] || null}
-                  onReactionChange={async (reaction, counts) => {
-                    if (!uid) {
-                      alert("Sign in required");
-                      return;
-                    }
-
-                    try {
-                      const previousReaction = selectedReactionsByPostId[p.id];
-                      
-                      // Remove previous reaction if exists
-                      if (previousReaction) {
-                        const { error: deleteError } = await supabase
-                          .from("post_reactions")
-                          .delete()
-                          .eq("post_id", p.id)
-                          .eq("user_id", uid)
-                          .eq("kind", previousReaction);
-                        if (deleteError) {
-                          console.error("Error deleting reaction:", deleteError);
-                          throw deleteError;
-                        }
-                      }
-
-                      // Add new reaction if selected
-                      if (reaction) {
-                        const { error: insertError } = await supabase
-                          .from("post_reactions")
-                          .insert({
-                            post_id: p.id,
-                            user_id: uid,
-                            kind: reaction,
-                          });
-                        if (insertError) {
-                          console.error("Error inserting reaction:", insertError);
-                          // Check if it's a constraint error (maybe migration not applied)
-                          if (insertError.code === '23514' || insertError.message?.includes('check constraint')) {
-                            throw new Error(`Reaction type '${reaction}' is not allowed. Please apply migration 129_add_new_post_reaction_types.sql`);
-                          }
-                          throw insertError;
-                        }
-                      }
-
-                      // Reload reactions from DB to get accurate counts
-                      const { data } = await supabase
-                        .from("post_reactions")
-                        .select("post_id, kind, user_id")
-                        .eq("post_id", p.id);
-
-                      const newCounts: Record<ReactionType, number> = {
-                        inspire: 0,
-                        respect: 0,
-                        relate: 0,
-                        support: 0,
-                        celebrate: 0,
-                      };
-
-                      if (data) {
-                        for (const r of data as any[]) {
-                          const kind = r.kind as string;
-                          const reactionMap: Record<string, ReactionType> = {
-                            inspire: 'inspire',
-                            respect: 'respect',
-                            relate: 'relate',
-                            support: 'support',
-                            celebrate: 'celebrate',
-                          };
-                          const reactionType = reactionMap[kind];
-                          if (reactionType) {
-                            newCounts[reactionType] = (newCounts[reactionType] || 0) + 1;
-                          }
-                        }
-                      }
-
-                      // Update local state with accurate counts
-                      setReactionsByPostId((prev) => ({
-                        ...prev,
-                        [p.id]: newCounts,
-                      }));
-                      setSelectedReactionsByPostId((prev) => ({
-                        ...prev,
-                        [p.id]: reaction,
-                      }));
-                    } catch (error: any) {
-                      console.error("Error updating reaction:", error);
-                      const errorMessage = error?.message || error?.details || error?.hint || "Unknown error";
-                      
-                      // If table doesn't exist, provide helpful message
-                      if (errorMessage.includes("table") && errorMessage.includes("not found") || 
-                          errorMessage.includes("schema cache")) {
-                        alert(`Database table not found. Please apply migration 130_create_post_reactions_if_not_exists.sql`);
-                      } else {
-                        alert(`Failed to update reaction: ${errorMessage}`);
-                      }
-                    }
-                  }}
-                />
-
-                <PostCommentsBadge
-                  count={commentCounts[p.id] ?? 0}
-                  size="md"
-                  onOpen={async () => {
-                    const willOpen = !openComments[p.id];
-                    setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
-                    if (willOpen && !(comments[p.id]?.length > 0)) {
-                      await loadComments(p.id);
-                    }
-                  }}
-                  onFocusComposer={() => {
-                    const composer = document.getElementById(`comment-composer-${p.id}`);
-                    if (composer) {
-                      composer.focus();
-                      composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    }
-                  }}
-                  className="ml-auto"
-                />
-              </div>
-
-              {/* comments */}
-              {openComments[p.id] && (
-                <div className="space-y-2">
-                  {(() => {
-                    const list = comments[p.id] || [];
-                    const byParent: Record<number | "root", Comment[]> = { root: [] } as any;
-                    for (const c of list) {
-                      const pid = (c.parent_id as number | null) ?? null;
-                      const key = (pid ?? "root") as any;
-                      if (!byParent[key]) byParent[key] = [] as any;
-                      byParent[key].push(c);
-                    }
-                    const renderThread = (parentId: number | null, depth: number): JSX.Element[] => {
-                      const key = (parentId ?? "root") as any;
-                      const children = byParent[key] || [];
-                      return children.map((c) => (
-                        <div key={c.id} className={`mt-2 ${depth === 0 ? "" : "ml-4"}`}>
-                          <div className={`telegram-card-glow rounded-xl p-2 text-sm ${isLight ? "" : ""}`}>
-                            <div className={`text-xs flex items-center justify-between ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                              <div className="flex items-center gap-2 min-w-0">
-                                {(() => {
-                                  const prof = c.user_id ? commenterProfiles[c.user_id] : undefined;
-                                  const avatar = prof?.avatar_url || AVATAR_FALLBACK;
-                                  const username = prof?.username || (c.user_id ? c.user_id.slice(0, 8) : "Anon");
-                                  return (
-                                    <>
-                                      <img src={avatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10" />
-                                      <span className="truncate">{username}</span>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                              <span>{new Date(c.created_at).toLocaleString()}</span>
-                            </div>
-                            {c.body && <div className={`mt-1 whitespace-pre-wrap ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{c.body}</div>}
-                            {c.media_url && (
-                              c.media_url.match(/\.(mp4|webm|ogg)(\?|$)/i) ? (
-                                <video controls preload="metadata" className={`mt-2 w-full rounded-xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}>
-                                  <source src={c.media_url} />
-                                </video>
-                              ) : (
-                                <img
-                                  src={c.media_url}
-                                  loading="lazy"
-                                  className={`mt-2 rounded-xl border max-h-80 object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
-                                  alt="comment media"
-                                />
-                              )
-                            )}
-                            <div className="mt-2 flex items-center gap-2 text-xs">
-                              <button
-                                onClick={() => voteComment(c.id, 1)}
-                                className={`px-2 py-1 rounded-lg border transition ${
-                                  myCommentVotes[c.id] === 1
-                                    ? isLight
-                                      ? "bg-emerald-500 text-white border-emerald-500"
-                                      : "bg-emerald-400 text-white border-emerald-400"
-                                    : isLight
-                                    ? "border-telegram-blue/30 hover:bg-emerald-50"
-                                    : "border-telegram-blue/30 hover:bg-emerald-400/10"
-                                }`}
-                              >
-                                +
-                              </button>
-                              <div className="min-w-[2ch] text-center text-white/80">{commentScores[c.id] || 0}</div>
-                              <button
-                                onClick={() => voteComment(c.id, -1)}
-                                className={`px-2 py-1 rounded-lg border ${
-                                  myCommentVotes[c.id] === -1 ? "bg-rose-300 text-black border-rose-300" : "border-white/20 hover:bg-white/10"
-                                }`}
-                              >
-                                -
-                              </button>
-                              <button
-                                onClick={() => setReplyOpen((prev) => ({ ...prev, [c.id]: !prev[c.id] }))}
-                                className="ml-2 px-2 py-1 rounded-lg border border-white/20 hover:bg-white/10"
-                              >
-                                Reply
-                              </button>
-                            </div>
-                            {replyOpen[c.id] && (
-                              <div className="mt-2 flex items-center gap-2">
-                                <input
-                                  value={replyInput[c.id] || ""}
-                                  onChange={(e) => setReplyInput((prev) => ({ ...prev, [c.id]: e.target.value }))}
-                                  placeholder="Write a reply…"
-                                  className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
-                                />
-                                <button
-                                  onClick={() => {
-                                    addComment(p.id, c.id);
-                                    setReplyOpen((prev) => ({ ...prev, [c.id]: false }));
-                                    setReplyInput((prev) => ({ ...prev, [c.id]: "" }));
-                                  }}
-                                  className="btn btn-primary"
-                                >
-                                  Reply
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          {renderThread(c.id, depth + 1)}
+                    {/* content */}
+                    {editingId === p.id ? (
+                      <div className="space-y-3">
+                        <textarea
+                          value={editBody}
+                          onChange={(e) => setEditBody(e.target.value)}
+                          className={`input w-full rounded-2xl p-3 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                        />
+                        <div className="flex gap-2">
+                          <Button onClick={() => saveEdit(p)} variant="primary">Save</Button>
+                          <Button onClick={() => setEditingId(null)} variant="secondary">Cancel</Button>
                         </div>
-                      ));
-                    };
-                    return <>{renderThread(null, 0)}</>;
-                  })()}
-                  <div className="flex gap-2 items-center">
-                    <input
-                      id={`comment-composer-${p.id}`}
-                      value={commentInput[p.id] || ""}
-                      onChange={(e) =>
-                        setCommentInput((prev) => ({
-                          ...prev,
-                          [p.id]: e.target.value,
-                        }))
-                      }
-                      placeholder="Write a comment…"
-                      className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
-                    />
-                    <input
-                      id={`cfile-${p.id}`}
-                      type="file"
-                      accept="image/*,video/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0] || null;
-                        setCommentFile((prev) => ({ ...prev, [p.id]: f }));
-                      }}
-                    />
-                    <label htmlFor={`cfile-${p.id}`} className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                      isLight
-                        ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                        : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
-                    }`}>
-                      📎
-                    </label>
-                    {commentFile[p.id] && (
-                      <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
+                        {p.image_url && (
+                          <img src={p.image_url} loading="lazy" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
+                        )}
+                        {p.video_url && (
+                          <video controls preload="metadata" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}>
+                            <source src={p.video_url} />
+                          </video>
+                        )}
+                      </div>
                     )}
-                    <button onClick={() => addComment(p.id)} className="btn btn-primary">
-                      Send
-                    </button>
+
+                    {/* footer */}
+                    <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                      <div className="flex items-center gap-1" title="Views">
+                        <Eye />
+                        <span className="text-sm">{p.views ?? 0}</span>
+                      </div>
+
+                      <PostReactions
+                        postId={p.id}
+                        initialCounts={reactionsByPostId[p.id] || {
+                          inspire: 0,
+                          respect: 0,
+                          relate: 0,
+                          support: 0,
+                          celebrate: 0,
+                        }}
+                        initialSelected={selectedReactionsByPostId[p.id] || null}
+                        onReactionChange={async (reaction, counts) => {
+                          if (!uid) {
+                            alert("Sign in required");
+                            return;
+                          }
+
+                          try {
+                            const previousReaction = selectedReactionsByPostId[p.id];
+
+                            if (previousReaction) {
+                              const { error: deleteError } = await supabase
+                                .from("post_reactions")
+                                .delete()
+                                .eq("post_id", p.id)
+                                .eq("user_id", uid)
+                                .eq("kind", previousReaction);
+                              if (deleteError) {
+                                console.error("Error deleting reaction:", deleteError);
+                                throw deleteError;
+                              }
+                            }
+
+                            if (reaction) {
+                              const { error: insertError } = await supabase
+                                .from("post_reactions")
+                                .insert({
+                                  post_id: p.id,
+                                  user_id: uid,
+                                  kind: reaction,
+                                });
+                              if (insertError) {
+                                console.error("Error inserting reaction:", insertError);
+                                if (insertError.code === '23514' || insertError.message?.includes('check constraint')) {
+                                  throw new Error(`Reaction type '${reaction}' is not allowed. Please apply migration 129_add_new_post_reaction_types.sql`);
+                                }
+                                throw insertError;
+                              }
+                            }
+
+                            const { data } = await supabase
+                              .from("post_reactions")
+                              .select("post_id, kind, user_id")
+                              .eq("post_id", p.id);
+
+                            const newCounts: Record<ReactionType, number> = {
+                              inspire: 0,
+                              respect: 0,
+                              relate: 0,
+                              support: 0,
+                              celebrate: 0,
+                            };
+
+                            if (data) {
+                              for (const r of data as any[]) {
+                                const kind = r.kind as string;
+                                const reactionMap: Record<string, ReactionType> = {
+                                  inspire: 'inspire',
+                                  respect: 'respect',
+                                  relate: 'relate',
+                                  support: 'support',
+                                  celebrate: 'celebrate',
+                                };
+                                const reactionType = reactionMap[kind];
+                                if (reactionType) {
+                                  newCounts[reactionType] = (newCounts[reactionType] || 0) + 1;
+                                }
+                              }
+                            }
+
+                            setReactionsByPostId((prev) => ({
+                              ...prev,
+                              [p.id]: newCounts,
+                            }));
+                            setSelectedReactionsByPostId((prev) => ({
+                              ...prev,
+                              [p.id]: reaction,
+                            }));
+                          } catch (error: any) {
+                            console.error("Error updating reaction:", error);
+                            const errorMessage = error?.message || error?.details || error?.hint || "Unknown error";
+
+                            if (errorMessage.includes("table") && errorMessage.includes("not found") ||
+                                errorMessage.includes("schema cache")) {
+                              alert(`Database table not found. Please apply migration 130_create_post_reactions_if_not_exists.sql`);
+                            } else {
+                              alert(`Failed to update reaction: ${errorMessage}`);
+                            }
+                          }
+                        }}
+                      />
+
+                      <PostCommentsBadge
+                        count={commentCount}
+                        size="md"
+                        onOpen={async () => {
+                          const willOpen = !openComments[p.id];
+                          setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
+                          if (willOpen && !(comments[p.id]?.length > 0)) {
+                            await loadComments(p.id);
+                          }
+                        }}
+                        onFocusComposer={() => {
+                          const composer = document.getElementById(`comment-composer-${p.id}`);
+                          if (composer) {
+                            composer.focus();
+                            composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                          }
+                        }}
+                        className="ml-auto"
+                      />
+                    </div>
+
+                    {/* comments */}
+                    {openComments[p.id] && (
+                      <div className="space-y-2">
+                        {(() => {
+                          const list = comments[p.id] || [];
+                          const byParent: Record<number | "root", Comment[]> = { root: [] } as any;
+                          for (const c of list) {
+                            const pid = (c.parent_id as number | null) ?? null;
+                            const key = (pid ?? "root") as any;
+                            if (!byParent[key]) byParent[key] = [] as any;
+                            byParent[key].push(c);
+                          }
+                          const renderThread = (parentId: number | null, depth: number): JSX.Element[] => {
+                            const key = (parentId ?? "root") as any;
+                            const children = byParent[key] || [];
+                            return children.map((c) => (
+                              <div key={c.id} className={`mt-2 ${depth === 0 ? "" : "ml-4"}`}>
+                                <div className={`telegram-card-glow rounded-xl p-2 text-sm ${isLight ? "" : ""}`}>
+                                  <div className={`text-xs flex items-center justify-between ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      {(() => {
+                                        const commentProfile = c.user_id ? commenterProfiles[c.user_id] : undefined;
+                                        const commentAvatar = commentProfile?.avatar_url || AVATAR_FALLBACK;
+                                        const commentUsername = commentProfile?.username || (c.user_id ? c.user_id.slice(0, 8) : "Anon");
+                                        return (
+                                          <>
+                                            <img src={commentAvatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10" />
+                                            <span className="truncate">{commentUsername}</span>
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                    <span>{new Date(c.created_at).toLocaleString()}</span>
+                                  </div>
+                                  {c.body && <div className={`mt-1 whitespace-pre-wrap ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{c.body}</div>}
+                                  {c.media_url && (
+                                    c.media_url.match(/\.(mp4|webm|ogg)(\?|$)/i) ? (
+                                      <video controls preload="metadata" className={`mt-2 w-full rounded-xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}>
+                                        <source src={c.media_url} />
+                                      </video>
+                                    ) : (
+                                      <img
+                                        src={c.media_url}
+                                        loading="lazy"
+                                        className={`mt-2 rounded-xl border max-h-80 object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                                        alt="comment media"
+                                      />
+                                    )
+                                  )}
+                                  <div className="mt-2 flex items-center gap-2 text-xs">
+                                    <button
+                                      onClick={() => voteComment(c.id, 1)}
+                                      className={`px-2 py-1 rounded-lg border transition ${
+                                        myCommentVotes[c.id] === 1
+                                          ? isLight
+                                            ? "bg-emerald-500 text-white border-emerald-500"
+                                            : "bg-emerald-400 text-white border-emerald-400"
+                                          : isLight
+                                          ? "border-telegram-blue/30 hover:bg-emerald-50"
+                                          : "border-telegram-blue/30 hover:bg-emerald-400/10"
+                                      }`}
+                                    >
+                                      +
+                                    </button>
+                                    <div className="min-w-[2ch] text-center text-white/80">{commentScores[c.id] || 0}</div>
+                                    <button
+                                      onClick={() => voteComment(c.id, -1)}
+                                      className={`px-2 py-1 rounded-lg border ${
+                                        myCommentVotes[c.id] === -1 ? "bg-rose-300 text-black border-rose-300" : "border-white/20 hover:bg-white/10"
+                                      }`}
+                                    >
+                                      -
+                                    </button>
+                                    <button
+                                      onClick={() => setReplyOpen((prev) => ({ ...prev, [c.id]: !prev[c.id] }))}
+                                      className="ml-2 px-2 py-1 rounded-lg border border-white/20 hover:bg-white/10"
+                                    >
+                                      Reply
+                                    </button>
+                                  </div>
+                                  {replyOpen[c.id] && (
+                                    <div className="mt-2 flex items-center gap-2">
+                                      <input
+                                        value={replyInput[c.id] || ""}
+                                        onChange={(e) => setReplyInput((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                                        placeholder="Write a reply…"
+                                        className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                                      />
+                                      <button
+                                        onClick={() => {
+                                          addComment(p.id, c.id);
+                                          setReplyOpen((prev) => ({ ...prev, [c.id]: false }));
+                                          setReplyInput((prev) => ({ ...prev, [c.id]: "" }));
+                                        }}
+                                        className="btn btn-primary"
+                                      >
+                                        Reply
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                                {renderThread(c.id, depth + 1)}
+                              </div>
+                            ));
+                          };
+                          return <>{renderThread(null, 0)}</>;
+                        })()}
+                        <div className="flex gap-2 items-center">
+                          <input
+                            id={`comment-composer-${p.id}`}
+                            value={commentInput[p.id] || ""}
+                            onChange={(e) =>
+                              setCommentInput((prev) => ({
+                                ...prev,
+                                [p.id]: e.target.value,
+                              }))
+                            }
+                            placeholder="Write a comment…"
+                            className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                          />
+                          <input
+                            id={`cfile-${p.id}`}
+                            type="file"
+                            accept="image/*,video/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              setCommentFile((prev) => ({ ...prev, [p.id]: file }));
+                            }}
+                          />
+                          <label htmlFor={`cfile-${p.id}`} className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
+                            isLight
+                              ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
+                              : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                          }`}>
+                            📎
+                          </label>
+                          {commentFile[p.id] && (
+                            <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
+                          )}
+                          <button onClick={() => addComment(p.id)} className="btn btn-primary">
+                            Send
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-            />
-          ))
+                )}
+              />
+            );
+          })
         )}
 
         {/* Floating Post button (mobile) */}
