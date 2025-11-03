@@ -199,54 +199,42 @@ export default async function handler(
       }
     }
 
-    const ensurePostCount = async (since?: string): Promise<number | null> => {
-      const columns: Array<'author_id' | 'user_id'> = ['author_id', 'user_id'];
+    const metricsObject = { ...(metrics as UserMetrics) };
 
-      for (const column of columns) {
-        try {
-          const query = admin
-            .from('posts')
-            .select('id', { count: 'exact', head: true })
-            .eq(column, id);
-
-          if (since) {
-            query.gte('created_at', since);
-          }
-
-          const { count, error } = await query;
-
-          if (error) {
-            // If column doesn't exist, try the next option; otherwise log and stop
-            if (error.message?.includes('column') && error.message?.includes(column)) {
-              continue;
-            }
-            console.error('Error counting posts:', error);
-            return null;
-          }
-
-          if (typeof count === 'number') {
-            return count;
-          }
-        } catch (error) {
-          console.error('Unexpected error counting posts:', error);
-          return null;
-        }
+    const parseCount = (value: unknown): number | null => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') {
+        const parsed = Number(value);
+        return Number.isNaN(parsed) ? null : parsed;
       }
-
       return null;
     };
 
-    const metricsObject = { ...(metrics as UserMetrics) };
-
-    const totalPostsCount = await ensurePostCount();
-    if (totalPostsCount !== null) {
-      metricsObject.total_posts = totalPostsCount;
+    const { data: totalPostsCount, error: totalPostsError } = await admin.rpc(
+      'count_user_posts',
+      { user_uuid: id }
+    );
+    if (totalPostsError) {
+      console.error('Error counting total posts:', totalPostsError);
+    } else {
+      const parsed = parseCount(totalPostsCount);
+      if (parsed !== null) {
+        metricsObject.total_posts = parsed;
+      }
     }
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const recentPostsCount = await ensurePostCount(thirtyDaysAgo);
-    if (recentPostsCount !== null) {
-      metricsObject.total_posts_last_30d = recentPostsCount;
+    const { data: recentPostsCount, error: recentPostsError } = await admin.rpc(
+      'count_user_posts',
+      { user_uuid: id, since: thirtyDaysAgo }
+    );
+    if (recentPostsError) {
+      console.error('Error counting recent posts:', recentPostsError);
+    } else {
+      const parsedRecent = parseCount(recentPostsCount);
+      if (parsedRecent !== null) {
+        metricsObject.total_posts_last_30d = parsedRecent;
+      }
     }
 
     metrics = metricsObject;
