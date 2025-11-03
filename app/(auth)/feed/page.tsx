@@ -1098,7 +1098,7 @@ function FeedInner() {
       <Button
         onClick={() => setComposerOpen(true)}
         variant="primary"
-        className="fixed bottom-6 right-[max(1rem,calc(50vw+min(24rem,(100vw-2rem)/2)+12px))] shadow-lg z-40 rounded-full px-6 py-4 text-base"
+        className="fixed bottom-6 feed-create-button shadow-lg z-40 rounded-full px-6 py-4 text-base"
         icon={<Plus />}
       >
         Create post

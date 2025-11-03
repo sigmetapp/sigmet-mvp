@@ -33,7 +33,7 @@ body {
   background: var(--bg);
   color: var(--text);
   /* Telegram-style fonts */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  font-family: -apple-system, BlinkSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 .bg-sigmet {
@@ -466,8 +466,20 @@ html.theme-light .border-white\/30 { border-color: rgb(0 0 0 / 0.30) !important;
 html.theme-light .placeholder-white\/40::placeholder { color: rgb(0 0 0 / 0.40) !important; }
 
 /* Specific hardcoded dark surfaces used in menus/popovers */
-html.theme-light .bg-\[\#0f1628\] { background-color: #ffffff !important; }
-html.theme-light .text-\[\#0f1628\] { color: rgb(14 21 38) !important; }
-html.theme-light .bg-\[\#0b1220\] { background-color: #ffffff !important; }
-html.theme-light .text-\[\#e5edf7\] { color: rgb(14 21 38) !important; }
+html.theme-light .bg-\[\\#0f1628\] { background-color: #ffffff !important; }
+html.theme-light .text-\[\\#0f1628\] { color: rgb(14 21 38) !important; }
+html.theme-light .bg-\[\\#0b1220\] { background-color: #ffffff !important; }
+html.theme-light .text-\[\\#e5edf7\] { color: rgb(14 21 38) !important; }
 
+/* Create Post button positioning - 12px right of feed (max-w-3xl = 768px, centered) */
+.feed-create-button {
+  /* For large screens: feed is 768px centered, right edge = 50vw + 384px, button 12px to the right */
+  right: max(1rem, calc(50vw - 384px - 12px));
+}
+
+@media (max-width: 832px) {
+  /* For smaller screens where feed is less than 768px: right edge = 100vw - 1rem, button 12px to the right */
+  .feed-create-button {
+    right: max(1rem, calc(100vw - 1rem - 12px));
+  }
+}
