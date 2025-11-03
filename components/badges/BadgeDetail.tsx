@@ -73,21 +73,38 @@ export default function BadgeDetail({ badge, onClose }: BadgeDetailProps) {
 
           {!badge.earned && (
             <div className="bg-white/5 rounded-lg p-4 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-white/70">Progress</span>
-                <span className="text-white font-medium">
-                  {badge.currentValue} / {badge.threshold}
-                </span>
-              </div>
-              <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-                <div
-                  className={`h-full bg-gradient-to-r ${gradientFrom} ${gradientTo}`}
-                  style={{ width: `${Math.round(badge.progress * 100)}%` }}
-                />
-              </div>
-              <div className="text-white/50 text-xs text-center">
-                {Math.round(badge.progress * 100)}% complete
-              </div>
+              {badge.progress > 0 || badge.currentValue > 0 ? (
+                <>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-white/70">Progress</span>
+                    <span className="text-white font-medium">
+                      {badge.threshold === 1 && badge.metric?.startsWith('composite_')
+                        ? `${Math.round(badge.progress * 100)}%`
+                        : `${badge.currentValue} / ${badge.threshold}`}
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                    <div
+                      className={`h-full bg-gradient-to-r ${gradientFrom} ${gradientTo}`}
+                      style={{ width: `${Math.round(badge.progress * 100)}%` }}
+                    />
+                  </div>
+                  <div className="text-white/50 text-xs text-center">
+                    {Math.round(badge.progress * 100)}% complete
+                  </div>
+                </>
+              ) : (
+                <div className="bg-amber-500/20 border border-amber-500/30 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-amber-300">
+                    <Icons.Lock size={16} />
+                    <span className="font-medium text-sm">Locked</span>
+                  </div>
+                  <div className="text-white/60 text-xs mt-2">
+                    This badge requires a specific algorithm to calculate progress. 
+                    The system cannot currently track progress for this achievement.
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

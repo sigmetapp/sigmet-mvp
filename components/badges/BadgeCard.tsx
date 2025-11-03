@@ -17,8 +17,10 @@ export interface BadgeCardData {
   progress: number; // 0-1
   currentValue: number;
   threshold: number;
+  metric?: string; // Badge metric identifier
   awardedAt?: string;
   is_active?: boolean;
+  category?: string;
 }
 
 interface BadgeCardProps {
@@ -123,9 +125,11 @@ export default function BadgeCard({
   `;
 
   const progressPercent = Math.round(badge.progress * 100);
+  // Show progress even if very small (but > 0)
+  const hasProgress = badge.progress > 0 || (badge.currentValue > 0 && badge.threshold > 0);
   const statusLabel = badge.earned
     ? 'Earned'
-    : badge.progress > 0
+    : hasProgress
     ? `${progressPercent}%`
     : 'Locked';
 
@@ -159,7 +163,7 @@ export default function BadgeCard({
       <div className="text-center space-y-1 w-full">
         <div className={titleClass}>{badge.title}</div>
         <div className={subtitleClass}>{statusLabel}</div>
-        {showProgress && !badge.earned && badge.progress > 0 && (
+        {showProgress && !badge.earned && hasProgress && (
           <div className={`mt-2 space-y-1 ${variant === 'compact' ? 'px-1' : ''}`}>
             <div className={`w-full bg-white/10 rounded-full ${progressBarHeight} overflow-hidden`}>
               <div
@@ -168,7 +172,9 @@ export default function BadgeCard({
               />
             </div>
             <div className={progressTextClass}>
-              {badge.currentValue} / {badge.threshold} ({progressPercent}%)
+              {badge.threshold === 1 && badge.metric?.startsWith('composite_')
+                ? `${progressPercent}%`
+                : `${badge.currentValue} / ${badge.threshold} (${progressPercent}%)`}
             </div>
           </div>
         )}

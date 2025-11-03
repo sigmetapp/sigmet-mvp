@@ -45,87 +45,100 @@ function calculateProgress(
 ): { progress: number; currentValue: number } {
   let currentValue = 0;
 
-  // Get current metric value
+  // Get current metric value (ensure null/undefined values default to 0)
   switch (badge.metric) {
     case 'total_posts':
-      currentValue = metrics.total_posts;
+      currentValue = metrics.total_posts || 0;
       break;
     case 'total_comments':
-      currentValue = metrics.total_comments;
+      currentValue = metrics.total_comments || 0;
       break;
     case 'likes_given':
-      currentValue = metrics.likes_given;
+      currentValue = metrics.likes_given || 0;
       break;
     case 'likes_received':
     case 'total_likes_received':
-      currentValue = metrics.likes_received;
+      currentValue = metrics.likes_received || 0;
       break;
     case 'distinct_commenters':
-      currentValue = metrics.distinct_commenters;
+      currentValue = metrics.distinct_commenters || 0;
       break;
     case 'invited_users_total':
-      currentValue = metrics.invited_users_total;
+      currentValue = metrics.invited_users_total || 0;
       break;
     case 'invited_users_with_activity':
-      currentValue = metrics.invited_users_with_activity;
+      currentValue = metrics.invited_users_with_activity || 0;
       break;
     case 'comments_on_others_posts':
-      currentValue = metrics.comments_on_others_posts;
+      currentValue = metrics.comments_on_others_posts || 0;
       break;
     case 'threads_with_10_comments':
-      currentValue = metrics.threads_with_10_comments;
+      currentValue = metrics.threads_with_10_comments || 0;
       break;
     case 'earned_badges_count':
-      currentValue = metrics.earned_badges_count;
+      currentValue = metrics.earned_badges_count || 0;
       break;
     case 'total_posts_last_30d':
-      currentValue = metrics.total_posts_last_30d;
+      currentValue = metrics.total_posts_last_30d || 0;
       break;
     case 'consecutive_active_days':
-      currentValue = metrics.consecutive_active_days;
+      currentValue = metrics.consecutive_active_days || 0;
       break;
     case 'weekly_active_streak':
-      currentValue = metrics.weekly_active_streak;
+      currentValue = metrics.weekly_active_streak || 0;
       break;
     case 'active_days':
-      currentValue = metrics.active_days;
+      currentValue = metrics.active_days || 0;
       break;
     case 'social_weight':
-      currentValue = metrics.social_weight;
+      currentValue = metrics.social_weight || 0;
       break;
     case 'composite_posts_comments_3_5':
       // For composite, progress is average of sub-ratios
+      // threshold is 1 (both conditions must be met)
+      const posts3 = metrics.total_posts || 0;
+      const comments3 = metrics.total_comments || 0;
       const progress3_5 = Math.min(
-        (metrics.total_posts / 3 + metrics.total_comments / 5) / 2,
+        (posts3 / 3 + comments3 / 5) / 2,
         1
       );
+      // For composite badges, currentValue represents combined progress (0-1 range)
+      // We'll scale it to show meaningful numbers
       return {
         progress: progress3_5,
-        currentValue: progress3_5 >= 1 ? 1 : 0,
+        currentValue: Math.floor(progress3_5 * 100), // Show as percentage (0-100)
       };
     case 'composite_posts_comments_5_10':
+      const posts5 = metrics.total_posts || 0;
+      const comments5 = metrics.total_comments || 0;
       const progress5_10 = Math.min(
-        (metrics.total_posts / 5 + metrics.total_comments / 10) / 2,
+        (posts5 / 5 + comments5 / 10) / 2,
         1
       );
       return {
         progress: progress5_10,
-        currentValue: progress5_10 >= 1 ? 1 : 0,
+        currentValue: Math.floor(progress5_10 * 100),
       };
     case 'composite_posts_comments_20_50':
+      const posts20 = metrics.total_posts || 0;
+      const comments20 = metrics.total_comments || 0;
       const progress20_50 = Math.min(
-        (metrics.total_posts / 20 + metrics.total_comments / 50) / 2,
+        (posts20 / 20 + comments20 / 50) / 2,
         1
       );
       return {
         progress: progress20_50,
-        currentValue: progress20_50 >= 1 ? 1 : 0,
+        currentValue: Math.floor(progress20_50 * 100),
       };
     case 'comment_likes_from_distinct_users':
       // This metric needs special handling - for now set to 0
+      // TODO: Implement comment_likes_from_distinct_users metric calculation
       currentValue = 0;
       break;
     default:
+      // Unknown metric - mark as not implemented
+      // currentValue stays 0, which will show as "Locked"
+      console.warn(`Unknown badge metric: ${badge.metric}`);
       currentValue = 0;
   }
 
