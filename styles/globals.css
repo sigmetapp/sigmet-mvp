@@ -517,3 +517,23 @@ html.theme-light .text-\[\\#e5edf7\] { color: rgb(14 21 38) !important; }
   background: currentColor;
   clip-path: polygon(0 0, 100% 0, 80% 100%, 20% 100%);
 }
+
+/* Mobile-first performance optimizations */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth scrolling for mobile */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Improve text rendering on mobile */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}

@@ -765,93 +765,116 @@ function FeedInner() {
   }, []);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
-      {/* Page header */}
-      <div className="mb-6 md:mb-8">
-        <div>
-          <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? "bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent" : "gradient-text"}`}>Your feed</h1>
+    <div className="min-h-screen pb-24 md:pb-32">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 md:pt-8">
+        {/* Page header - Compact for mobile */}
+        <div className="mb-4 sm:mb-6 md:mb-8 sticky top-0 z-30 bg-[var(--bg)] backdrop-blur-xl border-b border-white/5 dark:border-white/10 pb-4 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pt-4">
+          <h1 className={`text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight ${isLight ? "bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent" : "gradient-text"}`}>
+            Feed
+          </h1>
         </div>
-      </div>
 
-      <div className="max-w-3xl mx-auto space-y-6">
-        {/* Filters toggle */}
-        <div className="card p-3 md:p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => {
-                setActiveFilter('all');
-                setActiveDirection(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-sm transition border ${
-                activeFilter === 'all'
-                  ? isLight
-                    ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                    : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                  : isLight
-                  ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                  : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => {
-                setActiveFilter('discuss');
-                setActiveDirection(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-sm transition border ${
-                activeFilter === 'discuss'
-                  ? isLight
-                    ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                    : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                  : isLight
-                  ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                  : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
-              }`}
-            >
-              {DISCUSS_EMOJI} Discuss
-            </button>
-            {myDirections.length > 0 && availableDirections.length > 0 && myDirections.map((id) => {
-              const meta = availableDirections.find((a) => a.id === id);
-              const slug = meta ? meta.slug : '';
-              const emoji = meta ? meta.emoji : resolveDirectionEmoji(slug, null);
-              const title = meta ? meta.title : id;
-              const label = `${emoji} ${title}`;
-              const active = activeFilter === 'direction' && activeDirection === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => {
-                    if (active) {
-                      // Toggle off: switch back to 'all'
-                      setActiveFilter('all');
-                      setActiveDirection(null);
-                    } else {
-                      // Toggle on: switch to 'direction' filter
-                      setActiveFilter('direction');
-                      setActiveDirection(id);
-                    }
-                  }}
-                  className={`px-3 py-1.5 rounded-full text-sm transition border ${
-                    active
-                      ? isLight
-                        ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                        : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                      : isLight
-                      ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                      : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
+        <div className="max-w-2xl mx-auto space-y-4 sm:space-y-5 md:space-y-6">
+        {/* Filters - Modern mobile-first design */}
+        <div className="sticky top-[72px] sm:top-[88px] z-20 mb-4 sm:mb-5">
+          <div className={`rounded-2xl p-3 sm:p-4 backdrop-blur-xl transition-all ${
+            isLight 
+              ? "bg-white/90 border border-telegram-blue/10 shadow-sm" 
+              : "bg-white/5 border border-white/10 shadow-lg"
+          }`}>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+              <button
+                onClick={() => {
+                  setActiveFilter('all');
+                  setActiveDirection(null);
+                }}
+                className={`px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] touch-manipulation ${
+                  activeFilter === 'all'
+                    ? isLight
+                      ? "bg-telegram-blue text-white border-2 border-telegram-blue shadow-lg shadow-telegram-blue/25"
+                      : "bg-telegram-blue text-white border-2 border-telegram-blue shadow-lg shadow-telegram-blue/30"
+                    : isLight
+                    ? "text-telegram-text-secondary border-2 border-telegram-blue/20 bg-white/50 hover:bg-telegram-blue/10 hover:text-telegram-blue hover:border-telegram-blue/40 active:scale-95"
+                    : "text-telegram-text-secondary border-2 border-telegram-blue/30 bg-white/5 hover:bg-telegram-blue/15 hover:text-telegram-blue-light hover:border-telegram-blue/50 active:scale-95"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => {
+                  setActiveFilter('discuss');
+                  setActiveDirection(null);
+                }}
+                className={`px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] touch-manipulation ${
+                  activeFilter === 'discuss'
+                    ? isLight
+                      ? "bg-telegram-blue text-white border-2 border-telegram-blue shadow-lg shadow-telegram-blue/25"
+                      : "bg-telegram-blue text-white border-2 border-telegram-blue shadow-lg shadow-telegram-blue/30"
+                    : isLight
+                    ? "text-telegram-text-secondary border-2 border-telegram-blue/20 bg-white/50 hover:bg-telegram-blue/10 hover:text-telegram-blue hover:border-telegram-blue/40 active:scale-95"
+                    : "text-telegram-text-secondary border-2 border-telegram-blue/30 bg-white/5 hover:bg-telegram-blue/15 hover:text-telegram-blue-light hover:border-telegram-blue/50 active:scale-95"
+                }`}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <span>{DISCUSS_EMOJI}</span>
+                  <span>Discuss</span>
+                </span>
+              </button>
+              {myDirections.length > 0 && availableDirections.length > 0 && myDirections.map((id) => {
+                const meta = availableDirections.find((a) => a.id === id);
+                const slug = meta ? meta.slug : '';
+                const emoji = meta ? meta.emoji : resolveDirectionEmoji(slug, null);
+                const title = meta ? meta.title : id;
+                const active = activeFilter === 'direction' && activeDirection === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      if (active) {
+                        setActiveFilter('all');
+                        setActiveDirection(null);
+                      } else {
+                        setActiveFilter('direction');
+                        setActiveDirection(id);
+                      }
+                    }}
+                    className={`px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] touch-manipulation ${
+                      active
+                        ? isLight
+                          ? "bg-telegram-blue text-white border-2 border-telegram-blue shadow-lg shadow-telegram-blue/25"
+                          : "bg-telegram-blue text-white border-2 border-telegram-blue shadow-lg shadow-telegram-blue/30"
+                        : isLight
+                        ? "text-telegram-text-secondary border-2 border-telegram-blue/20 bg-white/50 hover:bg-telegram-blue/10 hover:text-telegram-blue hover:border-telegram-blue/40 active:scale-95"
+                        : "text-telegram-text-secondary border-2 border-telegram-blue/30 bg-white/5 hover:bg-telegram-blue/15 hover:text-telegram-blue-light hover:border-telegram-blue/50 active:scale-95"
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-1.5 sm:gap-2">
+                      <span className="text-base sm:text-lg">{emoji}</span>
+                      <span className="truncate max-w-[120px] sm:max-w-none">{title}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
         {/* Feed */}
         {loading ? (
-          <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
+          <div className="flex items-center justify-center py-12 sm:py-16 md:py-20">
+            <div className={`text-base sm:text-lg ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+              Loading...
+            </div>
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 sm:py-16 md:py-20 text-center">
+            <div className={`text-lg sm:text-xl font-medium mb-2 ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>
+              No posts yet
+            </div>
+            <div className={`text-sm sm:text-base ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+              Be the first to share something!
+            </div>
+          </div>
         ) : (
           posts.map((p) => {
             const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
@@ -882,44 +905,58 @@ function FeedInner() {
                   commentsCount: commentCount,
                 }}
                 disableNavigation={true}
-                className={`telegram-card-feature md:p-6 space-y-2 relative transition-transform duration-200 ease-out ${
+                className={`transition-all duration-300 ease-out ${
                   hasCategory && categoryDirection
-                    ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
+                    ? 'ring-2 ring-telegram-blue/50 border-2 border-telegram-blue/60 shadow-xl bg-gradient-to-br from-telegram-blue/8 to-telegram-blue-light/8'
                     : ''
-                }`}
+                } ${
+                  isLight 
+                    ? 'bg-white/95 border border-telegram-blue/10 shadow-md hover:shadow-lg' 
+                    : 'bg-white/5 border border-white/10 shadow-lg hover:shadow-xl'
+                } rounded-2xl sm:rounded-3xl p-4 sm:p-5 md:p-6`}
                 onMouseEnter={() => addViewOnce(p.id)}
                 renderContent={() => (
-                  <div className="relative z-10 space-y-2">
+                  <div className="relative z-10 space-y-3 sm:space-y-4">
                     {/* header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
                         <img
                           src={avatar}
                           alt="avatar"
-                          className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
+                          className={`h-10 w-10 sm:h-12 sm:w-12 rounded-full object-cover border-2 shrink-0 ${
+                            isLight ? 'border-telegram-blue/20' : 'border-white/20'
+                          }`}
                         />
-                        <div className="flex flex-col min-w-0">
+                        <div className="flex flex-col min-w-0 flex-1 pt-0.5">
                           <a 
                             href={`/u/${p.user_id}`}
                             onClick={(e) => e.stopPropagation()}
-                            className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
+                            className={`text-sm sm:text-base font-semibold truncate hover:underline transition-colors ${
+                              isLight ? "text-telegram-text" : "text-telegram-text"
+                            }`}
                             data-prevent-card-navigation="true"
                           >
                             {username}
                           </a>
+                          <div className={`text-xs sm:text-sm mt-0.5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                            {formatPostDate(p.created_at)}
+                          </div>
                           {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
                               {p.category && (
-                                <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                <div className={`text-xs px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg font-medium ${
                                   hasCategory && categoryDirection
                                     ? isLight
-                                      ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
-                                      : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                                      ? 'bg-telegram-blue/20 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                                      : 'bg-telegram-blue/30 text-telegram-blue-light border border-telegram-blue/50 shadow-sm'
                                     : isLight
-                                    ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
-                                    : 'text-telegram-text-secondary bg-white/5'
+                                    ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50 border border-telegram-blue/10'
+                                    : 'text-telegram-text-secondary bg-white/10 border border-white/10'
                                 }`}>
-                                  {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {categoryDirection && <span>{categoryDirection.emoji}</span>}
+                                    <span>{p.category}</span>
+                                  </span>
                                 </div>
                               )}
                               {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
@@ -932,7 +969,7 @@ function FeedInner() {
                                 return (
                                   <div
                                     key={status}
-                                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
+                                    className={`text-xs px-2 py-1 rounded-lg font-medium inline-flex items-center gap-1.5 border ${config.color}`}
                                     title={config.label}
                                   >
                                     <span>{config.emoji}</span>
@@ -944,39 +981,35 @@ function FeedInner() {
                           )}
                         </div>
                       </div>
-                      <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                        <span className="whitespace-nowrap">{formatPostDate(p.created_at)}</span>
-                        {uid === p.user_id && editingId !== p.id && (
-                          <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
-                            <PostActionMenu
-                              onEdit={() => {
-                                setEditingId(p.id);
-                                setEditBody(p.body || "");
-                              }}
-                              onDelete={() => deletePost(p)}
-                              className="ml-2"
-                            />
-                          </div>
-                        )}
-                      </div>
+                      {uid === p.user_id && editingId !== p.id && (
+                        <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true" className="shrink-0">
+                          <PostActionMenu
+                            onEdit={() => {
+                              setEditingId(p.id);
+                              setEditBody(p.body || "");
+                            }}
+                            onDelete={() => deletePost(p)}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* content */}
                     {editingId === p.id ? (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         <textarea
                           value={editBody}
                           onChange={(e) => setEditBody(e.target.value)}
-                          className={`input w-full rounded-2xl p-3 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                          className={`input w-full rounded-xl sm:rounded-2xl p-4 text-base min-h-[120px] ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
                         />
-                        <div className="flex gap-2">
-                          <Button onClick={() => saveEdit(p)} variant="primary">Save</Button>
-                          <Button onClick={() => setEditingId(null)} variant="secondary">Cancel</Button>
+                        <div className="flex gap-3">
+                          <Button onClick={() => saveEdit(p)} variant="primary" size="md">Save</Button>
+                          <Button onClick={() => setEditingId(null)} variant="secondary" size="md">Cancel</Button>
                         </div>
                       </div>
                     ) : (
                       <div 
-                        className="relative cursor-pointer"
+                        className="relative cursor-pointer group"
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/post/${p.id}`);
@@ -992,23 +1025,33 @@ function FeedInner() {
                         role="button"
                         aria-label="Open post"
                       >
-                        {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
+                        {p.body && (
+                          <p className={`text-base sm:text-lg leading-relaxed break-words transition-colors ${
+                            isLight ? "text-telegram-text group-hover:text-telegram-blue" : "text-telegram-text"
+                          }`}>
+                            {p.body}
+                          </p>
+                        )}
                         {p.image_url && (
-                          <div className="mt-3 flex justify-center">
+                          <div className="mt-4 sm:mt-5 flex justify-center">
                             <img 
                               src={p.image_url} 
                               loading="lazy" 
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} 
+                              className={`max-w-full max-h-[400px] sm:max-h-[500px] w-auto h-auto rounded-xl sm:rounded-2xl border-2 object-contain shadow-lg ${
+                                isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"
+                              }`} 
                               alt="post image" 
                             />
                           </div>
                         )}
                         {p.video_url && (
-                          <div className="mt-3 flex justify-center">
+                          <div className="mt-4 sm:mt-5 flex justify-center">
                             <video 
                               controls 
                               preload="metadata" 
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                              className={`max-w-full max-h-[400px] sm:max-h-[500px] w-auto h-auto rounded-xl sm:rounded-2xl border-2 shadow-lg ${
+                                isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"
+                              }`}
                             >
                               <source src={p.video_url} />
                             </video>
@@ -1018,10 +1061,12 @@ function FeedInner() {
                     )}
 
                     {/* footer */}
-                    <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                      <div className="flex items-center gap-1" title="Views">
+                    <div className={`flex items-center gap-4 sm:gap-6 pt-2 border-t ${
+                      isLight ? "border-telegram-blue/10 text-telegram-text-secondary" : "border-white/10 text-telegram-text-secondary"
+                    }`}>
+                      <div className="flex items-center gap-1.5 sm:gap-2" title="Views">
                         <Eye />
-                        <span className="text-sm">{p.views ?? 0}</span>
+                        <span className="text-sm sm:text-base font-medium">{p.views ?? 0}</span>
                       </div>
 
                       <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
@@ -1147,47 +1192,55 @@ function FeedInner() {
 
                     {/* Quick comment form only - no history */}
                     {openComments[p.id] && (
-                      <div className="mt-3">
-                        <div className="flex gap-2 items-center">
-                          <input
-                            id={`comment-composer-${p.id}`}
-                            value={commentInput[p.id] || ""}
-                            onChange={(e) =>
-                              setCommentInput((prev) => ({
-                                ...prev,
-                                [p.id]: e.target.value,
-                              }))
-                            }
-                            placeholder="Write a comment?"
-                            className={`input py-2 focus:ring-0 flex-1 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
-                          />
-                          <input
-                            id={`cfile-${p.id}`}
-                            type="file"
-                            accept="image/*,video/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] || null;
-                              setCommentFile((prev) => ({ ...prev, [p.id]: file }));
-                            }}
-                          />
-                          <label
-                            htmlFor={`cfile-${p.id}`}
-                            className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition flex items-center justify-center gap-2 ${
-                              isLight
-                                ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                                : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
-                            }`}
-                          >
-                            <Paperclip className="h-4 w-4" aria-hidden="true" />
-                            <span className="sr-only">Attach file</span>
-                          </label>
+                      <div className={`mt-4 pt-4 border-t ${
+                        isLight ? "border-telegram-blue/10" : "border-white/10"
+                      }`}>
+                        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                          <div className="flex-1 flex gap-2">
+                            <input
+                              id={`comment-composer-${p.id}`}
+                              value={commentInput[p.id] || ""}
+                              onChange={(e) =>
+                                setCommentInput((prev) => ({
+                                  ...prev,
+                                  [p.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Write a comment..."
+                              className={`input py-3 px-4 flex-1 rounded-xl text-base min-h-[44px] ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                            />
+                            <input
+                              id={`cfile-${p.id}`}
+                              type="file"
+                              accept="image/*,video/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                setCommentFile((prev) => ({ ...prev, [p.id]: file }));
+                              }}
+                            />
+                            <label
+                              htmlFor={`cfile-${p.id}`}
+                              className={`px-4 py-3 rounded-xl border-2 text-sm cursor-pointer transition-all min-h-[44px] flex items-center justify-center gap-2 touch-manipulation active:scale-95 ${
+                                isLight
+                                  ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10 hover:border-telegram-blue/50"
+                                  : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15 hover:border-telegram-blue/50"
+                              }`}
+                            >
+                              <Paperclip className="h-5 w-5" aria-hidden="true" />
+                              <span className="sr-only">Attach file</span>
+                            </label>
+                          </div>
                           {commentFile[p.id] && (
-                            <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
+                            <span className={`text-xs sm:text-sm truncate px-3 py-2 rounded-lg self-center ${
+                              isLight ? "bg-telegram-blue/10 text-telegram-blue" : "bg-telegram-blue/20 text-telegram-blue-light"
+                            }`}>
+                              {commentFile[p.id]?.name}
+                            </span>
                           )}
-                          <button onClick={() => addComment(p.id)} className="btn btn-primary">
+                          <Button onClick={() => addComment(p.id)} variant="primary" size="md" className="min-h-[44px]">
                             Send
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -1197,81 +1250,157 @@ function FeedInner() {
             );
           })
         )}
+        </div>
       </div>
 
-      {/* Create Post button - positioned at bottom right, 12px from posts edge */}
+      {/* Create Post button - Mobile-first floating action button */}
+      <button
+        onClick={() => setComposerOpen(true)}
+        className={`fixed right-4 sm:right-6 bottom-6 sm:bottom-8 md:hidden z-50 rounded-full shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 touch-manipulation ${
+          isLight
+            ? "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-telegram-blue/40"
+            : "bg-telegram-blue text-white hover:bg-telegram-blue-light shadow-telegram-blue/50"
+        }`}
+        style={{ 
+          bottom: `${buttonBottom}px`,
+          width: '56px',
+          height: '56px',
+        }}
+        aria-label="Create post"
+      >
+        <div className="flex items-center justify-center w-full h-full">
+          <Plus />
+        </div>
+      </button>
+      
+      {/* Desktop text button */}
       <Button
         onClick={() => setComposerOpen(true)}
         variant="primary"
-        className="fixed feed-create-button shadow-lg z-40 rounded-full px-6 py-4 text-base"
+        className="hidden md:flex fixed feed-create-button shadow-xl z-40 rounded-full px-6 py-4 text-base hover:scale-105 transition-transform"
         style={{ bottom: `${buttonBottom}px` }}
         icon={<Plus />}
       >
         Create post
       </Button>
 
-      {/* Composer modal */}
+      {/* Composer modal - Modern mobile-first design */}
       {composerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div
-            className={`absolute inset-0 ${isLight ? "bg-black/50" : "bg-black/80"}`}
+            className={`absolute inset-0 ${isLight ? "bg-black/50 backdrop-blur-sm" : "bg-black/80 backdrop-blur-sm"}`}
             onClick={() => !publishing && setComposerOpen(false)}
           />
-          <div className="relative z-10 w-full max-w-xl mx-auto p-4">
-            <div className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? "" : ""}`}>
-              <div className="flex items-center justify-between">
-                <div className={`font-medium ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create post</div>
-                <button
-                  onClick={() => !publishing && setComposerOpen(false)}
-                  className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
-                  aria-label="Close composer"
-                >
-                  <CloseIcon className="h-5 w-5" aria-hidden="true" />
-                </button>
-              </div>
+          <div className={`relative z-10 w-full max-w-2xl mx-auto ${
+            isLight 
+              ? "bg-white border-t border-telegram-blue/10 sm:rounded-3xl sm:border" 
+              : "bg-white/10 border-t border-white/20 sm:rounded-3xl sm:border sm:border-white/10"
+          } shadow-2xl sm:shadow-2xl backdrop-blur-xl transition-all duration-300 sm:max-h-[90vh] overflow-hidden flex flex-col`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-4 sm:p-6 border-b ${
+              isLight ? "border-telegram-blue/10" : "border-white/10"
+            }`}>
+              <h2 className={`text-xl sm:text-2xl font-bold ${
+                isLight ? "text-telegram-text" : "text-telegram-text"
+              }`}>
+                Create post
+              </h2>
+              <button
+                onClick={() => !publishing && setComposerOpen(false)}
+                className={`p-2 rounded-xl transition-all touch-manipulation active:scale-95 ${
+                  isLight 
+                    ? "text-telegram-text-secondary hover:bg-telegram-blue/10 hover:text-telegram-blue" 
+                    : "text-telegram-text-secondary hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+                }`}
+                aria-label="Close composer"
+              >
+                <CloseIcon className="h-6 w-6" aria-hidden="true" />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="What do you want to share?"
-                className={`input w-full outline-none min-h-[120px] text-base md:text-lg ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                placeholder="What's on your mind?"
+                className={`input w-full outline-none min-h-[200px] sm:min-h-[240px] text-base sm:text-lg p-4 resize-none ${
+                  isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"
+                }`}
+                autoFocus
               />
-              <input
-                ref={unifiedFileRef}
-                type="file"
-                accept="image/*,video/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  if (!file) { setImg(null); setVid(null); return; }
-                  if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
-                  else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
-                  else { setImg(null); setVid(null); }
-                }}
-              />
-              <div className="flex items-center gap-3">
-                <EmojiPicker
-                  onEmojiSelect={handleEmojiSelect}
-                  variant={isLight ? 'light' : 'dark'}
-                  align="left"
-                />
-                <button
-                  onClick={() => unifiedFileRef.current?.click()}
-                  className={`px-3 py-2 rounded-xl border text-sm transition flex items-center gap-2 ${
-                    isLight
-                      ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                      : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
-                  }`}
-                >
-                  <ImageIcon className="h-4 w-4" aria-hidden="true" />
-                  <span>Media</span>
-                </button>
-                {(img || vid) && (
-                  <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                    {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
-                  </span>
-                )}
-                <div className="ml-auto">
-                  <Button onClick={onPublish} disabled={publishing} variant="primary">
+              
+              {(img || vid) && (
+                <div className={`p-4 rounded-xl border-2 ${
+                  isLight 
+                    ? "bg-telegram-blue/5 border-telegram-blue/20" 
+                    : "bg-telegram-blue/10 border-telegram-blue/30"
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm sm:text-base font-medium ${
+                      isLight ? "text-telegram-text" : "text-telegram-text"
+                    }`}>
+                      {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
+                    </span>
+                    <button
+                      onClick={() => { setImg(null); setVid(null); }}
+                      className={`p-1.5 rounded-lg transition ${
+                        isLight 
+                          ? "hover:bg-telegram-blue/10 text-telegram-text-secondary" 
+                          : "hover:bg-telegram-blue/15 text-telegram-text-secondary"
+                      }`}
+                    >
+                      <CloseIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className={`p-4 sm:p-6 border-t ${
+              isLight ? "border-telegram-blue/10 bg-white/50" : "border-white/10 bg-white/5"
+            }`}>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <input
+                    ref={unifiedFileRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (!file) { setImg(null); setVid(null); return; }
+                      if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
+                      else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
+                      else { setImg(null); setVid(null); }
+                    }}
+                  />
+                  <EmojiPicker
+                    onEmojiSelect={handleEmojiSelect}
+                    variant={isLight ? 'light' : 'dark'}
+                    align="left"
+                  />
+                  <button
+                    onClick={() => unifiedFileRef.current?.click()}
+                    className={`px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all min-h-[44px] flex items-center gap-2 touch-manipulation active:scale-95 ${
+                      isLight
+                        ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10 hover:border-telegram-blue/50"
+                        : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15 hover:border-telegram-blue/50"
+                    }`}
+                  >
+                    <ImageIcon className="h-5 w-5" aria-hidden="true" />
+                    <span className="hidden sm:inline">Media</span>
+                  </button>
+                </div>
+                <div className="flex-1 sm:flex-initial sm:ml-auto">
+                  <Button 
+                    onClick={onPublish} 
+                    disabled={publishing || (!text && !img && !vid)} 
+                    variant="primary" 
+                    size="lg"
+                    className="w-full sm:w-auto min-h-[44px]"
+                  >
                     {publishing ? "Publishing..." : "Publish"}
                   </Button>
                 </div>
