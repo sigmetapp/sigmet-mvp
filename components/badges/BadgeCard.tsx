@@ -118,8 +118,8 @@ export default function BadgeCard({
         ? 'border-2 border-white/40 shadow-lg shadow-white/10'
         : 'border-2 border-white/10 opacity-60 grayscale'
     }
-    ${onClick && badge.earned ? 'cursor-pointer hover:scale-110' : ''}
-    ${badge.earned ? 'hover:shadow-xl hover:shadow-white/20' : ''}
+    ${onClick ? 'cursor-pointer hover:scale-105' : ''}
+    ${badge.earned ? 'hover:shadow-xl hover:shadow-white/20' : 'hover:opacity-80'}
   `;
 
   const progressPercent = Math.round(badge.progress * 100);
@@ -136,7 +136,7 @@ export default function BadgeCard({
         animate={badge.earned ? { scale: 1 } : {}}
         transition={badge.earned ? { type: 'spring', duration: 0.6 } : {}}
         className={badgeClasses}
-        onClick={onClick && badge.earned ? onClick : undefined}
+        onClick={onClick ? onClick : undefined}
         style={{
           background: badge.earned
             ? undefined
