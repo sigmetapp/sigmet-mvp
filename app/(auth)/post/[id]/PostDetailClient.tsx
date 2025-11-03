@@ -473,6 +473,11 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const avatar = authorProfile?.avatar_url || AVATAR_FALLBACK;
   const username = authorProfile?.username || (post.user_id ? post.user_id.slice(0, 8) : 'anon');
 
+  // Calculate total reactions count (sum of all reaction types)
+  const totalReactions = useMemo(() => {
+    return Object.values(reactionCounts).reduce((sum, count) => sum + count, 0);
+  }, [reactionCounts]);
+
   const postCard = (
     <PostCard
       post={{
@@ -542,7 +547,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           {/* Stats and actions */}
           <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
             <span>{post.views ?? 0} views</span>
-            <span>{post.likes_count ?? 0} likes</span>
+            <span>{totalReactions} likes</span>
             <span>{commentCount} comments</span>
           </div>
 
