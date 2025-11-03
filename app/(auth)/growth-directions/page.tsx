@@ -223,11 +223,11 @@ function GrowthDirectionsInner() {
       let dedupedBySlug = prepareDirections(rawDirections);
 
       const selectedPrimaryDirections = dedupedBySlug.filter((dir) => dir.isSelected && dir.isPrimary);
-      const selectedSecondaryDirections = dedupedBySlug.filter((dir) => dir.isSelected && !dir.isPrimary);
       
+      // Enforce limit: max 3 priority directions
       if (selectedPrimaryDirections.length > 3) {
         const extraPrimary = selectedPrimaryDirections.slice(3);
-        alert('You can only keep three primary directions. The most recently added extras were deselected.');
+        alert('You can only keep three priority directions. The most recently added extras were deselected.');
 
         for (const extra of extraPrimary) {
           try {
@@ -240,7 +240,7 @@ function GrowthDirectionsInner() {
               body: JSON.stringify({ directionId: extra.id }),
             });
           } catch (toggleError) {
-            console.error('Error enforcing primary limit:', toggleError);
+            console.error('Error enforcing priority limit:', toggleError);
           }
         }
 
@@ -251,42 +251,7 @@ function GrowthDirectionsInner() {
         });
 
         if (!refreshedRes.ok) {
-          throw new Error('Failed to refresh directions after enforcing primary limit');
-        }
-
-        const { directions: refreshedDirs } = await refreshedRes.json();
-        dedupedBySlug = prepareDirections(Array.isArray(refreshedDirs) ? refreshedDirs : []);
-      }
-      
-      // Also check secondary limit
-      const refreshedSecondaryCount = dedupedBySlug.filter((dir) => dir.isSelected && !dir.isPrimary).length;
-      if (refreshedSecondaryCount > 3) {
-        const extraSecondary = dedupedBySlug.filter((dir) => dir.isSelected && !dir.isPrimary).slice(3);
-        alert('You can only keep three additional directions. The most recently added extras were deselected.');
-
-        for (const extra of extraSecondary) {
-          try {
-            await fetch('/api/growth/directions.toggle', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({ directionId: extra.id }),
-            });
-          } catch (toggleError) {
-            console.error('Error enforcing secondary limit:', toggleError);
-          }
-        }
-
-        const refreshedRes = await fetch('/api/growth/directions.list', {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-
-        if (!refreshedRes.ok) {
-          throw new Error('Failed to refresh directions after enforcing secondary limit');
+          throw new Error('Failed to refresh directions after enforcing priority limit');
         }
 
         const { directions: refreshedDirs } = await refreshedRes.json();
@@ -594,23 +559,12 @@ function GrowthDirectionsInner() {
       (count, dir) => (dir.isSelected && dir.isPrimary ? count + 1 : count),
       0
     );
-    const selectedSecondaryCount = directions.reduce(
-      (count, dir) => (dir.isSelected && !dir.isPrimary ? count + 1 : count),
-      0
-    );
 
     if (!direction.isSelected) {
-      // Determine if this direction would be Primary or Additional when added
-      // Use the same logic as in the API: directions with sort_index <= 8 can be Primary
-      // But only if primaryCount < 3
-      const wouldBePrimary = direction.sort_index <= 8 && selectedPrimaryCount < 3;
-
-      if (wouldBePrimary && selectedPrimaryCount >= 3) {
+      // When selecting a category, it always becomes primary (priority)
+      // Check if limit is reached (max 3 primary directions)
+      if (selectedPrimaryCount >= 3) {
         setNotification({ message: 'Cannot add more than 3 primary directions' });
-        return;
-      }
-      if (!wouldBePrimary && selectedSecondaryCount >= 3) {
-        setNotification({ message: 'Cannot add more than 3 additional directions' });
         return;
       }
     }
@@ -1076,11 +1030,8 @@ function GrowthDirectionsInner() {
   const currentDirection = directions.find((d) => d.id === selectedDirection);
 
   const selectedPrimaryDirections = directions.filter((d) => d.isSelected && d.isPrimary);
-  const selectedSecondaryDirections = directions.filter((d) => d.isSelected && !d.isPrimary);
   const selectedPrimaryCount = selectedPrimaryDirections.length;
-  const selectedSecondaryCount = selectedSecondaryDirections.length;
   const primaryLimitReached = selectedPrimaryCount >= 3;
-  const secondaryLimitReached = selectedSecondaryCount >= 3;
   const displayedHabits = getDisplayedTasks(tasks.habits, 'habit');
   const displayedGoals = getDisplayedTasks(tasks.goals, 'goal');
   const extraHabits = Math.max(0, tasks.habits.length - displayedHabits.length);
@@ -1192,7 +1143,7 @@ function GrowthDirectionsInner() {
             </h2>
             <div className="flex flex-col md:flex-row gap-2 md:items-center">
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Primary: {selectedPrimaryCount} / 3, Additional: {selectedSecondaryCount} / 3
+                Priority: {selectedPrimaryCount} / 3
               </span>
               <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                 Active tasks: {summaryTasks.primary.length + summaryTasks.secondary.length} total
@@ -1478,14 +1429,9 @@ function GrowthDirectionsInner() {
                                          dir.slug === 'career' ||
                                          dir.slug === 'finance';
                   
-                  // Determine if this direction would be Primary or Additional when added
-                  // Use the same logic as in the API: directions with sort_index <= 8 can be Primary
-                  // But only if primaryCount < 3
-                  const wouldBePrimary = dir.sort_index <= 8 && selectedPrimaryCount < 3;
-                  
-                  const disableSelectionPrimary = !dir.isSelected && wouldBePrimary && primaryLimitReached;
-                  const disableSelectionSecondary = !dir.isSelected && !wouldBePrimary && secondaryLimitReached;
-                  const disableSelection = disableSelectionPrimary || disableSelectionSecondary || isInDevelopment;
+                  // When selecting a category, it always becomes primary (priority)
+                  // Disable selection if limit is reached (max 3 primary directions)
+                  const disableSelection = (!dir.isSelected && primaryLimitReached) || isInDevelopment;
                   const buttonLabel = isToggling
                     ? '...'
                     : isInDevelopment
@@ -1523,7 +1469,7 @@ function GrowthDirectionsInner() {
                           <div>
                             <span className="font-medium text-sm">{dir.title}</span>
                             <div className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-white/70' : isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                              {isInDevelopment ? 'In development' : dir.isPrimary ? 'Primary direction' : 'Additional direction'}
+                              {isInDevelopment ? 'In development' : dir.isSelected ? 'Priority direction' : 'Available'}
                             </div>
                           </div>
                         </div>
@@ -1538,10 +1484,8 @@ function GrowthDirectionsInner() {
                           title={
                             isInDevelopment 
                               ? 'This direction is currently in development' 
-                              : disableSelectionPrimary 
-                              ? 'Cannot add more than 3 primary directions' 
-                              : disableSelectionSecondary 
-                              ? 'Cannot add more than 3 additional directions' 
+                              : (!dir.isSelected && primaryLimitReached)
+                              ? 'Cannot add more than 3 priority directions' 
                               : undefined
                           }
                           className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
