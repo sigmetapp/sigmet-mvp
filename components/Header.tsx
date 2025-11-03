@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { supabase } from "@/lib/supabaseClient";
 import { useTheme } from "@/components/ThemeProvider";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, Menu, X } from "lucide-react";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -16,6 +16,7 @@ export default function Header() {
   const { logo_url, site_name } = useSiteSettings();
   const [user, setUser] = useState<any>(null);
   const [pathname, setPathname] = useState<string>("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -70,8 +71,8 @@ export default function Header() {
           </span>
         </Link>
 
-        {/* MAIN NAV */}
-        <nav className="ml-auto flex items-center gap-1">
+        {/* DESKTOP NAV */}
+        <nav className="ml-auto hidden md:flex items-center gap-1">
           {navLinks.map((l) => {
             const active = pathname === l.href;
             return (
@@ -144,7 +145,109 @@ export default function Header() {
             </button>
           )}
         </nav>
+
+        {/* MOBILE MENU BUTTON */}
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+          className={`ml-auto md:hidden h-9 w-9 grid place-items-center rounded-lg border transition ${
+            isLight
+              ? "border-telegram-blue/20 text-telegram-blue hover:bg-telegram-blue/10"
+              : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/20"
+          }`}
+        >
+          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
       </div>
+
+      {/* MOBILE MENU */}
+      {mobileMenuOpen && (
+        <div className={`md:hidden border-t transition-colors ${
+          isLight 
+            ? "border-telegram-blue/15 bg-white/95" 
+            : "border-telegram-blue/20 bg-[rgba(15,22,35,0.95)]"
+        }`}>
+          <nav className="px-4 py-3 flex flex-col gap-2">
+            {navLinks.map((l) => {
+              const active = pathname === l.href;
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    active
+                      ? isLight
+                        ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                        : "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                      : isLight
+                      ? "text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
+                      : "text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
+                  }`}
+                >
+                  {l.label}
+                </Link>
+              );
+            })}
+
+            <div className="flex items-center gap-2 pt-2 border-t border-telegram-blue/10">
+              <button
+                onClick={toggleTheme}
+                aria-label="Toggle theme"
+                className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
+                  isLight
+                    ? "border-telegram-blue/20 text-telegram-blue hover:bg-telegram-blue/10"
+                    : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/20"
+                }`}
+                title={isLight ? "Switch to dark" : "Switch to light"}
+              >
+                {isLight ? <Moon size={16} /> : <Sun size={16} />}
+              </button>
+
+              {!user ? (
+                <>
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-sm font-medium border-2 text-center transition ${
+                      isLight
+                        ? "border-telegram-blue text-telegram-blue hover:bg-telegram-blue/10"
+                        : "border-telegram-blue text-telegram-blue-light hover:bg-telegram-blue/15"
+                    }`}
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-sm font-medium text-center transition ${
+                      isLight
+                        ? "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                        : "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                    }`}
+                  >
+                    Sign up
+                  </Link>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition ${
+                    isLight
+                      ? "border-telegram-blue/30 text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
+                      : "border-telegram-blue/30 text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
+                  }`}
+                >
+                  Logout
+                </button>
+              )}
+            </div>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
