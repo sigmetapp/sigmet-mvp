@@ -7,6 +7,9 @@ import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
 import { getPresenceMap } from '@/lib/dm/presence';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import PostCard from '@/components/PostCard';
+import { resolveDirectionEmoji } from '@/lib/directions';
+import { useTheme } from '@/components/ThemeProvider';
 
 type Profile = {
   user_id: string;
@@ -36,6 +39,8 @@ export default function PublicProfilePage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug as string;
   const router = useRouter();
+  const { theme } = useTheme();
+  const isLight = theme === "light";
 
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -543,23 +548,47 @@ export default function PublicProfilePage() {
     }
   }
 
-  const GROWTH_AREAS = useMemo(
-    () => [
-      { id: 'health', emoji: '💚', title: 'Health' },
-      { id: 'thinking', emoji: '🧠', title: 'Thinking' },
-      { id: 'learning', emoji: '📚', title: 'Learning' },
-      { id: 'career', emoji: '🧩', title: 'Career' },
-      { id: 'finance', emoji: '💰', title: 'Finance' },
-      { id: 'relationships', emoji: '🤝', title: 'Relationships' },
-      { id: 'creativity', emoji: '🎨', title: 'Creativity' },
-      { id: 'sport', emoji: '🏃‍♂️', title: 'Sport' },
-      { id: 'habits', emoji: '⏱️', title: 'Habits' },
-      { id: 'emotions', emoji: '🌿', title: 'Emotions' },
-      { id: 'meaning', emoji: '✨', title: 'Meaning' },
-      { id: 'community', emoji: '🏙️', title: 'Community' },
-    ],
-    []
-  );
+  // Directions from growth-directions API
+  const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
+  const [loadingDirections, setLoadingDirections] = useState(true);
+  
+  // Load directions from growth-directions API
+  useEffect(() => {
+    (async () => {
+      setLoadingDirections(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setAvailableDirections([]);
+          setLoadingDirections(false);
+          return;
+        }
+
+        const res = await fetch('/api/growth/directions.list', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (res.ok) {
+          const { directions: dirs } = await res.json();
+          const rawDirections = Array.isArray(dirs) ? dirs : [];
+          // Load all directions, not just selected ones - we'll match by ID from profile.directions_selected
+          const mapped = rawDirections.map((dir: any) => ({
+            id: dir.id,
+            slug: dir.slug,
+            title: dir.title,
+            emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
+          }));
+          setAvailableDirections(mapped);
+        }
+      } catch (error) {
+        console.error('Error loading directions:', error);
+      } finally {
+        setLoadingDirections(false);
+      }
+    })();
+  }, [profile?.user_id]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -673,8 +702,9 @@ export default function PublicProfilePage() {
                   {iFollow && <span className="px-2 py-0.5 rounded-full border border-white/20">you follow</span>}
                 </div>
               )}
-              {/* SW indicator */}
-              <div className="mt-4">
+              {/* Social Weight and Trust Flow side by side */}
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Social Weight */}
                 <div className="rounded-2xl border border-white/15 bg-white/5 p-3">
                   <div className="flex items-center justify-between text-white/80 text-sm mb-2">
                     <div className="font-medium">Social Weight</div>
@@ -685,13 +715,40 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="mt-2 text-xs text-white/60">In development, coming soon</div>
                 </div>
+
+                {/* Trust Flow */}
+                <div className="rounded-2xl border border-white/15 bg-white/5 p-3">
+                  <div className="flex items-center justify-between text-white/80 text-sm mb-2">
+                    <div className="font-medium">Trust Flow</div>
+                    <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80">{trustScore}%</div>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full" style={trustBarStyleFor(trustScore)} />
+                  </div>
+                  {!isMe && (
+                    <button
+                      onClick={() => setFeedbackOpen(true)}
+                      className="mt-2 text-xs text-white/60 hover:text-white/80 underline"
+                    >
+                      Leave opinion
+                    </button>
+                  )}
+                  {isMe && (
+                    <button
+                      onClick={openHistory}
+                      className="mt-2 text-xs text-white/60 hover:text-white/80 underline"
+                    >
+                      Change history
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Selected directions: icons + labels */}
               {!!profile.directions_selected?.length && (
                 <div className="mt-4 flex items-center gap-3 flex-wrap">
                   {profile.directions_selected.slice(0, 3).map((id) => {
-                    const meta = GROWTH_AREAS.find((a) => a.id === id);
+                    const meta = availableDirections.find((a) => a.id === id);
                     const label = meta ? `${meta.emoji} ${meta.title}` : id;
                     return (
                       <span key={id} className="px-3 py-1.5 rounded-full text-sm border border-white/20 text-white/90">
@@ -706,67 +763,70 @@ export default function PublicProfilePage() {
         )}
       </div>
 
-      {/* Info block */}
+      {/* Info and Badges blocks side by side */}
       {!loadingProfile && profile && (
-        <div className="card p-4 md:p-6">
-          <div className="grid md:grid-cols-2 gap-4 text-white/90">
-            <div className="space-y-2">
-              <div className="text-white/60 text-sm">Bio</div>
-              <div>{profile.bio || '-'}</div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-white/60 text-sm">Country - City</div>
-              <div>
-                {profile.country ? (
-                  (() => {
-                    const city = String(profile.country).split(",")[0].trim();
-                    return (
-                      <Link href={`/city/${encodeURIComponent(city)}`} className="hover:underline">
-                        {profile.country}
-                      </Link>
-                    );
-                  })()
-                ) : (
-                  '-'
-                )}
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Info block */}
+          <div className="card p-4 md:p-6">
+            <div className="grid gap-4 text-white/90">
+              <div className="space-y-2">
+                <div className="text-white/60 text-sm">Bio</div>
+                <div>{profile.bio || '-'}</div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-white/60 text-sm">Website / Social</div>
-              <div>
-                {profile.website_url ? (
-                  <a href={profile.website_url} target="_blank" rel="noopener noreferrer" className="text-white hover:underline break-all">
-                    {profile.website_url}
-                  </a>
-                ) : (
-                  '-'
-                )}
+              <div className="space-y-2">
+                <div className="text-white/60 text-sm">Country - City</div>
+                <div>
+                  {profile.country ? (
+                    (() => {
+                      const city = String(profile.country).split(",")[0].trim();
+                      return (
+                        <Link href={`/city/${encodeURIComponent(city)}`} className="hover:underline">
+                          {profile.country}
+                        </Link>
+                      );
+                    })()
+                  ) : (
+                    '-'
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-white/60 text-sm">Joined</div>
-              <div>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '-'}</div>
+              <div className="space-y-2">
+                <div className="text-white/60 text-sm">Website / Social</div>
+                <div>
+                  {profile.website_url ? (
+                    <a href={profile.website_url} target="_blank" rel="noopener noreferrer" className="text-white hover:underline break-all">
+                      {profile.website_url}
+                    </a>
+                  ) : (
+                    '-'
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-white/60 text-sm">Joined</div>
+                <div>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '-'}</div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Badges block */}
-      {!loadingProfile && profile && displayedBadges.length > 0 && (
-        <div className="card p-4 md:p-6">
-          <h2 className="text-lg font-medium text-white/90 mb-4">Badges</h2>
-          <div className="flex flex-wrap items-center gap-3">
-            {displayedBadges.map((badge) => (
-              <div
-                key={badge.id}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/15 transition"
-                title={`${badge.name}: ${badge.description}`}
-              >
-                <span className="text-xl leading-none">{badge.emoji}</span>
-                <span className="text-white/90 text-sm font-medium">{badge.name}</span>
+          {/* Badges block */}
+          {displayedBadges.length > 0 && (
+            <div className="card p-4 md:p-6">
+              <h2 className="text-lg font-medium text-white/90 mb-4">Badges</h2>
+              <div className="flex flex-wrap items-center gap-3">
+                {displayedBadges.map((badge) => (
+                  <div
+                    key={badge.id}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/15 transition"
+                    title={`${badge.name}: ${badge.description}`}
+                  >
+                    <span className="text-xl leading-none">{badge.emoji}</span>
+                    <span className="text-white/90 text-sm font-medium">{badge.name}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -804,39 +864,6 @@ export default function PublicProfilePage() {
         </div>
       )}
 
-      {/* Trust Flow */}
-      {!loadingProfile && profile && (
-        <div className="card p-4 md:p-6 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg text-white/90">Trust Flow</h2>
-            <div className="flex items-center gap-2">
-              {!isMe && (
-                <button
-                  onClick={() => setFeedbackOpen(true)}
-                  className="px-3 py-1.5 rounded-lg border border-white/20 text-white/80 hover:bg-white/10 text-sm"
-                >
-                  Leave opinion
-                </button>
-              )}
-              {isMe && (
-                <button
-                  onClick={openHistory}
-                  className="px-3 py-1.5 rounded-lg border border-white/20 text-white/80 hover:bg-white/10 text-sm"
-                >
-                  Change history
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-white/80 text-sm">
-            <span>Rating</span>
-            <span>{trustScore}%</span>
-          </div>
-          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-            <div className="h-full" style={trustBarStyleFor(trustScore)} />
-          </div>
-        </div>
-      )}
 
       {/* Feedback modal */}
       {feedbackOpen && (
@@ -908,43 +935,146 @@ export default function PublicProfilePage() {
         ) : posts.length === 0 ? (
           <div className="text-white/70">No posts yet</div>
         ) : (
-          posts.map((p) => (
-            isMe ? (
-              // My page: compact post with stats summary
-              <div key={p.id} className="card p-4 md:p-5 space-y-3">
-                <div className="text-xs text-white/60">{new Date(p.created_at).toLocaleString()}</div>
-                {p.body && <div className="text-white/90 whitespace-pre-wrap">{p.body}</div>}
-                {p.image_url && <img src={p.image_url} alt="" className="rounded-2xl border border-white/10" />}
-                {p.video_url && (
-                  <video controls className="w-full rounded-2xl border border-white/10">
-                    <source src={p.video_url} />
-                  </video>
-                )}
-                <div className="flex items-center gap-4 text-sm text-white/70 pt-1">
-                  <span>👁️ {viewsByPostId[p.id] ?? 0}</span>
-                  <span className="ml-auto">Comments: {commentCounts[p.id] ?? 0}</span>
-                </div>
-              </div>
-            ) : (
-              // Others' page: feed-like card
-              <div key={p.id} className="card card-glow p-4 md:p-6 space-y-4">
-                <div className="flex items-center justify-between text-xs text-white/60">
-                  <span>{new Date(p.created_at).toLocaleString()}</span>
-                  <span className="flex items-center gap-1">👁️ {viewsByPostId[p.id] ?? 0}</span>
-                </div>
-                {p.body && <div className="text-white/90 whitespace-pre-wrap">{p.body}</div>}
-                {p.image_url && <img src={p.image_url} alt="" className="rounded-2xl border border-white/10" />}
-                {p.video_url && (
-                  <video controls className="w-full rounded-2xl border border-white/10">
-                    <source src={p.video_url} />
-                  </video>
-                )}
-                <div className="flex items-center gap-3 text-sm text-white/80">
-                  <span className="ml-auto">Comments: {commentCounts[p.id] ?? 0}</span>
-                </div>
-              </div>
-            )
-          ))
+          <div className="space-y-4">
+            {posts.map((p) => {
+              const profileData = profile ? { username: profile.username || profile.user_id.slice(0, 8), avatar_url: profile.avatar_url } : null;
+              const avatar = profileData?.avatar_url || AVATAR_FALLBACK;
+              const username = profileData?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
+              const commentCount = commentCounts[p.id] ?? 0;
+
+              // Format date like in feed
+              const formatPostDate = (dateString: string): string => {
+                const date = new Date(dateString);
+                if (Number.isNaN(date.getTime())) return dateString;
+                
+                const datePart = new Intl.DateTimeFormat('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                }).format(date);
+                
+                const timePart = new Intl.DateTimeFormat('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true,
+                }).format(date);
+                
+                return `${datePart}, ${timePart}`;
+              };
+
+              const Eye = () => (
+                <svg viewBox="0 0 24 24" className="h-5 w-5">
+                  <path
+                    d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="3"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+              );
+
+              return (
+                <PostCard
+                  key={p.id}
+                  post={{
+                    id: String(p.id),
+                    author: username,
+                    content: p.body ?? '',
+                    createdAt: p.created_at,
+                    commentsCount: commentCount,
+                  }}
+                  disableNavigation={true}
+                  className={`telegram-card-feature md:p-6 space-y-2 relative transition-transform duration-200 ease-out`}
+                  renderContent={() => (
+                    <div className="relative z-10 space-y-2">
+                      {/* header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                          <img
+                            src={avatar}
+                            alt="avatar"
+                            className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
+                          />
+                          <div className="flex flex-col min-w-0">
+                            <Link
+                              href={`/u/${profile?.username || profile?.user_id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
+                              data-prevent-card-navigation="true"
+                            >
+                              {username}
+                            </Link>
+                          </div>
+                        </div>
+                        <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                          <span className="whitespace-nowrap">{formatPostDate(p.created_at)}</span>
+                        </div>
+                      </div>
+
+                      {/* content */}
+                      <div
+                        className="relative cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/post/${p.id}`);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            router.push(`/post/${p.id}`);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label="Open post"
+                      >
+                        {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
+                        {p.image_url && (
+                          <div className="mt-3 flex justify-center">
+                            <img
+                              src={p.image_url}
+                              loading="lazy"
+                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                              alt="post image"
+                            />
+                          </div>
+                        )}
+                        {p.video_url && (
+                          <div className="mt-3 flex justify-center">
+                            <video
+                              controls
+                              preload="metadata"
+                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                            >
+                              <source src={p.video_url} />
+                            </video>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* footer */}
+                      <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                        <div className="flex items-center gap-1" title="Views">
+                          <Eye />
+                          <span className="text-sm">{viewsByPostId[p.id] ?? 0}</span>
+                        </div>
+                        <div className={`ml-auto text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                          Comments: {commentCount}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                />
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
