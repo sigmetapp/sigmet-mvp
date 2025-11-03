@@ -29,7 +29,7 @@ type Ripple = {
 };
 
 const INTERACTIVE_SELECTOR =
-  'a, button, [role="button"], input, textarea, select, label, svg, [data-interactive], [data-prevent-card-navigation="true"]';
+  'a, button, [role="button"]:not([data-allow-card-click]), input, textarea, select, label, [data-interactive], [data-prevent-card-navigation="true"]';
 
 export default function PostCard({
   post,
@@ -126,10 +126,35 @@ export default function PostCard({
       if (event.button !== 0) return;
 
       const target = event.target as HTMLElement | null;
-      if (target && target.closest(INTERACTIVE_SELECTOR)) {
-        return;
+      
+      // Only block if clicking directly on an interactive element
+      if (target) {
+        // Check for explicit blocking attributes
+        if (
+          target.getAttribute('data-prevent-card-navigation') === 'true' ||
+          target.getAttribute('data-interactive') === 'true'
+        ) {
+          return;
+        }
+
+        // Check if clicking directly on a button, link, or element with role="button"
+        const tagName = target.tagName;
+        const role = target.getAttribute('role');
+        
+        if (tagName === 'BUTTON' || tagName === 'A' || role === 'button') {
+          // Allow if it has data-allow-card-click (rare case)
+          if (target.getAttribute('data-allow-card-click') !== 'true') {
+            return;
+          }
+        }
+
+        // Check if target is a form control
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || tagName === 'LABEL') {
+          return;
+        }
       }
 
+      // Allow navigation for all other clicks
       triggerRipple(event);
       openPost();
     },
