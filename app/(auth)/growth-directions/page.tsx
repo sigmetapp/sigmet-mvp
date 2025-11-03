@@ -1400,23 +1400,14 @@ function GrowthDirectionsInner() {
               </h2>
               <div className="space-y-2">
                 {directions
-                  .sort((a, b) => {
-                    // Helper function to check if direction is in development
-                    const isInDev = (slug: string) => 
-                      slug === 'creativity' || 
-                      slug === 'mindfulness_purpose' || 
-                      slug === 'relationships' ||
-                      slug === 'career' ||
-                      slug === 'finance';
-                    
-                    const aInDev = isInDev(a.slug);
-                    const bInDev = isInDev(b.slug);
-                    
-                    // Active directions first (not in development), then inactive (in development)
-                    if (aInDev && !bInDev) return 1;
-                    if (!aInDev && bInDev) return -1;
-                    // If both have same status, maintain original order
-                    return 0;
+                  .filter((dir) => {
+                    // Filter out directions in development
+                    const isInDevelopment = dir.slug === 'creativity' || 
+                                           dir.slug === 'mindfulness_purpose' || 
+                                           dir.slug === 'relationships' || 
+                                           dir.slug === 'career' || 
+                                           dir.slug === 'finance';
+                    return !isInDevelopment;
                   })
                   .map((dir) => {
                   const isToggling = toggling.has(dir.id);

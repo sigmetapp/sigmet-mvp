@@ -176,9 +176,13 @@ function FeedInner() {
         if (res.ok) {
           const { directions: dirs } = await res.json();
           const rawDirections = Array.isArray(dirs) ? dirs : [];
-          // Filter only primary (priority) directions that are selected
+          // Filter only primary (priority) directions that are selected and not in development
+          const directionsInDevelopment = ['creativity', 'mindfulness_purpose', 'relationships', 'career', 'finance'];
           const mapped = rawDirections
-            .filter((dir: any) => dir.isSelected && dir.isPrimary === true)
+            .filter((dir: any) => {
+              const isInDevelopment = directionsInDevelopment.includes(dir.slug);
+              return dir.isSelected && dir.isPrimary === true && !isInDevelopment;
+            })
             .map((dir: any) => ({
               id: dir.id,
               slug: dir.slug,
