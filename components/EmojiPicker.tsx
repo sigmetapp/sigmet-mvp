@@ -11,6 +11,7 @@ type Props = {
   onEmojiSelect: (emoji: string) => void;
   variant?: 'light' | 'dark';
   align?: 'left' | 'right';
+  position?: 'top' | 'bottom';
 };
 
 const VARIANT_STYLES: Record<NonNullable<Props['variant']>, string> = {
@@ -42,6 +43,7 @@ export default function EmojiPicker({
   onEmojiSelect,
   variant = 'dark',
   align = 'right',
+  position = 'bottom',
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [, setRecentEmojis] = useState<string[]>([]);
@@ -106,6 +108,7 @@ export default function EmojiPicker({
 
   const triggerClasses = VARIANT_STYLES[variant];
   const alignmentClasses = align === 'left' ? 'left-0' : 'right-0';
+  const positionClasses = position === 'top' ? 'bottom-full mb-2' : 'mt-2';
 
   return (
     <div ref={containerRef} className="relative">
@@ -123,7 +126,7 @@ export default function EmojiPicker({
 
       {isOpen && (
         <div
-          className={`absolute z-50 mt-2 ${alignmentClasses}`}
+          className={`absolute z-[9999] ${positionClasses} ${alignmentClasses}`}
           role="dialog"
           aria-label="Emoji picker"
         >

@@ -1193,6 +1193,7 @@ function FeedInner() {
                                           onEmojiSelect={handleReplyEmojiSelect(c.id)}
                                           variant={isLight ? 'light' : 'dark'}
                                           align="left"
+                                          position="top"
                                         />
                                         <button
                                         onClick={() => {
@@ -1242,6 +1243,7 @@ function FeedInner() {
                               onEmojiSelect={handleCommentEmojiSelect(p.id)}
                               variant={isLight ? 'light' : 'dark'}
                               align="left"
+                              position="top"
                             />
                             <label
                               htmlFor={`cfile-${p.id}`}
