@@ -275,7 +275,23 @@ function GrowthDirectionsInner() {
           return firstSelected.id;
         }
 
-        return dedupedBySlug[0]?.id ?? null;
+        // Default to Community & Society if available
+        const communityDirection = dedupedBySlug.find((dir) => dir.slug === 'community');
+        if (communityDirection) {
+          return communityDirection.id;
+        }
+
+        // Otherwise find first direction that's not in development
+        const availableDirections = dedupedBySlug.filter((dir) => {
+          const isInDevelopment = dir.slug === 'creativity' || 
+                                 dir.slug === 'mindfulness_purpose' || 
+                                 dir.slug === 'relationships' ||
+                                 dir.slug === 'career' ||
+                                 dir.slug === 'finance';
+          return !isInDevelopment;
+        });
+
+        return availableDirections[0]?.id ?? dedupedBySlug[0]?.id ?? null;
       });
     } catch (error: any) {
       console.error('Error loading directions:', error);
@@ -1134,113 +1150,6 @@ function GrowthDirectionsInner() {
         </div>
       )}
 
-      {/* Summary Section */}
-      {!loading && (
-        <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''} min-h-[400px]`}>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-            <h2 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-              {String.fromCodePoint(0x1F4CA)} Work & Focus Overview
-            </h2>
-            <div className="flex flex-col md:flex-row gap-2 md:items-center">
-              <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Priority: {selectedPrimaryCount} / 3
-              </span>
-              <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Active tasks: {summaryTasks.primary.length + summaryTasks.secondary.length} total
-              </span>
-              {(summaryTasks.primary.length > 0 || summaryTasks.secondary.length > 0) && (
-                <Button
-                  onClick={resetAllTasks}
-                  disabled={resettingAllTasks || loadingSummary}
-                  variant="secondary"
-                  className="text-xs px-3 py-1.5"
-                  title="Reset all active tasks"
-                >
-                  {resettingAllTasks ? 'Resetting...' : 'Reset All Tasks'}
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-            <section className="min-h-[200px]">
-              <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Habits
-                {(() => {
-                  const allHabits = [...summaryTasks.primary, ...summaryTasks.secondary].filter(item => item.type === 'habit');
-                  return allHabits.length > 0 ? ` (${allHabits.length})` : '';
-                })()}
-              </h3>
-              {/* Priority Habits */}
-              {summaryTasks.primary.filter(item => item.type === 'habit').length > 0 && (
-                <div className="mb-4">
-                  <h4 className={`text-xs font-medium mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                    Priority Directions ({summaryTasks.primary.filter(item => item.type === 'habit').length})
-                  </h4>
-                  {renderSummaryTaskList(summaryTasks.primary.filter(item => item.type === 'habit'))}
-                </div>
-              )}
-              {/* Additional Habits */}
-              {summaryTasks.secondary.filter(item => item.type === 'habit').length > 0 && (
-                <div>
-                  <h4 className={`text-xs font-medium mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                    Additional Directions ({summaryTasks.secondary.filter(item => item.type === 'habit').length})
-                  </h4>
-                  {renderSummaryTaskList(summaryTasks.secondary.filter(item => item.type === 'habit'))}
-                </div>
-              )}
-              {/* Empty state */}
-              {summaryTasks.primary.filter(item => item.type === 'habit').length === 0 && 
-               summaryTasks.secondary.filter(item => item.type === 'habit').length === 0 && 
-               !loadingSummary && (
-                <div className="min-h-[120px] flex items-center">
-                  <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                    No habits in work yet
-                  </p>
-                </div>
-              )}
-            </section>
-
-            <section className="min-h-[200px]">
-              <h3 className={`font-medium text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                Goals
-                {(() => {
-                  const allGoals = [...summaryTasks.primary, ...summaryTasks.secondary].filter(item => item.type === 'goal');
-                  return allGoals.length > 0 ? ` (${allGoals.length})` : '';
-                })()}
-              </h3>
-              {/* Priority Goals */}
-              {summaryTasks.primary.filter(item => item.type === 'goal').length > 0 && (
-                <div className="mb-4">
-                  <h4 className={`text-xs font-medium mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                    Priority Directions ({summaryTasks.primary.filter(item => item.type === 'goal').length})
-                  </h4>
-                  {renderSummaryTaskList(summaryTasks.primary.filter(item => item.type === 'goal'))}
-                </div>
-              )}
-              {/* Additional Goals */}
-              {summaryTasks.secondary.filter(item => item.type === 'goal').length > 0 && (
-                <div>
-                  <h4 className={`text-xs font-medium mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                    Additional Directions ({summaryTasks.secondary.filter(item => item.type === 'goal').length})
-                  </h4>
-                  {renderSummaryTaskList(summaryTasks.secondary.filter(item => item.type === 'goal'))}
-                </div>
-              )}
-              {/* Empty state */}
-              {summaryTasks.primary.filter(item => item.type === 'goal').length === 0 && 
-               summaryTasks.secondary.filter(item => item.type === 'goal').length === 0 && 
-               !loadingSummary && (
-                <div className="min-h-[120px] flex items-center">
-                  <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                    No goals in work yet
-                  </p>
-                </div>
-              )}
-            </section>
-          </div>
-        </div>
-      )}
 
       {/* Completed Tasks & Total Points Section */}
       {!loading && (
