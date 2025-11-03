@@ -28,6 +28,26 @@ export default function FeedPage() {
   );
 }
 
+function formatPostDate(dateString: string): string {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+  
+  const datePart = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+  
+  const timePart = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+  
+  // Format: "Nov 3, 2025, 11:04 AM"
+  return `${datePart}, ${timePart}`;
+}
+
 type Post = {
   id: number;
   user_id: string | null;
@@ -855,7 +875,7 @@ function FeedInner() {
                         </div>
                       </div>
                       <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                        <span className="whitespace-nowrap">{new Date(p.created_at).toLocaleString()}</span>
+                        <span className="whitespace-nowrap">{formatPostDate(p.created_at)}</span>
                         {uid === p.user_id && editingId !== p.id && (
                           <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
                             <PostActionMenu
@@ -1090,7 +1110,7 @@ function FeedInner() {
                                         );
                                       })()}
                                     </div>
-                                    <span>{new Date(c.created_at).toLocaleString()}</span>
+                                    <span>{formatPostDate(c.created_at)}</span>
                                   </div>
                                   {c.body && <div className={`mt-1 whitespace-pre-wrap ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{c.body}</div>}
                                   {c.media_url && (
