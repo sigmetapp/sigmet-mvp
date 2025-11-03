@@ -1,5 +1,5 @@
 import "../styles/globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import PostHogInit from "@/components/PostHogInit";
 import SupabaseAuthSync from "@/components/SupabaseAuthSync";
 import Layout from "@/components/Layout";
@@ -8,6 +8,12 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Settings",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1.0,
+  maximumScale: 5.0,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

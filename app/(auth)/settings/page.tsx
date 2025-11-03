@@ -105,10 +105,10 @@ function SettingsInner() {
   ];
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
+    <div className="max-w-3xl mx-auto px-4 py-6 md:p-6 space-y-6">
       <h1 className="text-xl font-medium text-white/90">Site Settings (Admin)</h1>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 md:p-4 space-y-4">
         <label className="block space-y-2">
           <span className="text-sm text-white/70">Site name</span>
           <input
@@ -161,7 +161,7 @@ function SettingsInner() {
         </label>
         <div className="pt-2 space-y-2">
           <div className="text-sm text-white/70">Allowed continents (by IP)</div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {continentOptions.map((opt) => (
               <label key={opt.code} className="flex items-center gap-2 text-white/80">
                 <input
