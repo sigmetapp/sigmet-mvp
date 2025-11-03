@@ -49,6 +49,10 @@ function calculateProgress(
   switch (badge.metric) {
     case 'total_posts':
       currentValue = metrics.total_posts || 0;
+      // Debug log for post_achiever badge
+      if (badge.key === 'post_achiever') {
+        console.log(`[calculateProgress] post_achiever: currentValue=${currentValue}, threshold=${badge.threshold}, total_posts=${metrics.total_posts}`);
+      }
       break;
     case 'total_comments':
       currentValue = metrics.total_comments || 0;
@@ -216,6 +220,7 @@ export default async function handler(
 
     const parseCount = (value: unknown): number | null => {
       if (typeof value === 'number') return value;
+      if (typeof value === 'bigint') return Number(value);
       if (typeof value === 'string') {
         const parsed = Number(value);
         return Number.isNaN(parsed) ? null : parsed;
@@ -223,6 +228,7 @@ export default async function handler(
       return null;
     };
 
+    // Always fetch fresh post count directly from database
     const { data: totalPostsCount, error: totalPostsError } = await admin.rpc(
       'count_user_posts',
       { user_uuid: id }
@@ -233,6 +239,9 @@ export default async function handler(
       const parsed = parseCount(totalPostsCount);
       if (parsed !== null) {
         metricsObject.total_posts = parsed;
+        console.log(`[Badges API] User ${id} has ${parsed} total posts`);
+      } else {
+        console.warn(`[Badges API] Failed to parse post count for user ${id}:`, totalPostsCount);
       }
     }
 
@@ -291,16 +300,26 @@ export default async function handler(
     );
 
     // Combine badges with progress and earned status
+    // Use metricsObject which has the fresh post count
     const badgesWithProgress: BadgeWithProgress[] = (badges || []).map(
       (badge) => {
         const catalogBadge = BADGE_CATALOG.find((b) => b.key === badge.key);
+        const badgeForProgress = catalogBadge || {
+          key: badge.key,
+          metric: badge.metric,
+          threshold: badge.threshold,
+        } as any;
+        
+        // Debug log for post_achiever badge
+        if (badge.key === 'post_achiever') {
+          console.log(`[Badges API] Processing post_achiever badge for user ${id}`);
+          console.log(`[Badges API] Badge metric: ${badgeForProgress.metric}, threshold: ${badgeForProgress.threshold}`);
+          console.log(`[Badges API] MetricsObject total_posts: ${metricsObject.total_posts}`);
+        }
+        
         const { progress, currentValue } = calculateProgress(
-          catalogBadge || {
-            key: badge.key,
-            metric: badge.metric,
-            threshold: badge.threshold,
-          } as any,
-          metrics as UserMetrics
+          badgeForProgress,
+          metricsObject as UserMetrics // Use metricsObject with fresh values
         );
 
         let earned = earnedBadgeKeys.has(badge.key);
@@ -345,7 +364,7 @@ export default async function handler(
       earned,
       nextToEarn,
       all: badgesWithProgress, // Include all badges (active and inactive) for admin UI
-      metrics: metrics as UserMetrics,
+      metrics: metricsObject as UserMetrics, // Return metricsObject with fresh values
     });
   } catch (error: any) {
     console.error('badges/user/[id] error:', error);
