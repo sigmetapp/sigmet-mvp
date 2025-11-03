@@ -418,7 +418,14 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   <div className="flex flex-col min-w-0">
                     <span className={`text-sm font-medium truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{username}</span>
                     <time className="text-xs text-slate-500 dark:text-slate-400" dateTime={comment.created_at}>
-                      {new Date(comment.created_at).toLocaleString()}
+                      {new Intl.DateTimeFormat('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                      }).format(new Date(comment.created_at))}
                     </time>
                   </div>
                 </div>
@@ -545,7 +552,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         commentsCount: undefined, // Hide comment count in PostCard header
       }}
       disableNavigation
-      className="select-text"
+      className={`select-text ${isLight ? '!bg-white !border-slate-200' : ''}`}
       renderContent={(postCardPost, defaultContent) => (
         <div className="relative z-10 flex flex-col gap-3">
           {/* Header with avatar and clickable nickname */}
@@ -591,7 +598,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           </header>
 
           {/* Content */}
-          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">
+          <p className={`whitespace-pre-wrap text-sm leading-6 ${isLight ? 'text-slate-900' : 'text-slate-300'}`}>
             {postCardPost.content}
           </p>
 
