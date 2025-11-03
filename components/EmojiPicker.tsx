@@ -126,7 +126,7 @@ export default function EmojiPicker({
 
       {isOpen && (
         <div
-          className={`absolute z-[9999] ${positionClasses} ${alignmentClasses}`}
+          className={`absolute z-[10000] ${positionClasses} ${alignmentClasses}`}
           role="dialog"
           aria-label="Emoji picker"
         >

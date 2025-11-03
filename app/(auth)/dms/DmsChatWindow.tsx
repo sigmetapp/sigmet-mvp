@@ -1119,7 +1119,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
             }}
           />
           <div className="flex items-center gap-1 flex-shrink-0">
-            <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+            <EmojiPicker onEmojiSelect={handleEmojiSelect} position="top" />
             <button
               className="btn btn-primary rounded-xl px-4 py-2 text-sm font-medium"
               onClick={handleSend}
