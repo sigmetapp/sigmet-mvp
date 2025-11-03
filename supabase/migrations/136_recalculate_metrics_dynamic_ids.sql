@@ -11,12 +11,16 @@ declare
   affected_users integer := 0;
   user_record record;
   posts_last_30d integer := 0;
+  total_posts_count integer := 0;
+  total_comments_count integer := 0;
   total_active_days integer := 0;
   consecutive_days integer := 0;
   weekly_active_weeks integer := 0;
   distinct_commenters_count integer := 0;
   threads_10_comments_count integer := 0;
   likes_received_count integer := 0;
+  likes_given_count integer := 0;
+  comments_on_others_posts_count integer := 0;
   posts_author_column text;
   comments_author_column text;
   activity_dates date[];
@@ -73,17 +77,21 @@ begin
 
       -- Reset per-user aggregates
       posts_last_30d := 0;
+      total_posts_count := 0;
+      total_comments_count := 0;
       total_active_days := 0;
       consecutive_days := 0;
       weekly_active_weeks := 0;
       distinct_commenters_count := 0;
       threads_10_comments_count := 0;
       likes_received_count := 0;
+      likes_given_count := 0;
+      comments_on_others_posts_count := 0;
       activity_dates := null;
       prev_activity_date := null;
       streak := 0;
 
-      -- Posts in the last 30 days
+      -- Posts (all time) and in the last 30 days
       begin
         execute format(
           'select count(*) from public.posts where %I = $1 and created_at >= now() - interval ''30 days''',
@@ -94,6 +102,30 @@ begin
       exception
         when others then
           posts_last_30d := 0;
+      end;
+
+      begin
+        execute format(
+          'select count(*) from public.posts where %I = $1',
+          posts_author_column
+        )
+        into total_posts_count
+        using user_record.id;
+      exception
+        when others then
+          total_posts_count := 0;
+      end;
+
+      begin
+        execute format(
+          'select count(*) from public.comments where %I = $1',
+          comments_author_column
+        )
+        into total_comments_count
+        using user_record.id;
+      exception
+        when others then
+          total_comments_count := 0;
       end;
 
       -- Collect activity dates (posts + comments)
@@ -223,9 +255,40 @@ begin
           likes_received_count := 0;
       end;
 
+      -- Likes given
+      begin
+        select coalesce(count(*), 0)
+        into likes_given_count
+        from public.post_reactions
+        where user_id = user_record.id;
+      exception
+        when others then
+          likes_given_count := 0;
+      end;
+
+      -- Comments left on other users' posts
+      begin
+        execute format(
+          'select coalesce(count(*), 0)
+           from public.comments c
+           join public.posts p on p.id = c.post_id
+           where c.%1$I = $1
+             and p.%2$I != $1',
+          comments_author_column,
+          posts_author_column
+        )
+        into comments_on_others_posts_count
+        using user_record.id;
+      exception
+        when others then
+          comments_on_others_posts_count := 0;
+      end;
+
       -- Persist recalculated metrics
       update public.user_metrics
       set
+        total_posts = total_posts_count,
+        total_comments = total_comments_count,
         total_posts_last_30d = posts_last_30d,
         active_days = total_active_days,
         consecutive_active_days = consecutive_days,
@@ -233,6 +296,8 @@ begin
         distinct_commenters = distinct_commenters_count,
         threads_with_10_comments = threads_10_comments_count,
         likes_received = likes_received_count,
+        likes_given = likes_given_count,
+        comments_on_others_posts = comments_on_others_posts_count,
         earned_badges_count = (
           select count(*) from public.user_badges where user_id = user_record.id
         ),
