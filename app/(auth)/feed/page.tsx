@@ -28,6 +28,26 @@ export default function FeedPage() {
   );
 }
 
+function formatPostDate(dateString: string): string {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+  
+  const datePart = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+  
+  const timePart = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+  
+  // Format: "Nov 3, 2025, 11:04 AM"
+  return `${datePart}, ${timePart}`;
+}
+
 type Post = {
   id: number;
   user_id: string | null;
@@ -855,7 +875,7 @@ function FeedInner() {
                         </div>
                       </div>
                       <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                        <span className="whitespace-nowrap">{new Date(p.created_at).toLocaleString()}</span>
+                        <span className="whitespace-nowrap">{formatPostDate(p.created_at)}</span>
                         {uid === p.user_id && editingId !== p.id && (
                           <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
                             <PostActionMenu
@@ -1040,12 +1060,9 @@ function FeedInner() {
                       <PostCommentsBadge
                         count={commentCount}
                         size="md"
-                        onOpen={async () => {
+                        onOpen={() => {
                           const willOpen = !openComments[p.id];
                           setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
-                          if (willOpen && !(comments[p.id]?.length > 0)) {
-                            await loadComments(p.id);
-                          }
                         }}
                         onFocusComposer={() => {
                           const composer = document.getElementById(`comment-composer-${p.id}`);
@@ -1058,121 +1075,9 @@ function FeedInner() {
                       />
                     </div>
 
-                    {/* comments */}
+                    {/* Quick comment form only - no history */}
                     {openComments[p.id] && (
-                      <div className="space-y-2">
-                        {(() => {
-                          const list = comments[p.id] || [];
-                          const byParent: Record<number | "root", Comment[]> = { root: [] } as any;
-                          for (const c of list) {
-                            const pid = (c.parent_id as number | null) ?? null;
-                            const key = (pid ?? "root") as any;
-                            if (!byParent[key]) byParent[key] = [] as any;
-                            byParent[key].push(c);
-                          }
-                          const renderThread = (parentId: number | null, depth: number): JSX.Element[] => {
-                            const key = (parentId ?? "root") as any;
-                            const children = byParent[key] || [];
-                            return children.map((c) => (
-                              <div key={c.id} className={`mt-2 ${depth === 0 ? "" : "ml-4"}`}>
-                                <div className={`telegram-card-glow rounded-xl p-2 text-sm ${isLight ? "" : ""}`}>
-                                  <div className={`text-xs flex items-center justify-between ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      {(() => {
-                                        const commentProfile = c.user_id ? commenterProfiles[c.user_id] : undefined;
-                                        const commentAvatar = commentProfile?.avatar_url || AVATAR_FALLBACK;
-                                        const commentUsername = commentProfile?.username || (c.user_id ? c.user_id.slice(0, 8) : "Anon");
-                                        return (
-                                          <>
-                                            <img src={commentAvatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10" />
-                                            <span className="truncate">{commentUsername}</span>
-                                          </>
-                                        );
-                                      })()}
-                                    </div>
-                                    <span>{new Date(c.created_at).toLocaleString()}</span>
-                                  </div>
-                                  {c.body && <div className={`mt-1 whitespace-pre-wrap ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{c.body}</div>}
-                                  {c.media_url && (
-                                    c.media_url.match(/\.(mp4|webm|ogg)(\?|$)/i) ? (
-                                      <div className="mt-2 flex justify-center">
-                                        <video 
-                                          controls 
-                                          preload="metadata" 
-                                          className={`max-w-full max-h-[400px] w-auto h-auto rounded-xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
-                                        >
-                                          <source src={c.media_url} />
-                                        </video>
-                                      </div>
-                                    ) : (
-                                      <div className="mt-2 flex justify-center">
-                                        <img
-                                          src={c.media_url}
-                                          loading="lazy"
-                                          className={`max-w-full max-h-[400px] w-auto h-auto rounded-xl border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
-                                          alt="comment media"
-                                        />
-                                      </div>
-                                    )
-                                  )}
-                                  <div className="mt-2 flex items-center gap-2 text-xs">
-                                    <button
-                                      onClick={() => voteComment(c.id, 1)}
-                                      className={`px-2 py-1 rounded-lg border transition ${
-                                        myCommentVotes[c.id] === 1
-                                          ? isLight
-                                            ? "bg-emerald-500 text-white border-emerald-500"
-                                            : "bg-emerald-400 text-white border-emerald-400"
-                                          : isLight
-                                          ? "border-telegram-blue/30 hover:bg-emerald-50"
-                                          : "border-telegram-blue/30 hover:bg-emerald-400/10"
-                                      }`}
-                                    >
-                                      +
-                                    </button>
-                                    <div className="min-w-[2ch] text-center text-white/80">{commentScores[c.id] || 0}</div>
-                                    <button
-                                      onClick={() => voteComment(c.id, -1)}
-                                      className={`px-2 py-1 rounded-lg border ${
-                                        myCommentVotes[c.id] === -1 ? "bg-rose-300 text-black border-rose-300" : "border-white/20 hover:bg-white/10"
-                                      }`}
-                                    >
-                                      -
-                                    </button>
-                                    <button
-                                      onClick={() => setReplyOpen((prev) => ({ ...prev, [c.id]: !prev[c.id] }))}
-                                      className="ml-2 px-2 py-1 rounded-lg border border-white/20 hover:bg-white/10"
-                                    >
-                                      Reply
-                                    </button>
-                                  </div>
-                                  {replyOpen[c.id] && (
-                                    <div className="mt-2 flex items-center gap-2">
-                                      <input
-                                        value={replyInput[c.id] || ""}
-                                        onChange={(e) => setReplyInput((prev) => ({ ...prev, [c.id]: e.target.value }))}
-                                        placeholder="Write a reply?"
-                                        className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
-                                      />
-                                      <button
-                                        onClick={() => {
-                                          addComment(p.id, c.id);
-                                          setReplyOpen((prev) => ({ ...prev, [c.id]: false }));
-                                          setReplyInput((prev) => ({ ...prev, [c.id]: "" }));
-                                        }}
-                                        className="btn btn-primary"
-                                      >
-                                        Reply
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                                {renderThread(c.id, depth + 1)}
-                              </div>
-                            ));
-                          };
-                          return <>{renderThread(null, 0)}</>;
-                        })()}
+                      <div className="mt-3">
                         <div className="flex gap-2 items-center">
                           <input
                             id={`comment-composer-${p.id}`}
@@ -1184,7 +1089,7 @@ function FeedInner() {
                               }))
                             }
                             placeholder="Write a comment?"
-                            className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                            className={`input py-2 focus:ring-0 flex-1 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
                           />
                           <input
                             id={`cfile-${p.id}`}

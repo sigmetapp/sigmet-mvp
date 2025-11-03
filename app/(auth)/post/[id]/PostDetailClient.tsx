@@ -10,6 +10,7 @@ import PostActionMenu from '@/components/PostActionMenu';
 import PostCard from '@/components/PostCard';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveDirectionEmoji } from '@/lib/directions';
+import EmojiPicker from '@/components/EmojiPicker';
 
 type PostRecord = {
   id: number;
@@ -292,6 +293,10 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     },
     [loadReactions, postId, uid]
   );
+
+  const handleCommentEmojiSelect = useCallback((emoji: string) => {
+    setCommentInput((prev) => prev + emoji);
+  }, []);
 
   const submitComment = useCallback(
     async (parentId?: number) => {
@@ -699,7 +704,13 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
             rows={3}
             className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm outline-none focus:ring focus:ring-sky-500/40 dark:border-slate-700"
           />
-          <div className="mt-3 flex justify-end">
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <EmojiPicker
+              onEmojiSelect={handleCommentEmojiSelect}
+              variant={isLight ? 'light' : 'dark'}
+              align="right"
+              position="top"
+            />
             <Button variant="primary" disabled={commentSubmitting} onClick={() => submitComment()}>
               {commentSubmitting ? 'Sending?' : 'Comment'}
             </Button>
