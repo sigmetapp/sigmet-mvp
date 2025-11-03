@@ -17,6 +17,7 @@ import PostActionMenu from "@/components/PostActionMenu";
 import PostCommentsBadge from "@/components/PostCommentsBadge";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
+import EmojiPicker from "@/components/EmojiPicker";
 
 export default function FeedPage() {
   return (
@@ -66,6 +67,7 @@ function FeedInner() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const emojiInputRef = useRef<HTMLInputElement>(null);
 
   // Map author user_id -> profile info (username, avatar)
   const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; avatar_url: string | null }>>({});
@@ -77,6 +79,15 @@ function FeedInner() {
   const [replyInput, setReplyInput] = useState<Record<number, string>>({});
   const [replyOpen, setReplyOpen] = useState<Record<number, boolean>>({});
   const [commentFile, setCommentFile] = useState<Record<number, File | null>>({});
+  
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    setText((prev) => prev + emoji);
+  }, []);
+  
+  const handleNativeEmojiInput = useCallback(() => {
+    // Focus the native emoji input to show iPhone emoji keyboard
+    emojiInputRef.current?.focus();
+  }, []);
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
   const [commentScores, setCommentScores] = useState<Record<number, number>>({});
@@ -1247,7 +1258,7 @@ function FeedInner() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="What do you want to share?"
-                className={`input w-full outline-none min-h-[120px] text.base md:text-lg ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                className={`input w-full outline-none min-h-[120px] text-base md:text-lg ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
               />
               <input
                 ref={unifiedFileRef}
@@ -1263,6 +1274,33 @@ function FeedInner() {
                 }}
               />
               <div className="flex items-center gap-3">
+                <input
+                  ref={emojiInputRef}
+                  type="text"
+                  inputMode="emoji"
+                  className="absolute w-0 h-0 opacity-0 pointer-events-none"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setText((prev) => prev + e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleNativeEmojiInput}
+                  className={`px-3 py-2 rounded-xl border text-sm transition ${
+                    isLight
+                      ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
+                      : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                  }`}
+                  title="Emoji keyboard"
+                >
+                  ??
+                </button>
+                <EmojiPicker onEmojiSelect={handleEmojiSelect} />
                 <button
                   onClick={() => unifiedFileRef.current?.click()}
                   className={`px-3 py-2 rounded-xl border text-sm transition ${
