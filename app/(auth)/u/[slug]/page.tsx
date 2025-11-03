@@ -549,7 +549,7 @@ export default function PublicProfilePage() {
   }
 
   // Directions from growth-directions API
-  const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
+  const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string; isPrimary: boolean }>>([]);
   const [loadingDirections, setLoadingDirections] = useState(true);
   
   // Load directions from growth-directions API
@@ -579,6 +579,7 @@ export default function PublicProfilePage() {
             slug: dir.slug,
             title: dir.title,
             emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
+            isPrimary: dir.isPrimary || false,
           }));
           setAvailableDirections(mapped);
         }
@@ -744,20 +745,40 @@ export default function PublicProfilePage() {
                 </div>
               </div>
 
-              {/* Selected directions: icons + labels */}
-              {!!profile.directions_selected?.length && (
-                <div className="mt-4 flex items-center gap-3 flex-wrap">
-                  {profile.directions_selected.slice(0, 3).map((id) => {
-                    const meta = availableDirections.find((a) => a.id === id);
-                    const label = meta ? `${meta.emoji} ${meta.title}` : id;
-                    return (
-                      <span key={id} className="px-3 py-1.5 rounded-full text-sm border border-white/20 text-white/90">
-                        {label}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
+              {/* Selected directions: only primary (priority) direction with Focus on */}
+              {(() => {
+                const primaryDirection = profile.directions_selected?.length
+                  ? availableDirections.find((a) => 
+                      profile.directions_selected?.includes(a.id) && a.isPrimary === true
+                    )
+                  : null;
+                
+                if (!primaryDirection) return null;
+                
+                return (
+                  <div className="mt-4">
+                    <div className={`px-4 py-3 rounded-xl border-2 shadow-lg ${
+                      isLight 
+                        ? 'border-telegram-blue/50 bg-gradient-to-r from-telegram-blue/15 to-telegram-blue-light/15' 
+                        : 'border-telegram-blue/40 bg-gradient-to-r from-telegram-blue/20 to-telegram-blue-light/20'
+                    }`}>
+                      <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
+                        isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      }`}>
+                        Focus on:
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl leading-none">{primaryDirection.emoji}</span>
+                        <span className={`text-base font-semibold ${
+                          isLight ? 'text-telegram-text' : 'text-white/90'
+                        }`}>
+                          {primaryDirection.title}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -769,7 +790,7 @@ export default function PublicProfilePage() {
           {/* Info block */}
           <div className="card p-4 md:p-6">
             <div className="grid gap-4 text-white/90">
-              <div className="space-y-2">
+              <div className="space-y-2 w-1/2">
                 <div className="text-white/60 text-sm">Bio</div>
                 <div>{profile.bio || '-'}</div>
               </div>
