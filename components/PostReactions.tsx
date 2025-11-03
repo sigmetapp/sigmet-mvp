@@ -121,10 +121,11 @@ export default function PostReactions({
   };
 
   return (
-    <div className={`${isLight ? 'bg-white/10' : 'bg-gray-900/10'} rounded-lg p-1.5 md:p-2 backdrop-blur-sm`}>
-      {/* Desktop: horizontal row, Mobile: grid 2 columns */}
-      <div className="flex flex-row items-center justify-center gap-1 md:gap-2">
-        {REACTIONS.map((reaction) => {
+    <div
+      className="flex flex-row flex-wrap items-center gap-1 md:gap-2"
+      data-prevent-card-navigation="true"
+    >
+      {REACTIONS.map((reaction) => {
           const isSelected = selectedReaction === reaction.id;
           const count = counts[reaction.id] || 0;
           const isPopping = popAnimation === reaction.id;
@@ -132,6 +133,7 @@ export default function PostReactions({
           return (
             <motion.button
               key={reaction.id}
+              type="button"
               onClick={() => handleReactionClick(reaction.id)}
               whileHover={{ 
                 scale: 1.1, 
@@ -148,13 +150,13 @@ export default function PostReactions({
                   : {}
               }
               className={`
-                relative flex items-center justify-center gap-1 md:gap-1.5 px-1.5 md:px-2 py-1 md:py-1.5 rounded-lg
+                relative flex items-center justify-center gap-1 md:gap-1.5 px-1.5 md:px-2 py-0.5 md:py-1 rounded-lg
                 transition-all duration-200 ease-out
                 ${isSelected 
-                  ? 'shadow-lg' 
-                  : 'shadow-sm hover:shadow-md'
+                  ? 'shadow-md' 
+                  : 'hover:shadow-sm'
                 }
-                border-0
+                border border-transparent
               `}
               style={{
                 backgroundColor: isSelected 
@@ -217,8 +219,7 @@ export default function PostReactions({
               )}
             </motion.button>
           );
-        })}
-      </div>
+      })}
     </div>
   );
 }

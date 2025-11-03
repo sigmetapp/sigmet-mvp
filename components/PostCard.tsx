@@ -126,31 +126,21 @@ export default function PostCard({
       if (event.button !== 0) return;
 
       const target = event.target as HTMLElement | null;
-      
-      // Only block if clicking directly on an interactive element
       if (target) {
-        // Check for explicit blocking attributes
-        if (
-          target.getAttribute('data-prevent-card-navigation') === 'true' ||
-          target.getAttribute('data-interactive') === 'true'
-        ) {
+        const explicitPrevent = target.closest('[data-prevent-card-navigation="true"]');
+        if (explicitPrevent) return;
+
+        if (target.getAttribute('data-interactive') === 'true') {
           return;
         }
 
-        // Check if clicking directly on a button, link, or element with role="button"
-        const tagName = target.tagName;
-        const role = target.getAttribute('role');
-        
-        if (tagName === 'BUTTON' || tagName === 'A' || role === 'button') {
-          // Allow if it has data-allow-card-click (rare case)
-          if (target.getAttribute('data-allow-card-click') !== 'true') {
+        const interactiveAncestor = target.closest(INTERACTIVE_SELECTOR);
+        if (interactiveAncestor) {
+          if (interactiveAncestor.getAttribute('data-allow-card-click') === 'true') {
+            // allow navigation to fall through
+          } else {
             return;
           }
-        }
-
-        // Check if target is a form control
-        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || tagName === 'LABEL') {
-          return;
         }
       }
 
@@ -170,6 +160,9 @@ export default function PostCard({
 
       const target = event.target as HTMLElement | null;
       if (target && target !== event.currentTarget) {
+        if (target.closest(INTERACTIVE_SELECTOR) || target.getAttribute('data-prevent-card-navigation') === 'true') {
+          return;
+        }
         return;
       }
 

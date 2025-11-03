@@ -19,6 +19,7 @@ import PostActionMenu from "@/components/PostActionMenu";
 import PostCommentsBadge from "@/components/PostCommentsBadge";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
+import Link from "next/link";
 
 export default function FeedPage() {
   return (
@@ -48,6 +49,58 @@ type Comment = {
   media_url?: string | null;
   parent_id?: number | null;
   created_at: string;
+};
+
+type DirectionMeta = {
+  id: string;
+  slug: string;
+  title: string;
+  emoji: string;
+  isPrimary: boolean;
+  isSelected: boolean;
+};
+
+const IN_DEVELOPMENT_SLUGS = new Set([
+  "creativity",
+  "mindfulness_purpose",
+  "relationships",
+  "career",
+  "finance",
+]);
+
+const FEATURED_CATEGORY_KEYWORDS: Array<{ slug: string; title: string; keywords: string[] }> = [
+  { slug: "learning", title: "Learning & Knowledge", keywords: ["learning", "knowledge", "education", "study"] },
+  { slug: "thinking", title: "Thinking & Awareness", keywords: ["thinking", "awareness", "mindset", "reflection"] },
+  { slug: "career", title: "Career & Projects", keywords: ["career", "project", "job", "work"] },
+  { slug: "health", title: "Health & Energy", keywords: ["health", "energy", "wellbeing", "fitness", "wellness"] },
+  { slug: "community", title: "Community & Impact", keywords: ["community", "impact", "social", "volunteer"] },
+];
+
+const CATEGORY_HIGHLIGHT_STYLES: Record<string, { card: string; badge: string }> = {
+  learning: {
+    card: "ring-2 ring-amber-400/70 border-amber-500/30 shadow-[0_12px_32px_rgba(251,191,36,0.18)]",
+    badge: "bg-amber-400/15 text-amber-700 dark:text-amber-200 border border-amber-400/40",
+  },
+  thinking: {
+    card: "ring-2 ring-sky-400/70 border-sky-500/30 shadow-[0_12px_32px_rgba(56,189,248,0.2)]",
+    badge: "bg-sky-400/15 text-sky-700 dark:text-sky-200 border border-sky-400/40",
+  },
+  career: {
+    card: "ring-2 ring-purple-400/70 border-purple-500/30 shadow-[0_12px_32px_rgba(168,85,247,0.18)]",
+    badge: "bg-purple-400/15 text-purple-700 dark:text-purple-200 border border-purple-400/40",
+  },
+  health: {
+    card: "ring-2 ring-emerald-400/70 border-emerald-500/30 shadow-[0_12px_32px_rgba(16,185,129,0.18)]",
+    badge: "bg-emerald-400/15 text-emerald-700 dark:text-emerald-200 border border-emerald-400/40",
+  },
+  community: {
+    card: "ring-2 ring-orange-400/70 border-orange-500/30 shadow-[0_12px_32px_rgba(251,146,60,0.18)]",
+    badge: "bg-orange-400/15 text-orange-700 dark:text-orange-200 border border-orange-400/40",
+  },
+  default: {
+    card: "ring-2 ring-telegram-blue/80 border-telegram-blue/40 shadow-[0_12px_32px_rgba(51,144,236,0.25)]",
+    badge: "bg-telegram-blue/20 text-telegram-blue dark:text-telegram-blue-light border border-telegram-blue/40",
+  },
 };
 
 function FeedInner() {
@@ -125,8 +178,8 @@ function FeedInner() {
   >({});
 
   // Directions from growth-directions API
-  const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
-  const [myDirections, setMyDirections] = useState<string[]>([]);
+  const [availableDirections, setAvailableDirections] = useState<DirectionMeta[]>([]);
+  const [directionFilterSlugs, setDirectionFilterSlugs] = useState<string[]>([]);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
 
   // page mount
@@ -142,9 +195,10 @@ function FeedInner() {
       const userId = auth.user?.id;
       if (!userId) return;
 
-      // Load available directions from API
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (!session) return;
 
         const res = await fetch('/api/growth/directions.list', {
@@ -153,37 +207,71 @@ function FeedInner() {
           },
         });
 
-        if (res.ok) {
-          const { directions: dirs } = await res.json();
-          const rawDirections = Array.isArray(dirs) ? dirs : [];
-          // Map to simplified format for filters
-          const mapped = rawDirections
-            .filter((dir: any) => dir.isSelected)
-            .map((dir: any) => ({
-              id: dir.id,
-              slug: dir.slug,
-              title: dir.title,
-              emoji: dir.emoji || (dir.slug === 'thinking' ? '??' : dir.slug === 'career' ? '??' : dir.slug === 'learning' ? '??' : '?'),
-            }));
-          setAvailableDirections(mapped);
-
-          // Load selected directions from profile
-          const { data } = await supabase
-            .from("profiles")
-            .select("directions_selected")
-            .eq("user_id", userId)
-            .maybeSingle();
-          const profileDirs = (data?.directions_selected as string[] | undefined) || [];
-          
-          // Match profile directions with API directions by slug
-          const matchedIds = mapped
-            .filter((dir) => profileDirs.includes(dir.slug))
-            .map((dir) => dir.id)
-            .slice(0, 3);
-          
-          setMyDirections(matchedIds);
-          setActiveDirection(matchedIds[0] ?? null);
+        if (!res.ok) {
+          throw new Error(`Failed to load directions: ${res.status}`);
         }
+
+        const { directions: dirs } = await res.json();
+        const rawDirections = Array.isArray(dirs) ? dirs : [];
+
+        const dedupedBySlug = Array.from(
+          new Map(
+            rawDirections.map((dir: any) => {
+              const slug = typeof dir.slug === 'string' ? dir.slug : '';
+              return [slug, dir];
+            })
+          ).values()
+        );
+
+        const normalized: DirectionMeta[] = dedupedBySlug
+          .filter((dir: any) => dir && typeof dir.slug === 'string')
+          .map((dir: any) => ({
+            id: String(dir.id ?? dir.slug),
+            slug: String(dir.slug),
+            title: typeof dir.title === 'string' && dir.title.length > 0 ? dir.title : String(dir.slug),
+            emoji: resolveDirectionEmoji(String(dir.slug), dir.emoji),
+            isPrimary: Boolean(dir.isPrimary),
+            isSelected: Boolean(dir.isSelected),
+          }));
+
+        setAvailableDirections(normalized);
+
+        const {
+          data: profileData,
+        } = await supabase
+          .from('profiles')
+          .select('directions_selected')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        const profileDirections = Array.isArray(profileData?.directions_selected)
+          ? (profileData?.directions_selected as string[])
+              .filter((slug): slug is string => typeof slug === 'string' && slug.length > 0)
+          : [];
+
+        const matchedSlugs = normalized
+          .filter((dir) => profileDirections.includes(dir.slug))
+          .map((dir) => dir.slug)
+          .slice(0, 3);
+
+        const fallbackSlugs = normalized
+          .filter((dir) => dir.isSelected || !IN_DEVELOPMENT_SLUGS.has(dir.slug))
+          .map((dir) => dir.slug)
+          .slice(0, 3);
+
+        const filters = matchedSlugs.length > 0
+          ? matchedSlugs
+          : fallbackSlugs.length > 0
+          ? fallbackSlugs
+          : normalized.slice(0, 3).map((dir) => dir.slug);
+
+        setDirectionFilterSlugs(filters);
+        setActiveDirection((prev) => {
+          if (prev && filters.includes(prev)) {
+            return prev;
+          }
+          return filters[0] ?? null;
+        });
       } catch (error) {
         console.error('Error loading directions:', error);
       }
@@ -649,19 +737,18 @@ function FeedInner() {
 
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Directions toggle (selected in profile) */}
-        {myDirections.length > 0 && availableDirections.length > 0 && (
+        {directionFilterSlugs.length > 0 && availableDirections.length > 0 && (
           <div className="card p-3 md:p-4">
             <div className="flex flex-wrap items-center gap-2">
-              {myDirections.map((id) => {
-                const meta = availableDirections.find((a) => a.id === id);
-                const emoji = meta ? meta.emoji : resolveDirectionEmoji(id, null);
-                const title = meta ? meta.title : id;
-                const label = `${emoji} ${title}`;
-                const active = activeDirection === id;
+              {directionFilterSlugs.map((slug) => {
+                const meta = availableDirections.find((a) => a.slug === slug);
+                if (!meta) return null;
+                const label = `${meta.emoji} ${meta.title}`;
+                const active = activeDirection === slug;
                 return (
                   <button
-                    key={id}
-                    onClick={() => setActiveDirection(id)}
+                    key={slug}
+                    onClick={() => setActiveDirection(slug)}
                     className={`px-3 py-1.5 rounded-full text-sm transition border ${
                       active
                         ? isLight
@@ -688,19 +775,49 @@ function FeedInner() {
             const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
             const avatar = profile?.avatar_url || AVATAR_FALLBACK;
             const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
+            const profileSlug = profile?.username && profile.username.trim() !== "" ? profile.username : p.user_id ?? "";
+            const profileHref = profileSlug ? `/u/${encodeURIComponent(profileSlug)}` : null;
             const commentCount = commentCounts[p.id] ?? 0;
             
             // Check if post has category that matches available directions
             const hasCategory = p.category && p.category.trim() !== '';
-            const categoryDirection = hasCategory && availableDirections.find((dir) => {
-              const categoryLower = p.category?.toLowerCase() || '';
-              const dirTitleLower = dir.title.toLowerCase();
-              const dirSlugLower = dir.slug.toLowerCase();
-              return categoryLower.includes(dirTitleLower) || 
-                     categoryLower.includes(dirSlugLower) ||
-                     dirTitleLower.includes(categoryLower) ||
-                     dirSlugLower.includes(categoryLower);
-            });
+            const normalizedCategory = (p.category || '').toLowerCase();
+            const categoryHighlight = hasCategory
+              ? (() => {
+                  const direct = availableDirections.find((dir) => {
+                    const dirTitleLower = dir.title.toLowerCase();
+                    const dirSlugLower = dir.slug.toLowerCase();
+                    return (
+                      normalizedCategory.includes(dirTitleLower) ||
+                      dirTitleLower.includes(normalizedCategory) ||
+                      normalizedCategory.includes(dirSlugLower) ||
+                      dirSlugLower.includes(normalizedCategory)
+                    );
+                  });
+                  if (direct) {
+                    return {
+                      slug: direct.slug,
+                      title: direct.title,
+                      emoji: direct.emoji,
+                    };
+                  }
+                  const fallback = FEATURED_CATEGORY_KEYWORDS.find((entry) =>
+                    entry.keywords.some((keyword) => normalizedCategory.includes(keyword))
+                  );
+                  if (fallback) {
+                    return {
+                      slug: fallback.slug,
+                      title: fallback.title,
+                      emoji: resolveDirectionEmoji(fallback.slug),
+                    };
+                  }
+                  return null;
+                })()
+              : null;
+
+            const highlightTheme = categoryHighlight
+              ? CATEGORY_HIGHLIGHT_STYLES[categoryHighlight.slug] ?? CATEGORY_HIGHLIGHT_STYLES.default
+              : null;
 
             return (
               <PostCard
@@ -712,10 +829,8 @@ function FeedInner() {
                   createdAt: p.created_at,
                   commentsCount: commentCount,
                 }}
-                className={`telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl ${
-                  hasCategory && categoryDirection
-                    ? 'ring-2 ring-telegram-blue border-telegram-blue/50 shadow-lg'
-                    : ''
+                className={`telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl${
+                  highlightTheme ? ` ${highlightTheme.card}` : ''
                 }`}
                 onMouseEnter={() => addViewOnce(p.id)}
                 renderContent={() => (
@@ -729,18 +844,29 @@ function FeedInner() {
                           className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
                         />
                         <div className="flex flex-col min-w-0">
-                          <div className={`text-sm truncate ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{username}</div>
+                          {profileHref ? (
+                            <Link
+                              href={profileHref}
+                              className={`text-sm truncate transition-colors hover:text-telegram-blue ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
+                              data-prevent-card-navigation="true"
+                            >
+                              {username}
+                            </Link>
+                          ) : (
+                            <div className={`text-sm truncate ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{username}</div>
+                          )}
                           {p.category && (
-                            <div className={`text-xs px-2 py-1 rounded-md font-medium inline-block mt-1 ${
-                              hasCategory && categoryDirection
-                                ? isLight
-                                  ? 'bg-telegram-blue/20 text-telegram-blue border border-telegram-blue/30'
-                                  : 'bg-telegram-blue/30 text-telegram-blue-light border border-telegram-blue/50'
-                                : isLight
-                                ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
-                                : 'text-telegram-text-secondary bg-white/5'
-                            }`}>
-                              {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                            <div
+                              className={`text-xs px-2 py-1 rounded-full font-medium inline-flex items-center gap-1 mt-1 ${
+                                highlightTheme
+                                  ? highlightTheme.badge
+                                  : isLight
+                                  ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
+                                  : 'text-telegram-text-secondary bg-white/5'
+                              }`}
+                            >
+                              {categoryHighlight?.emoji && <span>{categoryHighlight.emoji}</span>}
+                              <span>{categoryHighlight?.title ?? p.category}</span>
                             </div>
                           )}
                         </div>
@@ -1074,7 +1200,8 @@ function FeedInner() {
       <Button
         onClick={() => setComposerOpen(true)}
         variant="primary"
-        className="fixed right-6 bottom-6 md:right-[calc((100vw-48rem)/2+48rem+1.5rem)] shadow-lg z-40 rounded-full px-6 py-4"
+        size="lg"
+        className="fixed bottom-6 right-4 md:right-[max(calc((100vw-48rem)/2+1rem),1.5rem)] shadow-[0_16px_36px_rgba(51,144,236,0.28)] z-40 rounded-full px-6 md:px-8 md:py-5 flex items-center gap-3"
         icon={<Plus />}
       >
         Create post
