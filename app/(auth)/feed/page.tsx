@@ -1200,7 +1200,6 @@ function FeedInner() {
             );
           })
         )}
-        </div>
       </div>
 
       {/* Create Post button - positioned at bottom right, 12px from posts edge */}
