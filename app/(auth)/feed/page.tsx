@@ -6,8 +6,6 @@ import {
   useState,
   useMemo,
   useCallback,
-  type MouseEvent as ReactMouseEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -54,37 +52,7 @@ function FeedInner() {
   const router = useRouter();
   const { theme } = useTheme();
   const isLight = theme === "light";
-  const CARD_INTERACTIVE_SELECTOR = 'button, a, [role="button"], input, textarea, select, label, [data-interactive], [data-prevent-card-navigation="true"]';
 
-  const handleCardClick = useCallback(
-    (event: ReactMouseEvent<HTMLElement>, postId: number) => {
-      const target = event.target as HTMLElement | null;
-      if (target && target.closest(CARD_INTERACTIVE_SELECTOR)) {
-        return false;
-      }
-      router.push(`/post/${postId}`);
-      return true;
-    },
-    [router]
-  );
-
-  const handleCardKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLElement>, postId: number) => {
-      if (event.key !== 'Enter' && event.key !== ' ') {
-        return false;
-      }
-
-      const target = event.target as HTMLElement | null;
-      if (target && target.closest(CARD_INTERACTIVE_SELECTOR) && target !== event.currentTarget) {
-        return false;
-      }
-
-      event.preventDefault();
-      router.push(`/post/${postId}`);
-      return true;
-    },
-    [router]
-  );
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const [text, setText] = useState("");
@@ -746,7 +714,8 @@ function FeedInner() {
                   createdAt: p.created_at,
                   commentsCount: commentCount,
                 }}
-                className={`telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl ${
+                disableNavigation={true}
+                className={`telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out ${
                   hasCategory && categoryDirection
                     ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
                     : ''
@@ -817,7 +786,23 @@ function FeedInner() {
                         </div>
                       </div>
                     ) : (
-                      <div className="relative">
+                      <div 
+                        className="relative cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/post/${p.id}`);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            router.push(`/post/${p.id}`);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label="Open post"
+                      >
                         {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
                         {p.image_url && (
                           <img src={p.image_url} loading="lazy" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
