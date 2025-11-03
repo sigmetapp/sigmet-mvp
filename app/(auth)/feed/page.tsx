@@ -715,14 +715,14 @@ function FeedInner() {
                   commentsCount: commentCount,
                 }}
                 disableNavigation={true}
-                className={`telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out ${
+                className={`telegram-card-feature md:p-6 space-y-2 relative transition-transform duration-200 ease-out ${
                   hasCategory && categoryDirection
                     ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
                     : ''
                 }`}
                 onMouseEnter={() => addViewOnce(p.id)}
                 renderContent={() => (
-                  <div className="relative z-10 space-y-4">
+                  <div className="relative z-10 space-y-2">
                     {/* header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
