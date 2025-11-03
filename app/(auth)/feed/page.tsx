@@ -18,7 +18,7 @@ import PostCommentsBadge from "@/components/PostCommentsBadge";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
-import { Image as ImageIcon, Keyboard, Paperclip, X as CloseIcon } from "lucide-react";
+import { Image as ImageIcon, Paperclip, X as CloseIcon } from "lucide-react";
 
 export default function FeedPage() {
   return (
@@ -68,7 +68,6 @@ function FeedInner() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
-  const emojiInputRef = useRef<HTMLInputElement>(null);
 
   // Map author user_id -> profile info (username, avatar)
   const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; avatar_url: string | null }>>({});
@@ -85,10 +84,6 @@ function FeedInner() {
     setText((prev) => prev + emoji);
   }, []);
   
-  const handleNativeEmojiInput = useCallback(() => {
-    // Focus the native emoji input to show iPhone emoji keyboard
-    emojiInputRef.current?.focus();
-  }, []);
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
   const [commentScores, setCommentScores] = useState<Record<number, number>>({});
@@ -1279,33 +1274,6 @@ function FeedInner() {
                 }}
               />
               <div className="flex items-center gap-3">
-                <input
-                  ref={emojiInputRef}
-                  type="text"
-                  inputMode="emoji"
-                  className="absolute w-0 h-0 opacity-0 pointer-events-none"
-                  aria-hidden="true"
-                  tabIndex={-1}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setText((prev) => prev + e.target.value);
-                      e.target.value = '';
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleNativeEmojiInput}
-                  className={`px-3 py-2 rounded-xl border transition flex items-center justify-center gap-2 ${
-                    isLight
-                      ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                      : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
-                  }`}
-                  title="Emoji keyboard"
-                >
-                  <Keyboard className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">Open native emoji keyboard</span>
-                </button>
                 <EmojiPicker
                   onEmojiSelect={handleEmojiSelect}
                   variant={isLight ? 'light' : 'dark'}

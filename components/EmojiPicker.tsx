@@ -5,6 +5,8 @@ import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { Smile } from 'lucide-react';
 
+const EMOJI_TWO_CDN_BASE = 'https://cdn.jsdelivr.net/gh/EmojiTwo/emojitwo@master/png';
+
 type Props = {
   onEmojiSelect: (emoji: string) => void;
   variant?: 'light' | 'dark';
@@ -73,6 +75,14 @@ export default function EmojiPicker({
 
   const pickerTheme = useMemo(() => (variant === 'light' ? 'light' : 'dark'), [variant]);
 
+  const getEmojiImageUrl = useCallback((_, unified?: string) => {
+    if (!unified) {
+      return undefined;
+    }
+
+    return `${EMOJI_TWO_CDN_BASE}/${unified.toLowerCase()}.png`;
+  }, []);
+
   const handleSelect = useCallback(
     (emoji: any) => {
       const native = extractNativeFromEmoji(emoji);
@@ -119,7 +129,7 @@ export default function EmojiPicker({
         >
           <Picker
             data={data}
-            set="twitter"
+            set="emojitwo"
             theme={pickerTheme}
             onEmojiSelect={handleSelect}
             previewPosition="none"
@@ -128,6 +138,7 @@ export default function EmojiPicker({
             searchPosition="top"
             perLine={8}
             autoFocus
+            getImageURL={getEmojiImageUrl}
           />
         </div>
       )}
