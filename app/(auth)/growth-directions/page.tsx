@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import Button from '@/components/Button';
@@ -54,6 +55,23 @@ type TaskSummaryItem = {
   directionIsPrimary: boolean;
   userTaskId: string | null;
   basePoints: number;
+};
+
+type CompletedTaskRecord = {
+  id: string;
+  taskId: string;
+  title: string;
+  taskType: 'habit' | 'goal';
+  pointsAwarded: number;
+  basePoints: number;
+  completedAt: string;
+  postId: number | null;
+  direction: {
+    id: string;
+    title: string;
+    slug: string;
+    emoji: string;
+  };
 };
 
 const toTitleCase = (value: string | null | undefined) => {
@@ -142,25 +160,12 @@ function GrowthDirectionsInner() {
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [notification, setNotification] = useState<{ message: string } | null>(null);
-  const [completedTasks, setCompletedTasks] = useState<Array<{
-    id: string;
-    taskId: string;
-    title: string;
-    taskType: 'habit' | 'goal';
-    pointsAwarded: number;
-    basePoints: number;
-    completedAt: string;
-    direction: {
-      id: string;
-      title: string;
-      slug: string;
-      emoji: string;
-    };
-  }>>([]);
+  const [completedTasks, setCompletedTasks] = useState<CompletedTaskRecord[]>([]);
   const [totalPoints, setTotalPoints] = useState(0);
   const [completedPage, setCompletedPage] = useState(0);
   const [loadingCompleted, setLoadingCompleted] = useState(false);
   const [resettingAllTasks, setResettingAllTasks] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     loadDirections();
@@ -522,7 +527,13 @@ function GrowthDirectionsInner() {
       }
 
       const { completedTasks: tasks, totalPoints: points } = await res.json();
-      setCompletedTasks(Array.isArray(tasks) ? tasks : []);
+      const normalizedTasks: CompletedTaskRecord[] = Array.isArray(tasks)
+        ? tasks.map((task: any) => ({
+            ...task,
+            postId: typeof task?.postId === 'number' ? task.postId : null,
+          }))
+        : [];
+      setCompletedTasks(normalizedTasks);
       setTotalPoints(points || 0);
       setCompletedPage(0);
     } catch (error: any) {
@@ -900,7 +911,7 @@ function GrowthDirectionsInner() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ userTaskId: showCheckInModal.userTaskId }),
+        body: JSON.stringify({ userTaskId: showCheckInModal.userTaskId, postId: newPost?.id ?? null }),
       });
 
       if (!res.ok) {
@@ -943,7 +954,12 @@ function GrowthDirectionsInner() {
     if (completing.has(userTaskId) || publishingCompletePost) return;
     
     // Check if post should be created
-    const shouldCreatePost = completeForm.body.trim() || completeForm.image || completeForm.video || completeForm.reactions.length > 0;
+    const shouldCreatePost = Boolean(
+      completeForm.body.trim() ||
+        completeForm.image ||
+        completeForm.video ||
+        completeForm.reactions.length > 0
+    );
 
     setPublishingCompletePost(shouldCreatePost);
     setCompleting((prev) => new Set(prev).add(userTaskId));
@@ -954,6 +970,8 @@ function GrowthDirectionsInner() {
         alert('Sign in required');
         return;
       }
+
+      let createdPostId: number | null = null;
 
       // Create post if needed
       if (shouldCreatePost) {
@@ -1002,6 +1020,8 @@ function GrowthDirectionsInner() {
 
         if (postError) throw postError;
 
+        createdPostId = newPost?.id ?? null;
+
         // Add reactions if any selected
         if (newPost && completeForm.reactions.length > 0) {
           const reactionInserts = completeForm.reactions.map((kind) => ({
@@ -1032,6 +1052,7 @@ function GrowthDirectionsInner() {
           userTaskId,
           proofUrl: completeForm.proofUrl || null,
           note: completeForm.note || null,
+          postId: createdPostId,
         }),
       });
 
@@ -1079,6 +1100,14 @@ function GrowthDirectionsInner() {
   const completedRangeEnd = completedTasks.length === 0
     ? 0
     : Math.min(completedTasks.length, completedPage * COMPLETED_PAGE_SIZE + paginatedCompletedTasks.length);
+
+  const handleCompletedTaskClick = useCallback(
+    (task: CompletedTaskRecord) => {
+      if (!task.postId) return;
+      router.push(`/post/${task.postId}`);
+    },
+    [router]
+  );
 
   const renderSummaryTaskList = (list: TaskSummaryItem[]) => {
     if (loadingSummary) {
@@ -1250,11 +1279,35 @@ function GrowthDirectionsInner() {
                     {paginatedCompletedTasks.map((task, index) => (
                       <tr
                         key={task.id}
+                        onClick={(event) => {
+                          if (!task.postId) return;
+                          if (event.metaKey || event.ctrlKey || event.shiftKey) {
+                            window.open(`/post/${task.postId}`, '_blank');
+                            return;
+                          }
+                          handleCompletedTaskClick(task);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            handleCompletedTaskClick(task);
+                          }
+                        }}
+                        onAuxClick={(event) => {
+                          if (event.button !== 1 || !task.postId) return;
+                          event.preventDefault();
+                          window.open(`/post/${task.postId}`, '_blank');
+                        }}
+                        role={task.postId ? 'button' : undefined}
+                        tabIndex={task.postId ? 0 : -1}
+                        title={task.postId ? 'Open confirmation post' : undefined}
                         className={`text-xs ${
                           isLight
                             ? 'hover:bg-telegram-blue/5 border-b border-telegram-blue/5'
                             : 'hover:bg-white/5 border-b border-white/5'
-                        } ${index % 2 === 0 ? (isLight ? 'bg-telegram-bg-secondary/40' : 'bg-white/5') : ''}`}
+                        } ${index % 2 === 0 ? (isLight ? 'bg-telegram-bg-secondary/40' : 'bg-white/5') : ''} ${
+                          task.postId ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/60' : ''
+                        }`}
                       >
                         <td className="py-2 px-3 align-middle">
                           <div className="flex items-center gap-2">

@@ -29,7 +29,7 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { userTaskId, proofUrl, note } = req.body;
+  const { userTaskId, proofUrl, note, postId } = req.body;
 
   if (!userTaskId) {
     return res.status(400).json({ error: 'userTaskId is required' });
@@ -76,6 +76,7 @@ export default async function handler(
         points_awarded: pointsAwarded,
         proof_url: proofUrl || null,
         note: note || null,
+        post_id: postId ?? null,
       })
       .select()
       .single();

@@ -30,6 +30,12 @@ export default async function handler(
   }
 
   try {
+    const toNumberOrNull = (value: any) => {
+      if (value === null || value === undefined) return null;
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    };
+
     // Get achievements (completed goals) with task details
     const { data: achievements, error: achievementsError } = await supabase
       .from('user_achievements')
@@ -38,6 +44,7 @@ export default async function handler(
         points_awarded,
         completed_at,
         user_task_id,
+        post_id,
         user_tasks!inner(
           growth_tasks!inner(
             id,
@@ -103,6 +110,7 @@ export default async function handler(
         points_awarded,
         checked_at,
         user_task_id,
+        post_id,
         user_tasks!inner(
           growth_tasks!inner(
             id,
@@ -144,6 +152,7 @@ export default async function handler(
         pointsAwarded: achievement.points_awarded ?? taskInfo.base_points ?? 0,
         basePoints: taskInfo.base_points ?? 0,
         completedAt: achievement.completed_at,
+        postId: toNumberOrNull(achievement.post_id),
         direction: {
           id: direction.id,
           title: direction.title,
@@ -171,6 +180,7 @@ export default async function handler(
         pointsAwarded: checkin.points_awarded ?? taskInfo.base_points ?? 0,
         basePoints: taskInfo.base_points ?? 0,
         completedAt: checkin.checked_at,
+        postId: toNumberOrNull(checkin.post_id),
         direction: {
           id: direction.id,
           title: direction.title,
@@ -194,6 +204,7 @@ export default async function handler(
           pointsAwarded: taskInfo.base_points ?? 0,
           basePoints: taskInfo.base_points ?? 0,
           completedAt: task.completed_at,
+          postId: null,
           direction: {
             id: direction.id,
             title: direction.title,
