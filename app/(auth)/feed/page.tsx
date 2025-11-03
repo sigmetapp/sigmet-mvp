@@ -195,7 +195,8 @@ function FeedInner() {
           const priorityIds = mapped.map((dir) => dir.id);
           
           setMyDirections(priorityIds);
-          setActiveDirection(priorityIds[0] ?? null);
+          // Default to "All" (null) instead of first direction
+          setActiveDirection(null);
         }
       } catch (error) {
         console.error('Error loading directions:', error);
