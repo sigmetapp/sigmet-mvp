@@ -223,7 +223,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   }, [loadComments]);
 
   const handleReactionChange = useCallback(
-    async (reaction: ReactionType | null) => {
+    async (reaction: ReactionType | null, counts?: Record<ReactionType, number>) => {
       if (!uid) {
         alert('Sign in required');
         return;
@@ -460,73 +460,111 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const formattedDate = useMemo(() => {
     if (!post?.created_at) return '';
     try {
-      return new Intl.DateTimeFormat(undefined, {
+      return new Intl.DateTimeFormat('en-US', {
         dateStyle: 'medium',
         timeStyle: 'short',
       }).format(new Date(post.created_at));
     } catch (error) {
-      return new Date(post.created_at).toLocaleString();
+      return new Date(post.created_at).toLocaleString('en-US');
     }
   }, [post?.created_at]);
 
   const commentCount = comments.length || initialPost.commentCount || 0;
+  const avatar = authorProfile?.avatar_url || AVATAR_FALLBACK;
+  const username = authorProfile?.username || (post.user_id ? post.user_id.slice(0, 8) : 'anon');
 
   const postCard = (
     <PostCard
       post={{
         id: String(post.id),
-        author: authorProfile?.username || (post.user_id ? post.user_id.slice(0, 8) : 'anon'),
+        author: username,
         content: post.body ?? '',
         createdAt: post.created_at,
-        commentsCount: commentCount,
+        commentsCount: undefined, // Hide comment count in PostCard header
       }}
       disableNavigation
       className="select-text"
-    >
-      <div data-prevent-card-navigation="true" className="space-y-4">
-        {(post.image_url || post.video_url) && (
-          <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-            {post.image_url && (
+      renderContent={(postCardPost, defaultContent) => (
+        <div className="relative z-10 flex flex-col gap-3">
+          {/* Header with avatar and clickable nickname */}
+          <header className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               <img
-                src={post.image_url}
-                alt="Post media"
-                className="w-full object-cover"
-                loading="lazy"
+                src={avatar}
+                alt="avatar"
+                className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
+              />
+              <div className="flex flex-col min-w-0">
+                <a
+                  href={`/u/${post.user_id || ''}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate hover:underline"
+                  data-prevent-card-navigation="true"
+                >
+                  {username}
+                </a>
+              </div>
+            </div>
+            {formattedDate && (
+              <time
+                dateTime={postCardPost.createdAt}
+                className="text-xs text-slate-500 dark:text-slate-400 shrink-0"
+              >
+                {formattedDate}
+              </time>
+            )}
+          </header>
+
+          {/* Content */}
+          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">
+            {postCardPost.content}
+          </p>
+
+          {/* Media */}
+          {(post.image_url || post.video_url) && (
+            <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+              {post.image_url && (
+                <img
+                  src={post.image_url}
+                  alt="Post media"
+                  className="w-full object-cover"
+                  loading="lazy"
+                />
+              )}
+              {post.video_url && (
+                <video controls preload="metadata" className="w-full">
+                  <source src={post.video_url} />
+                </video>
+              )}
+            </div>
+          )}
+
+          {/* Stats and actions */}
+          <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+            <span>{post.views ?? 0} views</span>
+            <span>{post.likes_count ?? 0} likes</span>
+            <span>{commentCount} comments</span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3" data-prevent-card-navigation="true">
+            <PostReactions
+              postId={post.id}
+              initialCounts={reactionCounts}
+              initialSelected={selectedReaction}
+              onReactionChange={handleReactionChange}
+            />
+            {uid && uid === post.user_id && (
+              <PostActionMenu
+                onEdit={() => setEditing(true)}
+                onDelete={() => setDeleteConfirmOpen(true)}
+                className="shrink-0"
+                data-prevent-card-navigation="true"
               />
             )}
-            {post.video_url && (
-              <video controls preload="metadata" className="w-full">
-                <source src={post.video_url} />
-              </video>
-            )}
           </div>
-        )}
-
-        <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-          <span>{post.views ?? 0} views</span>
-          <span>{post.likes_count ?? 0} likes</span>
-          <span>{commentCount} comments</span>
-          <span>{formattedDate}</span>
         </div>
-
-        <div className="flex items-center justify-between gap-3" data-prevent-card-navigation="true">
-          <PostReactions
-            postId={post.id}
-            initialCounts={reactionCounts}
-            initialSelected={selectedReaction}
-            onReactionChange={handleReactionChange}
-          />
-          {uid && uid === post.user_id && (
-            <PostActionMenu
-              onEdit={() => setEditing(true)}
-              onDelete={() => setDeleteConfirmOpen(true)}
-              className="shrink-0"
-              data-prevent-card-navigation="true"
-            />
-          )}
-        </div>
-      </div>
-    </PostCard>
+      )}
+    />
   );
 
   return (
