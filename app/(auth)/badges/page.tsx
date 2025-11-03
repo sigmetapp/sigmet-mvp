@@ -89,6 +89,38 @@ export default function BadgesPage() {
   const earnedCount = badges.filter((b) => b.earned).length;
   const totalCount = badges.length;
   const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
+  const [togglingBadge, setTogglingBadge] = useState<string | null>(null);
+
+  async function toggleBadge(badgeKey: string, currentActive: boolean) {
+    if (!isAdmin) return;
+
+    setTogglingBadge(badgeKey);
+    try {
+      const response = await fetch('/api/badges/toggle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          badge_key: badgeKey,
+          is_active: !currentActive,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setNote(data.error || 'Failed to toggle badge');
+      } else {
+        setNote(`Badge ${!currentActive ? 'activated' : 'deactivated'}`);
+        await loadBadges();
+      }
+    } catch (error: any) {
+      setNote(error.message || 'Failed to toggle badge');
+    } finally {
+      setTogglingBadge(null);
+    }
+  }
 
   // Group badges by category
   const badgesByCategory = badges.reduce(
@@ -170,15 +202,57 @@ export default function BadgesPage() {
 
           return (
             <div key={category} className="card p-6 space-y-4">
-              <h2 className="text-lg font-medium text-white capitalize">
-                {category}
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-medium text-white capitalize">
+                  {category}
+                </h2>
+              </div>
               <BadgeGrid
                 badges={categoryBadges}
                 earnedFirst={true}
                 columns={3}
                 onBadgeClick={setSelectedBadge}
               />
+              {isAdmin && (
+                <div className="pt-4 border-t border-white/10 space-y-2">
+                  <h3 className="text-sm font-medium text-white/60 mb-2">
+                    Admin Controls
+                  </h3>
+                  {categoryBadges.map((badge) => {
+                    const isActive = badge.is_active !== false;
+                    return (
+                      <div
+                        key={badge.key}
+                        className="flex items-center justify-between p-2 rounded bg-white/5"
+                      >
+                        <span className="text-white/80 text-sm">
+                          {badge.title}
+                          {!isActive && (
+                            <span className="ml-2 text-xs text-white/40">
+                              (Inactive)
+                            </span>
+                          )}
+                        </span>
+                        <button
+                          onClick={() => toggleBadge(badge.key, isActive)}
+                          disabled={togglingBadge === badge.key}
+                          className={`px-3 py-1 rounded text-xs transition ${
+                            isActive
+                              ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
+                          }`}
+                        >
+                          {togglingBadge === badge.key
+                            ? '...'
+                            : isActive
+                            ? 'Deactivate'
+                            : 'Activate'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

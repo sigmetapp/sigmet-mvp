@@ -18,6 +18,7 @@ export interface BadgeCardData {
   currentValue: number;
   threshold: number;
   awardedAt?: string;
+  is_active?: boolean;
 }
 
 interface BadgeCardProps {

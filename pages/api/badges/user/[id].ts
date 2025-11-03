@@ -36,6 +36,7 @@ interface BadgeWithProgress {
   awardedAt?: string;
   progress: number;
   currentValue: number;
+  is_active?: boolean;
 }
 
 function calculateProgress(
@@ -179,11 +180,10 @@ export default async function handler(
       metrics = newMetrics;
     }
 
-    // Get all badges
+    // Get all badges (including inactive for admins to toggle)
     const { data: badges, error: badgesError } = await admin
       .from('badges')
       .select('*')
-      .eq('is_active', true)
       .order('category', { ascending: true })
       .order('created_at', { ascending: true });
 
@@ -240,13 +240,17 @@ export default async function handler(
           awardedAt: earned ? earnedBadgesMap.get(badge.key) : undefined,
           progress: earned ? 1 : progress,
           currentValue,
+          is_active: badge.is_active !== false, // Default to true if not set
         };
       }
     );
 
-    // Separate earned and next-to-earn
-    const earned = badgesWithProgress.filter((b) => b.earned);
-    const nextToEarn = badgesWithProgress
+    // Separate earned and next-to-earn (only show active badges)
+    const activeBadges = badgesWithProgress.filter(
+      (b) => b.is_active !== false
+    );
+    const earned = activeBadges.filter((b) => b.earned);
+    const nextToEarn = activeBadges
       .filter((b) => !b.earned && b.progress > 0)
       .sort((a, b) => b.progress - a.progress)
       .slice(0, 5);
@@ -254,7 +258,7 @@ export default async function handler(
     return res.status(200).json({
       earned,
       nextToEarn,
-      all: badgesWithProgress,
+      all: badgesWithProgress, // Include all badges (active and inactive) for admin UI
       metrics: metrics as UserMetrics,
     });
   } catch (error: any) {
