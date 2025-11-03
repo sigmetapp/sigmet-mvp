@@ -275,6 +275,12 @@ function GrowthDirectionsInner() {
           return firstSelected.id;
         }
 
+        // Default to Community & Society if available, otherwise first in list
+        const communityDirection = dedupedBySlug.find((dir) => dir.slug === 'community');
+        if (communityDirection) {
+          return communityDirection.id;
+        }
+
         return dedupedBySlug[0]?.id ?? null;
       });
     } catch (error: any) {
