@@ -55,6 +55,7 @@ function FeedInner() {
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
+  const DISCUSS_EMOJI = String.fromCodePoint(0x1F4AC); // ?? speech bubble
   const [text, setText] = useState("");
   const [img, setImg] = useState<File | null>(null);
   const [vid, setVid] = useState<File | null>(null);
@@ -106,8 +107,11 @@ function FeedInner() {
     
     // Apply filter based on filterType
     if (filterType === 'discuss') {
-      // Filter posts that contain "?" in body (body must not be null)
-      query = query.not('body', 'is', null).ilike('body', '%?%');
+      // Filter posts that contain "?" in body (body must not be null and not empty)
+      query = query
+        .not('body', 'is', null)
+        .not('body', 'eq', '')
+        .ilike('body', '%?%');
     } else if (filterType === 'direction' && directionId && availableDirections.length > 0) {
       const direction = availableDirections.find((dir) => dir.id === directionId);
       if (direction) {
@@ -730,7 +734,7 @@ function FeedInner() {
                   : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
               }`}
             >
-              ?? Discuss
+              {DISCUSS_EMOJI} Discuss
             </button>
             {myDirections.length > 0 && availableDirections.length > 0 && myDirections.map((id) => {
               const meta = availableDirections.find((a) => a.id === id);
