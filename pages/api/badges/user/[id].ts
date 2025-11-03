@@ -180,6 +180,14 @@ export default async function handler(
       metrics = newMetrics;
     }
 
+    // Run evaluation to ensure badges are granted when thresholds met
+    const { error: evalError } = await admin.rpc('evaluate_user_badges', {
+      user_uuid: id,
+    });
+    if (evalError) {
+      console.error('Error evaluating badges:', evalError);
+    }
+
     // Get all badges (including inactive for admins to toggle)
     const { data: badges, error: badgesError } = await admin
       .from('badges')
