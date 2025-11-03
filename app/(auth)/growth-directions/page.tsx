@@ -64,6 +64,11 @@ const toTitleCase = (value: string | null | undefined) => {
 const getTaskElementId = (item: Pick<TaskSummaryItem, 'id' | 'type'>) =>
   item.type === 'habit' ? `habit-card-${item.id}` : `goal-card-${item.id}`;
 
+const formatPoints = (value: number | null | undefined) => {
+  const numeric = typeof value === 'number' && !Number.isNaN(value) ? value : 0;
+  return numeric.toLocaleString('en-US');
+};
+
 const IN_DEVELOPMENT_SLUGS = new Set([
   'creativity',
   'mindfulness_purpose',
@@ -1103,6 +1108,10 @@ function GrowthDirectionsInner() {
                     : 'Goal'}
                   {` - ${item.directionTitle}`}
                 </p>
+                <p className={`text-xs font-semibold mt-1 flex items-center gap-1 ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
+                  <span aria-hidden="true">{String.fromCodePoint(0x1F3C6)}</span>
+                  {formatPoints(item.basePoints)} pts
+                </p>
               </div>
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
@@ -1462,25 +1471,37 @@ function GrowthDirectionsInner() {
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <h4 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                                      {habit.title}
-                                    </h4>
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                      habit.period === 'daily'
-                                        ? 'bg-emerald-500/20 text-emerald-400'
-                                        : habit.period === 'weekly'
-                                        ? 'bg-blue-500/20 text-blue-400'
-                                        : 'bg-purple-500/20 text-purple-400'
-                                    }`}>
-                                      {habit.period?.charAt(0).toUpperCase() + habit.period.slice(1)}
+                                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <h4 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                                        {habit.title}
+                                      </h4>
+                                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        habit.period === 'daily'
+                                          ? 'bg-emerald-500/20 text-emerald-400'
+                                          : habit.period === 'weekly'
+                                          ? 'bg-blue-500/20 text-blue-400'
+                                          : 'bg-purple-500/20 text-purple-400'
+                                      }`}>
+                                        {habit.period?.charAt(0).toUpperCase() + habit.period.slice(1)}
+                                      </span>
+                                    </div>
+                                    <span
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                        isLight
+                                          ? 'bg-telegram-blue/15 text-telegram-blue'
+                                          : 'bg-telegram-blue/20 text-telegram-blue-light'
+                                      }`}
+                                    >
+                                      <span aria-hidden="true">{String.fromCodePoint(0x1F3C6)}</span>
+                                      {formatPoints(habit.base_points)} pts
                                     </span>
                                   </div>
                                   <p className={`text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                                     {habit.description}
                                   </p>
                                   <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                                    {habit.base_points} points per check-in
+                                    Earn {formatPoints(habit.base_points)} pts per check-in
                                   </div>
                                 </div>
                               </div>
@@ -1577,26 +1598,38 @@ function GrowthDirectionsInner() {
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <h4 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
-                                      {goal.title}
-                                    </h4>
-                                    {isCompleted && (
-                                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
-                                        Completed
-                                      </span>
-                                    )}
-                                    {isActive && (
-                                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
-                                        Active
-                                      </span>
-                                    )}
+                                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <h4 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                                        {goal.title}
+                                      </h4>
+                                      {isCompleted && (
+                                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
+                                          Completed
+                                        </span>
+                                      )}
+                                      {isActive && (
+                                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
+                                          Active
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                        isLight
+                                          ? 'bg-telegram-blue/15 text-telegram-blue'
+                                          : 'bg-telegram-blue/20 text-telegram-blue-light'
+                                      }`}
+                                    >
+                                      <span aria-hidden="true">{String.fromCodePoint(0x1F3C6)}</span>
+                                      {formatPoints(goal.base_points)} pts
+                                    </span>
                                   </div>
                                   <p className={`text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                                     {goal.description}
                                   </p>
                                   <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                                    {goal.base_points} points
+                                    Earn {formatPoints(goal.base_points)} pts when completed
                                   </div>
                                 </div>
                               </div>
