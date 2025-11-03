@@ -906,6 +906,21 @@ export default function PublicProfilePage() {
                 </div>
               </div>
             </div>
+            {/* Recent activity list */}
+            {recentSocial.length > 0 && (
+              <div className="mt-6">
+                <div className={`text-sm mb-3 font-medium ${
+                  isLight ? 'text-telegram-text' : 'text-white/70'
+                }`}>
+                  Recent activity ({recentSocial.length})
+                </div>
+                <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
+                  {recentSocial.map((ev, i) => (
+                    <RecentSocialItem key={i} event={ev} />
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -929,21 +944,6 @@ export default function PublicProfilePage() {
         </div>
       )}
 
-      {/* Recent social actions list */}
-      {!loadingProfile && profile && recentSocial.length > 0 && (
-        <div className="card p-4 md:p-6">
-          <div className={`text-sm mb-3 font-medium ${
-            isLight ? 'text-telegram-text' : 'text-white/70'
-          }`}>
-            Recent activity ({recentSocial.length})
-          </div>
-          <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
-            {recentSocial.map((ev, i) => (
-              <RecentSocialItem key={i} event={ev} />
-            ))}
-          </ul>
-        </div>
-      )}
 
 
       {/* Feedback modal */}
