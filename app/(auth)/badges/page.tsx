@@ -211,7 +211,7 @@ export default function BadgesPage() {
               <BadgeGrid
                 badges={categoryBadges}
                 earnedFirst={true}
-                columns={3}
+                layout="carousel"
                 onBadgeClick={setSelectedBadge}
               />
               {isAdmin && (
