@@ -73,6 +73,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [reactionCounts, setReactionCounts] = useState<Record<ReactionType, number>>(EMPTY_COUNTS);
   const [selectedReaction, setSelectedReaction] = useState<ReactionType | null>(null);
 
+  // Growth statuses from growth-directions (proud, grateful, drained)
+  const [growthStatuses, setGrowthStatuses] = useState<Array<'proud' | 'grateful' | 'drained'>>([]);
+
   const [comments, setComments] = useState<CommentRecord[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [commentsError, setCommentsError] = useState<string | null>(null);
@@ -175,6 +178,33 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     setReactionCounts(counts);
     setSelectedReaction(selected);
   }, [postId, uid]);
+
+  const loadGrowthStatuses = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('post_reactions')
+      .select('kind')
+      .eq('post_id', postId)
+      .in('kind', ['proud', 'grateful', 'drained']);
+
+    if (error || !data) {
+      setGrowthStatuses([]);
+      return;
+    }
+
+    const statuses = data
+      .map((r) => r.kind as string)
+      .filter((kind): kind is 'proud' | 'grateful' | 'drained' => 
+        kind === 'proud' || kind === 'grateful' || kind === 'drained'
+      );
+    
+    // Remove duplicates
+    const uniqueStatuses = Array.from(new Set(statuses));
+    setGrowthStatuses(uniqueStatuses);
+  }, [postId]);
+
+  useEffect(() => {
+    loadGrowthStatuses();
+  }, [loadGrowthStatuses]);
 
   useEffect(() => {
     loadReactions();
@@ -583,6 +613,28 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                       : 'text-slate-400 bg-white/5 border border-slate-700'
                   }`}>
                     {categoryDirection ? `${categoryDirection.emoji} ${post.category}` : post.category}
+                  </div>
+                )}
+                {growthStatuses.length > 0 && (
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {growthStatuses.map((status) => {
+                      const statusConfig = {
+                        proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
+                        grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
+                        drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
+                      };
+                      const config = statusConfig[status];
+                      return (
+                        <div
+                          key={status}
+                          className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
+                          title={config.label}
+                        >
+                          <span>{config.emoji}</span>
+                          <span>{config.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
