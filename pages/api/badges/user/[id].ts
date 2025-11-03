@@ -199,6 +199,58 @@ export default async function handler(
       }
     }
 
+    const ensurePostCount = async (since?: string): Promise<number | null> => {
+      const columns: Array<'author_id' | 'user_id'> = ['author_id', 'user_id'];
+
+      for (const column of columns) {
+        try {
+          const query = admin
+            .from('posts')
+            .select('id', { count: 'exact', head: true })
+            .eq(column, id);
+
+          if (since) {
+            query.gte('created_at', since);
+          }
+
+          const { count, error } = await query;
+
+          if (error) {
+            // If column doesn't exist, try the next option; otherwise log and stop
+            if (error.message?.includes('column') && error.message?.includes(column)) {
+              continue;
+            }
+            console.error('Error counting posts:', error);
+            return null;
+          }
+
+          if (typeof count === 'number') {
+            return count;
+          }
+        } catch (error) {
+          console.error('Unexpected error counting posts:', error);
+          return null;
+        }
+      }
+
+      return null;
+    };
+
+    const metricsObject = { ...(metrics as UserMetrics) };
+
+    const totalPostsCount = await ensurePostCount();
+    if (totalPostsCount !== null) {
+      metricsObject.total_posts = totalPostsCount;
+    }
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const recentPostsCount = await ensurePostCount(thirtyDaysAgo);
+    if (recentPostsCount !== null) {
+      metricsObject.total_posts_last_30d = recentPostsCount;
+    }
+
+    metrics = metricsObject;
+
     // Run evaluation to ensure badges are granted when thresholds met
     const { error: evalError } = await admin.rpc('evaluate_user_badges', {
       user_uuid: id,
