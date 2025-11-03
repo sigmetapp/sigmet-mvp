@@ -180,6 +180,15 @@ export default async function handler(
       metrics = newMetrics;
     }
 
+    // Refresh metrics from actual activity before calculating progress
+    const { error: recalcError } = await admin.rpc('recalculate_user_metrics', {
+      user_uuid: id,
+      recalc_all: false,
+    });
+    if (recalcError) {
+      console.error('Error recalculating metrics:', recalcError);
+    }
+
     // Run evaluation to ensure badges are granted when thresholds met
     const { error: evalError } = await admin.rpc('evaluate_user_badges', {
       user_uuid: id,

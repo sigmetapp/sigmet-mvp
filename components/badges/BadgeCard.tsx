@@ -43,20 +43,20 @@ export default function BadgeCard({
   const resolvedSize = variant === 'compact' ? 'sm' : size;
 
   const sizeClasses = {
-    sm: 'w-20 h-20 text-2xl',
-    md: 'w-24 h-24 text-3xl',
-    lg: 'w-32 h-32 text-4xl',
+    sm: 'w-[3.75rem] h-[3.75rem] text-xl',
+    md: 'w-[4.5rem] h-[4.5rem] text-2xl',
+    lg: 'w-24 h-24 text-3xl',
   };
 
   const containerSizeClasses = {
-    sm: 'p-2',
-    md: 'p-3',
-    lg: 'p-4',
+    sm: 'p-1.5',
+    md: 'p-2.5',
+    lg: 'p-3',
   };
 
-  const iconPixelSize = resolvedSize === 'sm' ? 24 : resolvedSize === 'md' ? 32 : 40;
+  const iconPixelSize = resolvedSize === 'sm' ? 18 : resolvedSize === 'md' ? 24 : 30;
   const wrapperSpacing = variant === 'compact' ? 'gap-2' : 'gap-3';
-  const wrapperWidth = variant === 'compact' ? 'w-full max-w-[160px]' : '';
+  const wrapperWidth = variant === 'compact' ? 'w-full max-w-[120px]' : '';
   const titleClass = variant === 'compact'
     ? 'text-white font-semibold text-xs leading-tight'
     : 'text-white font-medium text-sm';
