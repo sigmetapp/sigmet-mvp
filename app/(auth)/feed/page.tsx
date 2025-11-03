@@ -685,22 +685,7 @@ function FeedInner() {
                 onMouseEnter={() => addViewOnce(p.id)}
                 disableNavigation
                 renderContent={() => (
-                  <div
-                    className="relative z-10 space-y-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Open post"
-                    onClick={(event) => {
-                      if (handleCardClick(event, p.id)) {
-                        event.stopPropagation();
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (handleCardKeyDown(event, p.id)) {
-                        event.stopPropagation();
-                      }
-                    }}
-                  >
+                  <div className="relative z-10 space-y-4">
                     {/* header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
@@ -747,7 +732,22 @@ function FeedInner() {
                         </div>
                       </div>
                     ) : (
-                      <div className="relative">
+                      <div
+                        className="relative cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Open post"
+                        onClick={(event) => {
+                          if (handleCardClick(event, p.id)) {
+                            event.stopPropagation();
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (handleCardKeyDown(event, p.id)) {
+                            event.stopPropagation();
+                          }
+                        }}
+                      >
                         {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
                         {p.image_url && (
                           <img src={p.image_url} loading="lazy" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
