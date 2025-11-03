@@ -187,6 +187,16 @@ export default async function handler(
     });
     if (recalcError) {
       console.error('Error recalculating metrics:', recalcError);
+    } else {
+      const { data: refreshedMetrics, error: refreshedMetricsError } = await admin
+        .from('user_metrics')
+        .select('*')
+        .eq('user_id', id)
+        .single();
+
+      if (!refreshedMetricsError && refreshedMetrics) {
+        metrics = refreshedMetrics as UserMetrics;
+      }
     }
 
     // Run evaluation to ensure badges are granted when thresholds met

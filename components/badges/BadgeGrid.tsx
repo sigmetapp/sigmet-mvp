@@ -43,7 +43,7 @@ export default function BadgeGrid({
   }
 
   const cardSize = cardVariant === 'compact' ? 'sm' : 'md';
-  const gapClass = cardVariant === 'compact' ? 'gap-4' : 'gap-6';
+  const gapClass = cardVariant === 'compact' ? 'gap-2' : 'gap-3';
   const placementClass = cardVariant === 'compact' ? 'place-items-center' : '';
 
   return (
