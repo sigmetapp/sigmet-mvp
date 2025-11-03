@@ -89,27 +89,16 @@ export default async function handler(
         return res.status(500).json({ error: countError.message });
       }
 
-      // Count primary and secondary directions
+      // Count primary directions
       const primaryCount = (existingSelections || []).filter((s) => s.is_primary === true).length;
-      const secondaryCount = (existingSelections || []).filter((s) => s.is_primary === false).length;
 
-      // Determine if this direction should be primary or secondary
-      // Directions with sort_index <= 8 are potential primary directions
-      // But limit to max 3 primary total
-      let isPrimary = false;
-      if (direction.sort_index <= 8 && primaryCount < 3) {
-        isPrimary = true;
-      } else {
-        isPrimary = false;
-      }
+      // When selecting a category, it always becomes primary (priority) if limit not exceeded
+      // Limit: max 3 primary directions
+      const isPrimary = primaryCount < 3;
 
       // Check limits before adding
-      if (isPrimary && primaryCount >= 3) {
+      if (!isPrimary) {
         return res.status(400).json({ error: 'Cannot add more than 3 primary directions' });
-      }
-      
-      if (!isPrimary && secondaryCount >= 3) {
-        return res.status(400).json({ error: 'Cannot add more than 3 additional directions' });
       }
 
       // Add selection
