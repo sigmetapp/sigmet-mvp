@@ -120,6 +120,11 @@ function FeedInner() {
     Record<number, ReactionType | null>
   >({});
 
+  // Growth statuses from growth-directions (proud, grateful, drained)
+  const [growthStatusesByPostId, setGrowthStatusesByPostId] = useState<
+    Record<number, Array<'proud' | 'grateful' | 'drained'>>
+  >({});
+
   // Directions from growth-directions API
   const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
   const [myDirections, setMyDirections] = useState<string[]>([]);
@@ -336,6 +341,49 @@ function FeedInner() {
       }
     })();
   }, [uid, posts]);
+
+  // Load growth statuses (proud, grateful, drained) for posts
+  useEffect(() => {
+    if (posts.length === 0) return;
+    (async () => {
+      try {
+        const ids = posts.map((p) => p.id);
+        const { data } = await supabase
+          .from('post_reactions')
+          .select('post_id, kind')
+          .in('post_id', ids)
+          .in('kind', ['proud', 'grateful', 'drained']);
+
+        const statusesByPost: Record<number, Array<'proud' | 'grateful' | 'drained'>> = {};
+        
+        for (const post of posts) {
+          statusesByPost[post.id] = [];
+        }
+
+        if (data) {
+          for (const r of data as any[]) {
+            const pid = r.post_id as number;
+            const kind = r.kind as string;
+            if ((kind === 'proud' || kind === 'grateful' || kind === 'drained') && statusesByPost[pid] !== undefined) {
+              const status = kind as 'proud' | 'grateful' | 'drained';
+              if (!statusesByPost[pid].includes(status)) {
+                statusesByPost[pid].push(status);
+              }
+            }
+          }
+        }
+
+        setGrowthStatusesByPostId(statusesByPost);
+      } catch (error) {
+        console.error('Error loading growth statuses:', error);
+        const statusesByPost: Record<number, Array<'proud' | 'grateful' | 'drained'>> = {};
+        for (const post of posts) {
+          statusesByPost[post.id] = [];
+        }
+        setGrowthStatusesByPostId(statusesByPost);
+      }
+    })();
+  }, [posts]);
 
   // --- uploads
   async function uploadToStorage(file: File, folder: "images" | "videos") {
@@ -859,17 +907,39 @@ function FeedInner() {
                           >
                             {username}
                           </a>
-                          {p.category && (
-                            <div className={`text-xs px-2 py-1 rounded-md font-medium inline-block mt-1 ${
-                              hasCategory && categoryDirection
-                                ? isLight
-                                  ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
-                                  : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
-                                : isLight
-                                ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
-                                : 'text-telegram-text-secondary bg-white/5'
-                            }`}>
-                              {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                          {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              {p.category && (
+                                <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                  hasCategory && categoryDirection
+                                    ? isLight
+                                      ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                                      : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                                    : isLight
+                                    ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
+                                    : 'text-telegram-text-secondary bg-white/5'
+                                }`}>
+                                  {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                                </div>
+                              )}
+                              {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
+                                const statusConfig = {
+                                  proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
+                                  grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
+                                  drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
+                                };
+                                const config = statusConfig[status];
+                                return (
+                                  <div
+                                    key={status}
+                                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
+                                    title={config.label}
+                                  >
+                                    <span>{config.emoji}</span>
+                                    <span>{config.label}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
