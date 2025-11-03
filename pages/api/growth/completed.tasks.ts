@@ -214,6 +214,8 @@ export default async function handler(
 
       return {
         id: `${achievement.id}`,
+        recordId: String(achievement.id),
+        recordType: 'user_achievement' as const,
         taskId: taskInfo.id,
         title: taskInfo.title,
         taskType: taskInfo.task_type,
@@ -242,6 +244,8 @@ export default async function handler(
 
       return {
         id: `checkin-${checkin.id}`,
+        recordId: String(checkin.id),
+        recordType: 'habit_checkin' as const,
         taskId: taskInfo.id,
         title: taskInfo.title,
         taskType: taskInfo.task_type,
@@ -266,6 +270,8 @@ export default async function handler(
 
         return {
           id: `${task.id}`,
+          recordId: String(task.id),
+          recordType: 'user_task' as const,
           taskId: taskInfo.id,
           title: taskInfo.title,
           taskType: taskInfo.task_type,

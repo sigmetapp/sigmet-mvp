@@ -66,6 +66,8 @@ type CompletedTaskRecord = {
   basePoints: number;
   completedAt: string;
   postId: number | null;
+  recordId: string;
+  recordType: 'user_achievement' | 'habit_checkin' | 'user_task';
   direction: {
     id: string;
     title: string;
@@ -530,7 +532,19 @@ function GrowthDirectionsInner() {
       const normalizedTasks: CompletedTaskRecord[] = Array.isArray(tasks)
         ? tasks.map((task: any) => ({
             ...task,
-            postId: typeof task?.postId === 'number' ? task.postId : null,
+            postId: typeof task?.postId === 'number' && Number.isFinite(task.postId)
+              ? task.postId
+              : typeof task?.postId === 'string' && !Number.isNaN(Number(task.postId))
+              ? Number(task.postId)
+              : null,
+            recordId: String(task?.recordId ?? task?.id ?? ''),
+            recordType: (task?.recordType ?? (
+              task?.taskType === 'habit'
+                ? 'habit_checkin'
+                : task?.taskType === 'goal'
+                ? 'user_achievement'
+                : 'user_task'
+            )) as CompletedTaskRecord['recordType'],
           }))
         : [];
       setCompletedTasks(normalizedTasks);
@@ -1102,22 +1116,91 @@ function GrowthDirectionsInner() {
     : Math.min(completedTasks.length, completedPage * COMPLETED_PAGE_SIZE + paginatedCompletedTasks.length);
 
   const handleCompletedTaskClick = useCallback(
-    (task: CompletedTaskRecord, options?: { newTab?: boolean }) => {
+    async (task: CompletedTaskRecord, options?: { newTab?: boolean }) => {
+      const openInNewTab = options?.newTab === true;
+
       if (!task.postId) {
-        setNotification({ message: 'No confirmation post is attached for this completion yet.' });
+        if (!task.recordId) {
+          setNotification({ message: 'No confirmation post is attached for this completion yet.' });
+          return;
+        }
+
+        try {
+          const pendingWindow = openInNewTab ? window.open('', '_blank') : null;
+
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (!session) {
+            if (pendingWindow && !pendingWindow.closed) pendingWindow.close();
+            setNotification({ message: 'Session expired. Please refresh and try again.' });
+            return;
+          }
+
+          const params = new URLSearchParams({
+            recordId: task.recordId,
+            recordType: task.recordType,
+          });
+          const response = await fetch(`/api/growth/completed.postLink?${params.toString()}`, {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            cache: 'no-store',
+          });
+
+          if (!response.ok) {
+            if (pendingWindow && !pendingWindow.closed) pendingWindow.close();
+            setNotification({ message: 'Unable to fetch confirmation post.' });
+            return;
+          }
+
+          const data: { postId: number | null; needsMigration?: boolean } = await response.json();
+
+          if (typeof data.postId === 'number' && Number.isFinite(data.postId)) {
+            const targetUrl = `/post/${data.postId}`;
+
+            setCompletedTasks((prev) =>
+              prev.map((item) =>
+                item.id === task.id ? { ...item, postId: data.postId } : item
+              )
+            );
+
+            if (pendingWindow && !pendingWindow.closed) {
+              pendingWindow.location.href = targetUrl;
+            } else if (openInNewTab) {
+              window.open(targetUrl, '_blank', 'noopener,noreferrer');
+            } else {
+              router.push(targetUrl);
+            }
+            return;
+          }
+
+          if (pendingWindow && !pendingWindow.closed) pendingWindow.close();
+
+          if (data.needsMigration) {
+            setNotification({ message: 'Post links require the latest database migration. Please apply it and try again.' });
+          } else {
+            setNotification({ message: 'No confirmation post is attached for this completion yet.' });
+          }
+        } catch (error) {
+          console.error('Error resolving post link', error);
+          setNotification({ message: 'Failed to open confirmation post.' });
+        }
         return;
       }
 
       const url = `/post/${task.postId}`;
 
-      if (options?.newTab) {
+      if (openInNewTab) {
         window.open(url, '_blank', 'noopener,noreferrer');
         return;
       }
 
       router.push(url);
     },
-    [router]
+    [router, setCompletedTasks]
   );
 
   const renderSummaryTaskList = (list: TaskSummaryItem[]) => {
@@ -1290,27 +1373,27 @@ function GrowthDirectionsInner() {
                     {paginatedCompletedTasks.map((task, index) => (
                       <tr
                         key={task.id}
-                        onClick={(event) => {
+                        onClick={async (event) => {
                           if (event.metaKey || event.ctrlKey || event.shiftKey) {
-                            handleCompletedTaskClick(task, { newTab: true });
+                            await handleCompletedTaskClick(task, { newTab: true });
                             return;
                           }
-                          handleCompletedTaskClick(task);
+                          await handleCompletedTaskClick(task);
                         }}
-                        onKeyDown={(event) => {
+                        onKeyDown={async (event) => {
                           if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
-                            handleCompletedTaskClick(task);
+                            await handleCompletedTaskClick(task);
                           }
                         }}
-                        onAuxClick={(event) => {
+                        onAuxClick={async (event) => {
                           if (event.button !== 1) return;
                           event.preventDefault();
-                          handleCompletedTaskClick(task, { newTab: true });
+                          await handleCompletedTaskClick(task, { newTab: true });
                         }}
-                        role={task.postId ? 'button' : undefined}
-                        tabIndex={task.postId ? 0 : -1}
-                        title={task.postId ? 'Open confirmation post' : undefined}
+                        role="button"
+                        tabIndex={0}
+                        title={task.postId ? 'Open confirmation post' : 'Attempt to open confirmation post'}
                         className={`text-xs ${
                           isLight
                             ? 'hover:bg-telegram-blue/5 border-b border-telegram-blue/5'
