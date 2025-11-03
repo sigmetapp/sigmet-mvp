@@ -180,7 +180,8 @@ export default function PostCard({
   );
 
   const containerClassName = [
-    'relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900',
+    'relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900',
+    'post-card-glow',
     disableNavigation ? 'cursor-default' : 'cursor-pointer',
     className,
   ]
@@ -229,12 +230,12 @@ export default function PostCard({
       onClick={disableNavigation ? undefined : handleClick}
       onKeyDown={disableNavigation ? undefined : handleKeyDown}
       initial={false}
-      animate={{ y: 0, boxShadow: '0 0 0 rgba(15, 23, 42, 0)' }}
+      animate={{ y: 0 }}
       whileHover={
-        !disableNavigation && supportsHover ? { y: -4, boxShadow: '0 18px 32px rgba(15, 23, 42, 0.12)' } : undefined
+        !disableNavigation && supportsHover ? { y: -4, scale: 1.01 } : undefined
       }
       whileTap={!disableNavigation ? { scale: 0.98 } : undefined}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
       className={containerClassName}
       data-post-id={post.id}
       {...rest}
