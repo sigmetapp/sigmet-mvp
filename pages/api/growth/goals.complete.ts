@@ -29,7 +29,7 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { userTaskId, proofUrl, note } = req.body;
+  const { userTaskId, proofUrl, note, postId } = req.body;
 
   if (!userTaskId) {
     return res.status(400).json({ error: 'userTaskId is required' });
@@ -67,22 +67,41 @@ export default async function handler(
     const completedAt = new Date().toISOString();
     const pointsAwarded = task.base_points || 50;
 
-    const { data: achievement, error: achievementError } = await supabase
+    const achievementPayloadBase: Record<string, any> = {
+      user_task_id: userTaskId,
+      user_id: user.id,
+      completed_at: completedAt,
+      points_awarded: pointsAwarded,
+      proof_url: proofUrl || null,
+      note: note || null,
+    };
+
+    let achievementPayload = { ...achievementPayloadBase };
+    if (postId !== null && postId !== undefined) {
+      achievementPayload.post_id = postId;
+    }
+
+    let achievementResult = await supabase
       .from('user_achievements')
-      .insert({
-        user_task_id: userTaskId,
-        user_id: user.id,
-        completed_at: completedAt,
-        points_awarded: pointsAwarded,
-        proof_url: proofUrl || null,
-        note: note || null,
-      })
+      .insert(achievementPayload)
       .select()
       .single();
 
-    if (achievementError) {
-      return res.status(500).json({ error: achievementError.message });
+    if (achievementResult.error && achievementResult.error.message?.includes('post_id')) {
+      achievementPayload = { ...achievementPayloadBase };
+      delete achievementPayload.post_id;
+      achievementResult = await supabase
+        .from('user_achievements')
+        .insert(achievementPayload)
+        .select()
+        .single();
     }
+
+    if (achievementResult.error) {
+      return res.status(500).json({ error: achievementResult.error.message });
+    }
+
+    const achievement = achievementResult.data;
 
     // Update user_task to completed
     const { data: updatedTask, error: updateError } = await supabase

@@ -30,8 +30,85 @@ export default async function handler(
   }
 
   try {
-    // Get completed user tasks with task details
-    const { data: completedTasks, error: tasksError } = await supabase
+    const toNumberOrNull = (value: any) => {
+      if (value === null || value === undefined) return null;
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    };
+
+    // Get achievements (completed goals) with task details
+    const achievementsSelectWithPost = `
+        id,
+        points_awarded,
+        completed_at,
+        user_task_id,
+        post_id,
+        user_tasks!inner(
+          growth_tasks!inner(
+            id,
+            title,
+            task_type,
+            base_points,
+            direction_id,
+            growth_directions!inner(
+              id,
+              title,
+              slug,
+              emoji
+            )
+          )
+        )
+      `;
+
+    const achievementsSelectFallback = `
+        id,
+        points_awarded,
+        completed_at,
+        user_task_id,
+        user_tasks!inner(
+          growth_tasks!inner(
+            id,
+            title,
+            task_type,
+            base_points,
+            direction_id,
+            growth_directions!inner(
+              id,
+              title,
+              slug,
+              emoji
+            )
+          )
+        )
+      `;
+
+    let { data: achievements, error: achievementsError } = await supabase
+      .from('user_achievements')
+      .select(achievementsSelectWithPost)
+      .eq('user_id', user.id)
+      .order('completed_at', { ascending: false });
+
+    if (achievementsError && achievementsError.message?.includes('post_id')) {
+      const fallback = await supabase
+        .from('user_achievements')
+        .select(achievementsSelectFallback)
+        .eq('user_id', user.id)
+        .order('completed_at', { ascending: false });
+      achievements = fallback.data;
+      achievementsError = fallback.error;
+    }
+
+    if (achievementsError) {
+      return res.status(500).json({ error: achievementsError.message });
+    }
+
+    // Keep track of achievement user_task ids to prevent duplicates
+    const achievementUserTaskIds = new Set(
+      (achievements || []).map((achievement: any) => achievement.user_task_id)
+    );
+
+    // Get completed user tasks with task details (fallback for legacy data / habits marked completed)
+    const { data: completedUserTasks, error: tasksError } = await supabase
       .from('user_tasks')
       .select(`
         id,
@@ -59,13 +136,34 @@ export default async function handler(
       return res.status(500).json({ error: tasksError.message });
     }
 
-    // Get achievements (completed goals) with points
-    const { data: achievements, error: achievementsError } = await supabase
-      .from('user_achievements')
-      .select(`
+    // Get habit check-ins with task details
+    const habitCheckinsSelectWithPost = `
         id,
         points_awarded,
-        completed_at,
+        checked_at,
+        user_task_id,
+        post_id,
+        user_tasks!inner(
+          growth_tasks!inner(
+            id,
+            title,
+            task_type,
+            base_points,
+            direction_id,
+            growth_directions!inner(
+              id,
+              title,
+              slug,
+              emoji
+            )
+          )
+        )
+      `;
+
+    const habitCheckinsSelectFallback = `
+        id,
+        points_awarded,
+        checked_at,
         user_task_id,
         user_tasks!inner(
           growth_tasks!inner(
@@ -82,38 +180,49 @@ export default async function handler(
             )
           )
         )
-      `)
-      .eq('user_id', user.id)
-      .order('completed_at', { ascending: false });
+      `;
 
-    if (achievementsError) {
-      return res.status(500).json({ error: achievementsError.message });
+    let { data: habitCheckins, error: habitCheckinsError } = await supabase
+      .from('habit_checkins')
+      .select(habitCheckinsSelectWithPost)
+      .eq('user_id', user.id)
+      .order('checked_at', { ascending: false });
+
+    if (habitCheckinsError && habitCheckinsError.message?.includes('post_id')) {
+      const fallback = await supabase
+        .from('habit_checkins')
+        .select(habitCheckinsSelectFallback)
+        .eq('user_id', user.id)
+        .order('checked_at', { ascending: false });
+      habitCheckins = fallback.data;
+      habitCheckinsError = fallback.error;
     }
 
-    // Format completed tasks
-    const formattedTasks = (completedTasks || []).map((task: any) => {
-      const taskInfo = task.growth_tasks;
-      const direction = taskInfo.growth_directions;
-      
-      // For goals, get points from achievements if available
-      let pointsAwarded = taskInfo.base_points || 0;
-      if (taskInfo.task_type === 'goal') {
-        const achievement = (achievements || []).find(
-          (a: any) => a.user_task_id === task.id
-        );
-        if (achievement) {
-          pointsAwarded = achievement.points_awarded || taskInfo.base_points || 0;
-        }
+    if (habitCheckinsError) {
+      return res.status(500).json({ error: habitCheckinsError.message });
+    }
+
+    const formattedGoalAchievements = (achievements || []).map((achievement: any) => {
+      const userTaskInfo = achievement.user_tasks;
+      const taskInfo = userTaskInfo?.growth_tasks;
+
+      if (!taskInfo) {
+        return null;
       }
 
+      const direction = taskInfo.growth_directions;
+
       return {
-        id: task.id,
+        id: `${achievement.id}`,
+        recordId: String(achievement.id),
+        recordType: 'user_achievement' as const,
         taskId: taskInfo.id,
         title: taskInfo.title,
         taskType: taskInfo.task_type,
-        pointsAwarded,
-        basePoints: taskInfo.base_points || 0,
-        completedAt: task.completed_at,
+        pointsAwarded: achievement.points_awarded ?? taskInfo.base_points ?? 0,
+        basePoints: taskInfo.base_points ?? 0,
+        completedAt: achievement.completed_at,
+        postId: toNumberOrNull(achievement.post_id),
         direction: {
           id: direction.id,
           title: direction.title,
@@ -121,7 +230,75 @@ export default async function handler(
           emoji: direction.emoji,
         },
       };
-    });
+    }).filter(Boolean);
+
+    const formattedHabitCheckins = (habitCheckins || []).map((checkin: any) => {
+      const userTaskInfo = checkin.user_tasks;
+      const taskInfo = userTaskInfo?.growth_tasks;
+
+      if (!taskInfo) {
+        return null;
+      }
+
+      const direction = taskInfo.growth_directions;
+
+      return {
+        id: `checkin-${checkin.id}`,
+        recordId: String(checkin.id),
+        recordType: 'habit_checkin' as const,
+        taskId: taskInfo.id,
+        title: taskInfo.title,
+        taskType: taskInfo.task_type,
+        pointsAwarded: checkin.points_awarded ?? taskInfo.base_points ?? 0,
+        basePoints: taskInfo.base_points ?? 0,
+        completedAt: checkin.checked_at,
+        postId: toNumberOrNull(checkin.post_id),
+        direction: {
+          id: direction.id,
+          title: direction.title,
+          slug: direction.slug,
+          emoji: direction.emoji,
+        },
+      };
+    }).filter(Boolean);
+
+    const formattedFallbackTasks = (completedUserTasks || [])
+      .filter((task: any) => !achievementUserTaskIds.has(task.id))
+      .map((task: any) => {
+        const taskInfo = task.growth_tasks;
+        const direction = taskInfo.growth_directions;
+
+        return {
+          id: `${task.id}`,
+          recordId: String(task.id),
+          recordType: 'user_task' as const,
+          taskId: taskInfo.id,
+          title: taskInfo.title,
+          taskType: taskInfo.task_type,
+          pointsAwarded: taskInfo.base_points ?? 0,
+          basePoints: taskInfo.base_points ?? 0,
+          completedAt: task.completed_at,
+          postId: null,
+          direction: {
+            id: direction.id,
+            title: direction.title,
+            slug: direction.slug,
+            emoji: direction.emoji,
+          },
+        };
+      });
+
+    const combinedCompletedTasks = [
+      ...formattedGoalAchievements,
+      ...formattedHabitCheckins,
+      ...formattedFallbackTasks,
+    ].sort(
+      (a, b) => {
+        const timeA = a?.completedAt ? new Date(a.completedAt).getTime() : 0;
+        const timeB = b?.completedAt ? new Date(b.completedAt).getTime() : 0;
+        return timeB - timeA;
+      }
+    );
 
     // Get total points from ledger
     const { data: ledgerEntries, error: ledgerError } = await supabase
@@ -139,7 +316,7 @@ export default async function handler(
     );
 
     return res.status(200).json({
-      completedTasks: formattedTasks,
+      completedTasks: combinedCompletedTasks,
       totalPoints,
     });
   } catch (error: any) {

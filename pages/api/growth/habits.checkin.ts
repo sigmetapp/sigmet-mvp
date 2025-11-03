@@ -136,7 +136,7 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { userTaskId } = req.body;
+  const { userTaskId, postId } = req.body;
 
   if (!userTaskId) {
     return res.status(400).json({ error: 'userTaskId is required' });
@@ -197,20 +197,39 @@ export default async function handler(
     const checkedAt = new Date().toISOString();
     const pointsAwarded = task.base_points || 5;
 
-    const { data: checkin, error: insertError } = await supabase
+    const baseInsertPayload: Record<string, any> = {
+      user_task_id: userTaskId,
+      user_id: user.id,
+      checked_at: checkedAt,
+      points_awarded: pointsAwarded,
+    };
+
+    let insertPayload = { ...baseInsertPayload };
+    if (postId !== null && postId !== undefined) {
+      insertPayload.post_id = postId;
+    }
+
+    let checkinResult = await supabase
       .from('habit_checkins')
-      .insert({
-        user_task_id: userTaskId,
-        user_id: user.id,
-        checked_at: checkedAt,
-        points_awarded: pointsAwarded,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
-    if (insertError) {
-      return res.status(500).json({ error: insertError.message });
+    if (checkinResult.error && checkinResult.error.message?.includes('post_id')) {
+      insertPayload = { ...baseInsertPayload };
+      delete insertPayload.post_id;
+      checkinResult = await supabase
+        .from('habit_checkins')
+        .insert(insertPayload)
+        .select()
+        .single();
     }
+
+    if (checkinResult.error) {
+      return res.status(500).json({ error: checkinResult.error.message });
+    }
+
+    const checkin = checkinResult.data;
 
     // Update user_task with new streak and counters
     const { data: updatedTask, error: updateError } = await supabase
