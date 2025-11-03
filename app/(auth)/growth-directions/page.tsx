@@ -275,13 +275,23 @@ function GrowthDirectionsInner() {
           return firstSelected.id;
         }
 
-        // Default to Community & Society if available, otherwise first in list
+        // Default to Community & Society if available
         const communityDirection = dedupedBySlug.find((dir) => dir.slug === 'community');
         if (communityDirection) {
           return communityDirection.id;
         }
 
-        return dedupedBySlug[0]?.id ?? null;
+        // Otherwise find first direction that's not in development
+        const availableDirections = dedupedBySlug.filter((dir) => {
+          const isInDevelopment = dir.slug === 'creativity' || 
+                                 dir.slug === 'mindfulness_purpose' || 
+                                 dir.slug === 'relationships' ||
+                                 dir.slug === 'career' ||
+                                 dir.slug === 'finance';
+          return !isInDevelopment;
+        });
+
+        return availableDirections[0]?.id ?? dedupedBySlug[0]?.id ?? null;
       });
     } catch (error: any) {
       console.error('Error loading directions:', error);
