@@ -683,7 +683,6 @@ function FeedInner() {
                 }}
                 className="telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl"
                 onMouseEnter={() => addViewOnce(p.id)}
-                disableNavigation
                 renderContent={() => (
                   <div className="relative z-10 space-y-4">
                     {/* header */}
@@ -732,30 +731,7 @@ function FeedInner() {
                         </div>
                       </div>
                     ) : (
-                      <div
-                        className="relative cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-                        tabIndex={0}
-                        aria-label="Open post"
-                        onClick={(event) => {
-                          const target = event.target as HTMLElement | null;
-                          // Проверяем, что клик не на интерактивных элементах внутри контента (например, controls видео)
-                          if (target && target.closest(CARD_INTERACTIVE_SELECTOR)) {
-                            return;
-                          }
-                          router.push(`/post/${p.id}`);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== 'Enter' && event.key !== ' ') {
-                            return;
-                          }
-                          const target = event.target as HTMLElement | null;
-                          if (target && target.closest(CARD_INTERACTIVE_SELECTOR) && target !== event.currentTarget) {
-                            return;
-                          }
-                          event.preventDefault();
-                          router.push(`/post/${p.id}`);
-                        }}
-                      >
+                      <div className="relative">
                         {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
                         {p.image_url && (
                           <img src={p.image_url} loading="lazy" className={`w-full rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} alt="post image" />
