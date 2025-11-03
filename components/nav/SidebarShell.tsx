@@ -15,23 +15,26 @@ export default function SidebarShell({ user, children }: { user: User; children:
       isLight ? "bg-telegram-gradient text-telegram-text" : "bg-sigmet text-telegram-text"
     }`}>
       {/* Mobile top bar */}
-      <div className={`sticky top-0 z-30 flex items-center gap-3 border-b backdrop-blur-md px-3 py-2 lg:hidden transition-colors ${
+      <div className={`sticky top-0 z-30 flex items-center gap-3 border-b backdrop-blur-md px-3 py-2 lg:hidden transition-colors pointer-events-none ${
         isLight
           ? "border-telegram-blue/15 bg-white/80"
           : "border-telegram-blue/20 bg-[rgba(15,22,35,0.8)]"
       }`}>
         <button
           aria-label="Open menu"
-          className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+          className={`rounded-lg border px-3 py-1.5 text-sm transition relative z-10 pointer-events-auto ${
             isLight
               ? "border-telegram-blue/20 text-telegram-blue hover:bg-telegram-blue/10"
               : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
           }`}
-          onClick={() => setOpen(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
         >
           ☰
         </button>
-        <div className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Menu</div>
+        <div className={`text-sm pointer-events-none ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Menu</div>
       </div>
 
       <div className="mx-auto flex max-w-7xl">
@@ -51,7 +54,7 @@ export default function SidebarShell({ user, children }: { user: User; children:
         )}
 
         {/* Main content */}
-        <main className={`min-h-screen flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6 transition-colors ${
+        <main className={`min-h-screen flex-1 overflow-y-auto px-4 pt-4 pb-4 lg:px-8 lg:py-6 lg:pt-6 transition-colors relative z-0 ${
           isLight ? "text-telegram-text" : "text-telegram-text"
         }`}>
           {children}
