@@ -215,7 +215,7 @@ function FeedInner() {
               id: dir.id,
               slug: dir.slug,
               title: dir.title,
-              emoji: dir.emoji || (dir.slug === 'thinking' ? '??' : dir.slug === 'career' ? '??' : dir.slug === 'learning' ? '??' : '?'),
+              emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
             }));
           setAvailableDirections(mapped);
 
@@ -687,7 +687,8 @@ function FeedInner() {
               </button>
               {myDirections.map((id) => {
                 const meta = availableDirections.find((a) => a.id === id);
-                const emoji = meta ? meta.emoji : resolveDirectionEmoji(id, null);
+                const slug = meta ? meta.slug : '';
+                const emoji = meta ? meta.emoji : resolveDirectionEmoji(slug, null);
                 const title = meta ? meta.title : id;
                 const label = `${emoji} ${title}`;
                 const active = activeDirection === id;

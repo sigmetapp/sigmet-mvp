@@ -126,6 +126,7 @@ export default function PostCommentsBadge({
       onKeyDown={handleKeyDown}
       whileHover={hoverVariants}
       whileTap={tapVariants}
+      data-prevent-card-navigation="true"
       data-testid="comments-badge"
       className={`
         ${config.height}

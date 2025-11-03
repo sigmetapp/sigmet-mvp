@@ -311,6 +311,7 @@ export default function PostActionMenu({
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label="Post actions"
+        data-prevent-card-navigation="true"
         data-testid="action-trigger"
         className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-telegram-text-secondary hover:text-telegram-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 active:scale-[0.95] relative z-[105]"
       >

@@ -133,6 +133,7 @@ export default function PostReactions({
             <motion.button
               key={reaction.id}
               onClick={() => handleReactionClick(reaction.id)}
+              data-prevent-card-navigation="true"
               whileHover={{ 
                 scale: 1.1, 
                 y: -2,
