@@ -121,7 +121,7 @@ export default function PostReactions({
   };
 
   return (
-    <div className={`${isLight ? 'bg-white/10' : 'bg-gray-900/10'} rounded-lg p-1.5 md:p-2 backdrop-blur-sm`}>
+    <div className={`${isLight ? 'bg-white/10' : 'bg-gray-900/10'} rounded-lg p-1 md:p-1.5 backdrop-blur-sm`}>
       {/* Desktop: horizontal row, Mobile: grid 2 columns */}
       <div className="flex flex-row items-center justify-center gap-1 md:gap-2">
         {REACTIONS.map((reaction) => {
