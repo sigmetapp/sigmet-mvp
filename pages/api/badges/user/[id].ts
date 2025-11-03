@@ -228,34 +228,42 @@ export default async function handler(
       return null;
     };
 
-    // Always fetch fresh post count directly from database
-    const { data: totalPostsCount, error: totalPostsError } = await admin.rpc(
-      'count_user_posts',
-      { user_uuid: id }
-    );
+    // Always fetch fresh post count directly from posts table
+    // This is more reliable than using RPC function
+    const { count: totalPostsCount, error: totalPostsError } = await admin
+      .from('posts')
+      .select('*', { count: 'exact', head: true })
+      .eq('author_id', id);
+    
     if (totalPostsError) {
-      console.error('Error counting total posts:', totalPostsError);
+      console.error('[Badges API] Error counting total posts:', totalPostsError);
     } else {
       const parsed = parseCount(totalPostsCount);
       if (parsed !== null) {
         metricsObject.total_posts = parsed;
-        console.log(`[Badges API] User ${id} has ${parsed} total posts`);
+        console.log(`[Badges API] User ${id} has ${parsed} total posts (direct query)`);
       } else {
         console.warn(`[Badges API] Failed to parse post count for user ${id}:`, totalPostsCount);
       }
     }
 
+    // Count posts from last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: recentPostsCount, error: recentPostsError } = await admin.rpc(
-      'count_user_posts',
-      { user_uuid: id, since: thirtyDaysAgo }
-    );
+    const { count: recentPostsCount, error: recentPostsError } = await admin
+      .from('posts')
+      .select('*', { count: 'exact', head: true })
+      .eq('author_id', id)
+      .gte('created_at', thirtyDaysAgo);
+    
     if (recentPostsError) {
-      console.error('Error counting recent posts:', recentPostsError);
+      console.error('[Badges API] Error counting recent posts:', recentPostsError);
     } else {
       const parsedRecent = parseCount(recentPostsCount);
       if (parsedRecent !== null) {
         metricsObject.total_posts_last_30d = parsedRecent;
+        console.log(`[Badges API] User ${id} has ${parsedRecent} posts in last 30 days (direct query)`);
+      } else {
+        console.warn(`[Badges API] Failed to parse recent post count for user ${id}:`, recentPostsCount);
       }
     }
 
