@@ -18,6 +18,7 @@ import PostCommentsBadge from "@/components/PostCommentsBadge";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
+import { Image as ImageIcon, Paperclip, X as CloseIcon } from "lucide-react";
 
 export default function FeedPage() {
   return (
@@ -56,7 +57,7 @@ function FeedInner() {
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
-  const DISCUSS_EMOJI = String.fromCodePoint(0x1F4AC); // ?? speech bubble
+  const DISCUSS_EMOJI = String.fromCodePoint(0x1F4AC); // speech bubble emoji
   const [text, setText] = useState("");
   const [img, setImg] = useState<File | null>(null);
   const [vid, setVid] = useState<File | null>(null);
@@ -67,7 +68,6 @@ function FeedInner() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
-  const emojiInputRef = useRef<HTMLInputElement>(null);
 
   // Map author user_id -> profile info (username, avatar)
   const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; avatar_url: string | null }>>({});
@@ -84,10 +84,6 @@ function FeedInner() {
     setText((prev) => prev + emoji);
   }, []);
   
-  const handleNativeEmojiInput = useCallback(() => {
-    // Focus the native emoji input to show iPhone emoji keyboard
-    emojiInputRef.current?.focus();
-  }, []);
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
   const [commentScores, setCommentScores] = useState<Record<number, number>>({});
@@ -1200,12 +1196,16 @@ function FeedInner() {
                               setCommentFile((prev) => ({ ...prev, [p.id]: file }));
                             }}
                           />
-                          <label htmlFor={`cfile-${p.id}`} className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                            isLight
-                              ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                              : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
-                          }`}>
-                            ??
+                          <label
+                            htmlFor={`cfile-${p.id}`}
+                            className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition flex items-center justify-center gap-2 ${
+                              isLight
+                                ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
+                                : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                            }`}
+                          >
+                            <Paperclip className="h-4 w-4" aria-hidden="true" />
+                            <span className="sr-only">Attach file</span>
                           </label>
                           {commentFile[p.id] && (
                             <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
@@ -1249,9 +1249,9 @@ function FeedInner() {
                 <button
                   onClick={() => !publishing && setComposerOpen(false)}
                   className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
-                  aria-label="Close"
+                  aria-label="Close composer"
                 >
-                  ?
+                  <CloseIcon className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
               <textarea
@@ -1274,42 +1274,21 @@ function FeedInner() {
                 }}
               />
               <div className="flex items-center gap-3">
-                <input
-                  ref={emojiInputRef}
-                  type="text"
-                  inputMode="emoji"
-                  className="absolute w-0 h-0 opacity-0 pointer-events-none"
-                  aria-hidden="true"
-                  tabIndex={-1}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setText((prev) => prev + e.target.value);
-                      e.target.value = '';
-                    }
-                  }}
+                <EmojiPicker
+                  onEmojiSelect={handleEmojiSelect}
+                  variant={isLight ? 'light' : 'dark'}
+                  align="left"
                 />
                 <button
-                  type="button"
-                  onClick={handleNativeEmojiInput}
-                  className={`px-3 py-2 rounded-xl border text-sm transition ${
-                    isLight
-                      ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                      : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
-                  }`}
-                  title="Emoji keyboard"
-                >
-                  ??
-                </button>
-                <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-                <button
                   onClick={() => unifiedFileRef.current?.click()}
-                  className={`px-3 py-2 rounded-xl border text-sm transition ${
+                  className={`px-3 py-2 rounded-xl border text-sm transition flex items-center gap-2 ${
                     isLight
                       ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
                       : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
                   }`}
                 >
-                  ?? Media
+                  <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                  <span>Media</span>
                 </button>
                 {(img || vid) && (
                   <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
@@ -1318,7 +1297,7 @@ function FeedInner() {
                 )}
                 <div className="ml-auto">
                   <Button onClick={onPublish} disabled={publishing} variant="primary">
-                    {publishing ? "Publishing?" : "Publish"}
+                    {publishing ? "Publishing..." : "Publish"}
                   </Button>
                 </div>
               </div>
