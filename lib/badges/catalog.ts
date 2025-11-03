@@ -192,8 +192,8 @@ export const BADGE_CATALOG: BadgeDefinition[] = [
   {
     key: 'community_helper',
     title: 'Community Helper',
-    description: 'You nurture others' posts.',
-    how_to_get: 'Leave at least 20 comments on other users' posts.',
+    description: 'You nurture others\' posts.',
+    how_to_get: 'Leave at least 20 comments on other users\' posts.',
     metric: 'comments_on_others_posts',
     operator: 'gte',
     threshold: 20,
