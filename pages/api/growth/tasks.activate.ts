@@ -57,7 +57,7 @@ export default async function handler(
     // Check if already activated
     const { data: existing, error: checkError } = await supabase
       .from('user_tasks')
-      .select('id')
+      .select('id, status')
       .eq('user_id', user.id)
       .eq('task_id', taskId)
       .maybeSingle();
@@ -70,7 +70,11 @@ export default async function handler(
       // Update to active if it was archived
       const { data: updated, error: updateError } = await supabase
         .from('user_tasks')
-        .update({ status: 'active', started_at: new Date().toISOString() })
+        .update({
+          status: 'active',
+          started_at: new Date().toISOString(),
+          completed_at: null,
+        })
         .eq('id', existing.id)
         .select()
         .single();
