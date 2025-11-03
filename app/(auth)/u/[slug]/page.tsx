@@ -790,9 +790,25 @@ export default function PublicProfilePage() {
           {/* Info block */}
           <div className="card p-4 md:p-6">
             <div className="grid gap-4 text-white/90">
-              <div className="space-y-2 w-1/2">
-                <div className="text-white/60 text-sm">Bio</div>
-                <div>{profile.bio || '-'}</div>
+              <div className="flex gap-6 items-start">
+                <div className="space-y-2 w-1/2">
+                  <div className="text-white/60 text-sm">Bio</div>
+                  <div>{profile.bio || '-'}</div>
+                </div>
+                <div className="flex gap-6">
+                  <div>
+                    <div className="text-white/60 text-sm">Following</div>
+                    <div className="text-white text-lg font-medium">{followingCount}</div>
+                  </div>
+                  <div>
+                    <div className="text-white/60 text-sm">Followers</div>
+                    <div className="text-white text-lg font-medium">{followersCount}</div>
+                  </div>
+                  <div>
+                    <div className="text-white/60 text-sm">Referrals</div>
+                    <div className="text-white text-lg font-medium">{referralsCount}</div>
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <div className="text-white/60 text-sm">Country - City</div>
@@ -851,37 +867,19 @@ export default function PublicProfilePage() {
         </div>
       )}
 
-      {/* Social block */}
+      {/* Recent social actions block */}
       {!loadingProfile && profile && (
         <div className="card p-4 md:p-6">
-          <div className="flex flex-wrap items-start gap-6">
-            <div>
-              <div className="text-white/60 text-sm">Following</div>
-              <div className="text-white text-lg font-medium">{followingCount}</div>
-            </div>
-            <div>
-              <div className="text-white/60 text-sm">Followers</div>
-              <div className="text-white text-lg font-medium">{followersCount}</div>
-            </div>
-            <div>
-              <div className="text-white/60 text-sm">Referrals</div>
-              <div className="text-white text-lg font-medium">{referralsCount}</div>
-            </div>
-          </div>
-
-          {/* Recent social actions */}
-          <div className="mt-4">
-            <div className="text-white/70 text-sm mb-2">Recent activity (5)</div>
-            {recentSocial.length === 0 ? (
-              <div className="text-white/50 text-sm">No recent activity</div>
-            ) : (
-              <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
-                {recentSocial.map((ev, i) => (
-                  <RecentSocialItem key={i} event={ev} />
-                ))}
-              </ul>
-            )}
-          </div>
+          <div className="text-white/70 text-sm mb-2">Recent activity (5)</div>
+          {recentSocial.length === 0 ? (
+            <div className="text-white/50 text-sm">No recent activity</div>
+          ) : (
+            <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
+              {recentSocial.map((ev, i) => (
+                <RecentSocialItem key={i} event={ev} />
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
