@@ -1,5 +1,5 @@
 -- Seed badges from catalog
--- This migration upserts all 20 badges from the catalog
+-- This migration upserts badges from the catalog
 
 begin;
 
@@ -14,7 +14,6 @@ insert into public.badges (
   ('talkative', 'Talkative', 'You keep the conversations flowing.', 'Write at least 100 comments.', 'total_comments', 'gte', 100, 'MessageCircle', 'cyan-500', 'blue-500', 'circle', 'activity', true),
   ('supporter', 'Supporter', 'You encourage others with reactions.', 'Give at least 50 likes to other users.', 'likes_given', 'gte', 50, 'ThumbsUp', 'emerald-500', 'teal-500', 'ribbon', 'community', true),
   ('daily_spark', 'Daily Spark', 'A week of steady activity.', 'Be active 7 days in a row.', 'consecutive_active_days', 'gte', 7, 'Sparkles', 'amber-500', 'orange-500', 'circle', 'consistency', true),
-  ('consistent_creator', 'Consistent Creator', 'Creating regularly over time.', 'Publish at least 14 posts in the last 30 days.', 'total_posts_last_30d', 'gte', 14, 'CalendarCheck', 'rose-500', 'pink-500', 'shield', 'consistency', true),
   ('momentum_builder', 'Momentum Builder', 'Week after week of engagement.', 'Have activity at least 1 day per week for 8 consecutive weeks.', 'weekly_active_streak', 'gte', 8, 'Timer', 'slate-500', 'zinc-500', 'hex', 'consistency', true),
   ('feedback_hero', 'Feedback Hero', 'The community values your posts.', 'Receive at least 50 likes on your posts.', 'likes_received', 'gte', 50, 'Heart', 'red-500', 'rose-500', 'circle', 'growth', true),
   ('comment_magnet', 'Comment Magnet', 'Diverse voices join your threads.', 'Get comments from at least 10 distinct users on your posts.', 'distinct_commenters', 'gte', 10, 'Users', 'yellow-500', 'lime-500', 'badge', 'growth', true),
@@ -25,7 +24,6 @@ insert into public.badges (
   ('badge_collector', 'Badge Collector', 'Collect achievements along the way.', 'Earn at least 10 other badges.', 'earned_badges_count', 'gte', 10, 'Award', 'amber-500', 'yellow-500', 'medal', 'growth', true),
   ('mentor', 'Mentor', 'Your comments are marked helpful.', 'Receive likes on comments from at least 5 distinct users.', 'comment_likes_from_distinct_users', 'gte', 5, 'BookOpenCheck', 'stone-500', 'neutral-500', 'shield', 'growth', true),
   ('recognized_voice', 'Recognized Voice', 'Your work resonates widely.', 'Receive at least 200 total likes.', 'total_likes_received', 'gte', 200, 'Megaphone', 'fuchsia-500', 'rose-500', 'hex', 'growth', true),
-  ('post_achiever', 'Post Achiever', 'Consistent posting at scale.', 'Publish at least 50 posts.', 'total_posts', 'gte', 50, 'FilePlus2', 'blue-500', 'cyan-500', 'badge', 'activity', true),
   ('community_veteran', 'Community Veteran', 'Long term participation.', 'Be active on more than 100 days since registration.', 'active_days', 'gte', 100, 'Hourglass', 'orange-500', 'amber-500', 'shield', 'consistency', true),
   ('sw_master', 'SW Master', 'High Social Weight achieved.', 'Reach Social Weight of at least 500.', 'social_weight', 'gte', 500, 'Scale', 'emerald-500', 'lime-500', 'circle', 'growth', true)
 on conflict (key) do update set
