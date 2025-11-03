@@ -1,0 +1,10 @@
+# ??????? ??? ??????: ??????? mobile ? sigmet-ios
+
+cd /workspace
+git clone https://github.com/sigmetapp/sigmet-ios.git
+cp -r /workspace/mobile /workspace/sigmet-ios/mobile
+rm -rf /workspace/sigmet-ios/mobile/.git
+cd /workspace/sigmet-ios
+git add mobile/
+git commit -m "Add SIGMET mobile iOS app"
+git push origin main
