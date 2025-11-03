@@ -773,7 +773,7 @@ function FeedInner() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-6">
         {/* Filters toggle */}
         <div className="card p-3 md:p-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -1016,6 +1016,9 @@ function FeedInner() {
                         )}
                       </div>
                     )}
+
+                    {/* Divider line under content */}
+                    <div className={`border-t ${isLight ? "border-telegram-blue/10" : "border-white/10"}`}></div>
 
                     {/* footer */}
                     <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
