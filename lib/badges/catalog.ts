@@ -136,9 +136,9 @@ export const BADGE_CATALOG: BadgeDefinition[] = [
   {
     key: 'feedback_hero',
     title: 'Feedback Hero',
-    description: 'The community values your posts.',
-    how_to_get: 'Receive at least 50 likes on your posts.',
-    metric: 'likes_received',
+    description: 'The community reacts to your posts.',
+    how_to_get: 'Collect at least 50 reactions on your posts.',
+    metric: 'post_reactions_received',
     operator: 'gte',
     threshold: 50,
     icon: 'Heart',
