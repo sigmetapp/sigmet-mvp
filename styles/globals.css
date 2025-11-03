@@ -471,16 +471,16 @@ html.theme-light .text-\[\\#0f1628\] { color: rgb(14 21 38) !important; }
 html.theme-light .bg-\[\\#0b1220\] { background-color: #ffffff !important; }
 html.theme-light .text-\[\\#e5edf7\] { color: rgb(14 21 38) !important; }
 
-/* Create Post button positioning - 50px right of feed (max-w-3xl = 768px, centered) */
+/* Create Post button positioning - 80px right of feed (max-w-3xl = 768px, centered) */
 .feed-create-button {
   /* For large screens: feed is 768px centered, right edge = 50vw + 384px from left,
-     button left edge = right edge of feed + 50px = 50vw + 384px + 50px */
-  left: calc(50vw + 384px + 50px);
+     button left edge = right edge of feed + 80px = 50vw + 384px + 80px */
+  left: calc(50vw + 384px + 80px);
 }
 
 @media (max-width: 832px) {
-  /* For smaller screens where feed is less than 768px: right edge = 100vw - 1rem, button 50px to the right */
+  /* For smaller screens where feed is less than 768px: right edge = 100vw - 1rem, button 80px to the right */
   .feed-create-button {
-    left: calc(100vw - 1rem + 50px);
+    left: calc(100vw - 1rem + 80px);
   }
 }
