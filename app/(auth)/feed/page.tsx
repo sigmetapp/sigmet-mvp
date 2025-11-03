@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+  type MouseEvent as ReactMouseEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { RequireAuth } from "@/components/RequireAuth";
 import Button from "@/components/Button";
@@ -45,6 +53,37 @@ function FeedInner() {
   const router = useRouter();
   const { theme } = useTheme();
   const isLight = theme === "light";
+  const CARD_INTERACTIVE_SELECTOR = 'button, a, [role="button"], input, textarea, select, label, [data-interactive], [data-prevent-card-navigation="true"]';
+
+  const handleCardClick = useCallback(
+    (event: ReactMouseEvent<HTMLElement>, postId: number) => {
+      const target = event.target as HTMLElement | null;
+      if (target && target.closest(CARD_INTERACTIVE_SELECTOR)) {
+        return false;
+      }
+      router.push(`/post/${postId}`);
+      return true;
+    },
+    [router]
+  );
+
+  const handleCardKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLElement>, postId: number) => {
+      if (event.key !== 'Enter' && event.key !== ' ') {
+        return false;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (target && target.closest(CARD_INTERACTIVE_SELECTOR) && target !== event.currentTarget) {
+        return false;
+      }
+
+      event.preventDefault();
+      router.push(`/post/${postId}`);
+      return true;
+    },
+    [router]
+  );
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const [text, setText] = useState("");
@@ -642,11 +681,26 @@ function FeedInner() {
                   createdAt: p.created_at,
                   commentsCount: commentCount,
                 }}
-                className="telegram-card-feature md:p-6 space-y-4 relative"
+                className="telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl"
                 onMouseEnter={() => addViewOnce(p.id)}
-                onOpen={(id) => router.push(`/post/${id}`)}
+                disableNavigation
                 renderContent={() => (
-                  <div className="relative z-10 space-y-4">
+                  <div
+                    className="relative z-10 space-y-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Open post"
+                    onClick={(event) => {
+                      if (handleCardClick(event, p.id)) {
+                        event.stopPropagation();
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (handleCardKeyDown(event, p.id)) {
+                        event.stopPropagation();
+                      }
+                    }}
+                  >
                     {/* header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
