@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 import Button from '@/components/Button';
 import PostReactions, { ReactionType } from '@/components/PostReactions';
 import { useTheme } from '@/components/ThemeProvider';
@@ -530,6 +531,17 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 md:py-8">
+      {/* Back button */}
+      <Button
+        variant="ghost"
+        size="md"
+        icon={<ArrowLeft className="h-4 w-4" />}
+        onClick={() => router.push('/feed')}
+        className="self-start"
+      >
+        Back to feed
+      </Button>
+
       {postError ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-600 dark:border-rose-900/40 dark:bg-rose-950/60">
           {postError}
