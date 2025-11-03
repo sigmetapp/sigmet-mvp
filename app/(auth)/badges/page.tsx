@@ -89,36 +89,37 @@ export default function BadgesPage() {
   const earnedCount = badges.filter((b) => b.earned).length;
   const totalCount = badges.length;
   const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
-  const [togglingBadge, setTogglingBadge] = useState<string | null>(null);
+  const [grantingBadge, setGrantingBadge] = useState<string | null>(null);
 
-  async function toggleBadge(badgeKey: string, currentActive: boolean) {
-    if (!isAdmin) return;
+  async function grantOrRevokeBadge(badgeKey: string, action: 'grant' | 'revoke') {
+    if (!isAdmin || !userId) return;
 
-    setTogglingBadge(badgeKey);
+    setGrantingBadge(badgeKey);
     try {
-      const response = await fetch('/api/badges/toggle', {
+      const response = await fetch('/api/badges/grant', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          user_id: userId,
           badge_key: badgeKey,
-          is_active: !currentActive,
+          action,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setNote(data.error || 'Failed to toggle badge');
+        setNote(data.error || `Failed to ${action} badge`);
       } else {
-        setNote(`Badge ${!currentActive ? 'activated' : 'deactivated'}`);
+        setNote(`Badge ${action === 'grant' ? 'granted' : 'revoked'}`);
         await loadBadges();
       }
     } catch (error: any) {
-      setNote(error.message || 'Failed to toggle badge');
+      setNote(error.message || `Failed to ${action} badge`);
     } finally {
-      setTogglingBadge(null);
+      setGrantingBadge(null);
     }
   }
 
@@ -216,10 +217,10 @@ export default function BadgesPage() {
               {isAdmin && (
                 <div className="pt-4 border-t border-white/10 space-y-2">
                   <h3 className="text-sm font-medium text-white/60 mb-2">
-                    Admin Controls
+                    Admin Controls - Grant/Revoke Badges
                   </h3>
                   {categoryBadges.map((badge) => {
-                    const isActive = badge.is_active !== false;
+                    const isEarned = badge.earned;
                     return (
                       <div
                         key={badge.key}
@@ -227,27 +228,28 @@ export default function BadgesPage() {
                       >
                         <span className="text-white/80 text-sm">
                           {badge.title}
-                          {!isActive && (
-                            <span className="ml-2 text-xs text-white/40">
-                              (Inactive)
+                          {isEarned && (
+                            <span className="ml-2 text-xs text-emerald-400">
+                              (Earned)
                             </span>
                           )}
                         </span>
-                        <button
-                          onClick={() => toggleBadge(badge.key, isActive)}
-                          disabled={togglingBadge === badge.key}
-                          className={`px-3 py-1 rounded text-xs transition ${
-                            isActive
-                              ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
-                              : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
-                          }`}
-                        >
-                          {togglingBadge === badge.key
-                            ? '...'
-                            : isActive
-                            ? 'Deactivate'
-                            : 'Activate'}
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => grantOrRevokeBadge(badge.key, 'grant')}
+                            disabled={grantingBadge === badge.key || isEarned}
+                            className="px-3 py-1 rounded text-xs transition bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {grantingBadge === badge.key ? '...' : 'Grant'}
+                          </button>
+                          <button
+                            onClick={() => grantOrRevokeBadge(badge.key, 'revoke')}
+                            disabled={grantingBadge === badge.key || !isEarned}
+                            className="px-3 py-1 rounded text-xs transition bg-red-500/20 text-red-300 hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {grantingBadge === badge.key ? '...' : 'Revoke'}
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
