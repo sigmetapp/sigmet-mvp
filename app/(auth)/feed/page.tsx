@@ -683,24 +683,8 @@ function FeedInner() {
                 }}
                 className="telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl"
                 onMouseEnter={() => addViewOnce(p.id)}
-                disableNavigation
                 renderContent={() => (
-                  <div
-                    className="relative z-10 space-y-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Open post"
-                    onClick={(event) => {
-                      if (handleCardClick(event, p.id)) {
-                        event.stopPropagation();
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (handleCardKeyDown(event, p.id)) {
-                        event.stopPropagation();
-                      }
-                    }}
-                  >
+                  <div className="relative z-10 space-y-4">
                     {/* header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
