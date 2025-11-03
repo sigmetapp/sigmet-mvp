@@ -1200,12 +1200,16 @@ function FeedInner() {
                               setCommentFile((prev) => ({ ...prev, [p.id]: file }));
                             }}
                           />
-                          <label htmlFor={`cfile-${p.id}`} className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition ${
-                            isLight
-                              ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                              : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
-                          }`}>
-                            ??
+                          <label
+                            htmlFor={`cfile-${p.id}`}
+                            className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition flex items-center justify-center ${
+                              isLight
+                                ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
+                                : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                            }`}
+                          >
+                            <span aria-hidden="true">??</span>
+                            <span className="sr-only">Attach file</span>
                           </label>
                           {commentFile[p.id] && (
                             <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
@@ -1248,10 +1252,10 @@ function FeedInner() {
                 <div className={`font-medium ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create post</div>
                 <button
                   onClick={() => !publishing && setComposerOpen(false)}
-                  className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
-                  aria-label="Close"
+                  className={`transition text-lg leading-none ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
+                  aria-label="Close composer"
                 >
-                  ?
+                  <span aria-hidden="true">?</span>
                 </button>
               </div>
               <textarea
@@ -1291,25 +1295,31 @@ function FeedInner() {
                 <button
                   type="button"
                   onClick={handleNativeEmojiInput}
-                  className={`px-3 py-2 rounded-xl border text-sm transition ${
+                  className={`px-3 py-2 rounded-xl border transition flex items-center justify-center text-xl leading-none ${
                     isLight
                       ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
                       : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
                   }`}
                   title="Emoji keyboard"
                 >
-                  ??
+                  <span aria-hidden="true">??</span>
+                  <span className="sr-only">Open native emoji keyboard</span>
                 </button>
-                <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+                <EmojiPicker
+                  onEmojiSelect={handleEmojiSelect}
+                  variant={isLight ? 'light' : 'dark'}
+                  align="left"
+                />
                 <button
                   onClick={() => unifiedFileRef.current?.click()}
-                  className={`px-3 py-2 rounded-xl border text-sm transition ${
+                  className={`px-3 py-2 rounded-xl border text-sm transition flex items-center gap-2 ${
                     isLight
                       ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
                       : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
                   }`}
                 >
-                  ?? Media
+                  <span aria-hidden="true" className="text-lg leading-none">???</span>
+                  <span>Media</span>
                 </button>
                 {(img || vid) && (
                   <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
