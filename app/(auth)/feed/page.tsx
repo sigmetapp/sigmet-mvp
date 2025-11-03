@@ -1094,11 +1094,11 @@ function FeedInner() {
         )}
       </div>
 
-      {/* Create Post button - positioned at bottom right, 10px from posts edge */}
+      {/* Create Post button - positioned at bottom right, 12px from posts edge */}
       <Button
         onClick={() => setComposerOpen(true)}
         variant="primary"
-        className="fixed bottom-6 right-[calc(50vw+min((100vw-2rem),48rem)/2+10px)] shadow-lg z-40 rounded-full px-6 py-4 text-base"
+        className="fixed bottom-6 right-[max(1rem,calc(50vw+min(24rem,(100vw-2rem)/2)+12px))] shadow-lg z-40 rounded-full px-6 py-4 text-base"
         icon={<Plus />}
       >
         Create post
