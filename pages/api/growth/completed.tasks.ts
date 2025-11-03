@@ -37,9 +37,7 @@ export default async function handler(
     };
 
     // Get achievements (completed goals) with task details
-    const { data: achievements, error: achievementsError } = await supabase
-      .from('user_achievements')
-      .select(`
+    const achievementsSelectWithPost = `
         id,
         points_awarded,
         completed_at,
@@ -60,9 +58,45 @@ export default async function handler(
             )
           )
         )
-      `)
+      `;
+
+    const achievementsSelectFallback = `
+        id,
+        points_awarded,
+        completed_at,
+        user_task_id,
+        user_tasks!inner(
+          growth_tasks!inner(
+            id,
+            title,
+            task_type,
+            base_points,
+            direction_id,
+            growth_directions!inner(
+              id,
+              title,
+              slug,
+              emoji
+            )
+          )
+        )
+      `;
+
+    let { data: achievements, error: achievementsError } = await supabase
+      .from('user_achievements')
+      .select(achievementsSelectWithPost)
       .eq('user_id', user.id)
       .order('completed_at', { ascending: false });
+
+    if (achievementsError && achievementsError.message?.includes('post_id')) {
+      const fallback = await supabase
+        .from('user_achievements')
+        .select(achievementsSelectFallback)
+        .eq('user_id', user.id)
+        .order('completed_at', { ascending: false });
+      achievements = fallback.data;
+      achievementsError = fallback.error;
+    }
 
     if (achievementsError) {
       return res.status(500).json({ error: achievementsError.message });
@@ -103,9 +137,7 @@ export default async function handler(
     }
 
     // Get habit check-ins with task details
-    const { data: habitCheckins, error: habitCheckinsError } = await supabase
-      .from('habit_checkins')
-      .select(`
+    const habitCheckinsSelectWithPost = `
         id,
         points_awarded,
         checked_at,
@@ -126,9 +158,45 @@ export default async function handler(
             )
           )
         )
-      `)
+      `;
+
+    const habitCheckinsSelectFallback = `
+        id,
+        points_awarded,
+        checked_at,
+        user_task_id,
+        user_tasks!inner(
+          growth_tasks!inner(
+            id,
+            title,
+            task_type,
+            base_points,
+            direction_id,
+            growth_directions!inner(
+              id,
+              title,
+              slug,
+              emoji
+            )
+          )
+        )
+      `;
+
+    let { data: habitCheckins, error: habitCheckinsError } = await supabase
+      .from('habit_checkins')
+      .select(habitCheckinsSelectWithPost)
       .eq('user_id', user.id)
       .order('checked_at', { ascending: false });
+
+    if (habitCheckinsError && habitCheckinsError.message?.includes('post_id')) {
+      const fallback = await supabase
+        .from('habit_checkins')
+        .select(habitCheckinsSelectFallback)
+        .eq('user_id', user.id)
+        .order('checked_at', { ascending: false });
+      habitCheckins = fallback.data;
+      habitCheckinsError = fallback.error;
+    }
 
     if (habitCheckinsError) {
       return res.status(500).json({ error: habitCheckinsError.message });
