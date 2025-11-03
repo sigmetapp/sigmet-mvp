@@ -129,11 +129,63 @@ function FeedInner() {
   const [myDirections, setMyDirections] = useState<string[]>([]);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
 
+  const loadFeed = useCallback(async (directionId?: string | null) => {
+    setLoading(true);
+    let query = supabase
+      .from("posts")
+      .select("*");
+    
+    // Filter by direction if specified
+    if (directionId && availableDirections.length > 0) {
+      const direction = availableDirections.find((dir) => dir.id === directionId);
+      if (direction) {
+        // Filter posts where category matches direction title or slug
+        query = query.or(`category.ilike.%${direction.title}%,category.ilike.%${direction.slug}%`);
+      }
+    }
+    
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (!error && data) {
+      setPosts(data as Post[]);
+      // Preload comment counts for visible posts
+      preloadCommentCounts(data as Post[]);
+
+      // Preload author profiles (username, avatar)
+      const userIds = Array.from(
+        new Set((data as Post[]).map((p) => p.user_id).filter((x): x is string => Boolean(x)))
+      );
+      if (userIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("user_id, username, avatar_url")
+          .in("user_id", userIds);
+        if (profs) {
+          const map: Record<string, { username: string | null; avatar_url: string | null }> = {};
+          for (const p of profs as any[]) {
+            map[p.user_id as string] = { username: p.username ?? null, avatar_url: p.avatar_url ?? null };
+          }
+          setProfilesByUserId(map);
+        }
+      }
+    }
+    setLoading(false);
+  }, [availableDirections]);
+
   // page mount
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
-    loadFeed();
-  }, []);
+    // Initial load - load all posts without filter
+    loadFeed(null);
+  }, [loadFeed]);
+
+  // Reload feed when active direction changes
+  useEffect(() => {
+    if (availableDirections.length > 0) {
+      loadFeed(activeDirection);
+    }
+  }, [activeDirection, availableDirections, loadFeed]);
 
   // Load directions from growth-directions API and selected directions from profile
   useEffect(() => {
@@ -189,39 +241,6 @@ function FeedInner() {
       }
     })();
   }, []);
-
-  async function loadFeed() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("posts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (!error && data) {
-      setPosts(data as Post[]);
-      // Preload comment counts for visible posts
-      preloadCommentCounts(data as Post[]);
-
-      // Preload author profiles (username, avatar)
-      const userIds = Array.from(
-        new Set((data as Post[]).map((p) => p.user_id).filter((x): x is string => Boolean(x)))
-      );
-      if (userIds.length > 0) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("user_id, username, avatar_url")
-          .in("user_id", userIds);
-        if (profs) {
-          const map: Record<string, { username: string | null; avatar_url: string | null }> = {};
-          for (const p of profs as any[]) {
-            map[p.user_id as string] = { username: p.username ?? null, avatar_url: p.avatar_url ?? null };
-          }
-          setProfilesByUserId(map);
-        }
-      }
-    }
-    setLoading(false);
-  }
 
 
   // preload likes state for my user
@@ -652,6 +671,20 @@ function FeedInner() {
         {myDirections.length > 0 && availableDirections.length > 0 && (
           <div className="card p-3 md:p-4">
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setActiveDirection(null)}
+                className={`px-3 py-1.5 rounded-full text-sm transition border ${
+                  activeDirection === null
+                    ? isLight
+                      ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                      : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                    : isLight
+                    ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
+                    : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+                }`}
+              >
+                All
+              </button>
               {myDirections.map((id) => {
                 const meta = availableDirections.find((a) => a.id === id);
                 const emoji = meta ? meta.emoji : resolveDirectionEmoji(id, null);
@@ -661,7 +694,7 @@ function FeedInner() {
                 return (
                   <button
                     key={id}
-                    onClick={() => setActiveDirection(id)}
+                    onClick={() => setActiveDirection(active ? null : id)}
                     className={`px-3 py-1.5 rounded-full text-sm transition border ${
                       active
                         ? isLight
@@ -714,7 +747,7 @@ function FeedInner() {
                 }}
                 className={`telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl ${
                   hasCategory && categoryDirection
-                    ? 'ring-2 ring-telegram-blue border-telegram-blue/50 shadow-lg'
+                    ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
                     : ''
                 }`}
                 onMouseEnter={() => addViewOnce(p.id)}
@@ -729,13 +762,20 @@ function FeedInner() {
                           className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
                         />
                         <div className="flex flex-col min-w-0">
-                          <div className={`text-sm truncate ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{username}</div>
+                          <a 
+                            href={`/u/${p.user_id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
+                            data-prevent-card-navigation="true"
+                          >
+                            {username}
+                          </a>
                           {p.category && (
                             <div className={`text-xs px-2 py-1 rounded-md font-medium inline-block mt-1 ${
                               hasCategory && categoryDirection
                                 ? isLight
-                                  ? 'bg-telegram-blue/20 text-telegram-blue border border-telegram-blue/30'
-                                  : 'bg-telegram-blue/30 text-telegram-blue-light border border-telegram-blue/50'
+                                  ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                                  : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
                                 : isLight
                                 ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
                                 : 'text-telegram-text-secondary bg-white/5'
@@ -748,14 +788,16 @@ function FeedInner() {
                       <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                         <span className="whitespace-nowrap">{new Date(p.created_at).toLocaleString()}</span>
                         {uid === p.user_id && editingId !== p.id && (
-                          <PostActionMenu
-                            onEdit={() => {
-                              setEditingId(p.id);
-                              setEditBody(p.body || "");
-                            }}
-                            onDelete={() => deletePost(p)}
-                            className="ml-2"
-                          />
+                          <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
+                            <PostActionMenu
+                              onEdit={() => {
+                                setEditingId(p.id);
+                                setEditBody(p.body || "");
+                              }}
+                              onDelete={() => deletePost(p)}
+                              className="ml-2"
+                            />
+                          </div>
                         )}
                       </div>
                     </div>
@@ -794,17 +836,18 @@ function FeedInner() {
                         <span className="text-sm">{p.views ?? 0}</span>
                       </div>
 
-                      <PostReactions
-                        postId={p.id}
-                        initialCounts={reactionsByPostId[p.id] || {
-                          inspire: 0,
-                          respect: 0,
-                          relate: 0,
-                          support: 0,
-                          celebrate: 0,
-                        }}
-                        initialSelected={selectedReactionsByPostId[p.id] || null}
-                        onReactionChange={async (reaction, counts) => {
+                      <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
+                        <PostReactions
+                          postId={p.id}
+                          initialCounts={reactionsByPostId[p.id] || {
+                            inspire: 0,
+                            respect: 0,
+                            relate: 0,
+                            support: 0,
+                            celebrate: 0,
+                          }}
+                          initialSelected={selectedReactionsByPostId[p.id] || null}
+                          onReactionChange={async (reaction, counts) => {
                           if (!uid) {
                             alert("Sign in required");
                             return;
@@ -893,7 +936,8 @@ function FeedInner() {
                             }
                           }
                         }}
-                      />
+                        />
+                      </div>
 
                       <PostCommentsBadge
                         count={commentCount}
@@ -1074,7 +1118,7 @@ function FeedInner() {
       <Button
         onClick={() => setComposerOpen(true)}
         variant="primary"
-        className="fixed right-6 bottom-6 md:right-[calc((100vw-48rem)/2+48rem+1.5rem)] shadow-lg z-40 rounded-full px-6 py-4"
+        className="fixed right-6 bottom-6 md:right-[calc((100vw-max(48rem,1280px))/2+max(48rem,1280px)+1.5rem)] lg:right-[calc((100vw-48rem)/2+48rem+1.5rem)] shadow-lg z-40 rounded-full px-6 py-4 text-base"
         icon={<Plus />}
       >
         Create post
