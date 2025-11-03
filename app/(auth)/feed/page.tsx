@@ -619,6 +619,60 @@ function FeedInner() {
     </svg>
   );
 
+  // Track button position to prevent overlap with footer
+  const [buttonBottom, setButtonBottom] = useState(24); // 6 * 4 = 24px (bottom-6)
+
+  useEffect(() => {
+    const updateButtonPosition = () => {
+      const footer = document.querySelector('footer');
+      if (!footer) {
+        setButtonBottom(24);
+        return;
+      }
+      
+      const footerRect = footer.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      
+      // If footer is visible in viewport (footer top is above viewport bottom)
+      if (footerRect.top < viewportHeight) {
+        // Calculate how much footer is visible
+        // footerRect.top is distance from top of viewport to top of footer
+        // If footerRect.top < viewportHeight, footer is visible
+        // Distance from bottom of viewport to top of footer = viewportHeight - footerRect.top
+        // We want button to be above footer, so bottom should be larger than this distance
+        // Add padding (16px) to keep button above footer
+        const footerVisibleDistance = viewportHeight - footerRect.top;
+        const buttonHeight = 60; // Approximate button height with padding
+        const safeDistance = footerVisibleDistance + buttonHeight + 16; // 16px padding above footer
+        setButtonBottom(Math.max(24, safeDistance));
+      } else {
+        // Footer is below viewport, use default position
+        setButtonBottom(24);
+      }
+    };
+
+    // Update on scroll and resize with throttling for performance
+    let ticking = false;
+    const handleUpdate = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          updateButtonPosition();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleUpdate, { passive: true });
+    window.addEventListener('resize', handleUpdate);
+    updateButtonPosition(); // Initial calculation
+
+    return () => {
+      window.removeEventListener('scroll', handleUpdate);
+      window.removeEventListener('resize', handleUpdate);
+    };
+  }, []);
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
       {/* Page header */}
@@ -1094,11 +1148,12 @@ function FeedInner() {
         )}
       </div>
 
-      {/* Create Post button - positioned at bottom right, 10px from posts edge */}
+      {/* Create Post button - positioned at bottom right, 12px from posts edge */}
       <Button
         onClick={() => setComposerOpen(true)}
         variant="primary"
-        className="fixed bottom-6 right-[calc(50vw+min((100vw-2rem),48rem)/2+10px)] shadow-lg z-40 rounded-full px-6 py-4 text-base"
+        className="fixed feed-create-button shadow-lg z-40 rounded-full px-6 py-4 text-base"
+        style={{ bottom: `${buttonBottom}px` }}
         icon={<Plus />}
       >
         Create post
