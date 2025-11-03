@@ -712,7 +712,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
               position="top"
             />
             <Button variant="primary" disabled={commentSubmitting} onClick={() => submitComment()}>
-              {commentSubmitting ? 'Sending?' : 'Post'}
+              {commentSubmitting ? 'Sending?' : 'Comment'}
             </Button>
           </div>
         </div>
