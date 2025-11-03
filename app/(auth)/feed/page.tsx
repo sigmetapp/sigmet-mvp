@@ -9,6 +9,7 @@ import { useTheme } from "@/components/ThemeProvider";
 import PostReactions, { ReactionType } from "@/components/PostReactions";
 import PostActionMenu from "@/components/PostActionMenu";
 import PostCommentsBadge from "@/components/PostCommentsBadge";
+import { useRouter } from "next/navigation";
 
 export default function FeedPage() {
   return (
@@ -41,6 +42,7 @@ type Comment = {
 };
 
 function FeedInner() {
+  const router = useRouter();
   const { theme } = useTheme();
   const isLight = theme === "light";
   const AVATAR_FALLBACK =
@@ -642,6 +644,7 @@ function FeedInner() {
                 }}
                 className="telegram-card-feature md:p-6 space-y-4 relative"
                 onMouseEnter={() => addViewOnce(p.id)}
+                onOpen={(id) => router.push(`/post/${id}`)}
                 renderContent={() => (
                   <div className="relative z-10 space-y-4">
                     {/* header */}
