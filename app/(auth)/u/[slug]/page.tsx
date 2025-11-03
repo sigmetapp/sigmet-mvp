@@ -830,9 +830,9 @@ export default function PublicProfilePage() {
             </div>
           </div>
 
-          {/* Stats block - Following, Followers, Referrals */}
+          {/* Stats block - Following, Followers, Referrals, Recent activity */}
           <div className="card p-4 md:p-6">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className={`p-4 rounded-xl border-2 ${
                 isLight 
                   ? 'border-telegram-blue/30 bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10' 
@@ -887,6 +887,24 @@ export default function PublicProfilePage() {
                   {referralsCount}
                 </div>
               </div>
+              <div className={`p-4 rounded-xl border-2 ${
+                isLight 
+                  ? 'border-telegram-blue/30 bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10' 
+                  : 'border-telegram-blue/40 bg-gradient-to-br from-telegram-blue/15 to-telegram-blue-light/15'
+              } shadow-lg`}>
+                <div className={`text-xs font-medium mb-2 uppercase tracking-wider ${
+                  isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                }`}>
+                  Recent activity
+                </div>
+                <div className={`text-3xl font-bold ${
+                  isLight 
+                    ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' 
+                    : 'bg-gradient-to-r from-telegram-blue-light to-telegram-blue bg-clip-text text-transparent'
+                }`}>
+                  {recentSocial.length}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -911,19 +929,19 @@ export default function PublicProfilePage() {
         </div>
       )}
 
-      {/* Recent social actions block */}
-      {!loadingProfile && profile && (
+      {/* Recent social actions list */}
+      {!loadingProfile && profile && recentSocial.length > 0 && (
         <div className="card p-4 md:p-6">
-          <div className="text-white/70 text-sm mb-2">Recent activity (5)</div>
-          {recentSocial.length === 0 ? (
-            <div className="text-white/50 text-sm">No recent activity</div>
-          ) : (
-            <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
-              {recentSocial.map((ev, i) => (
-                <RecentSocialItem key={i} event={ev} />
-              ))}
-            </ul>
-          )}
+          <div className={`text-sm mb-3 font-medium ${
+            isLight ? 'text-telegram-text' : 'text-white/70'
+          }`}>
+            Recent activity ({recentSocial.length})
+          </div>
+          <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
+            {recentSocial.map((ev, i) => (
+              <RecentSocialItem key={i} event={ev} />
+            ))}
+          </ul>
         </div>
       )}
 
