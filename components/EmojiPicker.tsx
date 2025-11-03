@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
+import { Smile } from 'lucide-react';
 
 type Props = {
   onEmojiSelect: (emoji: string) => void;
@@ -101,12 +102,12 @@ export default function EmojiPicker({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`h-10 w-10 rounded-2xl flex items-center justify-center text-2xl leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-telegram-blue/40 ${triggerClasses}`}
+        className={`h-10 w-10 rounded-2xl flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-telegram-blue/40 ${triggerClasses}`}
         title="Add emoji"
         aria-haspopup="dialog"
         aria-expanded={isOpen}
       >
-        <span aria-hidden="true">😊</span>
+        <Smile className="h-5 w-5" aria-hidden="true" />
         <span className="sr-only">Insert emoji</span>
       </button>
 

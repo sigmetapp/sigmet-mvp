@@ -18,6 +18,7 @@ import PostCommentsBadge from "@/components/PostCommentsBadge";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
+import { Image as ImageIcon, Keyboard, Paperclip, X as CloseIcon } from "lucide-react";
 
 export default function FeedPage() {
   return (
@@ -56,7 +57,7 @@ function FeedInner() {
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
-  const DISCUSS_EMOJI = String.fromCodePoint(0x1F4AC); // ?? speech bubble
+  const DISCUSS_EMOJI = String.fromCodePoint(0x1F4AC); // speech bubble emoji
   const [text, setText] = useState("");
   const [img, setImg] = useState<File | null>(null);
   const [vid, setVid] = useState<File | null>(null);
@@ -1202,13 +1203,13 @@ function FeedInner() {
                           />
                           <label
                             htmlFor={`cfile-${p.id}`}
-                            className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition flex items-center justify-center ${
+                            className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition flex items-center justify-center gap-2 ${
                               isLight
                                 ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
                                 : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
                             }`}
                           >
-                            <span aria-hidden="true">??</span>
+                            <Paperclip className="h-4 w-4" aria-hidden="true" />
                             <span className="sr-only">Attach file</span>
                           </label>
                           {commentFile[p.id] && (
@@ -1252,10 +1253,10 @@ function FeedInner() {
                 <div className={`font-medium ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create post</div>
                 <button
                   onClick={() => !publishing && setComposerOpen(false)}
-                  className={`transition text-lg leading-none ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
+                  className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
                   aria-label="Close composer"
                 >
-                  <span aria-hidden="true">?</span>
+                  <CloseIcon className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
               <textarea
@@ -1295,14 +1296,14 @@ function FeedInner() {
                 <button
                   type="button"
                   onClick={handleNativeEmojiInput}
-                  className={`px-3 py-2 rounded-xl border transition flex items-center justify-center text-xl leading-none ${
+                  className={`px-3 py-2 rounded-xl border transition flex items-center justify-center gap-2 ${
                     isLight
                       ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
                       : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
                   }`}
                   title="Emoji keyboard"
                 >
-                  <span aria-hidden="true">??</span>
+                  <Keyboard className="h-4 w-4" aria-hidden="true" />
                   <span className="sr-only">Open native emoji keyboard</span>
                 </button>
                 <EmojiPicker
@@ -1318,7 +1319,7 @@ function FeedInner() {
                       : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
                   }`}
                 >
-                  <span aria-hidden="true" className="text-lg leading-none">???</span>
+                  <ImageIcon className="h-4 w-4" aria-hidden="true" />
                   <span>Media</span>
                 </button>
                 {(img || vid) && (
@@ -1328,7 +1329,7 @@ function FeedInner() {
                 )}
                 <div className="ml-auto">
                   <Button onClick={onPublish} disabled={publishing} variant="primary">
-                    {publishing ? "Publishing?" : "Publish"}
+                    {publishing ? "Publishing..." : "Publish"}
                   </Button>
                 </div>
               </div>
