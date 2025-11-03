@@ -60,7 +60,7 @@ function CityUsersInner() {
   }, [city]);
 
   return (
-    <main className="max-w-3xl mx-auto p-6 space-y-6">
+    <main className="max-w-3xl mx-auto px-4 py-6 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-white text-xl font-semibold">Users from {city}</h1>
         <Link href="/feed" className="text-white/70 hover:underline">Back to feed</Link>

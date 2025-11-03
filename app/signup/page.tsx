@@ -26,6 +26,8 @@ export default function SignupPage() {
     maxWidth: '1000px',
     margin: '0 auto',
     padding: '40px 24px',
+    width: '100%',
+    boxSizing: 'border-box',
   };
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -269,13 +271,24 @@ export default function SignupPage() {
         .alert { border-radius: 10px; padding: 12px 14px; font-size: 14px; margin: 8px 0 12px; }
         .alert.error { background: rgba(248,81,73,0.1); border: 1px solid #f85149; }
         .alert.notice { background: rgba(46,160,67,0.12); border: 1px solid #2ea043; }
-        .actions { display: flex; gap: 12px; margin-top: 8px; }
+        .actions { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
         .btnSecondary { text-decoration: none; font-weight: 600; border-radius: 10px; padding: 12px 16px; display: inline-flex; align-items: center; transition: transform .15s ease, background .15s ease; }
         .btnSecondary:hover { transform: translateY(-1px); }
         .btnSecondary.sm { padding: 8px 12px; font-weight: 600; }
         ul { margin: 0; padding-left: 20px; line-height: 1.8; }
         .smallNote { margin-top: 12px; font-size: 13px; }
-        @media (max-width: 1024px) { .grid { grid-template-columns: 1fr; } .infoCard { position: static; } }
+        @media (max-width: 1024px) { 
+          .grid { grid-template-columns: 1fr; } 
+          .infoCard { position: static; } 
+        }
+        @media (max-width: 640px) {
+          .container { padding: 20px 16px; }
+          .title { font-size: 24px; }
+          .subtitle { font-size: 14px; }
+          .formCard, .tipsCard, .infoCard { padding: 16px; }
+          .actions { flex-direction: column; }
+          .actions button { width: 100%; }
+        }
       `}</style>
     </div>
   );

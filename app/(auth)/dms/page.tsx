@@ -336,9 +336,9 @@ function DmsInner() {
   }
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-120px)]">
+    <div className="flex flex-col md:flex-row gap-4 h-[calc(100vh-120px)]">
       {/* Partners list - left side */}
-      <div className="w-80 flex-shrink-0">
+      <div className="w-full md:w-80 flex-shrink-0">
         <div className="card card-glow h-full flex flex-col">
           <div className="px-4 py-3 border-b border-white/10">
             <h1 className="text-lg font-semibold text-white">Messages</h1>

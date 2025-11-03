@@ -276,7 +276,7 @@ function TicketsInner() {
 
   if (selectedTicket) {
     return (
-      <div className={`max-w-4xl mx-auto p-6 space-y-6 ${isLight ? 'text-black' : 'text-white'}`}>
+      <div className={`max-w-4xl mx-auto px-4 py-6 md:p-6 space-y-6 ${isLight ? 'text-black' : 'text-white'}`}>
         <div className="flex items-center justify-between">
           <button
             onClick={closeTicket}
@@ -509,7 +509,7 @@ function TicketsInner() {
   }
 
   return (
-    <div className={`max-w-4xl mx-auto p-6 space-y-6 ${isLight ? 'text-black' : 'text-white'}`}>
+    <div className={`max-w-4xl mx-auto px-4 py-6 md:p-6 space-y-6 ${isLight ? 'text-black' : 'text-white'}`}>
       <h1 className={`text-2xl font-semibold ${isLight ? 'text-black' : 'text-white'}`}>
         Report an Issue
       </h1>
