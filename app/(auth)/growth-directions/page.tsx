@@ -64,6 +64,16 @@ const toTitleCase = (value: string | null | undefined) => {
 const getTaskElementId = (item: Pick<TaskSummaryItem, 'id' | 'type'>) =>
   item.type === 'habit' ? `habit-card-${item.id}` : `goal-card-${item.id}`;
 
+const IN_DEVELOPMENT_SLUGS = new Set([
+  'creativity',
+  'mindfulness_purpose',
+  'relationships',
+  'career',
+  'finance',
+]);
+
+const isDirectionInDevelopment = (slug: string) => IN_DEVELOPMENT_SLUGS.has(slug);
+
 const prepareDirections = (rawDirections: Direction[]) => {
   const uniqueSortedDirections = Array.from(
     new Map(rawDirections.map((dir) => [dir.id, dir])).values()
@@ -265,12 +275,16 @@ function GrowthDirectionsInner() {
           return prev;
         }
 
-        const firstPrimarySelected = dedupedBySlug.find((dir) => dir.isSelected && dir.isPrimary);
+        const firstPrimarySelected = dedupedBySlug.find(
+          (dir) => dir.isSelected && dir.isPrimary && !isDirectionInDevelopment(dir.slug)
+        );
         if (firstPrimarySelected) {
           return firstPrimarySelected.id;
         }
 
-        const firstSelected = dedupedBySlug.find((dir) => dir.isSelected);
+        const firstSelected = dedupedBySlug.find(
+          (dir) => dir.isSelected && !isDirectionInDevelopment(dir.slug)
+        );
         if (firstSelected) {
           return firstSelected.id;
         }
@@ -282,14 +296,7 @@ function GrowthDirectionsInner() {
         }
 
         // Otherwise find first direction that's not in development
-        const availableDirections = dedupedBySlug.filter((dir) => {
-          const isInDevelopment = dir.slug === 'creativity' || 
-                                 dir.slug === 'mindfulness_purpose' || 
-                                 dir.slug === 'relationships' ||
-                                 dir.slug === 'career' ||
-                                 dir.slug === 'finance';
-          return !isInDevelopment;
-        });
+        const availableDirections = dedupedBySlug.filter((dir) => !isDirectionInDevelopment(dir.slug));
 
         return availableDirections[0]?.id ?? dedupedBySlug[0]?.id ?? null;
       });
@@ -560,11 +567,7 @@ function GrowthDirectionsInner() {
     if (!direction) return;
 
     // Check if direction is in development (inactive)
-    const isInDevelopment = direction.slug === 'creativity' || 
-                           direction.slug === 'mindfulness_purpose' || 
-                           direction.slug === 'relationships' ||
-                           direction.slug === 'career' ||
-                           direction.slug === 'finance';
+    const isInDevelopment = isDirectionInDevelopment(direction.slug);
 
     if (isInDevelopment) {
       setNotification({ message: 'This direction is currently in development and cannot be selected' });
@@ -639,11 +642,7 @@ function GrowthDirectionsInner() {
     }
 
     // Check if direction is in development (inactive)
-    const isInDevelopment = taskDirection.slug === 'creativity' || 
-                           taskDirection.slug === 'mindfulness_purpose' || 
-                           taskDirection.slug === 'relationships' ||
-                           taskDirection.slug === 'career' ||
-                           taskDirection.slug === 'finance';
+    const isInDevelopment = isDirectionInDevelopment(taskDirection.slug);
 
     if (isInDevelopment) {
       setNotification({ message: 'Cannot activate tasks from directions that are currently in development' });
@@ -1311,23 +1310,14 @@ function GrowthDirectionsInner() {
                 {directions
                   .filter((dir) => {
                     // Filter out directions in development
-                    const isInDevelopment = dir.slug === 'creativity' || 
-                                           dir.slug === 'mindfulness_purpose' || 
-                                           dir.slug === 'relationships' || 
-                                           dir.slug === 'career' || 
-                                           dir.slug === 'finance';
-                    return !isInDevelopment;
+                    return !isDirectionInDevelopment(dir.slug);
                   })
                   .map((dir) => {
                   const isToggling = toggling.has(dir.id);
                   const isSelected = selectedDirection === dir.id;
                   
                   // Check if direction is in development
-                  const isInDevelopment = dir.slug === 'creativity' || 
-                                         dir.slug === 'mindfulness_purpose' || 
-                                         dir.slug === 'relationships' ||
-                                         dir.slug === 'career' ||
-                                         dir.slug === 'finance';
+                  const isInDevelopment = isDirectionInDevelopment(dir.slug);
                   
                   // When selecting a category, it always becomes primary (priority)
                   // Disable selection if limit is reached (max 3 primary directions)
