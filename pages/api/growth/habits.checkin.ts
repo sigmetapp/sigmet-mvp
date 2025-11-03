@@ -204,7 +204,10 @@ export default async function handler(
       points_awarded: pointsAwarded,
     };
 
-    let insertPayload = { ...baseInsertPayload, post_id: postId ?? null };
+    let insertPayload = { ...baseInsertPayload };
+    if (postId !== null && postId !== undefined) {
+      insertPayload.post_id = postId;
+    }
 
     let checkinResult = await supabase
       .from('habit_checkins')
@@ -214,6 +217,7 @@ export default async function handler(
 
     if (checkinResult.error && checkinResult.error.message?.includes('post_id')) {
       insertPayload = { ...baseInsertPayload };
+      delete insertPayload.post_id;
       checkinResult = await supabase
         .from('habit_checkins')
         .insert(insertPayload)

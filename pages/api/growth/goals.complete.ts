@@ -76,7 +76,10 @@ export default async function handler(
       note: note || null,
     };
 
-    let achievementPayload = { ...achievementPayloadBase, post_id: postId ?? null };
+    let achievementPayload = { ...achievementPayloadBase };
+    if (postId !== null && postId !== undefined) {
+      achievementPayload.post_id = postId;
+    }
 
     let achievementResult = await supabase
       .from('user_achievements')
@@ -86,6 +89,7 @@ export default async function handler(
 
     if (achievementResult.error && achievementResult.error.message?.includes('post_id')) {
       achievementPayload = { ...achievementPayloadBase };
+      delete achievementPayload.post_id;
       achievementResult = await supabase
         .from('user_achievements')
         .insert(achievementPayload)

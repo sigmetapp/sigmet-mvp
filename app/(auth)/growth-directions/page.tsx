@@ -1102,9 +1102,20 @@ function GrowthDirectionsInner() {
     : Math.min(completedTasks.length, completedPage * COMPLETED_PAGE_SIZE + paginatedCompletedTasks.length);
 
   const handleCompletedTaskClick = useCallback(
-    (task: CompletedTaskRecord) => {
-      if (!task.postId) return;
-      router.push(`/post/${task.postId}`);
+    (task: CompletedTaskRecord, options?: { newTab?: boolean }) => {
+      if (!task.postId) {
+        setNotification({ message: 'No confirmation post is attached for this completion yet.' });
+        return;
+      }
+
+      const url = `/post/${task.postId}`;
+
+      if (options?.newTab) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      router.push(url);
     },
     [router]
   );
@@ -1280,9 +1291,8 @@ function GrowthDirectionsInner() {
                       <tr
                         key={task.id}
                         onClick={(event) => {
-                          if (!task.postId) return;
                           if (event.metaKey || event.ctrlKey || event.shiftKey) {
-                            window.open(`/post/${task.postId}`, '_blank');
+                            handleCompletedTaskClick(task, { newTab: true });
                             return;
                           }
                           handleCompletedTaskClick(task);
@@ -1294,9 +1304,9 @@ function GrowthDirectionsInner() {
                           }
                         }}
                         onAuxClick={(event) => {
-                          if (event.button !== 1 || !task.postId) return;
+                          if (event.button !== 1) return;
                           event.preventDefault();
-                          window.open(`/post/${task.postId}`, '_blank');
+                          handleCompletedTaskClick(task, { newTab: true });
                         }}
                         role={task.postId ? 'button' : undefined}
                         tabIndex={task.postId ? 0 : -1}
