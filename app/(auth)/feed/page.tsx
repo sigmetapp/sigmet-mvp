@@ -619,14 +619,8 @@ function FeedInner() {
     <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
       {/* Page header */}
       <div className="mb-6 md:mb-8">
-        <div className="flex items-end justify-between">
-          <div>
-            <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? "bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent" : "gradient-text"}`}>Your feed</h1>
-            <p className={`mt-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Share progress and see what others are building.</p>
-          </div>
-          <div className="hidden sm:block">
-            <Button onClick={() => setComposerOpen(true)} variant="primary" className="shadow-md" icon={<Plus />}>Create post</Button>
-          </div>
+        <div>
+          <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? "bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent" : "gradient-text"}`}>Your feed</h1>
         </div>
       </div>
 
@@ -1025,17 +1019,17 @@ function FeedInner() {
             );
           })
         )}
-
-        {/* Floating Post button (mobile) */}
-        <Button
-          onClick={() => setComposerOpen(true)}
-          variant="primary"
-          className="sm:hidden fixed right-6 bottom-6 shadow-lg"
-          icon={<Plus />}
-        >
-          Post
-        </Button>
       </div>
+
+      {/* Create Post button - positioned at bottom right, outside feed */}
+      <Button
+        onClick={() => setComposerOpen(true)}
+        variant="primary"
+        className="fixed right-6 bottom-6 shadow-lg z-40"
+        icon={<Plus />}
+      >
+        Create post
+      </Button>
 
       {/* Composer modal */}
       {composerOpen && (
