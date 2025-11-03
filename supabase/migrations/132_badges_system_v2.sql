@@ -9,20 +9,21 @@ drop table if exists public.user_badges cascade;
 drop table if exists public.badge_types cascade;
 
 -- Drop old triggers first (they depend on functions)
-drop trigger if exists posts_metrics_trigger on public.posts cascade;
-drop trigger if exists comments_metrics_trigger on public.comments cascade;
-drop trigger if exists post_reactions_metrics_trigger on public.post_reactions cascade;
-drop trigger if exists user_metrics_badge_eval_trigger on public.user_metrics cascade;
+-- Note: user_metrics_badge_eval_trigger is new, so we don't need to drop it
+drop trigger if exists posts_metrics_trigger on public.posts;
+drop trigger if exists comments_metrics_trigger on public.comments;
+drop trigger if exists post_reactions_metrics_trigger on public.post_reactions;
 
 -- Drop old functions that might conflict
-drop function if exists public.evaluate_user_badges(uuid) cascade;
-drop function if exists public.trigger_badge_evaluation() cascade;
-drop function if exists public.update_metrics_on_post_change() cascade;
-drop function if exists public.update_metrics_on_comment_change() cascade;
-drop function if exists public.update_metrics_on_like_change() cascade;
-drop function if exists public.update_invite_metrics(text, uuid) cascade;
-drop function if exists public.mark_invited_user_active(text) cascade;
-drop function if exists public.initialize_user_metrics(uuid) cascade;
+-- We drop them individually without cascade to avoid validation issues
+drop function if exists public.evaluate_user_badges(uuid);
+drop function if exists public.trigger_badge_evaluation();
+drop function if exists public.update_metrics_on_post_change();
+drop function if exists public.update_metrics_on_comment_change();
+drop function if exists public.update_metrics_on_like_change();
+drop function if exists public.update_invite_metrics(text, uuid);
+drop function if exists public.mark_invited_user_active(text);
+drop function if exists public.initialize_user_metrics(uuid);
 
 -- ============================================
 -- USER METRICS TABLE
