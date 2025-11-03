@@ -496,7 +496,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
               />
               <div className="flex flex-col min-w-0">
                 <a
-                  href={`/u/${post.user_id || ''}`}
+                  href={`/u/${encodeURIComponent(authorProfile?.username || post.user_id || '')}`}
                   onClick={(e) => e.stopPropagation()}
                   className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate hover:underline"
                   data-prevent-card-navigation="true"
