@@ -9,6 +9,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import PostActionMenu from '@/components/PostActionMenu';
 import PostCard from '@/components/PostCard';
 import { supabase } from '@/lib/supabaseClient';
+import { resolveDirectionEmoji } from '@/lib/directions';
 
 type PostRecord = {
   id: number;
@@ -86,6 +87,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState(post.body ?? '');
   const [updatingPost, setUpdatingPost] = useState(false);
+
+  // Directions for category matching
+  const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -221,6 +225,39 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   useEffect(() => {
     loadComments();
   }, [loadComments]);
+
+  // Load directions from growth-directions API
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const res = await fetch('/api/growth/directions.list', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (res.ok) {
+          const { directions: dirs } = await res.json();
+          const rawDirections = Array.isArray(dirs) ? dirs : [];
+          // Map to simplified format
+          const mapped = rawDirections
+            .filter((dir: any) => dir.isSelected)
+            .map((dir: any) => ({
+              id: dir.id,
+              slug: dir.slug,
+              title: dir.title,
+              emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
+            }));
+          setAvailableDirections(mapped);
+        }
+      } catch (error) {
+        console.error('Error loading directions:', error);
+      }
+    })();
+  }, []);
 
   const handleReactionChange = useCallback(
     async (reaction: ReactionType | null, counts?: Record<ReactionType, number>) => {
@@ -478,6 +515,21 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     return Object.values(reactionCounts).reduce((sum, count) => sum + count, 0);
   }, [reactionCounts]);
 
+  // Check if post has category that matches available directions
+  const hasCategory = post.category && post.category.trim() !== '';
+  const categoryDirection = useMemo(() => {
+    if (!hasCategory || availableDirections.length === 0) return null;
+    return availableDirections.find((dir) => {
+      const categoryLower = post.category?.toLowerCase() || '';
+      const dirTitleLower = dir.title.toLowerCase();
+      const dirSlugLower = dir.slug.toLowerCase();
+      return categoryLower.includes(dirTitleLower) || 
+             categoryLower.includes(dirSlugLower) ||
+             dirTitleLower.includes(categoryLower) || 
+             dirSlugLower.includes(categoryLower);
+    }) || null;
+  }, [hasCategory, post.category, availableDirections]);
+
   const postCard = (
     <PostCard
       post={{
@@ -508,6 +560,19 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 >
                   {username}
                 </a>
+                {post.category && (
+                  <div className={`text-xs px-2 py-1 rounded-md font-medium inline-block mt-1 ${
+                    hasCategory && categoryDirection
+                      ? isLight
+                        ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                        : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                      : isLight
+                      ? 'text-slate-500 bg-slate-100/50 border border-slate-200'
+                      : 'text-slate-400 bg-white/5 border border-slate-700'
+                  }`}>
+                    {categoryDirection ? `${categoryDirection.emoji} ${post.category}` : post.category}
+                  </div>
+                )}
               </div>
             </div>
             {formattedDate && (
