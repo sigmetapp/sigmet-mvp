@@ -24,6 +24,13 @@ export const isLikelyValidEmoji = (value?: string | null) => {
   if (value.includes('?')) return false;
   if (value.includes('\\\\')) return false;
   if (value.startsWith('U&')) return false;
+  
+  // Check for corrupted Unicode sequences (like "?A" which happens when Unicode escapes are decoded incorrectly)
+  // These corrupted patterns often contain Greek letters or other Unicode characters that shouldn't be emojis
+  // Valid emojis are typically single characters or combined sequences, not ASCII letters mixed with Unicode
+  if (/^[\u0370-\u03FF][A-Za-z]/i.test(value)) return false; // Greek letters followed by ASCII
+  if (/^[A-Za-z][\u0370-\u03FF]/i.test(value)) return false; // ASCII followed by Greek letters
+  
   // Check if it's a valid emoji character (basic check)
   // Emojis are typically multi-byte UTF-8 characters
   try {
