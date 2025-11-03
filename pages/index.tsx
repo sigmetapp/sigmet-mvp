@@ -5,7 +5,6 @@ import { createClient } from "@supabase/supabase-js";
 import React, { useEffect } from "react";
 import { useRouter } from "next/router";
 import Button from "@/components/Button";
-import ThemeToggle from "@/components/ThemeToggle";
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const supabase = createClient(
@@ -107,11 +106,6 @@ export default function Home() {
       </Head>
 
       <section className="relative overflow-hidden min-h-screen bg-telegram-gradient">
-        {/* Theme toggle button */}
-        <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-50">
-          <ThemeToggle />
-        </div>
-
         {/* Telegram-style gradient background */}
         <div
           aria-hidden
