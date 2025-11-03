@@ -155,7 +155,7 @@ function FeedInner() {
     }
   }, [activeDirection, availableDirections, loadFeed]);
 
-  // Load directions from growth-directions API and selected directions from profile
+  // Load directions from growth-directions API - only primary (priority) directions
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -176,9 +176,9 @@ function FeedInner() {
         if (res.ok) {
           const { directions: dirs } = await res.json();
           const rawDirections = Array.isArray(dirs) ? dirs : [];
-          // Map to simplified format for filters
+          // Filter only primary (priority) directions that are selected
           const mapped = rawDirections
-            .filter((dir: any) => dir.isSelected)
+            .filter((dir: any) => dir.isSelected && dir.isPrimary === true)
             .map((dir: any) => ({
               id: dir.id,
               slug: dir.slug,
@@ -187,22 +187,11 @@ function FeedInner() {
             }));
           setAvailableDirections(mapped);
 
-          // Load selected directions from profile
-          const { data } = await supabase
-            .from("profiles")
-            .select("directions_selected")
-            .eq("user_id", userId)
-            .maybeSingle();
-          const profileDirs = (data?.directions_selected as string[] | undefined) || [];
+          // Use primary directions IDs directly (no need to check profile)
+          const priorityIds = mapped.map((dir) => dir.id);
           
-          // Match profile directions with API directions by slug
-          const matchedIds = mapped
-            .filter((dir) => profileDirs.includes(dir.slug))
-            .map((dir) => dir.id)
-            .slice(0, 3);
-          
-          setMyDirections(matchedIds);
-          setActiveDirection(matchedIds[0] ?? null);
+          setMyDirections(priorityIds);
+          setActiveDirection(priorityIds[0] ?? null);
         }
       } catch (error) {
         console.error('Error loading directions:', error);
