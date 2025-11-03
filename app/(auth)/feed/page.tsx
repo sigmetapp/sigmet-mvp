@@ -18,6 +18,7 @@ import PostReactions, { ReactionType } from "@/components/PostReactions";
 import PostActionMenu from "@/components/PostActionMenu";
 import PostCommentsBadge from "@/components/PostCommentsBadge";
 import { useRouter } from "next/navigation";
+import { resolveDirectionEmoji } from "@/lib/directions";
 
 export default function FeedPage() {
   return (
@@ -123,24 +124,8 @@ function FeedInner() {
     Record<number, ReactionType | null>
   >({});
 
-  // Directions toggle (from profile selections)
-  const GROWTH_AREAS = useMemo(
-    () => [
-      { id: "health", emoji: "💚", title: "Health" },
-      { id: "thinking", emoji: "🧠", title: "Thinking" },
-      { id: "learning", emoji: "📚", title: "Learning" },
-      { id: "career", emoji: "🧩", title: "Career" },
-      { id: "finance", emoji: "💰", title: "Finance" },
-      { id: "relationships", emoji: "🤝", title: "Relationships" },
-      { id: "creativity", emoji: "🎨", title: "Creativity" },
-      { id: "sport", emoji: "🏃‍♂️", title: "Sport" },
-      { id: "habits", emoji: "⏱️", title: "Habits" },
-      { id: "emotions", emoji: "🌿", title: "Emotions" },
-      { id: "meaning", emoji: "✨", title: "Meaning" },
-      { id: "community", emoji: "🏙️", title: "Community" },
-    ],
-    []
-  );
+  // Directions from growth-directions API
+  const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
   const [myDirections, setMyDirections] = useState<string[]>([]);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
 
@@ -150,20 +135,58 @@ function FeedInner() {
     loadFeed();
   }, []);
 
-  // Load selected directions from profile (up to 3)
+  // Load directions from growth-directions API and selected directions from profile
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const userId = auth.user?.id;
       if (!userId) return;
-      const { data } = await supabase
-        .from("profiles")
-        .select("directions_selected")
-        .eq("user_id", userId)
-        .maybeSingle();
-      const dirs = (data?.directions_selected as string[] | undefined) || [];
-      setMyDirections(dirs.slice(0, 3));
-      setActiveDirection(dirs[0] ?? null);
+
+      // Load available directions from API
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const res = await fetch('/api/growth/directions.list', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (res.ok) {
+          const { directions: dirs } = await res.json();
+          const rawDirections = Array.isArray(dirs) ? dirs : [];
+          // Map to simplified format for filters
+          const mapped = rawDirections
+            .filter((dir: any) => dir.isSelected)
+            .map((dir: any) => ({
+              id: dir.id,
+              slug: dir.slug,
+              title: dir.title,
+              emoji: dir.emoji || (dir.slug === 'thinking' ? '??' : dir.slug === 'career' ? '??' : dir.slug === 'learning' ? '??' : '?'),
+            }));
+          setAvailableDirections(mapped);
+
+          // Load selected directions from profile
+          const { data } = await supabase
+            .from("profiles")
+            .select("directions_selected")
+            .eq("user_id", userId)
+            .maybeSingle();
+          const profileDirs = (data?.directions_selected as string[] | undefined) || [];
+          
+          // Match profile directions with API directions by slug
+          const matchedIds = mapped
+            .filter((dir) => profileDirs.includes(dir.slug))
+            .map((dir) => dir.id)
+            .slice(0, 3);
+          
+          setMyDirections(matchedIds);
+          setActiveDirection(matchedIds[0] ?? null);
+        }
+      } catch (error) {
+        console.error('Error loading directions:', error);
+      }
     })();
   }, []);
 
@@ -619,25 +642,21 @@ function FeedInner() {
     <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
       {/* Page header */}
       <div className="mb-6 md:mb-8">
-        <div className="flex items-end justify-between">
-          <div>
-            <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? "bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent" : "gradient-text"}`}>Your feed</h1>
-            <p className={`mt-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Share progress and see what others are building.</p>
-          </div>
-          <div className="hidden sm:block">
-            <Button onClick={() => setComposerOpen(true)} variant="primary" className="shadow-md" icon={<Plus />}>Create post</Button>
-          </div>
+        <div>
+          <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? "bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent" : "gradient-text"}`}>Your feed</h1>
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Directions toggle (selected in profile) */}
-        {myDirections.length > 0 && (
+        {myDirections.length > 0 && availableDirections.length > 0 && (
           <div className="card p-3 md:p-4">
             <div className="flex flex-wrap items-center gap-2">
               {myDirections.map((id) => {
-                const meta = GROWTH_AREAS.find((a) => a.id === id);
-                const label = meta ? `${meta.emoji} ${meta.title}` : id;
+                const meta = availableDirections.find((a) => a.id === id);
+                const emoji = meta ? meta.emoji : resolveDirectionEmoji(id, null);
+                const title = meta ? meta.title : id;
+                const label = `${emoji} ${title}`;
                 const active = activeDirection === id;
                 return (
                   <button
@@ -663,13 +682,25 @@ function FeedInner() {
 
         {/* Feed */}
         {loading ? (
-          <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading…</div>
+          <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
         ) : (
           posts.map((p) => {
             const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
             const avatar = profile?.avatar_url || AVATAR_FALLBACK;
             const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
             const commentCount = commentCounts[p.id] ?? 0;
+            
+            // Check if post has category that matches available directions
+            const hasCategory = p.category && p.category.trim() !== '';
+            const categoryDirection = hasCategory && availableDirections.find((dir) => {
+              const categoryLower = p.category?.toLowerCase() || '';
+              const dirTitleLower = dir.title.toLowerCase();
+              const dirSlugLower = dir.slug.toLowerCase();
+              return categoryLower.includes(dirTitleLower) || 
+                     categoryLower.includes(dirSlugLower) ||
+                     dirTitleLower.includes(categoryLower) ||
+                     dirSlugLower.includes(categoryLower);
+            });
 
             return (
               <PostCard
@@ -681,7 +712,11 @@ function FeedInner() {
                   createdAt: p.created_at,
                   commentsCount: commentCount,
                 }}
-                className="telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl"
+                className={`telegram-card-feature md:p-6 space-y-4 relative transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl ${
+                  hasCategory && categoryDirection
+                    ? 'ring-2 ring-telegram-blue border-telegram-blue/50 shadow-lg'
+                    : ''
+                }`}
                 onMouseEnter={() => addViewOnce(p.id)}
                 renderContent={() => (
                   <div className="relative z-10 space-y-4">
@@ -696,8 +731,16 @@ function FeedInner() {
                         <div className="flex flex-col min-w-0">
                           <div className={`text-sm truncate ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{username}</div>
                           {p.category && (
-                            <div className={`text-xs ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                              {p.category}
+                            <div className={`text-xs px-2 py-1 rounded-md font-medium inline-block mt-1 ${
+                              hasCategory && categoryDirection
+                                ? isLight
+                                  ? 'bg-telegram-blue/20 text-telegram-blue border border-telegram-blue/30'
+                                  : 'bg-telegram-blue/30 text-telegram-blue-light border border-telegram-blue/50'
+                                : isLight
+                                ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
+                                : 'text-telegram-text-secondary bg-white/5'
+                            }`}>
+                              {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
                             </div>
                           )}
                         </div>
@@ -958,7 +1001,7 @@ function FeedInner() {
                                       <input
                                         value={replyInput[c.id] || ""}
                                         onChange={(e) => setReplyInput((prev) => ({ ...prev, [c.id]: e.target.value }))}
-                                        placeholder="Write a reply…"
+                                        placeholder="Write a reply?"
                                         className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
                                       />
                                       <button
@@ -990,7 +1033,7 @@ function FeedInner() {
                                 [p.id]: e.target.value,
                               }))
                             }
-                            placeholder="Write a comment…"
+                            placeholder="Write a comment?"
                             className={`input py-2 focus:ring-0 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
                           />
                           <input
@@ -1008,7 +1051,7 @@ function FeedInner() {
                               ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
                               : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
                           }`}>
-                            📎
+                            ??
                           </label>
                           {commentFile[p.id] && (
                             <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
@@ -1025,17 +1068,17 @@ function FeedInner() {
             );
           })
         )}
-
-        {/* Floating Post button (mobile) */}
-        <Button
-          onClick={() => setComposerOpen(true)}
-          variant="primary"
-          className="sm:hidden fixed right-6 bottom-6 shadow-lg"
-          icon={<Plus />}
-        >
-          Post
-        </Button>
       </div>
+
+      {/* Create Post button - positioned at bottom right, closer to feed on wide screens */}
+      <Button
+        onClick={() => setComposerOpen(true)}
+        variant="primary"
+        className="fixed right-6 bottom-6 md:right-[calc((100vw-48rem)/2+48rem+1.5rem)] shadow-lg z-40 rounded-full px-6 py-4"
+        icon={<Plus />}
+      >
+        Create post
+      </Button>
 
       {/* Composer modal */}
       {composerOpen && (
@@ -1053,7 +1096,7 @@ function FeedInner() {
                   className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
                   aria-label="Close"
                 >
-                  ✕
+                  ?
                 </button>
               </div>
               <textarea
@@ -1084,7 +1127,7 @@ function FeedInner() {
                       : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
                   }`}
                 >
-                  📎 Media
+                  ?? Media
                 </button>
                 {(img || vid) && (
                   <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
@@ -1093,7 +1136,7 @@ function FeedInner() {
                 )}
                 <div className="ml-auto">
                   <Button onClick={onPublish} disabled={publishing} variant="primary">
-                    {publishing ? "Publishing…" : "Publish"}
+                    {publishing ? "Publishing?" : "Publish"}
                   </Button>
                 </div>
               </div>
