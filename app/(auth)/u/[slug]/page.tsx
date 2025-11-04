@@ -7,9 +7,9 @@ import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
 import { getPresenceMap } from '@/lib/dm/presence';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import PostCard from '@/components/PostCard';
 import { resolveDirectionEmoji } from '@/lib/directions';
 import { useTheme } from '@/components/ThemeProvider';
+import PostFeed from '@/components/PostFeed';
 
 type Profile = {
   user_id: string;
@@ -27,14 +27,6 @@ type Profile = {
   created_at?: string;
 };
 
-type Post = {
-  id: number;
-  user_id: string | null;
-  body: string | null;
-  image_url: string | null;
-  video_url: string | null;
-  created_at: string;
-};
 
 export default function PublicProfilePage() {
   const AVATAR_FALLBACK =
@@ -48,9 +40,6 @@ export default function PublicProfilePage() {
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
-
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loadingPosts, setLoadingPosts] = useState(true);
   const [iFollow, setIFollow] = useState<boolean>(false);
   const [followsMe, setFollowsMe] = useState<boolean>(false);
   const [updatingFollow, setUpdatingFollow] = useState(false);
@@ -81,10 +70,6 @@ export default function PublicProfilePage() {
   >([]);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [presenceChannel, setPresenceChannel] = useState<RealtimeChannel | null>(null);
-
-  // comment stats for posts
-  const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
-  const [viewsByPostId, setViewsByPostId] = useState<Record<number, number>>({});
 
   // avatar upload (own profile)
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -225,20 +210,6 @@ export default function PublicProfilePage() {
     })();
   }, [slug, router]);
 
-  useEffect(() => {
-    if (!profile?.user_id) return;
-    (async () => {
-      setLoadingPosts(true);
-      const { data } = await supabase
-        .from('posts')
-        .select('id, user_id, body, image_url, video_url, created_at')
-        .eq('user_id', profile.user_id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      setPosts((data as Post[]) || []);
-      setLoadingPosts(false);
-    })();
-  }, [profile?.user_id]);
 
   // Load Trust Flow score based on feedback logs
   useEffect(() => {
@@ -285,35 +256,6 @@ export default function PublicProfilePage() {
     })();
   }, [profile?.user_id]);
 
-  // Load engagement stats for visible posts
-  useEffect(() => {
-    if (posts.length === 0) return;
-    (async () => {
-      try {
-        const ids = posts.map((p) => p.id);
-        // comments
-        try {
-          const { data } = await supabase.from('comments').select('post_id').in('post_id', ids);
-          const counts: Record<number, number> = {};
-          for (const row of ((data as any[]) || [])) {
-            const pid = row.post_id as number;
-            counts[pid] = (counts[pid] || 0) + 1;
-          }
-          setCommentCounts(counts);
-        } catch {
-          // ignore
-        }
-
-
-        // views (if present on posts rows)
-        const vmap: Record<number, number> = {};
-        for (const p of posts) vmap[p.id] = (p as any).views ?? 0;
-        setViewsByPostId(vmap);
-      } catch {
-        // ignore all
-      }
-    })();
-  }, [posts]);
 
   useEffect(() => {
     if (!viewerId || !profile?.user_id || viewerId === profile.user_id) return;
@@ -1229,151 +1171,14 @@ export default function PublicProfilePage() {
       {/* Posts */}
       <div className="space-y-4">
         <h2 className="text-lg text-white/90">Posts</h2>
-        {loadingPosts ? (
-          <div className="text-white/70">Loading posts…</div>
-        ) : posts.length === 0 ? (
-          <div className="text-white/70">No posts yet</div>
-        ) : (
-          <div className="space-y-4">
-            {posts.map((p) => {
-              const profileData = profile ? { username: profile.username || profile.user_id.slice(0, 8), avatar_url: profile.avatar_url } : null;
-              const avatar = profileData?.avatar_url || AVATAR_FALLBACK;
-              const username = profileData?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
-              const commentCount = commentCounts[p.id] ?? 0;
-
-              // Format date like in feed
-              const formatPostDate = (dateString: string): string => {
-                const date = new Date(dateString);
-                if (Number.isNaN(date.getTime())) return dateString;
-                
-                const datePart = new Intl.DateTimeFormat('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                }).format(date);
-                
-                const timePart = new Intl.DateTimeFormat('en-US', {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  hour12: true,
-                }).format(date);
-                
-                return `${datePart}, ${timePart}`;
-              };
-
-              const Eye = () => (
-                <svg viewBox="0 0 24 24" className="h-5 w-5">
-                  <path
-                    d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  />
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="3"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  />
-                </svg>
-              );
-
-              return (
-                <PostCard
-                  key={p.id}
-                  post={{
-                    id: String(p.id),
-                    author: username,
-                    content: p.body ?? '',
-                    createdAt: p.created_at,
-                    commentsCount: commentCount,
-                  }}
-                  disableNavigation={true}
-                  className={`telegram-card-feature md:p-6 space-y-2 relative transition-transform duration-200 ease-out`}
-                  renderContent={() => (
-                    <div className="relative z-10 space-y-2">
-                      {/* header */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                          <img
-                            src={avatar}
-                            alt="avatar"
-                            className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
-                          />
-                          <div className="flex flex-col min-w-0">
-                            <Link
-                              href={`/u/${profile?.username || profile?.user_id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
-                              data-prevent-card-navigation="true"
-                            >
-                              {username}
-                            </Link>
-                          </div>
-                        </div>
-                        <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                          <span className="whitespace-nowrap">{formatPostDate(p.created_at)}</span>
-                        </div>
-                      </div>
-
-                      {/* content */}
-                      <div
-                        className="relative cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/post/${p.id}`);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            router.push(`/post/${p.id}`);
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-label="Open post"
-                      >
-                        {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
-                        {p.image_url && (
-                          <div className="mt-3 flex justify-center">
-                            <img
-                              src={p.image_url}
-                              loading="lazy"
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
-                              alt="post image"
-                            />
-                          </div>
-                        )}
-                        {p.video_url && (
-                          <div className="mt-3 flex justify-center">
-                            <video
-                              controls
-                              preload="metadata"
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
-                            >
-                              <source src={p.video_url} />
-                            </video>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* footer */}
-                      <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                        <div className="flex items-center gap-1" title="Views">
-                          <Eye />
-                          <span className="text-sm">{viewsByPostId[p.id] ?? 0}</span>
-                        </div>
-                        <div className={`ml-auto text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                          Comments: {commentCount}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                />
-              );
-            })}
-          </div>
+        {!loadingProfile && profile && (
+          <PostFeed
+            filterUserId={profile.user_id}
+            showFilters={false}
+            showComposer={isMe}
+            backToProfileUsername={profile.username || slug}
+            className=""
+          />
         )}
       </div>
     </div>

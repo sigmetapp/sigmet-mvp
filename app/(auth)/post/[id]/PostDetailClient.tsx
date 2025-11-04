@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Button from '@/components/Button';
 import PostReactions, { ReactionType } from '@/components/PostReactions';
@@ -61,8 +61,13 @@ export type PostDetailClientProps = {
 
 export default function PostDetailClient({ postId, initialPost }: PostDetailClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { theme } = useTheme();
   const isLight = theme === 'light';
+  
+  // Check if user came from profile page
+  const fromProfile = searchParams?.get('from') === 'profile';
+  const profileUsername = searchParams?.get('username') || null;
 
   const [uid, setUid] = useState<string | null>(null);
   const [post, setPost] = useState<PostRecord>(initialPost.post);
@@ -704,15 +709,27 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 md:py-8">
       {/* Back button */}
-      <Button
-        variant="ghost"
-        size="md"
-        icon={<ArrowLeft className="h-4 w-4" />}
-        onClick={() => router.push('/feed')}
-        className="self-start"
-      >
-        Back to feed
-      </Button>
+      {fromProfile && profileUsername ? (
+        <Button
+          variant="ghost"
+          size="md"
+          icon={<ArrowLeft className="h-4 w-4" />}
+          onClick={() => router.push(`/u/${encodeURIComponent(profileUsername)}`)}
+          className="self-start"
+        >
+          Back to profile
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="md"
+          icon={<ArrowLeft className="h-4 w-4" />}
+          onClick={() => router.push('/feed')}
+          className="self-start"
+        >
+          Back to feed
+        </Button>
+      )}
 
       {postError ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-600 dark:border-rose-900/40 dark:bg-rose-950/60">
