@@ -8,7 +8,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== 'GET') {
+  if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -29,9 +29,10 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const userId = req.query.user_id as string || user.id;
+  const userId = req.body.user_id as string || user.id;
 
   try {
+    // Call the calculate endpoint logic
     // Get SW weights
     const { data: weights, error: weightsError } = await supabase
       .from('sw_weights')
@@ -89,15 +90,12 @@ export default async function handler(
 
     const followersPoints = (followersCount || 0) * weights.follower_points;
 
-    // Get connections count (mutual mentions)
-    // Calculate connections based on mutual mentions in posts (same logic as connections page)
+    // Calculate connections (same logic as calculate endpoint)
     let connectionsCount = 0;
     let firstConnectionsCount = 0;
     let repeatConnectionsCount = 0;
 
     if (profile && profile.username) {
-      // Get all posts to check for mutual mentions
-      // Try both 'body' and 'text' fields to handle different schema versions
       const { data: allPosts, error: allPostsError } = await supabase
         .from('posts')
         .select('id, body, text, user_id, author_id')
@@ -112,16 +110,13 @@ export default async function handler(
         }
         myMentionPatterns.push(`/u/${userId}`);
 
-        // Helper function to check if text contains a mention (whole word match)
         const hasMention = (text: string, patterns: string[]): boolean => {
           const lowerText = text.toLowerCase();
           for (const pattern of patterns) {
-            // Check for @username pattern (must be followed by space, newline, or end of string)
             if (pattern.startsWith('@')) {
               const regex = new RegExp(`@${pattern.substring(1)}(\\s|$|\\n)`, 'i');
               if (regex.test(lowerText)) return true;
             }
-            // Check for /u/username or /u/userid pattern
             if (pattern.startsWith('/u/')) {
               const regex = new RegExp(`/u/${pattern.substring(3)}(\\s|$|\\n)`, 'i');
               if (regex.test(lowerText)) return true;
@@ -130,13 +125,9 @@ export default async function handler(
           return false;
         };
 
-        // Map: userId -> set of post IDs where they mentioned me
         const theyMentionedMe: Record<string, Set<number>> = {};
-        
-        // Map: userId -> set of post IDs where I mentioned them
         const iMentionedThem: Record<string, Set<number>> = {};
 
-        // Find users who mentioned this user
         for (const post of allPosts) {
           const postAuthorId = (post as any).user_id || (post as any).author_id;
           if (!postAuthorId || postAuthorId === userId) continue;
@@ -150,7 +141,6 @@ export default async function handler(
           }
         }
 
-        // Get all usernames for comparison
         const allUserIds = new Set<string>();
         Object.keys(theyMentionedMe).forEach((uid) => allUserIds.add(uid));
 
@@ -172,25 +162,21 @@ export default async function handler(
             }
           }
 
-          // Find my posts that mention others
           for (const post of allPosts) {
             const postAuthorId = (post as any).user_id || (post as any).author_id;
             if (postAuthorId !== userId) continue;
 
             const body = (post as any).body || (post as any).text || '';
             
-            // Check for mentions of other users (whole word match)
             for (const [pattern, uid] of Object.entries(usernameToUserId)) {
               const lowerPattern = pattern.toLowerCase();
               let found = false;
               
-              // Check for @username pattern
               if (lowerPattern.startsWith('@')) {
                 const username = lowerPattern.substring(1);
                 const regex = new RegExp(`@${username}(\\s|$|\\n)`, 'i');
                 if (regex.test(body)) found = true;
               }
-              // Check for /u/username pattern
               if (lowerPattern.startsWith('/u/')) {
                 const username = lowerPattern.substring(3);
                 const regex = new RegExp(`/u/${username}(\\s|$|\\n)`, 'i');
@@ -206,19 +192,14 @@ export default async function handler(
             }
           }
 
-          // Calculate mutual connections
-          // A connection is when: user A tagged me in their post AND I tagged user A in my post
-          // Count connections as the minimum of both mentions
           for (const userId_conn of Object.keys(theyMentionedMe)) {
             const theirPosts = theyMentionedMe[userId_conn] || new Set();
             const myPosts = iMentionedThem[userId_conn] || new Set();
 
             if (theirPosts.size > 0 && myPosts.size > 0) {
-              // Count as the minimum of both - represents actual mutual connections
               const mutualCount = Math.min(theirPosts.size, myPosts.size);
               connectionsCount += mutualCount;
               
-              // First connection gets more points, repeat connections get less
               if (mutualCount === 1) {
                 firstConnectionsCount++;
               } else {
@@ -234,16 +215,15 @@ export default async function handler(
     const connectionsPoints = (firstConnectionsCount * weights.connection_first_points) + 
                              (repeatConnectionsCount * weights.connection_repeat_points);
 
-    // Get posts count - try both author_id and user_id fields
+    // Get posts count
     let postsCount = 0;
-    const { count: postsCountByAuthor, error: postsCountError1 } = await supabase
+    const { count: postsCountByAuthor } = await supabase
       .from('posts')
       .select('id', { count: 'exact', head: true })
       .eq('author_id', userId);
     
-    if (postsCountError1 || postsCountByAuthor === null) {
-      // Try user_id field instead
-      const { count: postsCountByUser, error: postsCountError2 } = await supabase
+    if (postsCountByAuthor === null) {
+      const { count: postsCountByUser } = await supabase
         .from('posts')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId);
@@ -262,17 +242,15 @@ export default async function handler(
 
     const commentsPoints = (commentsCount || 0) * weights.comment_points;
 
-    // Get reactions count (received reactions on user's posts)
-    // Try both author_id and user_id fields
+    // Get reactions count
     let userPostsForReactions: any[] = [];
-    const { data: userPostsByAuthor, error: userPostsError1 } = await supabase
+    const { data: userPostsByAuthor } = await supabase
       .from('posts')
       .select('id')
       .eq('author_id', userId);
     
-    if (userPostsError1 || !userPostsByAuthor || userPostsByAuthor.length === 0) {
-      // Try user_id field instead
-      const { data: userPostsByUser, error: userPostsError2 } = await supabase
+    if (!userPostsByAuthor || userPostsByAuthor.length === 0) {
+      const { data: userPostsByUser } = await supabase
         .from('posts')
         .select('id')
         .eq('user_id', userId);
@@ -284,7 +262,7 @@ export default async function handler(
     let reactionsPoints = 0;
     if (userPostsForReactions.length > 0) {
       const postIds = userPostsForReactions.map(p => p.id);
-      const { count: reactionsCount, error: reactionsError } = await supabase
+      const { count: reactionsCount } = await supabase
         .from('post_reactions')
         .select('id', { count: 'exact', head: true })
         .in('post_id', postIds);
@@ -303,61 +281,29 @@ export default async function handler(
       commentsPoints +
       reactionsPoints;
 
-    // Breakdown
-    const breakdown = {
-      registration: {
-        points: registrationPoints,
-        count: profile ? 1 : 0,
-        weight: weights.registration_points,
-      },
-      profileComplete: {
-        points: profileCompletePoints,
-        count: profileCompletePoints > 0 ? 1 : 0,
-        weight: weights.profile_complete_points,
-      },
-      growth: {
-        points: growthTotalPoints,
-        count: growthLedger?.length || 0,
-        weight: weights.growth_total_points_multiplier,
-        description: 'Growth Directions Total Points',
-      },
-      followers: {
-        points: followersPoints,
-        count: followersCount || 0,
-        weight: weights.follower_points,
-      },
-      connections: {
-        points: connectionsPoints,
-        count: connectionsCount,
-        firstCount: firstConnectionsCount,
-        repeatCount: repeatConnectionsCount,
-        firstWeight: weights.connection_first_points,
-        repeatWeight: weights.connection_repeat_points,
-      },
-      posts: {
-        points: postsPoints,
-        count: postsCount || 0,
-        weight: weights.post_points,
-      },
-      comments: {
-        points: commentsPoints,
-        count: commentsCount || 0,
-        weight: weights.comment_points,
-      },
-      reactions: {
-        points: reactionsPoints,
-        count: reactionsPoints / weights.reaction_points,
-        weight: weights.reaction_points,
-      },
-    };
+    // Update sw_scores table if it exists
+    try {
+      await supabase
+        .from('sw_scores')
+        .upsert({
+          user_id: userId,
+          total: totalSW,
+          last_updated: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id',
+        });
+    } catch (error) {
+      // Table might not exist, ignore
+      console.log('sw_scores table update skipped:', error);
+    }
 
     return res.status(200).json({
+      success: true,
       totalSW,
-      breakdown,
-      weights,
+      message: 'SW recalculated successfully',
     });
   } catch (error: any) {
-    console.error('sw/calculate error:', error);
+    console.error('sw/recalculate error:', error);
     return res.status(500).json({ error: error.message });
   }
 }

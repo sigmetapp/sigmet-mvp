@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import Button from '@/components/Button';
 
 type SWBreakdown = {
   registration: { points: number; count: number; weight: number };
@@ -22,8 +23,10 @@ type SWData = {
 
 export default function SWPage() {
   const [loading, setLoading] = useState(true);
+  const [recalculating, setRecalculating] = useState(false);
   const [swData, setSwData] = useState<SWData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | undefined>();
 
   useEffect(() => {
     loadSW();
@@ -57,10 +60,55 @@ export default function SWPage() {
       const data = await response.json();
       setSwData(data);
       setLoading(false);
+      setError(null);
     } catch (error: any) {
       console.error('Error loading SW:', error);
       setError(error.message || 'Failed to load SW data');
       setLoading(false);
+    }
+  }
+
+  async function recalculateSW() {
+    setRecalculating(true);
+    setNote(undefined);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) {
+        setNote('Not authenticated');
+        setRecalculating(false);
+        return;
+      }
+
+      const response = await fetch('/api/sw/recalculate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ user_id: user.id }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        setNote(error.error || 'Failed to recalculate SW');
+        setRecalculating(false);
+        return;
+      }
+
+      const data = await response.json();
+      setNote(data.message || 'SW recalculated successfully');
+      
+      // Reload SW data
+      await loadSW();
+    } catch (error: any) {
+      console.error('Error recalculating SW:', error);
+      setNote(error.message || 'Failed to recalculate SW');
+    } finally {
+      setRecalculating(false);
     }
   }
 
@@ -92,12 +140,27 @@ export default function SWPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 md:p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white mb-1">Social Weight (SW)</h1>
-        <p className="text-white/70 text-sm mt-2">
-          Your Social Weight is calculated based on various factors that reflect your engagement and activity on the platform.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-white mb-1">Social Weight (SW)</h1>
+          <p className="text-white/70 text-sm mt-2">
+            Your Social Weight is calculated based on various factors that reflect your engagement and activity on the platform.
+          </p>
+        </div>
+        <Button
+          onClick={recalculateSW}
+          variant="secondary"
+          disabled={recalculating || loading}
+        >
+          {recalculating ? 'Recalculating...' : 'Recalculate SW'}
+        </Button>
       </div>
+
+      {note && (
+        <div className="card p-4 bg-white/5">
+          <div className="text-white/80 text-sm">{note}</div>
+        </div>
+      )}
 
       {/* Total SW */}
       <div className="card p-6">
