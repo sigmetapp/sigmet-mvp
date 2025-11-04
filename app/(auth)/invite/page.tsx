@@ -14,6 +14,8 @@ interface Invite {
   accepted_at: string | null;
   token: string;
   invite_code: string | null;
+  consumed_by_user_id: string | null;
+  consumed_by_user_sw: number | null;
 }
 
 interface InviteStats {
@@ -216,6 +218,8 @@ export default function InvitePage() {
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Status</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Created</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Accepted</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Used By</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">SW</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -247,6 +251,24 @@ export default function InvitePage() {
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.sent_at)}</td>
                       <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.accepted_at)}</td>
+                      <td className="py-3 px-4 text-sm text-gray-400">
+                        {invite.consumed_by_user_id ? (
+                          <span className="text-blue-400 font-mono text-xs">
+                            {invite.consumed_by_user_id.slice(0, 8)}...
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-400">
+                        {invite.consumed_by_user_sw !== null ? (
+                          <span className="text-green-400 font-semibold">
+                            {invite.consumed_by_user_sw.toFixed(0)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
