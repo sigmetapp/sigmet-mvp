@@ -41,6 +41,23 @@ export default async function handler(
       return message.includes('column') && message.includes('does not exist');
     };
 
+    const isAccessError = (error: any) => {
+      if (!error) return false;
+      // RLS errors and permission errors
+      if (error.code === '42501' || error.code === 'PGRST301') return true;
+      // If error exists but has empty fields, it might be an RLS block
+      if (error && (!error.message || error.message === '') && 
+          (!error.code || error.code === '') && 
+          (!error.details || error.details === '')) {
+        return true;
+      }
+      const message = `${error.message || ''}${error.details || ''}`.toLowerCase();
+      return message.includes('permission') || 
+             message.includes('policy') || 
+             message.includes('access denied') ||
+             message.includes('row-level security');
+    };
+
     const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     const getCountByUserColumns = async (table: string, columns: string[]) => {
@@ -54,6 +71,15 @@ export default async function handler(
 
         if (error) {
           if (isUndefinedColumnError(error)) {
+            continue;
+          }
+          // For non-admins, skip access errors instead of throwing
+          if (isAccessError(error)) {
+            console.warn(`Access error in getCountByUserColumns for table ${table}, column ${column} (skipping):`, {
+              message: error?.message || '',
+              code: error?.code || '',
+              userId,
+            });
             continue;
           }
           throw error;
@@ -79,6 +105,15 @@ export default async function handler(
 
         if (error) {
           if (isUndefinedColumnError(error)) {
+            continue;
+          }
+          // For non-admins, skip access errors instead of throwing
+          if (isAccessError(error)) {
+            console.warn(`Access error in getRowsByUserColumns for table ${table}, column ${column} (skipping):`, {
+              message: error?.message || '',
+              code: error?.code || '',
+              userId,
+            });
             continue;
           }
           throw error;
