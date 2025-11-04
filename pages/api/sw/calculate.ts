@@ -41,6 +41,8 @@ export default async function handler(
       return message.includes('column') && message.includes('does not exist');
     };
 
+    const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     const getCountByUserColumns = async (table: string, columns: string[]) => {
       let fallbackCount = 0;
 
@@ -199,22 +201,21 @@ export default async function handler(
         myMentionPatterns.push(`/u/${userId}`);
 
         // Helper function to check if text contains a mention (whole word match)
-        const hasMention = (text: string, patterns: string[]): boolean => {
-          const lowerText = text.toLowerCase();
-          for (const pattern of patterns) {
-            // Check for @username pattern (must be followed by space, newline, or end of string)
-            if (pattern.startsWith('@')) {
-              const regex = new RegExp(`@${pattern.substring(1)}(\\s|$|\\n)`, 'i');
-              if (regex.test(lowerText)) return true;
+          const hasMention = (text: string, patterns: string[]): boolean => {
+            for (const pattern of patterns) {
+              if (pattern.startsWith('@')) {
+                const username = escapeRegex(pattern.substring(1));
+                const regex = new RegExp(`@${username}(\\s|$|\\n)`, 'i');
+                if (regex.test(text)) return true;
+              }
+              if (pattern.startsWith('/u/')) {
+                const slug = escapeRegex(pattern.substring(3));
+                const regex = new RegExp(`/u/${slug}(\\s|$|\\n)`, 'i');
+                if (regex.test(text)) return true;
+              }
             }
-            // Check for /u/username or /u/userid pattern
-            if (pattern.startsWith('/u/')) {
-              const regex = new RegExp(`/u/${pattern.substring(3)}(\\s|$|\\n)`, 'i');
-              if (regex.test(lowerText)) return true;
-            }
-          }
-          return false;
-        };
+            return false;
+          };
 
         // Map: userId -> set of post IDs where they mentioned me
         const theyMentionedMe: Record<string, Set<number>> = {};
@@ -273,13 +274,13 @@ export default async function handler(
               // Check for @username pattern
               if (lowerPattern.startsWith('@')) {
                 const username = lowerPattern.substring(1);
-                const regex = new RegExp(`@${username}(\\s|$|\\n)`, 'i');
+                const regex = new RegExp(`@${escapeRegex(username)}(\\s|$|\\n)`, 'i');
                 if (regex.test(body)) found = true;
               }
               // Check for /u/username pattern
               if (lowerPattern.startsWith('/u/')) {
                 const username = lowerPattern.substring(3);
-                const regex = new RegExp(`/u/${username}(\\s|$|\\n)`, 'i');
+                const regex = new RegExp(`/u/${escapeRegex(username)}(\\s|$|\\n)`, 'i');
                 if (regex.test(body)) found = true;
               }
               
@@ -349,31 +350,58 @@ export default async function handler(
 
     const reactionsPoints = reactionsCount * weights.reaction_points;
 
-    // Get invites count - count accepted invites where user got 70 pts (registration + profile complete)
-    let invitesCount = 0;
-    try {
-      const { data: invites, error: invitesError } = await supabase
-        .from('invites')
-        .select('id, consumed_by_user_sw')
-        .eq('inviter_user_id', userId)
-        .eq('status', 'accepted')
-        .eq('consumed_by_user_sw', 70);
+      // Get invites count - count accepted invites where user got 70 pts (registration + profile complete)
+      let invitesCount = 0;
+      let inviteeGrowthTotalPoints = 0;
 
-      if (invitesError) {
-        console.warn('Error fetching invites:', invitesError);
-        // Continue without invites if there's an error (e.g., RLS issue)
-      } else {
-        invitesCount = invites?.length || 0;
+      try {
+        const { data: invites, error: invitesError } = await supabase
+          .from('invites')
+          .select('id, consumed_by_user_sw, consumed_by_user_id')
+          .eq('inviter_user_id', userId)
+          .eq('status', 'accepted')
+          .eq('consumed_by_user_sw', 70);
+
+        if (invitesError) {
+          console.warn('Error fetching invites:', invitesError);
+          // Continue without invites if there's an error (e.g., RLS issue)
+        } else if (invites) {
+          invitesCount = invites.length;
+
+          const inviteeIds = Array.from(
+            new Set(
+              invites
+                .map((invite: any) => invite.consumed_by_user_id)
+                .filter((id: string | null | undefined): id is string => Boolean(id))
+            )
+          );
+
+          if (inviteeIds.length > 0) {
+            const { data: inviteeLedgerRows, error: inviteeLedgerError } = await supabase
+              .from('sw_ledger')
+              .select('user_id, points')
+              .in('user_id', inviteeIds);
+
+            if (inviteeLedgerError) {
+              console.warn('Error fetching invited users growth ledger:', inviteeLedgerError);
+            } else if (inviteeLedgerRows) {
+              const inviteeRawGrowthPoints = inviteeLedgerRows.reduce(
+                (sum, entry) => sum + (entry.points || 0),
+                0
+              );
+              inviteeGrowthTotalPoints = inviteeRawGrowthPoints * weights.growth_total_points_multiplier;
+            }
+          }
+        }
+      } catch (invitesErr) {
+        console.warn('Exception fetching invites:', invitesErr);
+        // Continue without invites
       }
-    } catch (invitesErr) {
-      console.warn('Exception fetching invites:', invitesErr);
-      // Continue without invites
-    }
 
-    const invitePoints = invitesCount * 50; // 50 pts per invite
+      const invitePoints = invitesCount * 50; // 50 pts per invite
 
-    // Calculate 5% bonus on growth points
-    const growthBonusPoints = growthTotalPoints * 0.05;
+      // Calculate 5% bonus on invited users' growth points
+      const growthBonusPoints = inviteeGrowthTotalPoints * 0.05;
 
     // Calculate total SW
     const totalSW = 
@@ -441,9 +469,9 @@ export default async function handler(
       },
       growthBonus: {
         points: Math.round(growthBonusPoints * 100) / 100, // Round to 2 decimal places
-        count: 1,
+        count: invitesCount,
         weight: 0.05,
-        description: '5% bonus on growth points',
+        description: '5% bonus on invited users\' growth points',
       },
     };
 
