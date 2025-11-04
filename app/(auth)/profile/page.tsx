@@ -96,17 +96,51 @@ function ProfileSettings() {
       <div className="telegram-card-glow p-4 md:p-6 space-y-5">
         <h1 className={`text-xl font-semibold ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Profile settings</h1>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
           <img
             src={profile.avatar_url || AVATAR_FALLBACK}
-            className={`w-16 h-16 rounded-full object-cover border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+            className={`w-20 h-20 rounded-full object-cover border-2 ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
             alt="avatar"
           />
-          <div>
-            <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className={`${isLight ? "text-telegram-text" : "text-telegram-text"}`} />
-            <Button onClick={uploadAvatar} variant="secondary" size="sm" className="ml-2">
-              Upload
-            </Button>
+          <div className="flex-1 space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={e => setFile(e.target.files?.[0] || null)}
+                className="hidden"
+                id="avatar-upload"
+              />
+              <label
+                htmlFor="avatar-upload"
+                className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${
+                  isLight
+                    ? "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                    : "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                }`}
+              >
+                Choose file
+              </label>
+              {file && (
+                <Button
+                  onClick={uploadAvatar}
+                  variant="primary"
+                  size="sm"
+                  className="px-4 py-2"
+                >
+                  Upload
+                </Button>
+              )}
+            </div>
+            {file ? (
+              <div className={`text-sm ${isLight ? "text-telegram-text" : "text-telegram-text-secondary"}`}>
+                Selected: <span className="font-medium">{file.name}</span>
+              </div>
+            ) : (
+              <div className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                No file selected
+              </div>
+            )}
           </div>
         </div>
 
@@ -219,8 +253,8 @@ function ProfileSettings() {
           <div className={`text-sm ${isLight ? "text-red-500" : "text-red-400"}`}>{note}</div>
         )}
         {showSuccess && (
-          <div className="fixed top-4 right-4 z-50 transition-all duration-300 ease-in-out">
-            <div className="bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 border border-green-600 transform transition-all duration-300">
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-2 border border-green-600 transform transition-all duration-300 pointer-events-auto">
               <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>

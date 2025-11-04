@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { formatTextWithMentions } from '@/lib/formatText';
 
 type PostCardPost = {
   id: string;
@@ -209,7 +210,7 @@ export default function PostCard({
         )}
       </header>
 
-      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">{post.content}</p>
+      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">{formatTextWithMentions(post.content)}</p>
 
       {commentsLabel && (
         <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{commentsLabel}</div>
