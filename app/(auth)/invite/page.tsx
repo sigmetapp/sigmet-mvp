@@ -154,7 +154,7 @@ export default function InvitePage() {
         {/* Admin Notice */}
         {isAdmin && (
           <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
-            <p className="text-green-300 text-sm font-semibold">? Admin mode: You can generate unlimited invite codes without restrictions.</p>
+            <p className="text-green-300 text-sm font-semibold">👑 Admin mode: You can generate unlimited invite codes without restrictions.</p>
           </div>
         )}
 
@@ -239,7 +239,7 @@ export default function InvitePage() {
                               className="px-2 py-1 text-xs text-gray-400 hover:text-white bg-gray-700 rounded transition"
                               title="Copy code"
                             >
-                              ?? Copy
+                              📋 Copy
                             </button>
                           </div>
                         ) : (
