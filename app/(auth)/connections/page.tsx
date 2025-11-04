@@ -21,8 +21,7 @@ type PostRow = {
 
 type Connection = {
   userId: string;
-  mentionsInPosts: number; // number of times this user mentioned me in posts
-  mentionsInProfile: boolean; // whether their profile mentions me (proxy for relationship status)
+  connectionsCount: number; // number of mutual mentions (connections) - posts where both users tagged each other
 };
 
 export default function ConnectionsPage() {
@@ -66,77 +65,167 @@ function ConnectionsInner() {
   }, []);
 
   useEffect(() => {
-    if (!meId) return;
+    if (!meId || !meUsername) return;
     (async () => {
       setLoading(true);
       try {
-        // Load latest posts and scan for mentions of me
-        const { data: posts } = await supabase
+        // Load all posts to check for mutual mentions
+        const { data: allPosts } = await supabase
           .from("posts")
           .select("id, user_id, body, created_at")
           .order("created_at", { ascending: false })
-          .limit(500);
+          .limit(1000);
 
-        const mentionNeedles: string[] = [];
-        if (meUsername && meUsername.trim() !== "") {
-          mentionNeedles.push(`@${meUsername}`);
-          mentionNeedles.push(`/u/${meUsername}`);
+        if (!allPosts || allPosts.length === 0) {
+          setConnections([]);
+          setProfiles({});
+          setLoading(false);
+          return;
         }
-        // Fallback to id mention by URL (rare)
-        if (meId) mentionNeedles.push(`/u/${meId}`);
 
-        const byUser: Record<string, Connection> = {};
-        for (const p of (posts as PostRow[] | null) || []) {
-          const author = p.user_id || null;
-          if (!author || author === meId) continue;
-          const body = (p.body || "").toLowerCase();
-          let hits = 0;
-          for (const needle of mentionNeedles) {
-            if (!needle) continue;
-            const n = needle.toLowerCase();
-            // count occurrences
-            let idx = 0;
-            while (true) {
-              const found = body.indexOf(n, idx);
-              if (found === -1) break;
-              hits += 1;
-              idx = found + n.length;
+        // Build my mention patterns
+        const myMentionPatterns: string[] = [];
+        if (meUsername && meUsername.trim() !== "") {
+          myMentionPatterns.push(`@${meUsername.toLowerCase()}`);
+          myMentionPatterns.push(`/u/${meUsername.toLowerCase()}`);
+        }
+        if (meId) {
+          myMentionPatterns.push(`/u/${meId}`);
+        }
+
+        // Map: userId -> set of post IDs where they mentioned me
+        const theyMentionedMe: Record<string, Set<number>> = {};
+        
+        // Map: userId -> set of post IDs where I mentioned them
+        const iMentionedThem: Record<string, Set<number>> = {};
+
+        // Helper function to check if text contains a mention (whole word match)
+        const hasMention = (text: string, patterns: string[]): boolean => {
+          const lowerText = text.toLowerCase();
+          for (const pattern of patterns) {
+            // Check for @username pattern (must be followed by space, newline, or end of string)
+            if (pattern.startsWith('@')) {
+              const regex = new RegExp(`@${pattern.substring(1)}(\\s|$|\\n)`, 'i');
+              if (regex.test(lowerText)) return true;
+            }
+            // Check for /u/username or /u/userid pattern
+            if (pattern.startsWith('/u/')) {
+              const regex = new RegExp(`/u/${pattern.substring(3)}(\\s|$|\\n)`, 'i');
+              if (regex.test(lowerText)) return true;
             }
           }
-          if (hits > 0) {
-            if (!byUser[author]) byUser[author] = { userId: author, mentionsInPosts: 0, mentionsInProfile: false };
-            byUser[author].mentionsInPosts += hits;
-          }
-        }
+          return false;
+        };
 
-        // Also find profiles that reference me (proxy for relationship status)
-        if (meUsername && meUsername.trim() !== "") {
-          try {
-            const { data: profRefs } = await supabase
-              .from("profiles")
-              .select("user_id")
-              .ilike("bio", `%@${meUsername}%`)
-              .limit(2000);
-            for (const row of (profRefs as any[]) || []) {
-              const uid = row.user_id as string;
-              if (uid === meId) continue;
-              if (!byUser[uid]) byUser[uid] = { userId: uid, mentionsInPosts: 0, mentionsInProfile: true };
-              else byUser[uid].mentionsInProfile = true;
+        // First pass: find posts where others mentioned me
+        for (const post of allPosts) {
+          const authorId = post.user_id;
+          if (!authorId || authorId === meId) continue;
+
+          const body = post.body || "";
+          
+          if (hasMention(body, myMentionPatterns)) {
+            if (!theyMentionedMe[authorId]) {
+              theyMentionedMe[authorId] = new Set();
             }
-          } catch {
-            // ignore if column missing
+            theyMentionedMe[authorId].add(post.id);
           }
         }
 
-        const list = Object.values(byUser).sort((a, b) => {
-          const as = a.mentionsInPosts + (a.mentionsInProfile ? 1 : 0);
-          const bs = b.mentionsInPosts + (b.mentionsInProfile ? 1 : 0);
-          return bs - as;
-        });
-        setConnections(list);
+        // Second pass: find posts where I mentioned others
+        // Load all usernames for comparison
+        const allUserIds = new Set<string>();
+        Object.keys(theyMentionedMe).forEach((uid) => allUserIds.add(uid));
+
+        if (allUserIds.size > 0) {
+          const { data: userProfiles } = await supabase
+            .from("profiles")
+            .select("user_id, username")
+            .in("user_id", Array.from(allUserIds));
+
+          const usernameToUserId: Record<string, string> = {};
+          if (userProfiles) {
+            for (const profile of userProfiles as any[]) {
+              const uid = profile.user_id as string;
+              const username = (profile.username || "").toLowerCase();
+              if (username) {
+                usernameToUserId[`@${username}`] = uid;
+                usernameToUserId[`/u/${username}`] = uid;
+              }
+            }
+          }
+
+          // Find my posts that mention others
+          for (const post of allPosts) {
+            if (post.user_id !== meId) continue;
+
+            const body = post.body || "";
+            
+            // Check for mentions of other users (whole word match)
+            for (const [pattern, uid] of Object.entries(usernameToUserId)) {
+              const lowerPattern = pattern.toLowerCase();
+              let found = false;
+              
+              // Check for @username pattern
+              if (lowerPattern.startsWith('@')) {
+                const username = lowerPattern.substring(1);
+                const regex = new RegExp(`@${username}(\\s|$|\\n)`, 'i');
+                if (regex.test(body)) found = true;
+              }
+              // Check for /u/username pattern
+              if (lowerPattern.startsWith('/u/')) {
+                const username = lowerPattern.substring(3);
+                const regex = new RegExp(`/u/${username}(\\s|$|\\n)`, 'i');
+                if (regex.test(body)) found = true;
+              }
+              
+              if (found) {
+                if (!iMentionedThem[uid]) {
+                  iMentionedThem[uid] = new Set();
+                }
+                iMentionedThem[uid].add(post.id);
+              }
+            }
+          }
+        }
+
+        // Calculate connections: mutual mentions
+        // A connection is when: user A tagged me in their post AND I tagged user A in my post
+        // Count connections as pairs: each post where they mention me + each post where I mention them = 1 connection per pair
+        const connections: Connection[] = [];
+        
+        for (const userId of Object.keys(theyMentionedMe)) {
+          const theirPosts = theyMentionedMe[userId];
+          const myPosts = iMentionedThem[userId] || new Set();
+
+          // Count connections: each post where they mentioned me AND each post where I mentioned them
+          // This represents mutual tagging - if they tagged me in N posts and I tagged them in M posts,
+          // we have min(N, M) connections (each pair represents a mutual connection)
+          // But actually, we want to count all mutual pairs, so:
+          // If they tagged me 3 times and I tagged them 2 times, that's 2 connections (the minimum)
+          // This represents the number of mutual mentions
+          let mutualCount = 0;
+
+          if (theirPosts.size > 0 && myPosts.size > 0) {
+            // Count as the minimum of both - represents actual mutual connections
+            // Each connection requires both: they tagged me AND I tagged them
+            mutualCount = Math.min(theirPosts.size, myPosts.size);
+          }
+
+          if (mutualCount > 0) {
+            connections.push({
+              userId,
+              connectionsCount: mutualCount,
+            });
+          }
+        }
+
+        // Sort by connections count (descending)
+        connections.sort((a, b) => b.connectionsCount - a.connectionsCount);
+        setConnections(connections);
 
         // Load profiles for these users
-        const ids = list.map((c) => c.userId);
+        const ids = connections.map((c) => c.userId);
         if (ids.length > 0) {
           const { data: profs } = await supabase
             .from("profiles")
@@ -205,8 +294,8 @@ function ConnectionsInner() {
     }
   }
 
-  const maxStrength = useMemo(() => {
-    return connections.reduce((m, c) => Math.max(m, c.mentionsInPosts + (c.mentionsInProfile ? 1 : 0)), 0) || 1;
+  const maxConnections = useMemo(() => {
+    return connections.reduce((m, c) => Math.max(m, c.connectionsCount), 0) || 1;
   }, [connections]);
 
   return (
@@ -214,7 +303,7 @@ function ConnectionsInner() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">{title}</h1>
-          <p className="text-white/70 text-sm">People who referenced your profile in posts or profile.</p>
+          <p className="text-white/70 text-sm">People you've tagged and who tagged you in posts. Connections are based on mutual mentions.</p>
         </div>
       </div>
 
@@ -229,8 +318,8 @@ function ConnectionsInner() {
             const displayName = p?.full_name || p?.username || c.userId.slice(0, 8);
             const username = p?.username || c.userId.slice(0, 8);
             const avatar = p?.avatar_url || AVATAR_FALLBACK;
-            const strength = c.mentionsInPosts + (c.mentionsInProfile ? 1 : 0);
-            const percent = Math.max(8, Math.round((strength / maxStrength) * 100));
+            const connectionsCount = c.connectionsCount;
+            const percent = Math.max(8, Math.round((connectionsCount / maxConnections) * 100));
             const iFollow = myFollowing.has(c.userId);
             const followsMe = myFollowers.has(c.userId);
             return (
@@ -241,18 +330,23 @@ function ConnectionsInner() {
                     <div className="text-white truncate font-medium">{displayName}</div>
                     <div className="text-white/60 text-sm truncate">@{username}</div>
                   </div>
-                  <Button
-                    variant={iFollow ? "secondary" : "primary"}
-                    size="sm"
-                    onClick={() => toggleFollow(c.userId)}
-                    disabled={!!updatingFollow[c.userId]}
-                  >
-                    {iFollow ? "Following" : "Follow"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <div className="text-white/80 text-sm font-medium">
+                      {connectionsCount} {connectionsCount === 1 ? 'connection' : 'connections'}
+                    </div>
+                    <Button
+                      variant={iFollow ? "secondary" : "primary"}
+                      size="sm"
+                      onClick={() => toggleFollow(c.userId)}
+                      disabled={!!updatingFollow[c.userId]}
+                    >
+                      {iFollow ? "Following" : "Follow"}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-white/70 text-xs">Connection strength</div>
+                  <div className="text-white/70 text-xs">Connections strength</div>
                   <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                     <div
                       className="h-2 bg-[linear-gradient(90deg,#7affc0,#00ffc8)]"
@@ -260,8 +354,7 @@ function ConnectionsInner() {
                     />
                   </div>
                   <div className="text-white/70 text-xs flex items-center gap-2">
-                    <span>{c.mentionsInPosts} mentions in posts</span>
-                    {c.mentionsInProfile && <span className="px-2 py-0.5 rounded-full border border-white/20">listed in profile</span>}
+                    <span>{connectionsCount} mutual {connectionsCount === 1 ? 'mention' : 'mentions'} in posts</span>
                     {followsMe && <span className="px-2 py-0.5 rounded-full border border-white/20">follows you</span>}
                   </div>
                 </div>

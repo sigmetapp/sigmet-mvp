@@ -18,6 +18,7 @@ import PostCommentsBadge from "@/components/PostCommentsBadge";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
+import MentionInput from "@/components/MentionInput";
 import { Image as ImageIcon, Paperclip, X as CloseIcon } from "lucide-react";
 
 export default function FeedPage() {
@@ -1229,11 +1230,12 @@ function FeedInner() {
                   <CloseIcon className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
-              <textarea
+              <MentionInput
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={setText}
                 placeholder="What do you want to share?"
                 className={`input w-full outline-none min-h-[120px] text-base md:text-lg ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                userId={uid}
               />
               <input
                 ref={unifiedFileRef}
