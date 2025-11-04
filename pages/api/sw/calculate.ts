@@ -130,22 +130,50 @@ export default async function handler(
     }
 
     // Get growth total points from sw_ledger
-    const { data: growthLedger, error: ledgerError } = await supabase
-      .from('sw_ledger')
-      .select('points')
-      .eq('user_id', userId);
+    let growthTotalPoints = 0;
+    let growthLedger: any[] = [];
+    try {
+      const { data, error: ledgerError } = await supabase
+        .from('sw_ledger')
+        .select('points')
+        .eq('user_id', userId);
 
-    const growthTotalPoints = growthLedger
-      ? growthLedger.reduce((sum, entry) => sum + (entry.points || 0), 0) * weights.growth_total_points_multiplier
-      : 0;
+      if (ledgerError) {
+        console.warn('Error fetching growth ledger:', ledgerError);
+        growthTotalPoints = 0;
+        growthLedger = [];
+      } else {
+        growthLedger = data || [];
+        growthTotalPoints = growthLedger.length > 0
+          ? growthLedger.reduce((sum, entry) => sum + (entry.points || 0), 0) * weights.growth_total_points_multiplier
+          : 0;
+      }
+    } catch (ledgerErr) {
+      console.warn('Exception fetching growth ledger:', ledgerErr);
+      growthTotalPoints = 0;
+      growthLedger = [];
+    }
 
     // Get followers count
-    const { count: followersCount, error: followersError } = await supabase
-      .from('follows')
-      .select('follower_id', { count: 'exact', head: true })
-      .eq('followee_id', userId);
+    let followersCount = 0;
+    try {
+      const { count, error: followersError } = await supabase
+        .from('follows')
+        .select('follower_id', { count: 'exact', head: true })
+        .eq('followee_id', userId);
 
-    const followersPoints = (followersCount || 0) * weights.follower_points;
+      if (followersError) {
+        console.warn('Error fetching followers:', followersError);
+        followersCount = 0;
+      } else {
+        followersCount = count || 0;
+      }
+    } catch (followersErr) {
+      console.warn('Exception fetching followers:', followersErr);
+      followersCount = 0;
+    }
+
+    const followersPoints = followersCount * weights.follower_points;
 
     // Get connections count (mutual mentions)
     // Calculate connections based on mutual mentions in posts (same logic as connections page)
@@ -321,6 +349,32 @@ export default async function handler(
 
     const reactionsPoints = reactionsCount * weights.reaction_points;
 
+    // Get invites count - count accepted invites where user got 70 pts (registration + profile complete)
+    let invitesCount = 0;
+    try {
+      const { data: invites, error: invitesError } = await supabase
+        .from('invites')
+        .select('id, consumed_by_user_sw')
+        .eq('inviter_user_id', userId)
+        .eq('status', 'accepted')
+        .eq('consumed_by_user_sw', 70);
+
+      if (invitesError) {
+        console.warn('Error fetching invites:', invitesError);
+        // Continue without invites if there's an error (e.g., RLS issue)
+      } else {
+        invitesCount = invites?.length || 0;
+      }
+    } catch (invitesErr) {
+      console.warn('Exception fetching invites:', invitesErr);
+      // Continue without invites
+    }
+
+    const invitePoints = invitesCount * 50; // 50 pts per invite
+
+    // Calculate 5% bonus on growth points
+    const growthBonusPoints = growthTotalPoints * 0.05;
+
     // Calculate total SW
     const totalSW = 
       registrationPoints +
@@ -330,7 +384,9 @@ export default async function handler(
       connectionsPoints +
       postsPoints +
       commentsPoints +
-      reactionsPoints;
+      reactionsPoints +
+      invitePoints +
+      growthBonusPoints;
 
     // Breakdown
     const breakdown = {
@@ -378,6 +434,17 @@ export default async function handler(
         count: reactionsCount,
         weight: weights.reaction_points,
       },
+      invites: {
+        points: invitePoints,
+        count: invitesCount,
+        weight: 50,
+      },
+      growthBonus: {
+        points: Math.round(growthBonusPoints * 100) / 100, // Round to 2 decimal places
+        count: 1,
+        weight: 0.05,
+        description: '5% bonus on growth points',
+      },
     };
 
     return res.status(200).json({
@@ -387,6 +454,12 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('sw/calculate error:', error);
-    return res.status(500).json({ error: error.message });
+    const errorMessage = error?.message || 'Unknown error occurred';
+    const errorDetails = error?.details || error?.hint || '';
+    return res.status(500).json({ 
+      error: errorMessage,
+      details: errorDetails,
+      stack: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+    });
   }
 }
