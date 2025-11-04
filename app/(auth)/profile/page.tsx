@@ -43,6 +43,9 @@ function ProfileSettings() {
           avatar_url: '',
           country: '',
           website_url: '',
+          facebook_url: '',
+          instagram_url: '',
+          twitter_url: '',
           directions_selected: [],
           show_online_status: true,
         }
@@ -140,6 +143,39 @@ function ProfileSettings() {
             onChange={e => setProfile({ ...profile, website_url: e.target.value })}
             placeholder="https://example.com"
           />
+        </div>
+
+        <div>
+          <label className="label">Social Media</label>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">Facebook</label>
+              <input
+                className="input"
+                value={profile.facebook_url || ''}
+                onChange={e => setProfile({ ...profile, facebook_url: e.target.value })}
+                placeholder="https://facebook.com/yourprofile"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">Instagram</label>
+              <input
+                className="input"
+                value={profile.instagram_url || ''}
+                onChange={e => setProfile({ ...profile, instagram_url: e.target.value })}
+                placeholder="https://instagram.com/yourprofile"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">X.com (Twitter)</label>
+              <input
+                className="input"
+                value={profile.twitter_url || ''}
+                onChange={e => setProfile({ ...profile, twitter_url: e.target.value })}
+                placeholder="https://x.com/yourprofile"
+              />
+            </div>
+          </div>
         </div>
 
         <div>
