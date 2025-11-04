@@ -22,6 +22,14 @@ const menu = [
   { label: 'Settings', href: '/profile', icon: '⚙️' },
 ];
 
+const adminMenu = [
+  { label: 'Settings', href: '/settings', icon: '⚙️' },
+  { label: 'Users', href: '/admin/users', icon: '👥' },
+  { label: 'Stats', href: '/admin/stats', icon: '📊' },
+  { label: 'Tickets', href: '/admin/tickets', icon: '🎫' },
+  { label: 'SW Weights', href: '/sw/weights', icon: '⚖️' },
+];
+
 export default function Sidebar({ user }: SidebarProps) {
   const { theme } = useTheme();
   const isLight = theme === "light";
@@ -55,23 +63,35 @@ export default function Sidebar({ user }: SidebarProps) {
         </ul>
       </nav>
       {isAdmin && (
-        <div className={`px-2 py-2 border-t ${isLight ? "border-telegram-blue/15" : "border-telegram-blue/20"}`}>
-          <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-            Admin
+        <>
+          <div className={`px-2 py-2 border-t ${isLight ? "border-telegram-blue/15" : "border-telegram-blue/20"}`}>
+            <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+              Admin
+            </div>
+            <ul className="space-y-1 mt-1 ml-4 pl-2 border-l-2 border-telegram-blue/20">
+              {adminMenu.map((item) => (
+                <NavItem
+                  key={item.href}
+                  label={item.label}
+                  href={item.href}
+                  icon={item.icon}
+                />
+              ))}
+            </ul>
           </div>
-          <ul className="space-y-1 mt-1">
-            <NavItem
-              label="Badges/Rewards"
-              href="/badges"
-              icon="🏅"
-            />
-            <NavItem
-              label="SW Weights"
-              href="/sw/weights"
-              icon="⚖️"
-            />
-          </ul>
-        </div>
+          <div className={`px-2 py-2 border-t ${isLight ? "border-telegram-blue/15" : "border-telegram-blue/20"}`}>
+            <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+              Soon...
+            </div>
+            <ul className="space-y-1 mt-1">
+              <NavItem
+                label="Badges/Rewards"
+                href="/badges"
+                icon="🏅"
+              />
+            </ul>
+          </div>
+        </>
       )}
       <div className={`mt-auto px-3 py-3 border-t ${isLight ? "border-telegram-blue/15" : "border-telegram-blue/20"}`}>
         <div className="flex items-center gap-3">
