@@ -919,72 +919,98 @@ export default function PublicProfilePage() {
 
           {/* Stats block - Following, Followers, Referrals */}
           <div className="card p-4 md:p-6">
-            <div className="grid grid-cols-3 gap-3">
-              <div className={`p-4 rounded-xl border-2 ${
-                isLight 
-                  ? 'border-telegram-blue/30 bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10' 
-                  : 'border-telegram-blue/40 bg-gradient-to-br from-telegram-blue/15 to-telegram-blue-light/15'
-              } shadow-lg hover:scale-105 transition-transform`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className={`w-4 h-4 ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                  <div className={`text-xs font-medium uppercase tracking-wider ${
-                    isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+            <div className="space-y-3">
+              {/* Following */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30' 
+                      : 'bg-gradient-to-br from-indigo-500/15 to-purple-500/15 border border-indigo-500/30'
                   }`}>
-                    Following
+                    <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Following
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                      People you follow
+                    </div>
                   </div>
                 </div>
-                <div className={`text-3xl font-bold ${
+                <div className={`text-2xl font-bold ${
                   isLight 
-                    ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' 
-                    : 'bg-gradient-to-r from-telegram-blue-light to-telegram-blue bg-clip-text text-transparent'
+                    ? 'bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent' 
+                    : 'bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent'
                 }`}>
                   {followingCount}
                 </div>
               </div>
-              <div className={`p-4 rounded-xl border-2 ${
-                isLight 
-                  ? 'border-telegram-blue/30 bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10' 
-                  : 'border-telegram-blue/40 bg-gradient-to-br from-telegram-blue/15 to-telegram-blue-light/15'
-              } shadow-lg hover:scale-105 transition-transform`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className={`w-4 h-4 ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                  <div className={`text-xs font-medium uppercase tracking-wider ${
-                    isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+
+              {/* Followers */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30' 
+                      : 'bg-gradient-to-br from-blue-500/15 to-cyan-500/15 border border-blue-500/30'
                   }`}>
-                    Followers
+                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Followers
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                      People following you
+                    </div>
                   </div>
                 </div>
-                <div className={`text-3xl font-bold ${
+                <div className={`text-2xl font-bold ${
                   isLight 
-                    ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' 
-                    : 'bg-gradient-to-r from-telegram-blue-light to-telegram-blue bg-clip-text text-transparent'
+                    ? 'bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent' 
+                    : 'bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent'
                 }`}>
                   {followersCount}
                 </div>
               </div>
-              <div className={`p-4 rounded-xl border-2 ${
-                isLight 
-                  ? 'border-telegram-blue/30 bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10' 
-                  : 'border-telegram-blue/40 bg-gradient-to-br from-telegram-blue/15 to-telegram-blue-light/15'
-              } shadow-lg hover:scale-105 transition-transform`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className={`w-4 h-4 ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                  </svg>
-                  <div className={`text-xs font-medium uppercase tracking-wider ${
-                    isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+
+              {/* Referrals */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30' 
+                      : 'bg-gradient-to-br from-emerald-500/15 to-teal-500/15 border border-emerald-500/30'
                   }`}>
-                    Referrals
+                    <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Referrals
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                      Invited users
+                    </div>
                   </div>
                 </div>
-                <div className={`text-3xl font-bold ${
+                <div className={`text-2xl font-bold ${
                   isLight 
-                    ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' 
-                    : 'bg-gradient-to-r from-telegram-blue-light to-telegram-blue bg-clip-text text-transparent'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent' 
+                    : 'bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent'
                 }`}>
                   {referralsCount}
                 </div>
