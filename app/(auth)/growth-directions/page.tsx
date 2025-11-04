@@ -158,7 +158,7 @@ function GrowthDirectionsInner() {
   const [pinnedTask, setPinnedTask] = useState<TaskSummaryItem | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
-  const [notification, setNotification] = useState<{ message: string } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type?: 'success' | 'error' } | null>(null);
   const [completedTasks, setCompletedTasks] = useState<CompletedTaskRecord[]>([]);
   const [totalPoints, setTotalPoints] = useState(0);
   const [completedPage, setCompletedPage] = useState(0);
@@ -862,7 +862,8 @@ function GrowthDirectionsInner() {
       }
 
       setNotification({ 
-        message: 'All achievements have been reset successfully' 
+        message: 'All achievements have been reset successfully',
+        type: 'success'
       });
 
       // Reload all data
@@ -1277,10 +1278,12 @@ function GrowthDirectionsInner() {
 
       {/* Notification */}
       {notification && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-5">
+        <div className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-[9999] text-white px-6 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-5 ${
+          notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+        }`}>
           <div className="flex items-center gap-3">
             <span className="text-lg" aria-hidden="true">
-              {String.fromCodePoint(0x26A0)}
+              {notification.type === 'success' ? String.fromCodePoint(0x2705) : String.fromCodePoint(0x26A0)}
             </span>
             <p className="font-medium">{notification.message}</p>
             <button

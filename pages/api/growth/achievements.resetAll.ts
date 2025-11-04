@@ -12,10 +12,6 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { persistSession: false },
-  });
-
   // Get current user from session
   const authHeader = req.headers.authorization;
   if (!authHeader) {
@@ -23,19 +19,32 @@ export default async function handler(
   }
 
   const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  
+  // Create client with user's token for RPC calls
+  const supabaseAnon = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+
+  // Verify user and get user info
+  const { data: { user }, error: authError } = await supabaseAnon.auth.getUser();
   
   if (authError || !user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {
-    // Check if user is admin
-    const { data: isAdmin, error: adminError } = await supabase.rpc('is_admin_uid');
+    // Check if user is admin using user's context
+    const { data: isAdmin, error: adminError } = await supabaseAnon.rpc('is_admin_uid');
     
     if (adminError || !isAdmin) {
       return res.status(403).json({ error: 'Admin access required' });
     }
+
+    // Use service role client for admin operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false },
+    });
 
     // Delete all user achievements
     const { error: achievementsError } = await supabase
