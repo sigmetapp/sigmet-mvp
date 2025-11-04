@@ -18,6 +18,9 @@ type Profile = {
   bio: string | null;
   country: string | null;
   website_url?: string | null;
+  facebook_url?: string | null;
+  instagram_url?: string | null;
+  twitter_url?: string | null;
   avatar_url: string | null;
   directions_selected: string[] | null;
   show_online_status?: boolean | null;
@@ -54,6 +57,7 @@ export default function PublicProfilePage() {
   const [followersCount, setFollowersCount] = useState<number>(0);
   const [followingCount, setFollowingCount] = useState<number>(0);
   const [referralsCount, setReferralsCount] = useState<number>(0);
+  const [connectionsCount, setConnectionsCount] = useState<number>(0);
   const [recentSocial, setRecentSocial] = useState<
     { kind: 'in' | 'out'; otherUserId: string; created_at?: string }[]
   >([]);
@@ -213,7 +217,7 @@ export default function PublicProfilePage() {
       // Otherwise, resolve strictly by username
       const { data } = await supabase
         .from('profiles')
-        .select('user_id, username, full_name, bio, country, website_url, avatar_url, directions_selected, show_online_status, created_at')
+        .select('user_id, username, full_name, bio, country, website_url, facebook_url, instagram_url, twitter_url, avatar_url, directions_selected, show_online_status, created_at')
         .eq('username', slug)
         .maybeSingle();
       setProfile(((data as unknown) as Profile) || null);
@@ -351,10 +355,39 @@ export default function PublicProfilePage() {
         setFollowersCount(followersRes.count || 0);
         setFollowingCount(followingRes.count || 0);
         setReferralsCount(referralsRes.count || 0);
+
+        // Calculate connections (mutual follows): people who follow the user AND are followed by the user
+        const [followersData, followingData] = await Promise.all([
+          supabase
+            .from('follows')
+            .select('follower_id')
+            .eq('followee_id', profile.user_id),
+          supabase
+            .from('follows')
+            .select('followee_id')
+            .eq('follower_id', profile.user_id),
+        ]);
+
+        if (followersData.data && followingData.data) {
+          const followersSet = new Set(followersData.data.map((f: any) => f.follower_id));
+          const followingSet = new Set(followingData.data.map((f: any) => f.followee_id));
+          
+          // Find intersection: people who are both followers and following
+          let connections = 0;
+          followersSet.forEach((followerId) => {
+            if (followingSet.has(followerId)) {
+              connections++;
+            }
+          });
+          setConnectionsCount(connections);
+        } else {
+          setConnectionsCount(0);
+        }
       } catch {
         setFollowersCount(0);
         setFollowingCount(0);
         setReferralsCount(0);
+        setConnectionsCount(0);
       }
     })();
   }, [profile?.user_id]);
@@ -696,6 +729,64 @@ export default function PublicProfilePage() {
                     </>
                   );
                 })()}
+                {(profile.facebook_url || profile.instagram_url || profile.twitter_url) && (
+                  <>
+                    <span>•</span>
+                    <div className="flex items-center gap-2">
+                      {profile.facebook_url && (
+                        <a
+                          href={profile.facebook_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center justify-center w-6 h-6 rounded-lg transition-all hover:scale-110 ${
+                            isLight
+                              ? 'bg-gradient-to-br from-blue-600/20 to-blue-700/20 border border-blue-600/30 hover:bg-blue-600/30'
+                              : 'bg-gradient-to-br from-blue-600/15 to-blue-700/15 border border-blue-600/30 hover:bg-blue-600/25'
+                          }`}
+                          title="Facebook"
+                        >
+                          <svg className="w-3.5 h-3.5 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                          </svg>
+                        </a>
+                      )}
+                      {profile.instagram_url && (
+                        <a
+                          href={profile.instagram_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center justify-center w-6 h-6 rounded-lg transition-all hover:scale-110 ${
+                            isLight
+                              ? 'bg-gradient-to-br from-pink-600/20 to-purple-600/20 border border-pink-600/30 hover:bg-pink-600/30'
+                              : 'bg-gradient-to-br from-pink-600/15 to-purple-600/15 border border-pink-600/30 hover:bg-pink-600/25'
+                          }`}
+                          title="Instagram"
+                        >
+                          <svg className="w-3.5 h-3.5 text-pink-400" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                          </svg>
+                        </a>
+                      )}
+                      {profile.twitter_url && (
+                        <a
+                          href={profile.twitter_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center justify-center w-6 h-6 rounded-lg transition-all hover:scale-110 ${
+                            isLight
+                              ? 'bg-gradient-to-br from-gray-800/20 to-gray-900/20 border border-gray-800/30 hover:bg-gray-800/30'
+                              : 'bg-gradient-to-br from-gray-800/15 to-gray-900/15 border border-gray-800/30 hover:bg-gray-800/25'
+                          }`}
+                          title="X.com (Twitter)"
+                        >
+                          <svg className="w-3.5 h-3.5 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                          </svg>
+                        </a>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
               {!isMe && (
                 <div className="mt-2 text-white/70 text-xs flex items-center gap-2">
@@ -787,102 +878,262 @@ export default function PublicProfilePage() {
       {/* Info and Stats blocks side by side */}
       {!loadingProfile && profile && (
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Info block - Bio */}
+          {/* Info block - Bio, Location, Website, Joined */}
           <div className="card p-4 md:p-6">
-            <div className="grid gap-4 text-white/90">
-              <div className="space-y-2 w-1/2">
-                <div className="text-white/60 text-sm">Bio</div>
-                <div>{profile.bio || '-'}</div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-white/60 text-sm">Country - City</div>
-                <div>
-                  {profile.country ? (
-                    (() => {
-                      const city = String(profile.country).split(",")[0].trim();
-                      return (
-                        <Link href={`/city/${encodeURIComponent(city)}`} className="hover:underline">
-                          {profile.country}
-                        </Link>
-                      );
-                    })()
-                  ) : (
-                    '-'
-                  )}
+            <div className="space-y-4">
+              {/* Bio */}
+              {profile.bio && (
+                <div className="flex items-start gap-3">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30' 
+                      : 'bg-gradient-to-br from-purple-500/15 to-pink-500/15 border border-purple-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Bio
+                    </div>
+                    <div className={`text-sm leading-relaxed ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                      {profile.bio}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-white/60 text-sm">Website / Social</div>
-                <div>
-                  {profile.website_url ? (
-                    <a href={profile.website_url} target="_blank" rel="noopener noreferrer" className="text-white hover:underline break-all">
-                      {profile.website_url}
-                    </a>
-                  ) : (
-                    '-'
-                  )}
+              )}
+
+              {/* Location */}
+              {profile.country && (
+                <div className="flex items-start gap-3">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30' 
+                      : 'bg-gradient-to-br from-blue-500/15 to-cyan-500/15 border border-blue-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Country - City
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                      {(() => {
+                        const city = String(profile.country).split(",")[0].trim();
+                        return (
+                          <Link href={`/city/${encodeURIComponent(city)}`} className="hover:underline inline-flex items-center gap-1">
+                            <span>{profile.country}</span>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </Link>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-white/60 text-sm">Joined</div>
-                <div>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '-'}</div>
-              </div>
+              )}
+
+              {/* Website */}
+              {profile.website_url && (
+                <div className="flex items-start gap-3">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-teal-500/20 to-emerald-500/20 border border-teal-500/30' 
+                      : 'bg-gradient-to-br from-teal-500/15 to-emerald-500/15 border border-teal-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Website / Social
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                      <a 
+                        href={profile.website_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="hover:underline inline-flex items-center gap-1 break-all"
+                      >
+                        <span className="truncate">{profile.website_url}</span>
+                        <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Joined */}
+              {profile.created_at && (
+                <div className="flex items-start gap-3">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30' 
+                      : 'bg-gradient-to-br from-amber-500/15 to-orange-500/15 border border-amber-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Joined
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                      {new Date(profile.created_at).toLocaleDateString('en-GB', { 
+                        day: '2-digit', 
+                        month: '2-digit', 
+                        year: 'numeric' 
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Stats block - Following, Followers, Referrals */}
+          {/* Stats block - Connections, Following, Followers, Referrals */}
           <div className="card p-4 md:p-6">
-            <div className="grid grid-cols-3 gap-4">
-              <div className={`p-4 rounded-xl border-2 ${
-                isLight 
-                  ? 'border-telegram-blue/30 bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10' 
-                  : 'border-telegram-blue/40 bg-gradient-to-br from-telegram-blue/15 to-telegram-blue-light/15'
-              } shadow-lg`}>
-                <div className={`text-xs font-medium mb-2 uppercase tracking-wider ${
-                  isLight ? 'text-telegram-text-secondary' : 'text-white/60'
-                }`}>
-                  Following
+            <div className="space-y-3">
+              {/* Connections */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30' 
+                      : 'bg-gradient-to-br from-violet-500/15 to-purple-500/15 border border-violet-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Connections
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                      Mutual connections
+                    </div>
+                  </div>
                 </div>
-                <div className={`text-3xl font-bold ${
+                <div className={`text-2xl font-bold ${
                   isLight 
-                    ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' 
-                    : 'bg-gradient-to-r from-telegram-blue-light to-telegram-blue bg-clip-text text-transparent'
+                    ? 'bg-gradient-to-r from-violet-500 to-purple-500 bg-clip-text text-transparent' 
+                    : 'bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent'
+                }`}>
+                  {connectionsCount}
+                </div>
+              </div>
+
+              {/* Following */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30' 
+                      : 'bg-gradient-to-br from-indigo-500/15 to-purple-500/15 border border-indigo-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Following
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                      People you follow
+                    </div>
+                  </div>
+                </div>
+                <div className={`text-2xl font-bold ${
+                  isLight 
+                    ? 'bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent' 
+                    : 'bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent'
                 }`}>
                   {followingCount}
                 </div>
               </div>
-              <div className={`p-4 rounded-xl border-2 ${
-                isLight 
-                  ? 'border-telegram-blue/30 bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10' 
-                  : 'border-telegram-blue/40 bg-gradient-to-br from-telegram-blue/15 to-telegram-blue-light/15'
-              } shadow-lg`}>
-                <div className={`text-xs font-medium mb-2 uppercase tracking-wider ${
-                  isLight ? 'text-telegram-text-secondary' : 'text-white/60'
-                }`}>
-                  Followers
+
+              {/* Followers */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30' 
+                      : 'bg-gradient-to-br from-blue-500/15 to-cyan-500/15 border border-blue-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Followers
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                      People following you
+                    </div>
+                  </div>
                 </div>
-                <div className={`text-3xl font-bold ${
+                <div className={`text-2xl font-bold ${
                   isLight 
-                    ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' 
-                    : 'bg-gradient-to-r from-telegram-blue-light to-telegram-blue bg-clip-text text-transparent'
+                    ? 'bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent' 
+                    : 'bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent'
                 }`}>
                   {followersCount}
                 </div>
               </div>
-              <div className={`p-4 rounded-xl border-2 ${
-                isLight 
-                  ? 'border-telegram-blue/30 bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10' 
-                  : 'border-telegram-blue/40 bg-gradient-to-br from-telegram-blue/15 to-telegram-blue-light/15'
-              } shadow-lg`}>
-                <div className={`text-xs font-medium mb-2 uppercase tracking-wider ${
-                  isLight ? 'text-telegram-text-secondary' : 'text-white/60'
-                }`}>
-                  Referrals
+
+              {/* Referrals */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30' 
+                      : 'bg-gradient-to-br from-emerald-500/15 to-teal-500/15 border border-emerald-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Referrals
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                      Invited users
+                    </div>
+                  </div>
                 </div>
-                <div className={`text-3xl font-bold ${
+                <div className={`text-2xl font-bold ${
                   isLight 
-                    ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' 
-                    : 'bg-gradient-to-r from-telegram-blue-light to-telegram-blue bg-clip-text text-transparent'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent' 
+                    : 'bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent'
                 }`}>
                   {referralsCount}
                 </div>

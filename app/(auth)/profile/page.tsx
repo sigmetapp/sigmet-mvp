@@ -24,6 +24,7 @@ function ProfileSettings() {
   const [profile, setProfile] = useState<any>(null);
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState<string>();
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -43,6 +44,9 @@ function ProfileSettings() {
           avatar_url: '',
           country: '',
           website_url: '',
+          facebook_url: '',
+          instagram_url: '',
+          twitter_url: '',
           directions_selected: [],
           show_online_status: true,
         }
@@ -54,7 +58,17 @@ function ProfileSettings() {
   async function saveProfile() {
     if (!profile) return;
     const { error } = await supabase.from('profiles').upsert(profile, { onConflict: 'user_id' });
-    setNote(error ? error.message : 'Profile saved');
+    if (error) {
+      setNote(error.message);
+      setShowSuccess(false);
+    } else {
+      setNote('');
+      setShowSuccess(true);
+      // Hide success message after 3 seconds
+      setTimeout(() => {
+        setShowSuccess(false);
+      }, 3000);
+    }
   }
 
   async function uploadAvatar() {
@@ -143,6 +157,39 @@ function ProfileSettings() {
         </div>
 
         <div>
+          <label className="label">Social Media</label>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">Facebook</label>
+              <input
+                className="input"
+                value={profile.facebook_url || ''}
+                onChange={e => setProfile({ ...profile, facebook_url: e.target.value })}
+                placeholder="https://facebook.com/yourprofile"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">Instagram</label>
+              <input
+                className="input"
+                value={profile.instagram_url || ''}
+                onChange={e => setProfile({ ...profile, instagram_url: e.target.value })}
+                placeholder="https://instagram.com/yourprofile"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/60 mb-1 block">X.com (Twitter)</label>
+              <input
+                className="input"
+                value={profile.twitter_url || ''}
+                onChange={e => setProfile({ ...profile, twitter_url: e.target.value })}
+                placeholder="https://x.com/yourprofile"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div>
           <label className="label">Online Status</label>
           <div className="space-y-2">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -168,7 +215,19 @@ function ProfileSettings() {
           </div>
         </div>
 
-        {note && <div className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{note}</div>}
+        {note && !showSuccess && (
+          <div className={`text-sm ${isLight ? "text-red-500" : "text-red-400"}`}>{note}</div>
+        )}
+        {showSuccess && (
+          <div className="fixed top-4 right-4 z-50 transition-all duration-300 ease-in-out">
+            <div className="bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 border border-green-600 transform transition-all duration-300">
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="font-medium">Profile saved successfully!</span>
+            </div>
+          </div>
+        )}
         <Button onClick={saveProfile} variant="primary" className="w-full">
           Save
         </Button>
