@@ -1,24 +1,13 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { useTheme } from "@/components/ThemeProvider";
-import { supabase } from "@/lib/supabaseClient";
 
 export default function Footer() {
   const { site_name, logo_url } = useSiteSettings();
   const { theme } = useTheme();
   const isLight = theme === "light";
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const year = new Date().getFullYear();
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      const email = data?.user?.email || "";
-      setIsAdmin(email === "seosasha@gmail.com");
-    })();
-  }, []);
 
   return (
     <footer className={`${isLight ? "border-t border-black/10 bg-white/70" : "border-t border-white/10 bg-black/30"}`}>
@@ -77,19 +66,6 @@ export default function Footer() {
 
         <div className={`mt-8 pt-4 flex items-center justify-between text-xs md:text-sm ${isLight ? "border-t border-black/10" : "border-t border-white/10"}`}>
           <span>© {year} {site_name || "SIGMET"}. All rights reserved.</span>
-          <div className="flex items-center gap-3">
-            {isAdmin && (
-              <>
-                <Link href="/settings" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Settings</Link>
-                <span className={isLight ? "text-black/30" : "text-white/30"}>•</span>
-                <Link href="/admin/users" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>User Management</Link>
-                <span className={isLight ? "text-black/30" : "text-white/30"}>•</span>
-                <Link href="/admin/stats" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Stats</Link>
-                <span className={isLight ? "text-black/30" : "text-white/30"}>•</span>
-                <Link href="/admin/tickets" className={`${isLight ? "hover:text-black" : "hover:text-white"}`}>Ticket Management</Link>
-              </>
-            )}
-          </div>
         </div>
       </div>
     </footer>
