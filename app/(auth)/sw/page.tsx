@@ -141,7 +141,7 @@ export default function SWPage() {
   const { totalSW, breakdown } = swData;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 md:p-6 space-y-6">
+    <div className="max-w-4xl mx-auto px-4 py-6 md:p-6 space-y-3">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">Social Weight (SW)</h1>
@@ -159,143 +159,143 @@ export default function SWPage() {
       </div>
 
       {note && (
-        <div className="card p-4 bg-white/5">
+        <div className="card p-3 bg-white/5">
           <div className="text-white/80 text-sm">{note}</div>
         </div>
       )}
 
       {/* Total SW */}
-      <div className="card p-6">
+      <div className="card p-4">
         <div className="text-center">
-          <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
-          <div className="text-4xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
+          <div className="text-white/60 text-sm mb-1">Your Social Weight</div>
+          <div className="text-4xl font-bold text-white mb-1">{totalSW.toLocaleString()}</div>
           <div className="text-white/60 text-sm">Total Points</div>
         </div>
       </div>
 
       {/* Breakdown */}
-      <div className="card p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-white mb-4">SW Breakdown</h2>
+      <div className="card p-4 space-y-2">
+        <h2 className="text-lg font-semibold text-white mb-2">SW Breakdown</h2>
         
-        <div className="space-y-4">
+        <div className="space-y-2">
           {/* Registration */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-white/5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
             <div>
-              <div className="text-white font-medium">Registration</div>
-              <div className="text-white/60 text-sm">Account creation</div>
+              <div className="text-white font-medium text-sm">Registration</div>
+              <div className="text-white/60 text-xs">Account creation</div>
             </div>
             <div className="text-right">
-              <div className="text-white font-semibold">{breakdown.registration.points} pts</div>
+              <div className="text-white font-semibold text-sm">{breakdown.registration.points} pts</div>
               <div className="text-white/60 text-xs">{breakdown.registration.count} × {breakdown.registration.weight}</div>
             </div>
           </div>
 
           {/* Profile Complete */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-white/5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
             <div>
-              <div className="text-white font-medium">Profile Complete</div>
-              <div className="text-white/60 text-sm">All profile fields filled</div>
+              <div className="text-white font-medium text-sm">Profile Complete</div>
+              <div className="text-white/60 text-xs">All profile fields filled</div>
             </div>
             <div className="text-right">
-              <div className="text-white font-semibold">{breakdown.profileComplete.points} pts</div>
+              <div className="text-white font-semibold text-sm">{breakdown.profileComplete.points} pts</div>
               <div className="text-white/60 text-xs">{breakdown.profileComplete.count} × {breakdown.profileComplete.weight}</div>
             </div>
           </div>
 
           {/* Growth */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-white/5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
             <div>
-              <div className="text-white font-medium">Growth Directions</div>
-              <div className="text-white/60 text-sm">{breakdown.growth.description}</div>
+              <div className="text-white font-medium text-sm">Growth Directions</div>
+              <div className="text-white/60 text-xs">{breakdown.growth.description}</div>
             </div>
             <div className="text-right">
-              <div className="text-white font-semibold">{breakdown.growth.points} pts</div>
+              <div className="text-white font-semibold text-sm">{breakdown.growth.points} pts</div>
               <div className="text-white/60 text-xs">{breakdown.growth.count} tasks × {breakdown.growth.weight}x</div>
             </div>
           </div>
 
           {/* Followers */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-white/5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
             <div>
-              <div className="text-white font-medium">Followers</div>
-              <div className="text-white/60 text-sm">People following you</div>
+              <div className="text-white font-medium text-sm">Followers</div>
+              <div className="text-white/60 text-xs">People following you</div>
             </div>
             <div className="text-right">
-              <div className="text-white font-semibold">{breakdown.followers.points} pts</div>
+              <div className="text-white font-semibold text-sm">{breakdown.followers.points} pts</div>
               <div className="text-white/60 text-xs">{breakdown.followers.count} × {breakdown.followers.weight}</div>
             </div>
           </div>
 
           {/* Connections */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-white/5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
             <div>
-              <div className="text-white font-medium">Connections</div>
-              <div className="text-white/60 text-sm">
+              <div className="text-white font-medium text-sm">Connections</div>
+              <div className="text-white/60 text-xs">
                 Mutual mentions: {breakdown.connections.firstCount} first ({breakdown.connections.firstWeight}pts), {breakdown.connections.repeatCount} repeat ({breakdown.connections.repeatWeight}pts)
               </div>
             </div>
             <div className="text-right">
-              <div className="text-white font-semibold">{breakdown.connections.points} pts</div>
+              <div className="text-white font-semibold text-sm">{breakdown.connections.points} pts</div>
               <div className="text-white/60 text-xs">{breakdown.connections.count} connections</div>
             </div>
           </div>
 
           {/* Posts */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-white/5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
             <div>
-              <div className="text-white font-medium">Posts</div>
-              <div className="text-white/60 text-sm">Published posts</div>
+              <div className="text-white font-medium text-sm">Posts</div>
+              <div className="text-white/60 text-xs">Published posts</div>
             </div>
             <div className="text-right">
-              <div className="text-white font-semibold">{breakdown.posts.points} pts</div>
+              <div className="text-white font-semibold text-sm">{breakdown.posts.points} pts</div>
               <div className="text-white/60 text-xs">{breakdown.posts.count} × {breakdown.posts.weight}</div>
             </div>
           </div>
 
           {/* Comments */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-white/5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
             <div>
-              <div className="text-white font-medium">Comments</div>
-              <div className="text-white/60 text-sm">Published comments</div>
+              <div className="text-white font-medium text-sm">Comments</div>
+              <div className="text-white/60 text-xs">Published comments</div>
             </div>
             <div className="text-right">
-              <div className="text-white font-semibold">{breakdown.comments.points} pts</div>
+              <div className="text-white font-semibold text-sm">{breakdown.comments.points} pts</div>
               <div className="text-white/60 text-xs">{breakdown.comments.count} × {breakdown.comments.weight}</div>
             </div>
           </div>
 
           {/* Reactions */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-white/5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
             <div>
-              <div className="text-white font-medium">Reactions</div>
-              <div className="text-white/60 text-sm">Reactions received on your posts</div>
+              <div className="text-white font-medium text-sm">Reactions</div>
+              <div className="text-white/60 text-xs">Reactions received on your posts</div>
             </div>
             <div className="text-right">
-              <div className="text-white font-semibold">{breakdown.reactions.points} pts</div>
+              <div className="text-white font-semibold text-sm">{breakdown.reactions.points} pts</div>
               <div className="text-white/60 text-xs">{Math.round(breakdown.reactions.count)} × {breakdown.reactions.weight}</div>
             </div>
           </div>
 
           {/* Invites */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-white/5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
             <div>
-              <div className="text-white font-medium">Invite People</div>
-              <div className="text-white/60 text-sm">People who joined via your invite code and received 70 pts</div>
+              <div className="text-white font-medium text-sm">Invite People</div>
+              <div className="text-white/60 text-xs">People who joined via your invite code and received 70 pts</div>
             </div>
             <div className="text-right">
-              <div className="text-white font-semibold">{breakdown.invites?.points || 0} pts</div>
+              <div className="text-white font-semibold text-sm">{breakdown.invites?.points || 0} pts</div>
               <div className="text-white/60 text-xs">{breakdown.invites?.count || 0} × {breakdown.invites?.weight || 50}</div>
             </div>
           </div>
 
           {/* Growth Bonus */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-white/5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
             <div>
-              <div className="text-white font-medium">Growth Bonus</div>
-              <div className="text-white/60 text-sm">{breakdown.growthBonus?.description || "5% bonus on invited users' growth points"}</div>
+              <div className="text-white font-medium text-sm">Growth Bonus</div>
+              <div className="text-white/60 text-xs">{breakdown.growthBonus?.description || "5% bonus on invited users' growth points"}</div>
             </div>
             <div className="text-right">
-              <div className="text-white font-semibold">{(breakdown.growthBonus?.points || 0).toFixed(2)} pts</div>
+              <div className="text-white font-semibold text-sm">{(breakdown.growthBonus?.points || 0).toFixed(2)} pts</div>
               <div className="text-white/60 text-xs">{((breakdown.growthBonus?.weight || 0.05) * 100)}% of invited users' growth points</div>
             </div>
           </div>
