@@ -32,6 +32,64 @@ export default async function handler(
   const userId = req.body.user_id as string || user.id;
 
   try {
+    const preferredUserColumns = ['user_id', 'author_id'];
+
+    const isUndefinedColumnError = (error: any) => {
+      if (!error) return false;
+      if (error.code === '42703') return true;
+      const message = `${error.message || ''}${error.details || ''}`.toLowerCase();
+      return message.includes('column') && message.includes('does not exist');
+    };
+
+    const getCountByUserColumns = async (table: string, columns: string[]) => {
+      let fallbackCount = 0;
+
+      for (const column of columns) {
+        const { count, error } = await supabase
+          .from(table)
+          .select('id', { count: 'exact', head: true })
+          .eq(column, userId);
+
+        if (error) {
+          if (isUndefinedColumnError(error)) {
+            continue;
+          }
+          throw error;
+        }
+
+        if (typeof count === 'number') {
+          if (count > 0) {
+            return count;
+          }
+          fallbackCount = Math.max(fallbackCount, count);
+        }
+      }
+
+      return fallbackCount;
+    };
+
+    const getRowsByUserColumns = async (table: string, columns: string[]) => {
+      for (const column of columns) {
+        const { data, error } = await supabase
+          .from(table)
+          .select('id')
+          .eq(column, userId);
+
+        if (error) {
+          if (isUndefinedColumnError(error)) {
+            continue;
+          }
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          return data;
+        }
+      }
+
+      return [];
+    };
+
     // Call the calculate endpoint logic
     // Get SW weights
     const { data: weights, error: weightsError } = await supabase
@@ -216,59 +274,32 @@ export default async function handler(
                              (repeatConnectionsCount * weights.connection_repeat_points);
 
     // Get posts count
-    let postsCount = 0;
-    const { count: postsCountByAuthor } = await supabase
-      .from('posts')
-      .select('id', { count: 'exact', head: true })
-      .eq('author_id', userId);
-    
-    if (postsCountByAuthor === null) {
-      const { count: postsCountByUser } = await supabase
-        .from('posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId);
-      postsCount = postsCountByUser || 0;
-    } else {
-      postsCount = postsCountByAuthor || 0;
-    }
-
+    const postsCount = await getCountByUserColumns('posts', preferredUserColumns);
     const postsPoints = postsCount * weights.post_points;
 
     // Get comments count
-    const { count: commentsCount, error: commentsError } = await supabase
-      .from('comments')
-      .select('id', { count: 'exact', head: true })
-      .eq('author_id', userId);
-
-    const commentsPoints = (commentsCount || 0) * weights.comment_points;
+    const commentsCount = await getCountByUserColumns('comments', preferredUserColumns);
+    const commentsPoints = commentsCount * weights.comment_points;
 
     // Get reactions count
-    let userPostsForReactions: any[] = [];
-    const { data: userPostsByAuthor } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('author_id', userId);
-    
-    if (!userPostsByAuthor || userPostsByAuthor.length === 0) {
-      const { data: userPostsByUser } = await supabase
-        .from('posts')
-        .select('id')
-        .eq('user_id', userId);
-      userPostsForReactions = userPostsByUser || [];
-    } else {
-      userPostsForReactions = userPostsByAuthor || [];
-    }
+    const userPostsForReactions = await getRowsByUserColumns('posts', preferredUserColumns);
 
-    let reactionsPoints = 0;
+    let reactionsCount = 0;
     if (userPostsForReactions.length > 0) {
-      const postIds = userPostsForReactions.map(p => p.id);
-      const { count: reactionsCount } = await supabase
+      const postIds = userPostsForReactions.map((p: any) => p.id);
+      const { count, error } = await supabase
         .from('post_reactions')
-        .select('id', { count: 'exact', head: true })
+        .select('post_id', { count: 'exact', head: true })
         .in('post_id', postIds);
 
-      reactionsPoints = (reactionsCount || 0) * weights.reaction_points;
+      if (error) {
+        throw error;
+      }
+
+      reactionsCount = count || 0;
     }
+
+    const reactionsPoints = reactionsCount * weights.reaction_points;
 
     // Calculate total SW
     const totalSW = 
