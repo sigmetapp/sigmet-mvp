@@ -219,8 +219,8 @@ function ProfileSettings() {
           <div className={`text-sm ${isLight ? "text-red-500" : "text-red-400"}`}>{note}</div>
         )}
         {showSuccess && (
-          <div className="fixed top-4 right-4 z-50 transition-all duration-300 ease-in-out">
-            <div className="bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 border border-green-600 transform transition-all duration-300">
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-2 border border-green-600 transform transition-all duration-300 pointer-events-auto">
               <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
