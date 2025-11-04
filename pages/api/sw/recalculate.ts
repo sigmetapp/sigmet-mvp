@@ -31,6 +31,24 @@ export default async function handler(
 
   const userId = req.body.user_id as string || user.id;
 
+  // Helper function to check if error is an access error (RLS)
+  const isAccessError = (error: any) => {
+    if (!error) return false;
+    // RLS errors and permission errors
+    if (error.code === '42501' || error.code === 'PGRST301') return true;
+    // If error exists but has empty fields, it might be an RLS block
+    if (error && (!error.message || error.message === '') && 
+        (!error.code || error.code === '') && 
+        (!error.details || error.details === '')) {
+      return true;
+    }
+    const message = `${error.message || ''}${error.details || ''}`.toLowerCase();
+    return message.includes('permission') || 
+           message.includes('policy') || 
+           message.includes('access denied') ||
+           message.includes('row-level security');
+  };
+
   try {
     const preferredUserColumns = ['user_id', 'author_id'];
 
@@ -39,23 +57,6 @@ export default async function handler(
       if (error.code === '42703') return true;
       const message = `${error.message || ''}${error.details || ''}`.toLowerCase();
       return message.includes('column') && message.includes('does not exist');
-    };
-
-    const isAccessError = (error: any) => {
-      if (!error) return false;
-      // RLS errors and permission errors
-      if (error.code === '42501' || error.code === 'PGRST301') return true;
-      // If error exists but has empty fields, it might be an RLS block
-      if (error && (!error.message || error.message === '') && 
-          (!error.code || error.code === '') && 
-          (!error.details || error.details === '')) {
-        return true;
-      }
-      const message = `${error.message || ''}${error.details || ''}`.toLowerCase();
-      return message.includes('permission') || 
-             message.includes('policy') || 
-             message.includes('access denied') ||
-             message.includes('row-level security');
     };
 
     const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -221,7 +222,17 @@ export default async function handler(
         .order('created_at', { ascending: false })
         .limit(1000);
 
-      if (allPosts && !allPostsError) {
+      if (allPostsError) {
+        // For non-admins, skip access errors instead of throwing
+        if (isAccessError(allPostsError)) {
+          console.warn('Access error fetching all posts for connections calculation (skipping):', {
+            message: allPostsError?.message || '',
+            code: allPostsError?.code || '',
+            userId,
+          });
+          // Continue without connections
+        }
+      } else if (allPosts) {
         const myMentionPatterns: string[] = [];
         if (profile.username && profile.username.trim() !== '') {
           myMentionPatterns.push(`@${profile.username.toLowerCase()}`);
@@ -355,10 +366,21 @@ export default async function handler(
         .in('post_id', postIds);
 
       if (error) {
-        throw error;
+        // For non-admins, skip access errors instead of throwing
+        if (isAccessError(error)) {
+          console.warn('Access error fetching post_reactions (skipping):', {
+            message: error?.message || '',
+            code: error?.code || '',
+            userId,
+            postIds: postIds.length,
+          });
+          reactionsCount = 0;
+        } else {
+          throw error;
+        }
+      } else {
+        reactionsCount = count || 0;
       }
-
-      reactionsCount = count || 0;
     }
 
     const reactionsPoints = reactionsCount * weights.reaction_points;
@@ -451,7 +473,33 @@ export default async function handler(
       message: 'SW recalculated successfully',
     });
   } catch (error: any) {
-    console.error('sw/recalculate error:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('sw/recalculate error:', {
+      message: error?.message || '',
+      code: error?.code || '',
+      details: error?.details || '',
+      error: error,
+      userId: userId || 'unknown',
+      user: user?.id || 'unknown',
+      userEmail: user?.email || 'unknown',
+      isAdmin: user?.is_admin || false,
+    });
+    
+    // If this is an access error (RLS) for non-admins, return a more graceful error
+    if (isAccessError(error) && !user?.is_admin) {
+      console.warn('Access error for non-admin user:', {
+        userId: userId || 'unknown',
+        userEmail: user?.email || 'unknown',
+      });
+      return res.status(403).json({ 
+        error: 'Access denied: insufficient permissions to recalculate SW score',
+        code: error?.code || 'ACCESS_DENIED',
+        message: 'Some data is not accessible due to row-level security policies'
+      });
+    }
+    
+    return res.status(500).json({ 
+      error: error?.message || error?.code || 'Unknown error occurred',
+      code: error?.code || '',
+    });
   }
 }
