@@ -11,6 +11,7 @@ import PostCard from '@/components/PostCard';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveDirectionEmoji } from '@/lib/directions';
 import EmojiPicker from '@/components/EmojiPicker';
+import { formatTextWithMentions } from '@/lib/formatText';
 
 type PostRecord = {
   id: number;
@@ -475,7 +476,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
               </div>
               {comment.body && (
                 <p className={`mt-3 whitespace-pre-wrap text-sm ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
-                  {comment.body}
+                  {formatTextWithMentions(comment.body)}
                 </p>
               )}
               {comment.media_url && (
@@ -656,7 +657,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
           {/* Content */}
           <p className={`whitespace-pre-wrap text-sm leading-6 ${isLight ? 'text-slate-900' : 'text-slate-300'}`}>
-            {postCardPost.content}
+            {formatTextWithMentions(postCardPost.content)}
           </p>
 
           {/* Media */}

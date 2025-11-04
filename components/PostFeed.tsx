@@ -19,6 +19,7 @@ import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
 import { Image as ImageIcon, Paperclip, X as CloseIcon } from "lucide-react";
+import { formatTextWithMentions } from "@/lib/formatText";
 
 function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
@@ -992,7 +993,7 @@ export default function PostFeed({
                         role="button"
                         aria-label="Open post"
                       >
-                        {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
+                        {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{formatTextWithMentions(p.body)}</p>}
                         {p.image_url && (
                           <div className="mt-3 flex justify-center">
                             <img 
