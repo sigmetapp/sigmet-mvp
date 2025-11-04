@@ -131,22 +131,46 @@ export default async function handler(
     }
 
     // Get growth total points from sw_ledger
-    const { data: growthLedger, error: ledgerError } = await supabase
-      .from('sw_ledger')
-      .select('points')
-      .eq('user_id', userId);
+    let growthTotalPoints = 0;
+    try {
+      const { data: growthLedger, error: ledgerError } = await supabase
+        .from('sw_ledger')
+        .select('points')
+        .eq('user_id', userId);
 
-    const growthTotalPoints = growthLedger
-      ? growthLedger.reduce((sum, entry) => sum + (entry.points || 0), 0) * weights.growth_total_points_multiplier
-      : 0;
+      if (ledgerError) {
+        console.warn('Error fetching growth ledger:', ledgerError);
+        growthTotalPoints = 0;
+      } else {
+        growthTotalPoints = growthLedger
+          ? growthLedger.reduce((sum, entry) => sum + (entry.points || 0), 0) * weights.growth_total_points_multiplier
+          : 0;
+      }
+    } catch (ledgerErr) {
+      console.warn('Exception fetching growth ledger:', ledgerErr);
+      growthTotalPoints = 0;
+    }
 
     // Get followers count
-    const { count: followersCount, error: followersError } = await supabase
-      .from('follows')
-      .select('follower_id', { count: 'exact', head: true })
-      .eq('followee_id', userId);
+    let followersCount = 0;
+    try {
+      const { count, error: followersError } = await supabase
+        .from('follows')
+        .select('follower_id', { count: 'exact', head: true })
+        .eq('followee_id', userId);
 
-    const followersPoints = (followersCount || 0) * weights.follower_points;
+      if (followersError) {
+        console.warn('Error fetching followers:', followersError);
+        followersCount = 0;
+      } else {
+        followersCount = count || 0;
+      }
+    } catch (followersErr) {
+      console.warn('Exception fetching followers:', followersErr);
+      followersCount = 0;
+    }
+
+    const followersPoints = followersCount * weights.follower_points;
 
     // Calculate connections (same logic as calculate endpoint)
     let connectionsCount = 0;
@@ -301,6 +325,32 @@ export default async function handler(
 
     const reactionsPoints = reactionsCount * weights.reaction_points;
 
+    // Get invites count - count accepted invites where user got 70 pts (registration + profile complete)
+    let invitesCount = 0;
+    try {
+      const { data: invites, error: invitesError } = await supabase
+        .from('invites')
+        .select('id, consumed_by_user_sw')
+        .eq('inviter_user_id', userId)
+        .eq('status', 'accepted')
+        .eq('consumed_by_user_sw', 70);
+
+      if (invitesError) {
+        console.warn('Error fetching invites:', invitesError);
+        // Continue without invites if there's an error (e.g., RLS issue)
+      } else {
+        invitesCount = invites?.length || 0;
+      }
+    } catch (invitesErr) {
+      console.warn('Exception fetching invites:', invitesErr);
+      // Continue without invites
+    }
+
+    const invitePoints = invitesCount * 50; // 50 pts per invite
+
+    // Calculate 5% bonus on growth points
+    const growthBonusPoints = growthTotalPoints * 0.05;
+
     // Calculate total SW
     const totalSW = 
       registrationPoints +
@@ -310,7 +360,9 @@ export default async function handler(
       connectionsPoints +
       postsPoints +
       commentsPoints +
-      reactionsPoints;
+      reactionsPoints +
+      invitePoints +
+      growthBonusPoints;
 
     // Update sw_scores table if it exists
     try {
