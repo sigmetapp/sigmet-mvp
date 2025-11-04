@@ -65,6 +65,11 @@ export default function Sidebar({ user }: SidebarProps) {
               href="/badges"
               icon="🏅"
             />
+            <NavItem
+              label="SW Weights"
+              href="/sw/weights"
+              icon="⚖️"
+            />
           </ul>
         </div>
       )}
