@@ -22,14 +22,27 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  
-  if (authError || !user) {
+  let userId: string | undefined;
+  let user: any = null;
+
+  try {
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !authUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    user = authUser;
+    userId = (req.query.user_id as string) || user.id;
+  } catch (authErr: any) {
+    console.error('sw/calculate auth error:', {
+      error: authErr,
+      message: authErr?.message || '',
+      code: authErr?.code || '',
+    });
     return res.status(401).json({ error: 'Unauthorized' });
   }
-
-  const userId = (req.query.user_id as string) || user.id;
 
   try {
     const preferredUserColumns = ['user_id', 'author_id'];
@@ -56,6 +69,13 @@ export default async function handler(
           if (isUndefinedColumnError(error)) {
             continue;
           }
+          console.error(`Error in getCountByUserColumns for table ${table}, column ${column}:`, {
+            error,
+            message: error?.message || '',
+            code: error?.code || '',
+            details: error?.details || '',
+            userId,
+          });
           throw error;
         }
 
@@ -81,6 +101,13 @@ export default async function handler(
           if (isUndefinedColumnError(error)) {
             continue;
           }
+          console.error(`Error in getRowsByUserColumns for table ${table}, column ${column}:`, {
+            error,
+            message: error?.message || '',
+            code: error?.code || '',
+            details: error?.details || '',
+            userId,
+          });
           throw error;
         }
 
@@ -192,7 +219,16 @@ export default async function handler(
         .order('created_at', { ascending: false })
         .limit(1000);
 
-      if (allPosts && !allPostsError) {
+      if (allPostsError) {
+        console.error('Error fetching all posts for connections calculation:', {
+          error: allPostsError,
+          message: allPostsError?.message || '',
+          code: allPostsError?.code || '',
+          details: allPostsError?.details || '',
+          userId,
+        });
+        // Continue without connections if there's an error
+      } else if (allPosts) {
         const myMentionPatterns: string[] = [];
         if (profile.username && profile.username.trim() !== '') {
           myMentionPatterns.push(`@${profile.username.toLowerCase()}`);
@@ -242,10 +278,22 @@ export default async function handler(
         Object.keys(theyMentionedMe).forEach((uid) => allUserIds.add(uid));
 
         if (allUserIds.size > 0) {
-          const { data: userProfiles } = await supabase
+          const { data: userProfiles, error: userProfilesError } = await supabase
             .from('profiles')
             .select('user_id, username')
             .in('user_id', Array.from(allUserIds));
+
+          if (userProfilesError) {
+            console.error('Error fetching user profiles for connections calculation:', {
+              error: userProfilesError,
+              message: userProfilesError?.message || '',
+              code: userProfilesError?.code || '',
+              details: userProfilesError?.details || '',
+              userId,
+              allUserIdsCount: allUserIds.size,
+            });
+            // Continue without user profiles - will skip connections calculation
+          }
 
           const usernameToUserId: Record<string, string> = {};
           if (userProfiles) {
@@ -342,6 +390,14 @@ export default async function handler(
         .in('post_id', postIds);
 
       if (error) {
+        console.error('Error fetching post_reactions:', {
+          error,
+          message: error?.message || '',
+          code: error?.code || '',
+          details: error?.details || '',
+          userId,
+          postIds: postIds.length,
+        });
         throw error;
       }
 
@@ -481,12 +537,28 @@ export default async function handler(
       weights,
     });
   } catch (error: any) {
-    console.error('sw/calculate error:', error);
-    const errorMessage = error?.message || 'Unknown error occurred';
-    const errorDetails = error?.details || error?.hint || '';
+    // Enhanced error logging
+    console.error('sw/calculate error:', {
+      message: error?.message || '',
+      code: error?.code || '',
+      details: error?.details || '',
+      hint: error?.hint || '',
+      status: error?.status || '',
+      statusCode: error?.statusCode || '',
+      error: error,
+      stack: error?.stack || '',
+      userId: userId || 'unknown',
+      user: user?.id || 'unknown',
+      userEmail: user?.email || 'unknown',
+      isAdmin: user?.is_admin || false,
+    });
+    
+    const errorMessage = error?.message || error?.code || error?.details || error?.hint || 'Unknown error occurred';
+    const errorDetails = error?.details || error?.hint || error?.code || '';
     return res.status(500).json({ 
       error: errorMessage,
       details: errorDetails,
+      code: error?.code || '',
       stack: process.env.NODE_ENV === 'development' ? error?.stack : undefined
     });
   }
