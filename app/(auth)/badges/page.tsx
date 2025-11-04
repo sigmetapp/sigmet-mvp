@@ -21,6 +21,7 @@ export default function BadgesPage() {
   const [recomputing, setRecomputing] = useState(false);
   const [grantingBadge, setGrantingBadge] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
     loadBadges();
@@ -31,10 +32,26 @@ export default function BadgesPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const email = user.email || null;
+      const admin = email && ADMIN_EMAILS.has(email);
+      setIsAdmin(admin);
+
+      // Redirect non-admin users
+      if (!admin) {
+        if (typeof window !== 'undefined') {
+          window.location.href = '/feed';
+        }
+        setLoading(false);
+        return;
+      }
 
       setUserId(user.id);
-      setUserEmail(user.email || null);
+      setUserEmail(email);
 
       const response = await fetch(`/api/badges/user/${user.id}`);
       if (!response.ok) {
@@ -90,7 +107,6 @@ export default function BadgesPage() {
 
   const earnedCount = badges.filter((b) => b.earned).length;
   const totalCount = badges.length;
-  const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
 
   async function grantOrRevokeBadge(badgeKey: string, action: 'grant' | 'revoke') {
     if (!isAdmin || !userId) return;
@@ -168,10 +184,19 @@ export default function BadgesPage() {
 
   const categories = ['activity', 'community', 'growth', 'consistency'];
 
-  if (loading) {
+  if (loading || isAdmin === null) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-6 md:p-6">
         <div className="text-white/70">Loading badges…</div>
+      </div>
+    );
+  }
+
+  // Show access denied message if user is not admin
+  if (isAdmin === false) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-6 md:p-6">
+        <div className="text-white/70">Access denied. This page is only available for administrators.</div>
       </div>
     );
   }

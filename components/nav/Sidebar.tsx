@@ -9,6 +9,8 @@ export type SidebarProps = {
   user: User;
 };
 
+const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
+
 const menu = [
   { label: 'Feeds', href: '/feed', icon: '📜' },
   { label: 'Page', href: '/page', icon: '👤' },
@@ -16,7 +18,6 @@ const menu = [
   { label: 'Messages', href: '/dms', icon: '✉️', badgeKey: 'unreadDM' as const },
   { label: 'SW', href: '/sw', icon: '⚖️' },
   { label: 'Growth 8', href: '/growth-directions', icon: '🌱' },
-  { label: 'Badges/Rewards', href: '/badges', icon: '🏅' },
   { label: 'Invite systems', href: '/invite', icon: '🎟️' },
   { label: 'Settings', href: '/profile', icon: '⚙️' },
 ];
@@ -28,6 +29,8 @@ export default function Sidebar({ user }: SidebarProps) {
   const unreadDM = 0;
 
   const username = (user.user_metadata as any)?.username || user.email || user.id;
+  const userEmail = user.email || null;
+  const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
 
   return (
     <aside className={`flex h-full w-64 flex-col border-r backdrop-blur-md transition-colors ${
@@ -51,6 +54,20 @@ export default function Sidebar({ user }: SidebarProps) {
           ))}
         </ul>
       </nav>
+      {isAdmin && (
+        <div className={`px-2 py-2 border-t ${isLight ? "border-telegram-blue/15" : "border-telegram-blue/20"}`}>
+          <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+            Admin
+          </div>
+          <ul className="space-y-1 mt-1">
+            <NavItem
+              label="Badges/Rewards"
+              href="/badges"
+              icon="🏅"
+            />
+          </ul>
+        </div>
+      )}
       <div className={`mt-auto px-3 py-3 border-t ${isLight ? "border-telegram-blue/15" : "border-telegram-blue/20"}`}>
         <div className="flex items-center gap-3">
           <div className={`h-8 w-8 rounded-full flex items-center justify-center border ${
