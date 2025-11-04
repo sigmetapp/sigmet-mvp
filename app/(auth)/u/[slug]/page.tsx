@@ -57,6 +57,7 @@ export default function PublicProfilePage() {
   const [followersCount, setFollowersCount] = useState<number>(0);
   const [followingCount, setFollowingCount] = useState<number>(0);
   const [referralsCount, setReferralsCount] = useState<number>(0);
+  const [connectionsCount, setConnectionsCount] = useState<number>(0);
   const [recentSocial, setRecentSocial] = useState<
     { kind: 'in' | 'out'; otherUserId: string; created_at?: string }[]
   >([]);
@@ -354,10 +355,39 @@ export default function PublicProfilePage() {
         setFollowersCount(followersRes.count || 0);
         setFollowingCount(followingRes.count || 0);
         setReferralsCount(referralsRes.count || 0);
+
+        // Calculate connections (mutual follows): people who follow the user AND are followed by the user
+        const [followersData, followingData] = await Promise.all([
+          supabase
+            .from('follows')
+            .select('follower_id')
+            .eq('followee_id', profile.user_id),
+          supabase
+            .from('follows')
+            .select('followee_id')
+            .eq('follower_id', profile.user_id),
+        ]);
+
+        if (followersData.data && followingData.data) {
+          const followersSet = new Set(followersData.data.map((f: any) => f.follower_id));
+          const followingSet = new Set(followingData.data.map((f: any) => f.followee_id));
+          
+          // Find intersection: people who are both followers and following
+          let connections = 0;
+          followersSet.forEach((followerId) => {
+            if (followingSet.has(followerId)) {
+              connections++;
+            }
+          });
+          setConnectionsCount(connections);
+        } else {
+          setConnectionsCount(0);
+        }
       } catch {
         setFollowersCount(0);
         setFollowingCount(0);
         setReferralsCount(0);
+        setConnectionsCount(0);
       }
     })();
   }, [profile?.user_id]);
@@ -978,9 +1008,41 @@ export default function PublicProfilePage() {
             </div>
           </div>
 
-          {/* Stats block - Following, Followers, Referrals */}
+          {/* Stats block - Connections, Following, Followers, Referrals */}
           <div className="card p-4 md:p-6">
             <div className="space-y-3">
+              {/* Connections */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30' 
+                      : 'bg-gradient-to-br from-violet-500/15 to-purple-500/15 border border-violet-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Connections
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                      Mutual connections
+                    </div>
+                  </div>
+                </div>
+                <div className={`text-2xl font-bold ${
+                  isLight 
+                    ? 'bg-gradient-to-r from-violet-500 to-purple-500 bg-clip-text text-transparent' 
+                    : 'bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent'
+                }`}>
+                  {connectionsCount}
+                </div>
+              </div>
+
               {/* Following */}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
