@@ -44,6 +44,24 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Helper function to check if error is an access error (RLS)
+  const isAccessError = (error: any) => {
+    if (!error) return false;
+    // RLS errors and permission errors
+    if (error.code === '42501' || error.code === 'PGRST301') return true;
+    // If error exists but has empty fields, it might be an RLS block
+    if (error && (!error.message || error.message === '') && 
+        (!error.code || error.code === '') && 
+        (!error.details || error.details === '')) {
+      return true;
+    }
+    const message = `${error.message || ''}${error.details || ''}`.toLowerCase();
+    return message.includes('permission') || 
+           message.includes('policy') || 
+           message.includes('access denied') ||
+           message.includes('row-level security');
+  };
+
   try {
     const preferredUserColumns = ['user_id', 'author_id'];
 
@@ -67,6 +85,15 @@ export default async function handler(
 
         if (error) {
           if (isUndefinedColumnError(error)) {
+            continue;
+          }
+          // For non-admins, skip access errors instead of throwing
+          if (isAccessError(error)) {
+            console.warn(`Access error in getCountByUserColumns for table ${table}, column ${column} (skipping):`, {
+              message: error?.message || '',
+              code: error?.code || '',
+              userId,
+            });
             continue;
           }
           console.error(`Error in getCountByUserColumns for table ${table}, column ${column}:`, {
@@ -99,6 +126,15 @@ export default async function handler(
 
         if (error) {
           if (isUndefinedColumnError(error)) {
+            continue;
+          }
+          // For non-admins, skip access errors instead of throwing
+          if (isAccessError(error)) {
+            console.warn(`Access error in getRowsByUserColumns for table ${table}, column ${column} (skipping):`, {
+              message: error?.message || '',
+              code: error?.code || '',
+              userId,
+            });
             continue;
           }
           console.error(`Error in getRowsByUserColumns for table ${table}, column ${column}:`, {
@@ -220,14 +256,24 @@ export default async function handler(
         .limit(1000);
 
       if (allPostsError) {
-        console.error('Error fetching all posts for connections calculation:', {
-          error: allPostsError,
-          message: allPostsError?.message || '',
-          code: allPostsError?.code || '',
-          details: allPostsError?.details || '',
-          userId,
-        });
-        // Continue without connections if there's an error
+        // For non-admins, skip access errors instead of throwing
+        if (isAccessError(allPostsError)) {
+          console.warn('Access error fetching all posts for connections calculation (skipping):', {
+            message: allPostsError?.message || '',
+            code: allPostsError?.code || '',
+            userId,
+          });
+          // Continue without connections
+        } else {
+          console.error('Error fetching all posts for connections calculation:', {
+            error: allPostsError,
+            message: allPostsError?.message || '',
+            code: allPostsError?.code || '',
+            details: allPostsError?.details || '',
+            userId,
+          });
+          // Continue without connections if there's an error
+        }
       } else if (allPosts) {
         const myMentionPatterns: string[] = [];
         if (profile.username && profile.username.trim() !== '') {
@@ -284,14 +330,24 @@ export default async function handler(
             .in('user_id', Array.from(allUserIds));
 
           if (userProfilesError) {
-            console.error('Error fetching user profiles for connections calculation:', {
-              error: userProfilesError,
-              message: userProfilesError?.message || '',
-              code: userProfilesError?.code || '',
-              details: userProfilesError?.details || '',
-              userId,
-              allUserIdsCount: allUserIds.size,
-            });
+            // For non-admins, skip access errors instead of throwing
+            if (isAccessError(userProfilesError)) {
+              console.warn('Access error fetching user profiles for connections calculation (skipping):', {
+                message: userProfilesError?.message || '',
+                code: userProfilesError?.code || '',
+                userId,
+                allUserIdsCount: allUserIds.size,
+              });
+            } else {
+              console.error('Error fetching user profiles for connections calculation:', {
+                error: userProfilesError,
+                message: userProfilesError?.message || '',
+                code: userProfilesError?.code || '',
+                details: userProfilesError?.details || '',
+                userId,
+                allUserIdsCount: allUserIds.size,
+              });
+            }
             // Continue without user profiles - will skip connections calculation
           }
 
@@ -390,18 +446,29 @@ export default async function handler(
         .in('post_id', postIds);
 
       if (error) {
-        console.error('Error fetching post_reactions:', {
-          error,
-          message: error?.message || '',
-          code: error?.code || '',
-          details: error?.details || '',
-          userId,
-          postIds: postIds.length,
-        });
-        throw error;
+        // For non-admins, skip access errors instead of throwing
+        if (isAccessError(error)) {
+          console.warn('Access error fetching post_reactions (skipping):', {
+            message: error?.message || '',
+            code: error?.code || '',
+            userId,
+            postIds: postIds.length,
+          });
+          reactionsCount = 0;
+        } else {
+          console.error('Error fetching post_reactions:', {
+            error,
+            message: error?.message || '',
+            code: error?.code || '',
+            details: error?.details || '',
+            userId,
+            postIds: postIds.length,
+          });
+          throw error;
+        }
+      } else {
+        reactionsCount = count || 0;
       }
-
-      reactionsCount = count || 0;
     }
 
     const reactionsPoints = reactionsCount * weights.reaction_points;
@@ -552,6 +619,19 @@ export default async function handler(
       userEmail: user?.email || 'unknown',
       isAdmin: user?.is_admin || false,
     });
+    
+    // If this is an access error (RLS) for non-admins, return a more graceful error
+    if (isAccessError(error) && !user?.is_admin) {
+      console.warn('Access error for non-admin user, returning partial result:', {
+        userId: userId || 'unknown',
+        userEmail: user?.email || 'unknown',
+      });
+      return res.status(403).json({ 
+        error: 'Access denied: insufficient permissions to calculate SW score',
+        code: error?.code || 'ACCESS_DENIED',
+        message: 'Some data is not accessible due to row-level security policies'
+      });
+    }
     
     const errorMessage = error?.message || error?.code || error?.details || error?.hint || 'Unknown error occurred';
     const errorDetails = error?.details || error?.hint || error?.code || '';
