@@ -12,6 +12,7 @@ import { resolveDirectionEmoji } from '@/lib/directions';
 import { useTheme } from '@/components/ThemeProvider';
 import PostReactions, { ReactionType } from '@/components/PostReactions';
 import PostCommentsBadge from '@/components/PostCommentsBadge';
+import PostActionMenu from '@/components/PostActionMenu';
 import { Paperclip } from 'lucide-react';
 
 type Profile = {
@@ -111,6 +112,10 @@ export default function PublicProfilePage() {
   const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
   const [commentInput, setCommentInput] = useState<Record<number, string>>({});
   const [commentFile, setCommentFile] = useState<Record<number, File | null>>({});
+  
+  // Edit post state
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editBody, setEditBody] = useState<string>("");
 
   // avatar upload (own profile)
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -514,6 +519,28 @@ export default function PublicProfilePage() {
       }
     } catch (e: any) {
       alert(e.message || "Failed to add comment");
+    }
+  }
+
+  // Edit/delete post
+  async function deletePost(p: Post) {
+    const { error } = await supabase.from("posts").delete().eq("id", p.id);
+    if (error) return alert(error.message);
+    setPosts((prev) => prev.filter((x) => x.id !== p.id));
+  }
+
+  async function saveEdit(p: Post) {
+    const { data, error } = await supabase
+      .from("posts")
+      .update({ body: editBody })
+      .eq("id", p.id)
+      .select("*")
+      .single();
+    if (!error && data) {
+      setPosts((prev) =>
+        prev.map((x) => (x.id === p.id ? (data as Post) : x))
+      );
+      setEditingId(null);
     }
   }
 
@@ -1579,50 +1606,76 @@ export default function PublicProfilePage() {
                         </div>
                         <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                           <span className="whitespace-nowrap">{formatPostDate(p.created_at)}</span>
+                          {viewerId === p.user_id && editingId !== p.id && (
+                            <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
+                              <PostActionMenu
+                                onEdit={() => {
+                                  setEditingId(p.id);
+                                  setEditBody(p.body || "");
+                                }}
+                                onDelete={() => deletePost(p)}
+                                className="ml-2"
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* content */}
-                      <div
-                        className="relative cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/post/${p.id}?from=profile&username=${encodeURIComponent(slug)}`);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
+                      {editingId === p.id ? (
+                        <div className="space-y-3">
+                          <textarea
+                            value={editBody}
+                            onChange={(e) => setEditBody(e.target.value)}
+                            className={`input w-full rounded-2xl p-3 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                          />
+                          <div className="flex gap-2">
+                            <Button onClick={() => saveEdit(p)} variant="primary">Save</Button>
+                            <Button onClick={() => setEditingId(null)} variant="secondary">Cancel</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className="relative cursor-pointer"
+                          onClick={(e) => {
                             e.stopPropagation();
                             router.push(`/post/${p.id}?from=profile&username=${encodeURIComponent(slug)}`);
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-label="Open post"
-                      >
-                        {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
-                        {p.image_url && (
-                          <div className="mt-3 flex justify-center">
-                            <img
-                              src={p.image_url}
-                              loading="lazy"
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
-                              alt="post image"
-                            />
-                          </div>
-                        )}
-                        {p.video_url && (
-                          <div className="mt-3 flex justify-center">
-                            <video
-                              controls
-                              preload="metadata"
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
-                            >
-                              <source src={p.video_url} />
-                            </video>
-                          </div>
-                        )}
-                      </div>
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              router.push(`/post/${p.id}?from=profile&username=${encodeURIComponent(slug)}`);
+                            }
+                          }}
+                          tabIndex={0}
+                          role="button"
+                          aria-label="Open post"
+                        >
+                          {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{p.body}</p>}
+                          {p.image_url && (
+                            <div className="mt-3 flex justify-center">
+                              <img
+                                src={p.image_url}
+                                loading="lazy"
+                                className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                                alt="post image"
+                              />
+                            </div>
+                          )}
+                          {p.video_url && (
+                            <div className="mt-3 flex justify-center">
+                              <video
+                                controls
+                                preload="metadata"
+                                className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                              >
+                                <source src={p.video_url} />
+                              </video>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* footer */}
                       <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
