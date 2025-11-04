@@ -99,6 +99,11 @@ export default function PublicProfilePage() {
     Record<number, ReactionType | null>
   >({});
   
+  // Growth statuses from growth-directions (proud, grateful, drained)
+  const [growthStatusesByPostId, setGrowthStatusesByPostId] = useState<
+    Record<number, Array<'proud' | 'grateful' | 'drained'>>
+  >({});
+  
   // Track viewed posts to avoid duplicate view increments
   const viewedOnce = useRef<Set<number>>(new Set());
   
@@ -405,6 +410,49 @@ export default function PublicProfilePage() {
       }
     })();
   }, [viewerId, posts]);
+
+  // Load growth statuses (proud, grateful, drained) for posts
+  useEffect(() => {
+    if (posts.length === 0) return;
+    (async () => {
+      try {
+        const ids = posts.map((p) => p.id);
+        const { data } = await supabase
+          .from('post_reactions')
+          .select('post_id, kind')
+          .in('post_id', ids)
+          .in('kind', ['proud', 'grateful', 'drained']);
+
+        const statusesByPost: Record<number, Array<'proud' | 'grateful' | 'drained'>> = {};
+        
+        for (const post of posts) {
+          statusesByPost[post.id] = [];
+        }
+
+        if (data) {
+          for (const r of data as any[]) {
+            const pid = r.post_id as number;
+            const kind = r.kind as string;
+            if ((kind === 'proud' || kind === 'grateful' || kind === 'drained') && statusesByPost[pid] !== undefined) {
+              const status = kind as 'proud' | 'grateful' | 'drained';
+              if (!statusesByPost[pid].includes(status)) {
+                statusesByPost[pid].push(status);
+              }
+            }
+          }
+        }
+
+        setGrowthStatusesByPostId(statusesByPost);
+      } catch (error) {
+        console.error('Error loading growth statuses:', error);
+        const statusesByPost: Record<number, Array<'proud' | 'grateful' | 'drained'>> = {};
+        for (const post of posts) {
+          statusesByPost[post.id] = [];
+        }
+        setGrowthStatusesByPostId(statusesByPost);
+      }
+    })();
+  }, [posts]);
 
   // Track views via RPC
   async function addViewOnce(postId: number) {
@@ -1443,7 +1491,23 @@ export default function PublicProfilePage() {
                     commentsCount: commentCount,
                   }}
                   disableNavigation={true}
-                  className={`telegram-card-feature md:p-6 space-y-2 relative transition-transform duration-200 ease-out`}
+                  className={`telegram-card-feature md:p-6 space-y-2 relative transition-transform duration-200 ease-out ${
+                    (() => {
+                      const hasCategory = p.category && p.category.trim() !== '';
+                      const categoryDirection = hasCategory && availableDirections.find((dir) => {
+                        const categoryLower = p.category?.toLowerCase() || '';
+                        const dirTitleLower = dir.title.toLowerCase();
+                        const dirSlugLower = dir.slug.toLowerCase();
+                        return categoryLower.includes(dirTitleLower) || 
+                               categoryLower.includes(dirSlugLower) ||
+                               dirTitleLower.includes(categoryLower) ||
+                               dirSlugLower.includes(categoryLower);
+                      });
+                      return hasCategory && categoryDirection
+                        ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
+                        : '';
+                    })()
+                  }`}
                   onMouseEnter={() => addViewOnce(p.id)}
                   renderContent={() => (
                     <div className="relative z-10 space-y-2">
@@ -1464,6 +1528,53 @@ export default function PublicProfilePage() {
                             >
                               {username}
                             </Link>
+                            {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                {p.category && (() => {
+                                  const hasCategory = p.category && p.category.trim() !== '';
+                                  const categoryDirection = hasCategory && availableDirections.find((dir) => {
+                                    const categoryLower = p.category?.toLowerCase() || '';
+                                    const dirTitleLower = dir.title.toLowerCase();
+                                    const dirSlugLower = dir.slug.toLowerCase();
+                                    return categoryLower.includes(dirTitleLower) || 
+                                           categoryLower.includes(dirSlugLower) ||
+                                           dirTitleLower.includes(categoryLower) ||
+                                           dirSlugLower.includes(categoryLower);
+                                  });
+                                  return (
+                                    <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                      hasCategory && categoryDirection
+                                        ? isLight
+                                          ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                                          : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                                        : isLight
+                                        ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
+                                        : 'text-telegram-text-secondary bg-white/5'
+                                    }`}>
+                                      {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                                    </div>
+                                  );
+                                })()}
+                                {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
+                                  const statusConfig = {
+                                    proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
+                                    grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
+                                    drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
+                                  };
+                                  const config = statusConfig[status];
+                                  return (
+                                    <div
+                                      key={status}
+                                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
+                                      title={config.label}
+                                    >
+                                      <span>{config.emoji}</span>
+                                      <span>{config.label}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
