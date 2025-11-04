@@ -164,10 +164,28 @@ function GrowthDirectionsInner() {
   const [completedPage, setCompletedPage] = useState(0);
   const [loadingCompleted, setLoadingCompleted] = useState(false);
   const [resettingAllTasks, setResettingAllTasks] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [resettingAchievements, setResettingAchievements] = useState(false);
 
   useEffect(() => {
     loadDirections();
+    checkAdmin();
   }, []);
+
+  async function checkAdmin() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsAdmin(false);
+        return;
+      }
+      const { data, error } = await supabase.rpc('is_admin_uid');
+      setIsAdmin(data ?? false);
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+    }
+  }
 
   useEffect(() => {
     if (selectedDirection) {
@@ -807,6 +825,61 @@ function GrowthDirectionsInner() {
     }
   }
 
+  async function resetAllAchievements() {
+    if (!isAdmin) {
+      setNotification({ message: 'Admin access required' });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Are you sure you want to reset all achievements? This will delete all completed tasks, check-ins, and points. This action cannot be undone.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setResettingAchievements(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setNotification({ message: 'Session expired. Please refresh the page.' });
+        return;
+      }
+
+      const res = await fetch('/api/growth/achievements.resetAll', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Failed to reset achievements' }));
+        throw new Error(errorData.error || 'Failed to reset achievements');
+      }
+
+      setNotification({ 
+        message: 'All achievements have been reset successfully' 
+      });
+
+      // Reload all data
+      await loadCompletedTasks();
+      await loadDirections();
+      if (selectedDirection) {
+        await loadTasks(selectedDirection);
+      }
+      await loadSummary();
+    } catch (error: any) {
+      console.error('Error resetting achievements:', error);
+      setNotification({ message: error.message || 'Failed to reset achievements' });
+    } finally {
+      setResettingAchievements(false);
+    }
+  }
+
   function openCheckInModal(userTaskId: string, task: Task) {
     setShowCheckInModal({ userTaskId, task });
     // Pre-fill post with task information
@@ -1178,12 +1251,28 @@ function GrowthDirectionsInner() {
     <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
       {/* Header */}
       <div className="mb-6 md:mb-8">
-        <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' : 'gradient-text'}`}>
-          Growth Directions
-        </h1>
-        <p className={`mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-          Select directions and activate tasks to track your growth.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              Growth Directions
+            </h1>
+            <p className={`mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              Select directions and activate tasks to track your growth.
+            </p>
+          </div>
+          {isAdmin && (
+            <div className="flex gap-2">
+              <Button
+                onClick={resetAllAchievements}
+                disabled={resettingAchievements}
+                variant="secondary"
+                className="text-sm"
+              >
+                {resettingAchievements ? 'Resetting...' : 'Reset All Achievements'}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Notification */}
@@ -1208,7 +1297,7 @@ function GrowthDirectionsInner() {
 
       {/* Completed Tasks & Total Points Section */}
       {!loading && (
-        <div className={`telegram-card-glow p-4 md:p-6 mb-6 ${isLight ? '' : ''}`}>
+        <div className={`p-4 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-telegram-bg-secondary border-telegram-blue/10' : 'bg-white/5 border-telegram-blue/20'}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>
               <h2 className={`font-semibold text-base mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
@@ -1400,7 +1489,7 @@ function GrowthDirectionsInner() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Directions List */}
           <div className="lg:col-span-1 space-y-4">
-            <div className={`telegram-card-glow p-4 ${isLight ? '' : ''}`}>
+            <div className={`p-4 rounded-lg border ${isLight ? 'bg-telegram-bg-secondary border-telegram-blue/10' : 'bg-white/5 border-telegram-blue/20'}`}>
               <h2 className={`font-semibold mb-3 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                 Directions
               </h2>
@@ -1505,7 +1594,7 @@ function GrowthDirectionsInner() {
           <div className="lg:col-span-2 space-y-6">
             {selectedDirection ? (
               <>
-                  <div className={`telegram-card-glow p-4 ${isLight ? '' : ''}`}>
+                  <div className={`p-4 rounded-lg border mb-6 ${isLight ? 'bg-telegram-bg-secondary border-telegram-blue/10' : 'bg-white/5 border-telegram-blue/20'}`}>
                     <div className="flex items-center gap-3 mb-4">
                       <div>
                         <h2 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
@@ -1552,9 +1641,9 @@ function GrowthDirectionsInner() {
                             <div
                               key={habit.id}
                               id={elementId}
-                              className={`telegram-card-glow p-4 md:p-6 space-y-4 transition ${
-                                isHighlighted ? 'ring-2 ring-telegram-blue shadow-lg' : ''
-                              } ${isLight ? 'bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5 border border-telegram-blue/20' : 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border border-telegram-blue/30'}`}
+                              className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
+                                isHighlighted ? 'ring-2 ring-telegram-blue' : ''
+                              } ${isLight ? 'bg-telegram-bg-secondary border-telegram-blue/10' : 'bg-white/5 border-telegram-blue/20'}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -1679,9 +1768,9 @@ function GrowthDirectionsInner() {
                             <div
                               key={goal.id}
                               id={elementId}
-                              className={`telegram-card-glow p-4 md:p-6 space-y-4 transition ${
-                                isHighlighted ? 'ring-2 ring-telegram-blue shadow-lg' : ''
-                              } ${isLight ? 'bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5 border border-telegram-blue/20' : 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border border-telegram-blue/30'}`}
+                              className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
+                                isHighlighted ? 'ring-2 ring-telegram-blue' : ''
+                              } ${isLight ? 'bg-telegram-bg-secondary border-telegram-blue/10' : 'bg-white/5 border-telegram-blue/20'}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
