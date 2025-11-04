@@ -10,6 +10,9 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import PostCard from '@/components/PostCard';
 import { resolveDirectionEmoji } from '@/lib/directions';
 import { useTheme } from '@/components/ThemeProvider';
+import PostReactions, { ReactionType } from '@/components/PostReactions';
+import PostCommentsBadge from '@/components/PostCommentsBadge';
+import { Paperclip } from 'lucide-react';
 
 type Profile = {
   user_id: string;
@@ -34,6 +37,8 @@ type Post = {
   image_url: string | null;
   video_url: string | null;
   created_at: string;
+  views?: number;
+  category?: string | null;
 };
 
 export default function PublicProfilePage() {
@@ -85,6 +90,22 @@ export default function PublicProfilePage() {
   // comment stats for posts
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
   const [viewsByPostId, setViewsByPostId] = useState<Record<number, number>>({});
+  
+  // Post reactions state
+  const [reactionsByPostId, setReactionsByPostId] = useState<
+    Record<number, Record<ReactionType, number>>
+  >({});
+  const [selectedReactionsByPostId, setSelectedReactionsByPostId] = useState<
+    Record<number, ReactionType | null>
+  >({});
+  
+  // Track viewed posts to avoid duplicate view increments
+  const viewedOnce = useRef<Set<number>>(new Set());
+  
+  // Open comments state
+  const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
+  const [commentInput, setCommentInput] = useState<Record<number, string>>({});
+  const [commentFile, setCommentFile] = useState<Record<number, File | null>>({});
 
   // avatar upload (own profile)
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -231,7 +252,7 @@ export default function PublicProfilePage() {
       setLoadingPosts(true);
       const { data } = await supabase
         .from('posts')
-        .select('id, user_id, body, image_url, video_url, created_at')
+        .select('id, user_id, body, image_url, video_url, created_at, views, category')
         .eq('user_id', profile.user_id)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -304,7 +325,6 @@ export default function PublicProfilePage() {
           // ignore
         }
 
-
         // views (if present on posts rows)
         const vmap: Record<number, number> = {};
         for (const p of posts) vmap[p.id] = (p as any).views ?? 0;
@@ -314,6 +334,140 @@ export default function PublicProfilePage() {
       }
     })();
   }, [posts]);
+
+  // Load reactions for posts
+  useEffect(() => {
+    if (posts.length === 0 || !viewerId) return;
+    (async () => {
+      try {
+        const ids = posts.map((p) => p.id);
+        const { data } = await supabase
+          .from("post_reactions")
+          .select("post_id, kind, user_id")
+          .in("post_id", ids);
+
+        const counts: Record<number, Record<ReactionType, number>> = {};
+        const selected: Record<number, ReactionType | null> = {};
+
+        for (const post of posts) {
+          counts[post.id] = {
+            inspire: 0,
+            respect: 0,
+            relate: 0,
+            support: 0,
+            celebrate: 0,
+          };
+          selected[post.id] = null;
+        }
+
+        if (data) {
+          for (const r of data as any[]) {
+            const pid = r.post_id as number;
+            const kind = r.kind as string;
+            const userId = r.user_id as string;
+
+            const reactionMap: Record<string, ReactionType> = {
+              inspire: 'inspire',
+              respect: 'respect',
+              relate: 'relate',
+              support: 'support',
+              celebrate: 'celebrate',
+            };
+
+            const reactionType = reactionMap[kind];
+            if (reactionType && counts[pid]) {
+              counts[pid][reactionType] = (counts[pid][reactionType] || 0) + 1;
+              if (viewerId && userId === viewerId) {
+                selected[pid] = reactionType;
+              }
+            }
+          }
+        }
+
+        setReactionsByPostId(counts);
+        setSelectedReactionsByPostId(selected);
+      } catch (error) {
+        console.error('Error loading reactions:', error);
+        const counts: Record<number, Record<ReactionType, number>> = {};
+        const selected: Record<number, ReactionType | null> = {};
+        for (const post of posts) {
+          counts[post.id] = {
+            inspire: 0,
+            respect: 0,
+            relate: 0,
+            support: 0,
+            celebrate: 0,
+          };
+          selected[post.id] = null;
+        }
+        setReactionsByPostId(counts);
+        setSelectedReactionsByPostId(selected);
+      }
+    })();
+  }, [viewerId, posts]);
+
+  // Track views via RPC
+  async function addViewOnce(postId: number) {
+    if (viewedOnce.current.has(postId)) return;
+    viewedOnce.current.add(postId);
+    setViewsByPostId((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] ?? 0) + 1,
+    }));
+    try {
+      const { error } = await supabase.rpc("increment_post_views", {
+        p_id: postId,
+      });
+      if (error) throw error;
+    } catch {
+      const current = viewsByPostId[postId] ?? 0;
+      await supabase
+        .from("posts")
+        .update({ views: current + 1 })
+        .eq("id", postId);
+    }
+  }
+
+  // Upload comment media
+  async function uploadCommentToStorage(file: File) {
+    const ext = file.name.split(".").pop() || "bin";
+    const path = `media/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const bucket = supabase.storage.from("comments");
+    const { error } = await bucket.upload(path, file, {
+      upsert: false,
+      contentType: file.type,
+    });
+    if (error) throw error;
+    const { data } = bucket.getPublicUrl(path);
+    return data.publicUrl as string;
+  }
+
+  // Add comment
+  async function addComment(postId: number) {
+    if (!viewerId) return alert("Sign in required");
+    const text = (commentInput[postId] || "").trim();
+    const file = commentFile[postId] || null;
+    if (!text && !file) return;
+    try {
+      let media_url: string | null = null;
+      if (file) {
+        media_url = await uploadCommentToStorage(file);
+      }
+      const { data, error } = await supabase
+        .from("comments")
+        .insert({ post_id: postId, user_id: viewerId, body: text || null, media_url, parent_id: null })
+        .select("*")
+        .single();
+      if (error) throw error;
+      if (data) {
+        setCommentCounts((prev) => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }));
+        setCommentInput((prev) => ({ ...prev, [postId]: "" }));
+        setCommentFile((prev) => ({ ...prev, [postId]: null }));
+      }
+    } catch (e: any) {
+      alert(e.message || "Failed to add comment");
+    }
+  }
 
   useEffect(() => {
     if (!viewerId || !profile?.user_id || viewerId === profile.user_id) return;
@@ -1290,6 +1444,7 @@ export default function PublicProfilePage() {
                   }}
                   disableNavigation={true}
                   className={`telegram-card-feature md:p-6 space-y-2 relative transition-transform duration-200 ease-out`}
+                  onMouseEnter={() => addViewOnce(p.id)}
                   renderContent={() => (
                     <div className="relative z-10 space-y-2">
                       {/* header */}
@@ -1321,13 +1476,13 @@ export default function PublicProfilePage() {
                         className="relative cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/post/${p.id}`);
+                          router.push(`/post/${p.id}?from=profile&username=${encodeURIComponent(slug)}`);
                         }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             e.stopPropagation();
-                            router.push(`/post/${p.id}`);
+                            router.push(`/post/${p.id}?from=profile&username=${encodeURIComponent(slug)}`);
                           }
                         }}
                         tabIndex={0}
@@ -1364,10 +1519,164 @@ export default function PublicProfilePage() {
                           <Eye />
                           <span className="text-sm">{viewsByPostId[p.id] ?? 0}</span>
                         </div>
-                        <div className={`ml-auto text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                          Comments: {commentCount}
+
+                        <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
+                          <PostReactions
+                            postId={p.id}
+                            initialCounts={reactionsByPostId[p.id] || {
+                              inspire: 0,
+                              respect: 0,
+                              relate: 0,
+                              support: 0,
+                              celebrate: 0,
+                            }}
+                            initialSelected={selectedReactionsByPostId[p.id] || null}
+                            onReactionChange={async (reaction, counts) => {
+                              if (!viewerId) {
+                                alert("Sign in required");
+                                return;
+                              }
+
+                              try {
+                                const previousReaction = selectedReactionsByPostId[p.id];
+
+                                if (previousReaction) {
+                                  const { error: deleteError } = await supabase
+                                    .from("post_reactions")
+                                    .delete()
+                                    .eq("post_id", p.id)
+                                    .eq("user_id", viewerId)
+                                    .eq("kind", previousReaction);
+                                  if (deleteError) {
+                                    console.error("Error deleting reaction:", deleteError);
+                                    throw deleteError;
+                                  }
+                                }
+
+                                if (reaction) {
+                                  const { error: insertError } = await supabase
+                                    .from("post_reactions")
+                                    .insert({
+                                      post_id: p.id,
+                                      user_id: viewerId,
+                                      kind: reaction,
+                                    });
+                                  if (insertError) {
+                                    console.error("Error inserting reaction:", insertError);
+                                    throw insertError;
+                                  }
+                                }
+
+                                const { data } = await supabase
+                                  .from("post_reactions")
+                                  .select("post_id, kind, user_id")
+                                  .eq("post_id", p.id);
+
+                                const newCounts: Record<ReactionType, number> = {
+                                  inspire: 0,
+                                  respect: 0,
+                                  relate: 0,
+                                  support: 0,
+                                  celebrate: 0,
+                                };
+
+                                if (data) {
+                                  for (const r of data as any[]) {
+                                    const kind = r.kind as string;
+                                    const reactionMap: Record<string, ReactionType> = {
+                                      inspire: 'inspire',
+                                      respect: 'respect',
+                                      relate: 'relate',
+                                      support: 'support',
+                                      celebrate: 'celebrate',
+                                    };
+                                    const reactionType = reactionMap[kind];
+                                    if (reactionType) {
+                                      newCounts[reactionType] = (newCounts[reactionType] || 0) + 1;
+                                    }
+                                  }
+                                }
+
+                                setReactionsByPostId((prev) => ({
+                                  ...prev,
+                                  [p.id]: newCounts,
+                                }));
+                                setSelectedReactionsByPostId((prev) => ({
+                                  ...prev,
+                                  [p.id]: reaction,
+                                }));
+                              } catch (error: any) {
+                                console.error("Error updating reaction:", error);
+                                alert(`Failed to update reaction: ${error?.message || "Unknown error"}`);
+                              }
+                            }}
+                          />
                         </div>
+
+                        <PostCommentsBadge
+                          count={commentCount}
+                          size="md"
+                          onOpen={() => {
+                            const willOpen = !openComments[p.id];
+                            setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
+                          }}
+                          onFocusComposer={() => {
+                            const composer = document.getElementById(`comment-composer-${p.id}`);
+                            if (composer) {
+                              composer.focus();
+                              composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            }
+                          }}
+                          className="ml-auto"
+                        />
                       </div>
+
+                      {/* Quick comment form only - no history */}
+                      {openComments[p.id] && (
+                        <div className="mt-3">
+                          <div className="flex gap-2 items-center">
+                            <input
+                              id={`comment-composer-${p.id}`}
+                              value={commentInput[p.id] || ""}
+                              onChange={(e) =>
+                                setCommentInput((prev) => ({
+                                  ...prev,
+                                  [p.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Write a comment?"
+                              className={`input py-2 focus:ring-0 flex-1 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                            />
+                            <input
+                              id={`cfile-${p.id}`}
+                              type="file"
+                              accept="image/*,video/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                setCommentFile((prev) => ({ ...prev, [p.id]: file }));
+                              }}
+                            />
+                            <label
+                              htmlFor={`cfile-${p.id}`}
+                              className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition flex items-center justify-center gap-2 ${
+                                isLight
+                                  ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
+                                  : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                              }`}
+                            >
+                              <Paperclip className="h-4 w-4" aria-hidden="true" />
+                              <span className="sr-only">Attach file</span>
+                            </label>
+                            {commentFile[p.id] && (
+                              <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
+                            )}
+                            <button onClick={() => addComment(p.id)} className="btn btn-primary">
+                              Send
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 />
