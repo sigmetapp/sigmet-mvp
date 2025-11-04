@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import Button from "@/components/Button";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -44,7 +45,9 @@ function ConnectionsInner() {
 
   const [myFollowing, setMyFollowing] = useState<Set<string>>(new Set());
   const [myFollowers, setMyFollowers] = useState<Set<string>>(new Set());
-  const [updatingFollow, setUpdatingFollow] = useState<Record<string, boolean>>({});
+  const [swScores, setSwScores] = useState<Record<string, number>>({});
+  const [followersProfiles, setFollowersProfiles] = useState<Record<string, SimpleProfile>>({});
+  const [followingProfiles, setFollowingProfiles] = useState<Record<string, SimpleProfile>>({});
 
   const title = useMemo(() => "Connections", []);
 
@@ -241,8 +244,27 @@ function ConnectionsInner() {
             };
           }
           setProfiles(map);
+
+          // Load SW scores for connections
+          try {
+            const { data: swData } = await supabase
+              .from("sw_scores")
+              .select("user_id, total")
+              .in("user_id", ids);
+            const swMap: Record<string, number> = {};
+            if (swData) {
+              for (const row of swData as any[]) {
+                swMap[row.user_id as string] = (row.total as number) || 0;
+              }
+            }
+            setSwScores(swMap);
+          } catch {
+            // SW scores table may not exist
+            setSwScores({});
+          }
         } else {
           setProfiles({});
+          setSwScores({});
         }
 
         // Load follows (followers and following for me)
@@ -251,52 +273,55 @@ function ConnectionsInner() {
             supabase.from("follows").select("followee_id").eq("follower_id", meId),
             supabase.from("follows").select("follower_id").eq("followee_id", meId),
           ]);
-          setMyFollowing(new Set(((followingRows as any[]) || []).map((r) => r.followee_id as string)));
-          setMyFollowers(new Set(((followerRows as any[]) || []).map((r) => r.follower_id as string)));
+          const followingSet = new Set(((followingRows as any[]) || []).map((r) => r.followee_id as string));
+          const followersSet = new Set(((followerRows as any[]) || []).map((r) => r.follower_id as string));
+          
+          setMyFollowing(followingSet);
+          setMyFollowers(followersSet);
+
+          // Load profiles for followers and following
+          const allFollowUserIds = Array.from(new Set([...followingSet, ...followersSet]));
+          if (allFollowUserIds.length > 0) {
+            const { data: followProfs } = await supabase
+              .from("profiles")
+              .select("user_id, username, full_name, avatar_url")
+              .in("user_id", allFollowUserIds);
+
+            const followersMap: Record<string, SimpleProfile> = {};
+            const followingMap: Record<string, SimpleProfile> = {};
+
+            if (followProfs) {
+              for (const p of followProfs as any[]) {
+                const profile: SimpleProfile = {
+                  user_id: p.user_id as string,
+                  username: (p.username as string | null) ?? null,
+                  full_name: (p.full_name as string | null) ?? null,
+                  avatar_url: (p.avatar_url as string | null) ?? null,
+                };
+                if (followersSet.has(p.user_id as string)) {
+                  followersMap[p.user_id as string] = profile;
+                }
+                if (followingSet.has(p.user_id as string)) {
+                  followingMap[p.user_id as string] = profile;
+                }
+              }
+            }
+
+            setFollowersProfiles(followersMap);
+            setFollowingProfiles(followingMap);
+          }
         } catch {
           // follows table may not exist in some envs
           setMyFollowing(new Set());
           setMyFollowers(new Set());
+          setFollowersProfiles({});
+          setFollowingProfiles({});
         }
       } finally {
         setLoading(false);
       }
     })();
   }, [meId, meUsername]);
-
-  async function toggleFollow(targetUserId: string) {
-    if (!meId || meId === targetUserId) return;
-    const isFollowing = myFollowing.has(targetUserId);
-    setUpdatingFollow((prev) => ({ ...prev, [targetUserId]: true }));
-    try {
-      if (!isFollowing) {
-        const { error } = await supabase
-          .from("follows")
-          .insert({ follower_id: meId, followee_id: targetUserId });
-        if (!error) setMyFollowing((prev) => new Set(prev).add(targetUserId));
-      } else {
-        const { error } = await supabase
-          .from("follows")
-          .delete()
-          .eq("follower_id", meId)
-          .eq("followee_id", targetUserId);
-        if (!error)
-          setMyFollowing((prev) => {
-            const next = new Set(prev);
-            next.delete(targetUserId);
-            return next;
-          });
-      }
-    } catch {
-      // ignore
-    } finally {
-      setUpdatingFollow((prev) => ({ ...prev, [targetUserId]: false }));
-    }
-  }
-
-  const maxConnections = useMemo(() => {
-    return connections.reduce((m, c) => Math.max(m, c.connectionsCount), 0) || 1;
-  }, [connections]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 md:p-6 space-y-6">
@@ -307,90 +332,131 @@ function ConnectionsInner() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="text-white/70">Loading…</div>
-      ) : connections.length === 0 ? (
-        <div className="text-white/70">No connections yet.</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {connections.map((c) => {
-            const p = profiles[c.userId];
-            const displayName = p?.full_name || p?.username || c.userId.slice(0, 8);
-            const username = p?.username || c.userId.slice(0, 8);
-            const avatar = p?.avatar_url || AVATAR_FALLBACK;
-            const connectionsCount = c.connectionsCount;
-            const percent = Math.max(8, Math.round((connectionsCount / maxConnections) * 100));
-            const iFollow = myFollowing.has(c.userId);
-            const followsMe = myFollowers.has(c.userId);
-            return (
-              <div key={c.userId} className="card p-4 space-y-3 border border-white/10">
-                <div className="flex items-center gap-3">
-                  <img src={avatar} alt="avatar" className="h-10 w-10 rounded-full object-cover border border-white/10" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-white truncate font-medium">{displayName}</div>
-                    <div className="text-white/60 text-sm truncate">@{username}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-white/80 text-sm font-medium">
-                      {connectionsCount} {connectionsCount === 1 ? 'connection' : 'connections'}
-                    </div>
-                    <Button
-                      variant={iFollow ? "secondary" : "primary"}
-                      size="sm"
-                      onClick={() => toggleFollow(c.userId)}
-                      disabled={!!updatingFollow[c.userId]}
-                    >
-                      {iFollow ? "Following" : "Follow"}
-                    </Button>
-                  </div>
-                </div>
+      {/* Connections Block */}
+      <div className="card p-4 md:p-6 space-y-4">
+        <div className="text-white/80 font-medium text-lg">Connections</div>
+        {loading ? (
+          <div className="text-white/70 text-sm">Loading…</div>
+        ) : connections.length === 0 ? (
+          <div className="text-white/60 text-sm">No connections yet. Tag each other in posts to create connections.</div>
+        ) : (
+          <div className="space-y-3">
+            {connections.map((c) => {
+              const p = profiles[c.userId];
+              const displayName = p?.full_name || p?.username || c.userId.slice(0, 8);
+              const username = p?.username || c.userId.slice(0, 8);
+              const avatar = p?.avatar_url || AVATAR_FALLBACK;
+              const connectionsCount = c.connectionsCount;
+              const swScore = swScores[c.userId] || 0;
+              const profileUrl = username ? `/u/${username}` : `/u/${c.userId}`;
+              const dmUrl = `/dms?partnerId=${encodeURIComponent(c.userId)}`;
 
-                <div className="space-y-2">
-                  <div className="text-white/70 text-xs">Connections strength</div>
-                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                    <div
-                      className="h-2 bg-[linear-gradient(90deg,#7affc0,#00ffc8)]"
-                      style={{ width: `${percent}%` }}
+              return (
+                <div key={c.userId} className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
+                  <Link href={profileUrl} className="flex-shrink-0">
+                    <img
+                      src={avatar}
+                      alt={displayName}
+                      className="h-12 w-12 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
                     />
+                  </Link>
+                  <div className="min-w-0 flex-1">
+                    <Link href={profileUrl} className="block hover:underline">
+                      <div className="text-white font-medium truncate">{displayName}</div>
+                      <div className="text-white/60 text-sm truncate">@{username}</div>
+                    </Link>
                   </div>
-                  <div className="text-white/70 text-xs flex items-center gap-2">
-                    <span>{connectionsCount} mutual {connectionsCount === 1 ? 'mention' : 'mentions'} in posts</span>
-                    {followsMe && <span className="px-2 py-0.5 rounded-full border border-white/20">follows you</span>}
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="text-right">
+                      <div className="text-white/80 text-sm font-medium">
+                        {connectionsCount} {connectionsCount === 1 ? 'connection' : 'connections'}
+                      </div>
+                      {swScore > 0 && (
+                        <div className="text-white/60 text-xs">
+                          {swScore} SW
+                        </div>
+                      )}
+                    </div>
+                    <Link href={dmUrl}>
+                      <Button variant="primary" size="sm">
+                        Write
+                      </Button>
+                    </Link>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-      {/* Followers/Following quick glance */}
+      {/* Followers/Following Blocks */}
       {meId && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="card p-4">
-            <div className="text-white/80 font-medium mb-2">Followers</div>
+          <div className="card p-4 md:p-6 space-y-4">
+            <div className="text-white/80 font-medium text-lg">Followers</div>
             {myFollowers.size === 0 ? (
               <div className="text-white/60 text-sm">No followers yet.</div>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {Array.from(myFollowers).slice(0, 12).map((uid) => {
-                  const p = profiles[uid];
+              <div className="space-y-3">
+                {Array.from(myFollowers).map((uid) => {
+                  const p = followersProfiles[uid];
+                  const displayName = p?.full_name || p?.username || uid.slice(0, 8);
+                  const username = p?.username || uid.slice(0, 8);
                   const avatar = p?.avatar_url || AVATAR_FALLBACK;
-                  return <img key={uid} src={avatar} alt="" className="h-8 w-8 rounded-full border border-white/10" />;
+                  const profileUrl = username ? `/u/${username}` : `/u/${uid}`;
+
+                  return (
+                    <Link
+                      key={uid}
+                      href={profileUrl}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors"
+                    >
+                      <img
+                        src={avatar}
+                        alt={displayName}
+                        className="h-10 w-10 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-white font-medium truncate">{displayName}</div>
+                        <div className="text-white/60 text-sm truncate">@{username}</div>
+                      </div>
+                    </Link>
+                  );
                 })}
               </div>
             )}
           </div>
-          <div className="card p-4">
-            <div className="text-white/80 font-medium mb-2">Following</div>
+          <div className="card p-4 md:p-6 space-y-4">
+            <div className="text-white/80 font-medium text-lg">Following</div>
             {myFollowing.size === 0 ? (
               <div className="text-white/60 text-sm">You are not following anyone yet.</div>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {Array.from(myFollowing).slice(0, 12).map((uid) => {
-                  const p = profiles[uid];
+              <div className="space-y-3">
+                {Array.from(myFollowing).map((uid) => {
+                  const p = followingProfiles[uid];
+                  const displayName = p?.full_name || p?.username || uid.slice(0, 8);
+                  const username = p?.username || uid.slice(0, 8);
                   const avatar = p?.avatar_url || AVATAR_FALLBACK;
-                  return <img key={uid} src={avatar} alt="" className="h-8 w-8 rounded-full border border-white/10" />;
+                  const profileUrl = username ? `/u/${username}` : `/u/${uid}`;
+
+                  return (
+                    <Link
+                      key={uid}
+                      href={profileUrl}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors"
+                    >
+                      <img
+                        src={avatar}
+                        alt={displayName}
+                        className="h-10 w-10 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-white font-medium truncate">{displayName}</div>
+                        <div className="text-white/60 text-sm truncate">@{username}</div>
+                      </div>
+                    </Link>
+                  );
                 })}
               </div>
             )}
