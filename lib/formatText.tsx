@@ -1,7 +1,8 @@
 import React from 'react';
+import Link from 'next/link';
 
 /**
- * Парсит текст и выделяет упоминания через @ зеленой подчеркнутой линией
+ * Парсит текст и выделяет упоминания через @ светло-зеленой подчеркнутой линией
  * @param text - Текст для обработки
  * @returns React элементы с выделенными упоминаниями
  */
@@ -26,14 +27,17 @@ export function formatTextWithMentions(text: string): React.ReactNode {
       parts.push(text.substring(lastIndex, matchIndex));
     }
 
-    // Добавляем упоминание с зеленой подчеркнутой линией
+    // Добавляем упоминание с светло-зеленой подчеркнутой линией и ссылкой на страницу пользователя
     parts.push(
-      <span
+      <Link
         key={`mention-${matchIndex}`}
-        className="underline decoration-green-400 decoration-2"
+        href={`/u/${username}`}
+        className="underline decoration-green-300 decoration-2 hover:decoration-green-400 transition-colors"
+        onClick={(e) => e.stopPropagation()}
+        data-prevent-card-navigation="true"
       >
         {fullMatch}
-      </span>
+      </Link>
     );
 
     lastIndex = matchIndex + fullMatch.length;
