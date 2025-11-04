@@ -473,6 +473,43 @@ html.theme-light .text-\[\\#0f1628\] { color: rgb(14 21 38) !important; }
 html.theme-light .bg-\[\\#0b1220\] { background-color: #ffffff !important; }
 html.theme-light .text-\[\\#e5edf7\] { color: rgb(14 21 38) !important; }
 
+/* Gray background overrides for light theme */
+html.theme-light .bg-gray-800 { 
+  background-color: #ffffff !important; 
+  border: 1px solid rgb(229 231 235) !important; /* Gray-200 border for better definition */
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important; /* Subtle shadow for depth */
+} /* White with border for cards */
+html.theme-light .bg-gray-700 { 
+  background-color: #f3f4f6 !important; 
+  border: 1px solid rgb(209 213 219) !important; /* Gray-300 border for better definition */
+} /* Lighter gray for code blocks/buttons */
+
+/* Gray text color overrides for light theme */
+html.theme-light .text-gray-400 { color: rgb(107 114 128) !important; } /* Gray-500 equivalent for better contrast */
+html.theme-light .text-gray-300 { color: rgb(75 85 99) !important; } /* Gray-600 equivalent for better contrast */
+html.theme-light .text-gray-500 { color: rgb(107 114 128) !important; } /* Gray-500 for placeholders */
+
+/* Gray border overrides for light theme */
+html.theme-light .border-gray-700 { border-color: rgb(229 231 235) !important; } /* Gray-200 for light borders */
+html.theme-light .border-gray-700\/50 { border-color: rgb(229 231 235 / 0.5) !important; } /* Semi-transparent light borders */
+
+/* Green color overrides for light theme - better contrast */
+html.theme-light .bg-green-500\/20 { background-color: rgb(220 252 231) !important; } /* Green-100 for better visibility */
+html.theme-light .border-green-500\/50 { border-color: rgb(34 197 94) !important; } /* Green-500 solid for better contrast */
+html.theme-light .text-green-300 { color: rgb(22 163 74) !important; } /* Green-700 for better contrast on light background */
+html.theme-light .text-green-400 { color: rgb(22 163 74) !important; } /* Green-700 for better contrast */
+
+/* Red color overrides for light theme - better contrast */
+html.theme-light .bg-red-500\/20 { background-color: rgb(254 226 226) !important; } /* Red-100 for better visibility */
+html.theme-light .border-red-500\/50 { border-color: rgb(239 68 68) !important; } /* Red-500 solid for better contrast */
+html.theme-light .text-red-300 { color: rgb(185 28 28) !important; } /* Red-700 for better contrast on light background */
+
+/* Yellow color overrides for light theme - better contrast */
+html.theme-light .text-yellow-400 { color: rgb(180 83 9) !important; } /* Yellow-700 for better contrast */
+
+/* Blue color overrides for light theme - better contrast */
+html.theme-light .text-blue-400 { color: rgb(37 99 235) !important; } /* Blue-600 for better contrast */
+
 /* Create Post button positioning - 130px right of feed (max-w-3xl = 768px, centered) */
 .feed-create-button {
   /* For large screens: feed is 768px centered, right edge = 50vw + 384px from left,
