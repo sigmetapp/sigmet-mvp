@@ -80,6 +80,10 @@ export default function PublicProfilePage() {
     Array<{ id: string; name: string; emoji: string; description: string }>
   >([]);
 
+  // SW (Social Weight) state
+  const [totalSW, setTotalSW] = useState<number | null>(null);
+  const [loadingSW, setLoadingSW] = useState(false);
+
   const isMe = useMemo(() => {
     if (!viewerId || !profile) return false;
     return viewerId === profile.user_id;
@@ -375,6 +379,40 @@ export default function PublicProfilePage() {
         setDisplayedBadges(filtered);
       } catch {
         setDisplayedBadges([]);
+      }
+    })();
+  }, [profile?.user_id]);
+
+  // Load SW (Social Weight) data
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    (async () => {
+      setLoadingSW(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setTotalSW(null);
+          setLoadingSW(false);
+          return;
+        }
+
+        const response = await fetch(`/api/sw/calculate?user_id=${encodeURIComponent(profile.user_id)}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setTotalSW(data.totalSW || 0);
+        } else {
+          setTotalSW(null);
+        }
+      } catch (error) {
+        console.error('Error loading SW:', error);
+        setTotalSW(null);
+      } finally {
+        setLoadingSW(false);
       }
     })();
   }, [profile?.user_id]);
@@ -742,12 +780,38 @@ export default function PublicProfilePage() {
                 <div className="rounded-2xl border border-white/15 bg-white/5 p-3">
                   <div className="flex items-center justify-between text-white/80 text-sm mb-2">
                     <div className="font-medium">Social Weight</div>
-                    <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80">75/100</div>
+                    {loadingSW ? (
+                      <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80 text-xs">Loading...</div>
+                    ) : totalSW !== null ? (
+                      <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80">
+                        {totalSW.toLocaleString()}
+                      </div>
+                    ) : (
+                      <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80 text-xs">N/A</div>
+                    )}
                   </div>
-                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full w-[75%]" style={{ background: 'linear-gradient(90deg,#00ffc8,#7affc0)' }}></div>
+                  {loadingSW ? (
+                    <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div className="h-full w-full bg-white/20 animate-pulse"></div>
+                    </div>
+                  ) : totalSW !== null ? (
+                    <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div 
+                        className="h-full" 
+                        style={{ 
+                          width: `${Math.min(100, (totalSW / 1000) * 100)}%`,
+                          background: 'linear-gradient(90deg,#00ffc8,#7affc0)' 
+                        }}
+                      ></div>
+                    </div>
+                  ) : (
+                    <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div className="h-full w-0"></div>
+                    </div>
+                  )}
+                  <div className="mt-2 text-xs text-white/60">
+                    {loadingSW ? 'Loading...' : totalSW !== null ? 'Total Points' : 'Unable to load SW'}
                   </div>
-                  <div className="mt-2 text-xs text-white/60">In development, coming soon</div>
                 </div>
 
                 {/* Trust Flow */}
