@@ -9,7 +9,7 @@ import { Sun, Moon, Menu, X } from "lucide-react";
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/feed", label: "Feed" },
-  { href: "/profile", label: "Profile" },
+  { href: "https://sigmet-mvp.vercel.app/invite", label: "Invite" },
 ];
 
 export default function Header() {
@@ -75,19 +75,31 @@ export default function Header() {
         <nav className="ml-auto hidden md:flex items-center gap-1">
           {navLinks.map((l) => {
             const active = pathname === l.href;
-            return (
+            const isExternal = l.href.startsWith("http");
+            const className = `px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+              active
+                ? isLight
+                  ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                  : "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                : isLight
+                ? "text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
+                : "text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
+            }`;
+            return isExternal ? (
+              <a
+                key={l.href}
+                href={l.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={className}
+              >
+                {l.label}
+              </a>
+            ) : (
               <Link
                 key={l.href}
                 href={l.href}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                  active
-                    ? isLight
-                      ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                      : "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                    : isLight
-                    ? "text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
-                    : "text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
-                }`}
+                className={className}
               >
                 {l.label}
               </Link>
@@ -170,20 +182,33 @@ export default function Header() {
           <nav className="px-4 py-3 flex flex-col gap-2">
             {navLinks.map((l) => {
               const active = pathname === l.href;
-              return (
+              const isExternal = l.href.startsWith("http");
+              const className = `px-3 py-2 rounded-lg text-sm font-medium transition ${
+                active
+                  ? isLight
+                    ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                    : "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                  : isLight
+                  ? "text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
+                  : "text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
+              }`;
+              return isExternal ? (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={className}
+                >
+                  {l.label}
+                </a>
+              ) : (
                 <Link
                   key={l.href}
                   href={l.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
-                    active
-                      ? isLight
-                        ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                        : "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                      : isLight
-                      ? "text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
-                      : "text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
-                  }`}
+                  className={className}
                 >
                   {l.label}
                 </Link>
