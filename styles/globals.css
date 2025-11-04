@@ -473,6 +473,19 @@ html.theme-light .text-\[\\#0f1628\] { color: rgb(14 21 38) !important; }
 html.theme-light .bg-\[\\#0b1220\] { background-color: #ffffff !important; }
 html.theme-light .text-\[\\#e5edf7\] { color: rgb(14 21 38) !important; }
 
+/* Gray background overrides for light theme */
+html.theme-light .bg-gray-800 { background-color: #f9fafb !important; } /* Light gray for cards */
+html.theme-light .bg-gray-700 { background-color: #f3f4f6 !important; } /* Lighter gray for code blocks/buttons */
+
+/* Gray text color overrides for light theme */
+html.theme-light .text-gray-400 { color: rgb(107 114 128) !important; } /* Gray-500 equivalent for better contrast */
+html.theme-light .text-gray-300 { color: rgb(75 85 99) !important; } /* Gray-600 equivalent for better contrast */
+html.theme-light .text-gray-500 { color: rgb(107 114 128) !important; } /* Gray-500 for placeholders */
+
+/* Gray border overrides for light theme */
+html.theme-light .border-gray-700 { border-color: rgb(229 231 235) !important; } /* Gray-200 for light borders */
+html.theme-light .border-gray-700\/50 { border-color: rgb(229 231 235 / 0.5) !important; } /* Semi-transparent light borders */
+
 /* Create Post button positioning - 130px right of feed (max-w-3xl = 768px, centered) */
 .feed-create-button {
   /* For large screens: feed is 768px centered, right edge = 50vw + 384px from left,
