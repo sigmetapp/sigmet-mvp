@@ -40,12 +40,12 @@ function formatPostDate(dateString: string): string {
   
   // Check if date is today
   if (dateOnly.getTime() === today.getTime()) {
-    return `today, ${timePart}`;
+    return `Today, ${timePart}`;
   }
   
   // Check if date is yesterday
   if (dateOnly.getTime() === yesterday.getTime()) {
-    return `yesterday, ${timePart}`;
+    return `Yesterday, ${timePart}`;
   }
   
   // For all other dates, use the original format
