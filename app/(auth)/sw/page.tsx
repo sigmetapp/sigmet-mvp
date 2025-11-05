@@ -36,6 +36,87 @@ type SWLevel = {
   color: string;
 };
 
+type LevelColorScheme = {
+  text: string;
+  bg: string;
+  bgGradient: string;
+  border: string;
+  borderGlow: string;
+  badgeBg: string;
+  badgeBorder: string;
+  checkmark: string;
+  hex: string;
+};
+
+const LEVEL_COLOR_SCHEMES: Record<string, LevelColorScheme> = {
+  'Beginner': {
+    text: 'text-gray-400',
+    bg: 'bg-gray-500/10',
+    bgGradient: 'from-gray-500/15 to-gray-600/10',
+    border: 'border-gray-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(156,163,175,0.3)]',
+    badgeBg: 'bg-gray-500/20',
+    badgeBorder: 'border-gray-400/40',
+    checkmark: 'text-gray-400',
+    hex: '#9ca3af'
+  },
+  'Growing': {
+    text: 'text-blue-400',
+    bg: 'bg-blue-500/10',
+    bgGradient: 'from-blue-500/15 to-blue-600/10',
+    border: 'border-blue-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(96,165,250,0.3)]',
+    badgeBg: 'bg-blue-500/20',
+    badgeBorder: 'border-blue-400/40',
+    checkmark: 'text-blue-400',
+    hex: '#60a5fa'
+  },
+  'Advance': {
+    text: 'text-purple-400',
+    bg: 'bg-purple-500/10',
+    bgGradient: 'from-purple-500/15 to-purple-600/10',
+    border: 'border-purple-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(167,139,250,0.3)]',
+    badgeBg: 'bg-purple-500/20',
+    badgeBorder: 'border-purple-400/40',
+    checkmark: 'text-purple-400',
+    hex: '#a78bfa'
+  },
+  'Expert': {
+    text: 'text-yellow-400',
+    bg: 'bg-yellow-500/10',
+    bgGradient: 'from-yellow-500/15 to-yellow-600/10',
+    border: 'border-yellow-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(251,191,36,0.3)]',
+    badgeBg: 'bg-yellow-500/20',
+    badgeBorder: 'border-yellow-400/40',
+    checkmark: 'text-yellow-400',
+    hex: '#fbbf24'
+  },
+  'Leader': {
+    text: 'text-orange-400',
+    bg: 'bg-orange-500/10',
+    bgGradient: 'from-orange-500/15 to-orange-600/10',
+    border: 'border-orange-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(251,146,60,0.3)]',
+    badgeBg: 'bg-orange-500/20',
+    badgeBorder: 'border-orange-400/40',
+    checkmark: 'text-orange-400',
+    hex: '#fb923c'
+  },
+  'Angel': {
+    text: 'text-pink-400',
+    bg: 'bg-pink-500/10',
+    bgGradient: 'from-pink-500/15 to-pink-600/10',
+    border: 'border-pink-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(244,114,182,0.3)]',
+    badgeBg: 'bg-pink-500/20',
+    badgeBorder: 'border-pink-400/40',
+    checkmark: 'text-pink-400',
+    hex: '#f472b6'
+  }
+};
+
 const SW_LEVELS: SWLevel[] = [
   {
     name: 'Beginner',
@@ -436,26 +517,45 @@ export default function SWPage() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <div className="text-white/60 text-sm mb-1">Current Level</div>
-                <div className={`text-xl font-bold ${currentLevel.color}`}>{currentLevel.name}</div>
+                {(() => {
+                  const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                  return (
+                    <div className={`text-xl font-bold ${currentColorScheme.text}`}>{currentLevel.name}</div>
+                  );
+                })()}
               </div>
               {nextLevel && (
                 <div className="text-right">
                   <div className="text-white/60 text-sm mb-1">Next Level</div>
-                  <div className={`text-lg font-semibold ${getSWLevel(nextLevel.minSW, swLevels).color}`}>{nextLevel.name}</div>
-                  <div className="text-white/50 text-xs mt-1">
-                    {nextLevel.minSW - totalSW} points to next level
-                  </div>
+                  {(() => {
+                    const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
+                    const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                    return (
+                      <>
+                        <div className={`text-lg font-semibold ${nextColorScheme.text}`}>{nextLevel.name}</div>
+                        <div className="text-white/50 text-xs mt-1">
+                          {nextLevel.minSW - totalSW} points to next level
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
-            {nextLevel && (
-              <div className="w-full bg-white/10 rounded-full h-2">
-                <div
-                  className="bg-telegram-blue h-2 rounded-full transition-all"
-                  style={{ width: `${Math.min(100, Math.max(0, progressToNext))}%` }}
-                />
-              </div>
-            )}
+            {nextLevel && (() => {
+              const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+              return (
+                <div className="w-full bg-white/10 rounded-full h-2">
+                  <div
+                    className="h-2 rounded-full transition-all"
+                    style={{ 
+                      width: `${Math.min(100, Math.max(0, progressToNext))}%`,
+                      backgroundColor: currentColorScheme.hex
+                    }}
+                  />
+                </div>
+              );
+            })()}
           </div>
 
           {/* Inflation Indicator */}
@@ -629,24 +729,26 @@ export default function SWPage() {
               {swLevels.map((level, index) => {
                 const isCurrent = currentLevel.name === level.name;
                 const isUnlocked = totalSW >= level.minSW;
+                const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                
                 return (
                   <div
                     key={level.name}
-                    className={`p-3 rounded-lg border ${
+                    className={`p-4 rounded-lg border-2 transition-all ${
                       isCurrent
-                        ? 'border-telegram-blue bg-telegram-blue/10'
+                        ? `${colorScheme.border} ${colorScheme.bgGradient ? `bg-gradient-to-br ${colorScheme.bgGradient}` : colorScheme.bg} ${colorScheme.borderGlow}`
                         : isUnlocked
-                        ? 'border-white/20 bg-white/5'
-                        : 'border-white/10 bg-white/5 opacity-60'
+                        ? `${colorScheme.border} ${colorScheme.bg} opacity-80`
+                        : `${colorScheme.border} ${colorScheme.bg} opacity-40`
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className={`text-xl font-bold ${level.color}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className={`text-xl font-bold ${colorScheme.text}`}>
                         {level.name}
-                        {isCurrent && <span className="ml-2 text-sm text-telegram-blue">(Current)</span>}
+                        {isCurrent && <span className={`ml-2 text-sm ${colorScheme.text} opacity-80`}>(Current)</span>}
                       </div>
-                      <div className="px-3 py-1.5 rounded-full bg-white/10 border border-white/20">
-                        <span className="text-white font-semibold text-base">
+                      <div className={`px-3 py-1.5 rounded-full ${colorScheme.badgeBg} border ${colorScheme.badgeBorder}`}>
+                        <span className={`${colorScheme.text} font-semibold text-base`}>
                           {level.maxSW ? `${level.minSW.toLocaleString()} - ${level.maxSW.toLocaleString()} pts` : `${level.minSW.toLocaleString()}+ pts`}
                         </span>
                       </div>
@@ -654,7 +756,7 @@ export default function SWPage() {
                     <div className="space-y-1.5">
                       {level.features.map((feature, featureIndex) => (
                         <div key={featureIndex} className="flex items-start gap-2">
-                          <span className="text-telegram-blue mt-0.5 text-sm">✓</span>
+                          <span className={`${colorScheme.checkmark} mt-0.5 text-sm`}>✓</span>
                           <span className={`text-sm ${isUnlocked ? 'text-white/80' : 'text-white/50'}`}>
                             {feature}
                           </span>

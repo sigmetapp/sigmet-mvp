@@ -36,6 +36,87 @@ type SWLevel = {
   color: string;
 };
 
+type LevelColorScheme = {
+  text: string;
+  bg: string;
+  bgGradient: string;
+  border: string;
+  borderGlow: string;
+  badgeBg: string;
+  badgeBorder: string;
+  checkmark: string;
+  hex: string;
+};
+
+const LEVEL_COLOR_SCHEMES: Record<string, LevelColorScheme> = {
+  'Beginner': {
+    text: 'text-gray-400',
+    bg: 'bg-gray-500/10',
+    bgGradient: 'from-gray-500/15 to-gray-600/10',
+    border: 'border-gray-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(156,163,175,0.3)]',
+    badgeBg: 'bg-gray-500/20',
+    badgeBorder: 'border-gray-400/40',
+    checkmark: 'text-gray-400',
+    hex: '#9ca3af'
+  },
+  'Growing': {
+    text: 'text-blue-400',
+    bg: 'bg-blue-500/10',
+    bgGradient: 'from-blue-500/15 to-blue-600/10',
+    border: 'border-blue-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(96,165,250,0.3)]',
+    badgeBg: 'bg-blue-500/20',
+    badgeBorder: 'border-blue-400/40',
+    checkmark: 'text-blue-400',
+    hex: '#60a5fa'
+  },
+  'Advance': {
+    text: 'text-purple-400',
+    bg: 'bg-purple-500/10',
+    bgGradient: 'from-purple-500/15 to-purple-600/10',
+    border: 'border-purple-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(167,139,250,0.3)]',
+    badgeBg: 'bg-purple-500/20',
+    badgeBorder: 'border-purple-400/40',
+    checkmark: 'text-purple-400',
+    hex: '#a78bfa'
+  },
+  'Expert': {
+    text: 'text-yellow-400',
+    bg: 'bg-yellow-500/10',
+    bgGradient: 'from-yellow-500/15 to-yellow-600/10',
+    border: 'border-yellow-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(251,191,36,0.3)]',
+    badgeBg: 'bg-yellow-500/20',
+    badgeBorder: 'border-yellow-400/40',
+    checkmark: 'text-yellow-400',
+    hex: '#fbbf24'
+  },
+  'Leader': {
+    text: 'text-orange-400',
+    bg: 'bg-orange-500/10',
+    bgGradient: 'from-orange-500/15 to-orange-600/10',
+    border: 'border-orange-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(251,146,60,0.3)]',
+    badgeBg: 'bg-orange-500/20',
+    badgeBorder: 'border-orange-400/40',
+    checkmark: 'text-orange-400',
+    hex: '#fb923c'
+  },
+  'Angel': {
+    text: 'text-pink-400',
+    bg: 'bg-pink-500/10',
+    bgGradient: 'from-pink-500/15 to-pink-600/10',
+    border: 'border-pink-400/30',
+    borderGlow: 'shadow-[0_0_8px_rgba(244,114,182,0.3)]',
+    badgeBg: 'bg-pink-500/20',
+    badgeBorder: 'border-pink-400/40',
+    checkmark: 'text-pink-400',
+    hex: '#f472b6'
+  }
+};
+
 const SW_LEVELS: SWLevel[] = [
   {
     name: 'Beginner',
@@ -817,16 +898,9 @@ export default function PublicProfilePage() {
                   // Formula: offset = circumference - (progress / 100) * circumference
                   const strokeDashoffset = circumference - (clampedProgress / 100) * circumference;
                   
-                  // Get color for progress circle based on level
-                  const colorMap: Record<string, string> = {
-                    'text-gray-400': '#9ca3af',
-                    'text-blue-400': '#60a5fa',
-                    'text-purple-400': '#a78bfa',
-                    'text-yellow-400': '#fbbf24',
-                    'text-orange-400': '#fb923c',
-                    'text-pink-400': '#f472b6',
-                  };
-                  const progressColor = colorMap[currentLevel.color] || '#60a5fa';
+                  // Get color for progress circle based on level using color scheme
+                  const colorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                  const progressColor = colorScheme.hex;
                   
                   return (
                     <div className="relative inline-flex items-center justify-center">
@@ -1521,9 +1595,10 @@ export default function PublicProfilePage() {
           <PostFeed
             filterUserId={profile.user_id}
             showFilters={false}
-            showComposer={isMe}
+            showComposer={false}
             backToProfileUsername={profile.username || slug}
             className=""
+            enableLazyLoad={true}
           />
         )}
       </div>

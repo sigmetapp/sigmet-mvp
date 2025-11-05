@@ -7,6 +7,7 @@ import {
   useMemo,
   useCallback,
 } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabaseClient";
 import Button from "@/components/Button";
 import PostCard from "@/components/PostCard";
@@ -90,6 +91,8 @@ export type PostFeedProps = {
   className?: string;
   renderFiltersOutside?: boolean; // If true, filters will be rendered outside via renderFilters prop
   renderFilters?: (filters: React.ReactNode) => void; // Callback to render filters externally
+  buttonPosition?: 'fixed' | 'inline'; // Position of Create Post button: 'fixed' = fixed to viewport, 'inline' = next to posts
+  enableLazyLoad?: boolean; // Enable lazy loading with pagination
 };
 
 export default function PostFeed({
@@ -100,6 +103,8 @@ export default function PostFeed({
   className = "",
   renderFiltersOutside = false,
   renderFilters,
+  buttonPosition = 'fixed',
+  enableLazyLoad = false,
 }: PostFeedProps) {
   const router = useRouter();
   const { theme } = useTheme();
@@ -118,6 +123,9 @@ export default function PostFeed({
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Map author user_id -> profile info (username, full_name, avatar)
   const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; full_name: string | null; avatar_url: string | null }>>({});
@@ -162,11 +170,16 @@ export default function PostFeed({
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'discuss' | 'direction'>( 'all');
 
-  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'discuss' | 'direction') => {
-    setLoading(true);
+  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'discuss' | 'direction', offset = 0, limit = 50) => {
+    if (offset === 0) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+    
     let query = supabase
       .from("posts")
-      .select("*");
+      .select("*", { count: 'exact' });
     
     // Filter by user_id if provided (for profile page)
     if (filterUserId) {
@@ -189,11 +202,21 @@ export default function PostFeed({
     }
     // filterType === 'all' means no additional filtering
     
-    const { data, error } = await query
+    const { data, error, count } = await query
       .order("created_at", { ascending: false })
-      .limit(50);
+      .range(offset, offset + limit - 1);
+      
     if (!error && data) {
-      setPosts(data as Post[]);
+      if (offset === 0) {
+        setPosts(data as Post[]);
+      } else {
+        setPosts((prev) => [...prev, ...(data as Post[])]);
+      }
+      
+      // Check if there are more posts
+      const totalLoaded = offset + (data as Post[]).length;
+      setHasMore(count ? totalLoaded < count : (data as Post[]).length === limit);
+      
       // Preload comment counts for visible posts
       preloadCommentCounts(data as Post[]);
 
@@ -207,47 +230,78 @@ export default function PostFeed({
           .select("user_id, username, full_name, avatar_url")
           .in("user_id", userIds);
         if (profs) {
-          const map: Record<string, { username: string | null; full_name: string | null; avatar_url: string | null }> = {};
-          for (const p of profs as any[]) {
-            map[p.user_id as string] = { 
-              username: p.username ?? null, 
-              full_name: p.full_name ?? null,
-              avatar_url: p.avatar_url ?? null 
-            };
-          }
-          setProfilesByUserId(map);
+          setProfilesByUserId((prev) => {
+            const map = { ...prev };
+            for (const p of profs as any[]) {
+              map[p.user_id as string] = { 
+                username: p.username ?? null, 
+                full_name: p.full_name ?? null,
+                avatar_url: p.avatar_url ?? null 
+              };
+            }
+            return map;
+          });
         }
       }
     }
     setLoading(false);
+    setLoadingMore(false);
   }, [availableDirections, filterUserId]);
 
   // page mount
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
     // Initial load - load all posts without filter
-    loadFeed(null, 'all');
-  }, [loadFeed]);
+    const initialLimit = enableLazyLoad ? 10 : 50;
+    loadFeed(null, 'all', 0, initialLimit);
+  }, [loadFeed, enableLazyLoad]);
 
   // Reload feed when active filter or direction changes
   useEffect(() => {
+    const limit = enableLazyLoad ? 10 : 50;
     if (!showFilters) {
       // If filters are hidden, just load all posts (or filtered by user_id)
-      loadFeed(null, 'all');
+      loadFeed(null, 'all', 0, limit);
       return;
     }
     
     if (activeFilter === 'discuss') {
-      loadFeed(null, 'discuss');
+      loadFeed(null, 'discuss', 0, limit);
     } else if (activeFilter === 'direction') {
       if (availableDirections.length > 0) {
-        loadFeed(activeDirection, 'direction');
+        loadFeed(activeDirection, 'direction', 0, limit);
       }
     } else {
       // activeFilter === 'all'
-      loadFeed(null, 'all');
+      loadFeed(null, 'all', 0, limit);
     }
-  }, [activeFilter, activeDirection, availableDirections, loadFeed, showFilters]);
+  }, [activeFilter, activeDirection, availableDirections, loadFeed, showFilters, enableLazyLoad]);
+
+  // Lazy load more posts when scrolling to bottom
+  useEffect(() => {
+    if (!enableLazyLoad || !hasMore || loadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          const currentFilter = !showFilters ? 'all' : activeFilter;
+          const currentDirection = activeFilter === 'direction' ? activeDirection : null;
+          loadFeed(currentDirection, currentFilter, posts.length, 10);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [enableLazyLoad, hasMore, loadingMore, posts.length, loadFeed, showFilters, activeFilter, activeDirection]);
 
   // Load directions from growth-directions API - only primary (priority) directions
   useEffect(() => {
@@ -751,57 +805,6 @@ export default function PostFeed({
     </svg>
   );
 
-  // Track button position to prevent overlap with footer
-  const [buttonBottom, setButtonBottom] = useState(24); // 6 * 4 = 24px (bottom-6)
-
-  useEffect(() => {
-    if (!showComposer) return;
-    
-    const updateButtonPosition = () => {
-      const footer = document.querySelector('footer');
-      if (!footer) {
-        setButtonBottom(24);
-        return;
-      }
-      
-      const footerRect = footer.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      
-      // If footer is visible in viewport (footer top is above viewport bottom)
-      if (footerRect.top < viewportHeight) {
-        // Calculate how much footer is visible
-        const footerVisibleDistance = viewportHeight - footerRect.top;
-        const buttonHeight = 60; // Approximate button height with padding
-        const safeDistance = footerVisibleDistance + buttonHeight + 16; // 16px padding above footer
-        setButtonBottom(Math.max(24, safeDistance));
-      } else {
-        // Footer is below viewport, use default position
-        setButtonBottom(24);
-      }
-    };
-
-    // Update on scroll and resize with throttling for performance
-    let ticking = false;
-    const handleUpdate = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          updateButtonPosition();
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    window.addEventListener('scroll', handleUpdate, { passive: true });
-    window.addEventListener('resize', handleUpdate);
-    updateButtonPosition(); // Initial calculation
-
-    return () => {
-      window.removeEventListener('scroll', handleUpdate);
-      window.removeEventListener('resize', handleUpdate);
-    };
-  }, [showComposer]);
-
   // Build post URL with optional back to profile parameter
   const getPostUrl = useCallback((postId: number) => {
     if (backToProfileUsername) {
@@ -896,8 +899,406 @@ export default function PostFeed({
     }
   }, [renderFiltersOutside, renderFilters, filtersJSX]);
 
+  // Render posts list
+  const renderPostsList = () => (
+    <>
+      {loading ? (
+        <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
+      ) : (
+        posts.map((p) => {
+          const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
+          const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+          const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
+          const fullName = profile?.full_name || null;
+          const commentCount = commentCounts[p.id] ?? 0;
+          
+          // Check if post has category that matches available directions
+          const hasCategory = p.category && p.category.trim() !== '';
+          const categoryDirection = hasCategory && availableDirections.find((dir) => {
+            const categoryLower = p.category?.toLowerCase() || '';
+            const dirTitleLower = dir.title.toLowerCase();
+            const dirSlugLower = dir.slug.toLowerCase();
+            return categoryLower.includes(dirTitleLower) || 
+                   categoryLower.includes(dirSlugLower) ||
+                   dirTitleLower.includes(categoryLower) ||
+                   dirSlugLower.includes(categoryLower);
+          });
+
+          return (
+            <PostCard
+              key={p.id}
+              post={{
+                id: String(p.id),
+                author: username,
+                content: p.body ?? '',
+                createdAt: p.created_at,
+                commentsCount: commentCount,
+              }}
+              disableNavigation={true}
+              className={`card p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out ${
+                hasCategory && categoryDirection
+                  ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
+                  : ''
+              }`}
+              onMouseEnter={() => addViewOnce(p.id)}
+              renderContent={() => (
+                <div className="relative z-10 space-y-2">
+                  {/* header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                      <img
+                        src={avatar}
+                        alt="avatar"
+                        className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
+                      />
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <a 
+                            href={`/u/${p.user_id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
+                            data-prevent-card-navigation="true"
+                          >
+                            {username}
+                          </a>
+                          {(fullName || p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                            <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                              |
+                            </span>
+                          )}
+                          {fullName && (
+                            <>
+                              <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                {fullName}
+                              </span>
+                              {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                  |
+                                </span>
+                              )}
+                            </>
+                          )}
+                          {p.category && (
+                            <>
+                              <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                hasCategory && categoryDirection
+                                  ? isLight
+                                    ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                                    : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                                  : isLight
+                                  ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
+                                  : 'text-telegram-text-secondary bg-white/5'
+                              }`}>
+                                {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                              </div>
+                              {(growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0) && (
+                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                  |
+                                </span>
+                              )}
+                            </>
+                          )}
+                          {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
+                            const statusConfig = {
+                              proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
+                              grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
+                              drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
+                            };
+                            const config = statusConfig[status];
+                            return (
+                              <div
+                                key={status}
+                                className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
+                                title={config.label}
+                              >
+                                <span>{config.emoji}</span>
+                                <span>{config.label}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                      <span className="whitespace-nowrap">{formatPostDate(p.created_at)}</span>
+                      {uid === p.user_id && editingId !== p.id && (
+                        <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
+                          <PostActionMenu
+                            onEdit={() => {
+                              setEditingId(p.id);
+                              setEditBody(p.body || "");
+                            }}
+                            onDelete={() => deletePost(p)}
+                            className="ml-2"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* content */}
+                  {editingId === p.id ? (
+                    <div className="space-y-3">
+                      <textarea
+                        value={editBody}
+                        onChange={(e) => setEditBody(e.target.value)}
+                        className={`input w-full rounded-2xl p-3 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                      />
+                      <div className="flex gap-2">
+                        <Button onClick={() => saveEdit(p)} variant="primary">Save</Button>
+                        <Button onClick={() => setEditingId(null)} variant="secondary">Cancel</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      className="relative cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(getPostUrl(p.id));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          router.push(getPostUrl(p.id));
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label="Open post"
+                    >
+                      {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{formatTextWithMentions(p.body)}</p>}
+                      {p.image_url && (
+                        <div className="mt-3 flex justify-center">
+                          <img 
+                            src={p.image_url} 
+                            loading="lazy" 
+                            className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} 
+                            alt="post image" 
+                          />
+                        </div>
+                      )}
+                      {p.video_url && (
+                        <div className="mt-3 flex justify-center">
+                          <video 
+                            controls 
+                            preload="metadata" 
+                            className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                          >
+                            <source src={p.video_url} />
+                          </video>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* footer */}
+                  <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewsChartOpen(p.id);
+                      }}
+                      className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                      title="View statistics"
+                      data-prevent-card-navigation="true"
+                    >
+                      <Eye />
+                      <span className="text-sm">{p.views ?? 0}</span>
+                    </button>
+
+                    <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
+                      <PostReactions
+                        postId={p.id}
+                        initialCounts={reactionsByPostId[p.id] || {
+                          inspire: 0,
+                          respect: 0,
+                          relate: 0,
+                          support: 0,
+                          celebrate: 0,
+                        }}
+                        initialSelected={selectedReactionsByPostId[p.id] || null}
+                        onReactionChange={async (reaction, counts) => {
+                        if (!uid) {
+                          alert("Sign in required");
+                          return;
+                        }
+
+                        try {
+                          const previousReaction = selectedReactionsByPostId[p.id];
+
+                          if (previousReaction) {
+                            const { error: deleteError } = await supabase
+                              .from("post_reactions")
+                              .delete()
+                              .eq("post_id", p.id)
+                              .eq("user_id", uid)
+                              .eq("kind", previousReaction);
+                            if (deleteError) {
+                              console.error("Error deleting reaction:", deleteError);
+                              throw deleteError;
+                            }
+                          }
+
+                          if (reaction) {
+                            const { error: insertError } = await supabase
+                              .from("post_reactions")
+                              .insert({
+                                post_id: p.id,
+                                user_id: uid,
+                                kind: reaction,
+                              });
+                            if (insertError) {
+                              console.error("Error inserting reaction:", insertError);
+                              if (insertError.code === '23514' || insertError.message?.includes('check constraint')) {
+                                throw new Error(`Reaction type '${reaction}' is not allowed. Please apply migration 129_add_new_post_reaction_types.sql`);
+                              }
+                              throw insertError;
+                            }
+                          }
+
+                          const { data } = await supabase
+                            .from("post_reactions")
+                            .select("post_id, kind, user_id")
+                            .eq("post_id", p.id);
+
+                          const newCounts: Record<ReactionType, number> = {
+                            inspire: 0,
+                            respect: 0,
+                            relate: 0,
+                            support: 0,
+                            celebrate: 0,
+                          };
+
+                          if (data) {
+                            for (const r of data as any[]) {
+                              const kind = r.kind as string;
+                              const reactionMap: Record<string, ReactionType> = {
+                                inspire: 'inspire',
+                                respect: 'inspire', // Migrate to inspire
+                                relate: 'inspire', // Migrate to inspire
+                                support: 'inspire', // Migrate to inspire
+                                celebrate: 'inspire', // Migrate to inspire
+                              };
+                              const reactionType = reactionMap[kind];
+                              if (reactionType) {
+                                // All reactions go to inspire
+                                newCounts.inspire = (newCounts.inspire || 0) + 1;
+                              }
+                            }
+                          }
+
+                          setReactionsByPostId((prev) => ({
+                            ...prev,
+                            [p.id]: newCounts,
+                          }));
+                          setSelectedReactionsByPostId((prev) => ({
+                            ...prev,
+                            [p.id]: reaction,
+                          }));
+                        } catch (error: any) {
+                          console.error("Error updating reaction:", error);
+                          const errorMessage = error?.message || error?.details || error?.hint || "Unknown error";
+
+                          if (errorMessage.includes("table") && errorMessage.includes("not found") ||
+                              errorMessage.includes("schema cache")) {
+                            alert(`Database table not found. Please apply migration 130_create_post_reactions_if_not_exists.sql`);
+                          } else {
+                            alert(`Failed to update reaction: ${errorMessage}`);
+                          }
+                        }
+                      }}
+                      />
+                    </div>
+
+                    <PostCommentsBadge
+                      count={commentCount}
+                      size="md"
+                      onOpen={() => {
+                        const willOpen = !openComments[p.id];
+                        setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
+                      }}
+                      onFocusComposer={() => {
+                        const composer = document.getElementById(`comment-composer-${p.id}`);
+                        if (composer) {
+                          composer.focus();
+                          composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                      }}
+                      className="ml-auto"
+                    />
+                  </div>
+
+                  {/* Quick comment form only - no history */}
+                  {openComments[p.id] && (
+                    <div className="mt-3">
+                      <div className="flex gap-2 items-center">
+                        <input
+                          id={`comment-composer-${p.id}`}
+                          value={commentInput[p.id] || ""}
+                          onChange={(e) =>
+                            setCommentInput((prev) => ({
+                              ...prev,
+                              [p.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Write a comment?"
+                          className={`input py-2 focus:ring-0 flex-1 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                        />
+                        <input
+                          id={`cfile-${p.id}`}
+                          type="file"
+                          accept="image/*,video/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            setCommentFile((prev) => ({ ...prev, [p.id]: file }));
+                          }}
+                        />
+                        <label
+                          htmlFor={`cfile-${p.id}`}
+                          className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition flex items-center justify-center gap-2 ${
+                            isLight
+                              ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
+                              : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                          }`}
+                        >
+                          <Paperclip className="h-4 w-4" aria-hidden="true" />
+                          <span className="sr-only">Attach file</span>
+                        </label>
+                        {commentFile[p.id] && (
+                          <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
+                        )}
+                        <button onClick={() => addComment(p.id)} className="btn btn-primary">
+                          Send
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            />
+          );
+        })
+      )}
+      {/* Lazy load trigger */}
+      {enableLazyLoad && (
+        <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
+          {loadingMore && (
+            <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading more posts...</div>
+          )}
+          {!hasMore && posts.length > 0 && (
+            <div className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+              No more posts
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+
   return (
-    <div className={className}>
+    <div className={className || ''}>
       {/* Filters toggle - render inside if not rendering outside */}
       {showFilters && !renderFiltersOutside && (
         <div className="card p-3 md:p-4 mb-6">
@@ -905,480 +1306,132 @@ export default function PostFeed({
         </div>
       )}
 
-      {/* Feed */}
-      <div className="space-y-3">
-        {loading ? (
-          <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
-        ) : (
-          posts.map((p) => {
-            const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
-            const avatar = profile?.avatar_url || AVATAR_FALLBACK;
-            const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
-            const fullName = profile?.full_name || null;
-            const commentCount = commentCounts[p.id] ?? 0;
-            
-            // Check if post has category that matches available directions
-            const hasCategory = p.category && p.category.trim() !== '';
-            const categoryDirection = hasCategory && availableDirections.find((dir) => {
-              const categoryLower = p.category?.toLowerCase() || '';
-              const dirTitleLower = dir.title.toLowerCase();
-              const dirSlugLower = dir.slug.toLowerCase();
-              return categoryLower.includes(dirTitleLower) || 
-                     categoryLower.includes(dirSlugLower) ||
-                     dirTitleLower.includes(categoryLower) ||
-                     dirSlugLower.includes(categoryLower);
-            });
+      {/* Feed with Create Post button on the right (if inline) */}
+      {buttonPosition === 'inline' && showComposer ? (
+        <div className="flex gap-6 items-start">
+          {/* Posts */}
+          <div className="flex-1 space-y-3 min-w-0 max-w-3xl">
+            {renderPostsList()}
+          </div>
 
-            return (
-              <PostCard
-                key={p.id}
-                post={{
-                  id: String(p.id),
-                  author: username,
-                  content: p.body ?? '',
-                  createdAt: p.created_at,
-                  commentsCount: commentCount,
-                }}
-                disableNavigation={true}
-                className={`card p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out w-[68%] mx-auto ${
-                  hasCategory && categoryDirection
-                    ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
-                    : ''
-                }`}
-                onMouseEnter={() => addViewOnce(p.id)}
-                renderContent={() => (
-                  <div className="relative z-10 space-y-2">
-                    {/* header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                        <img
-                          src={avatar}
-                          alt="avatar"
-                          className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
-                        />
-                        <div className="flex flex-col min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <a 
-                              href={`/u/${p.user_id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
-                              data-prevent-card-navigation="true"
-                            >
-                              {username}
-                            </a>
-                            {(fullName || p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                              <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                                |
-                              </span>
-                            )}
-                            {fullName && (
-                              <>
-                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                                  {fullName}
-                                </span>
-                                {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                                  <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                                    |
-                                  </span>
-                                )}
-                              </>
-                            )}
-                            {p.category && (
-                              <>
-                                <div className={`text-xs px-2 py-1 rounded-md font-medium ${
-                                  hasCategory && categoryDirection
-                                    ? isLight
-                                      ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
-                                      : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
-                                    : isLight
-                                    ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
-                                    : 'text-telegram-text-secondary bg-white/5'
-                                }`}>
-                                  {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
-                                </div>
-                                {(growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0) && (
-                                  <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                                    |
-                                  </span>
-                                )}
-                              </>
-                            )}
-                            {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
-                              const statusConfig = {
-                                proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
-                                grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
-                                drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
-                              };
-                              const config = statusConfig[status];
-                              return (
-                                <div
-                                  key={status}
-                                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
-                                  title={config.label}
-                                >
-                                  <span>{config.emoji}</span>
-                                  <span>{config.label}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                      <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                        <span className="whitespace-nowrap">{formatPostDate(p.created_at)}</span>
-                        {uid === p.user_id && editingId !== p.id && (
-                          <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
-                            <PostActionMenu
-                              onEdit={() => {
-                                setEditingId(p.id);
-                                setEditBody(p.body || "");
-                              }}
-                              onDelete={() => deletePost(p)}
-                              className="ml-2"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* content */}
-                    {editingId === p.id ? (
-                      <div className="space-y-3">
-                        <textarea
-                          value={editBody}
-                          onChange={(e) => setEditBody(e.target.value)}
-                          className={`input w-full rounded-2xl p-3 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
-                        />
-                        <div className="flex gap-2">
-                          <Button onClick={() => saveEdit(p)} variant="primary">Save</Button>
-                          <Button onClick={() => setEditingId(null)} variant="secondary">Cancel</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div 
-                        className="relative cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(getPostUrl(p.id));
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            router.push(getPostUrl(p.id));
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-label="Open post"
-                      >
-                        {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{formatTextWithMentions(p.body)}</p>}
-                        {p.image_url && (
-                          <div className="mt-3 flex justify-center">
-                            <img 
-                              src={p.image_url} 
-                              loading="lazy" 
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} 
-                              alt="post image" 
-                            />
-                          </div>
-                        )}
-                        {p.video_url && (
-                          <div className="mt-3 flex justify-center">
-                            <video 
-                              controls 
-                              preload="metadata" 
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
-                            >
-                              <source src={p.video_url} />
-                            </video>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* footer */}
-                    <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setViewsChartOpen(p.id);
-                        }}
-                        className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
-                        title="View statistics"
-                        data-prevent-card-navigation="true"
-                      >
-                        <Eye />
-                        <span className="text-sm">{p.views ?? 0}</span>
-                      </button>
-
-                      <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
-                        <PostReactions
-                          postId={p.id}
-                          initialCounts={reactionsByPostId[p.id] || {
-                            inspire: 0,
-                            respect: 0,
-                            relate: 0,
-                            support: 0,
-                            celebrate: 0,
-                          }}
-                          initialSelected={selectedReactionsByPostId[p.id] || null}
-                          onReactionChange={async (reaction, counts) => {
-                          if (!uid) {
-                            alert("Sign in required");
-                            return;
-                          }
-
-                          try {
-                            const previousReaction = selectedReactionsByPostId[p.id];
-
-                            if (previousReaction) {
-                              const { error: deleteError } = await supabase
-                                .from("post_reactions")
-                                .delete()
-                                .eq("post_id", p.id)
-                                .eq("user_id", uid)
-                                .eq("kind", previousReaction);
-                              if (deleteError) {
-                                console.error("Error deleting reaction:", deleteError);
-                                throw deleteError;
-                              }
-                            }
-
-                            if (reaction) {
-                              const { error: insertError } = await supabase
-                                .from("post_reactions")
-                                .insert({
-                                  post_id: p.id,
-                                  user_id: uid,
-                                  kind: reaction,
-                                });
-                              if (insertError) {
-                                console.error("Error inserting reaction:", insertError);
-                                if (insertError.code === '23514' || insertError.message?.includes('check constraint')) {
-                                  throw new Error(`Reaction type '${reaction}' is not allowed. Please apply migration 129_add_new_post_reaction_types.sql`);
-                                }
-                                throw insertError;
-                              }
-                            }
-
-                            const { data } = await supabase
-                              .from("post_reactions")
-                              .select("post_id, kind, user_id")
-                              .eq("post_id", p.id);
-
-                            const newCounts: Record<ReactionType, number> = {
-                              inspire: 0,
-                              respect: 0,
-                              relate: 0,
-                              support: 0,
-                              celebrate: 0,
-                            };
-
-                            if (data) {
-                              for (const r of data as any[]) {
-                                const kind = r.kind as string;
-                                const reactionMap: Record<string, ReactionType> = {
-                                  inspire: 'inspire',
-                                  respect: 'inspire', // Migrate to inspire
-                                  relate: 'inspire', // Migrate to inspire
-                                  support: 'inspire', // Migrate to inspire
-                                  celebrate: 'inspire', // Migrate to inspire
-                                };
-                                const reactionType = reactionMap[kind];
-                                if (reactionType) {
-                                  // All reactions go to inspire
-                                  newCounts.inspire = (newCounts.inspire || 0) + 1;
-                                }
-                              }
-                            }
-
-                            setReactionsByPostId((prev) => ({
-                              ...prev,
-                              [p.id]: newCounts,
-                            }));
-                            setSelectedReactionsByPostId((prev) => ({
-                              ...prev,
-                              [p.id]: reaction,
-                            }));
-                          } catch (error: any) {
-                            console.error("Error updating reaction:", error);
-                            const errorMessage = error?.message || error?.details || error?.hint || "Unknown error";
-
-                            if (errorMessage.includes("table") && errorMessage.includes("not found") ||
-                                errorMessage.includes("schema cache")) {
-                              alert(`Database table not found. Please apply migration 130_create_post_reactions_if_not_exists.sql`);
-                            } else {
-                              alert(`Failed to update reaction: ${errorMessage}`);
-                            }
-                          }
-                        }}
-                        />
-                      </div>
-
-                      <PostCommentsBadge
-                        count={commentCount}
-                        size="md"
-                        onOpen={() => {
-                          const willOpen = !openComments[p.id];
-                          setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
-                        }}
-                        onFocusComposer={() => {
-                          const composer = document.getElementById(`comment-composer-${p.id}`);
-                          if (composer) {
-                            composer.focus();
-                            composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                          }
-                        }}
-                        className="ml-auto"
-                      />
-                    </div>
-
-                    {/* Quick comment form only - no history */}
-                    {openComments[p.id] && (
-                      <div className="mt-3">
-                        <div className="flex gap-2 items-center">
-                          <input
-                            id={`comment-composer-${p.id}`}
-                            value={commentInput[p.id] || ""}
-                            onChange={(e) =>
-                              setCommentInput((prev) => ({
-                                ...prev,
-                                [p.id]: e.target.value,
-                              }))
-                            }
-                            placeholder="Write a comment?"
-                            className={`input py-2 focus:ring-0 flex-1 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
-                          />
-                          <input
-                            id={`cfile-${p.id}`}
-                            type="file"
-                            accept="image/*,video/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] || null;
-                              setCommentFile((prev) => ({ ...prev, [p.id]: file }));
-                            }}
-                          />
-                          <label
-                            htmlFor={`cfile-${p.id}`}
-                            className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition flex items-center justify-center gap-2 ${
-                              isLight
-                                ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                                : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
-                            }`}
-                          >
-                            <Paperclip className="h-4 w-4" aria-hidden="true" />
-                            <span className="sr-only">Attach file</span>
-                          </label>
-                          {commentFile[p.id] && (
-                            <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
-                          )}
-                          <button onClick={() => addComment(p.id)} className="btn btn-primary">
-                            Send
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              />
-            );
-          })
-        )}
-      </div>
-
-      {/* Create Post button - positioned at bottom right, 12px from posts edge */}
-      {showComposer && (
+          {/* Create Post button - inline on the right */}
+          <div className="sticky top-6 flex-shrink-0 self-start">
+            <Button
+              onClick={() => setComposerOpen(true)}
+              variant="primary"
+              className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
+              icon={<Plus />}
+            >
+              Create post
+            </Button>
+          </div>
+        </div>
+      ) : (
         <>
-          <Button
-            onClick={() => setComposerOpen(true)}
-            variant="primary"
-            className="fixed feed-create-button shadow-lg z-40 rounded-full px-6 py-4 text-base"
-            style={{ bottom: `${buttonBottom}px` }}
-            icon={<Plus />}
-          >
-            Create post
-          </Button>
+          {/* Feed */}
+          <div className="space-y-3">
+            {renderPostsList()}
+          </div>
 
-          {/* Composer modal */}
-          {composerOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div
-                className={`absolute inset-0 ${isLight ? "bg-black/50" : "bg-black/80"}`}
-                onClick={() => !publishing && setComposerOpen(false)}
-              />
-              <div className="relative z-10 w-full max-w-xl mx-auto p-4">
-                <div className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? "" : ""}`}>
-                  <div className="flex items-center justify-between">
-                    <div className={`font-medium ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create post</div>
-                    <button
-                      onClick={() => !publishing && setComposerOpen(false)}
-                      className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
-                      aria-label="Close composer"
-                    >
-                      <CloseIcon className="h-5 w-5" aria-hidden="true" />
-                    </button>
-                  </div>
-                  <div className={`flex items-start gap-2 px-3 py-2 rounded-lg border ${isLight ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-amber-900/20 border-amber-700/30 text-amber-300"}`}>
-                    <svg className="h-5 w-5 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                      <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-sm font-medium">Publish only your own content, do not use AI-generated content or content from others.</span>
-                  </div>
-                  <MentionInput
-                    value={text}
-                    onChange={setText}
-                    placeholder="What do you want to share?"
-                    className={`input w-full outline-none min-h-[120px] text-base md:text-lg ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
-                    userId={uid}
-                  />
-                  <input
-                    ref={unifiedFileRef}
-                    type="file"
-                    accept="image/*,video/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (!file) { setImg(null); setVid(null); return; }
-                      if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
-                      else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
-                      else { setImg(null); setVid(null); }
-                    }}
-                  />
-                  <div className="flex items-center gap-3">
-                    <EmojiPicker
-                      onEmojiSelect={handleEmojiSelect}
-                      variant={isLight ? 'light' : 'dark'}
-                      align="left"
-                    />
-                    <button
-                      onClick={() => unifiedFileRef.current?.click()}
-                      className={`px-3 py-2 rounded-xl border text-sm transition flex items-center gap-2 ${
-                        isLight
-                          ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                          : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
-                      }`}
-                    >
-                      <ImageIcon className="h-4 w-4" aria-hidden="true" />
-                      <span>Media</span>
-                    </button>
-                    {(img || vid) && (
-                      <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                        {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
-                      </span>
-                    )}
-                    <div className="ml-auto">
-                      <Button onClick={onPublish} disabled={publishing} variant="primary">
-                        {publishing ? "Publishing..." : "Publish"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          {/* Create Post button - fixed on the right, follows scroll */}
+          {showComposer && buttonPosition === 'fixed' && (
+            <div
+              className="fixed z-40"
+              style={{
+                top: '24px',
+                right: '24px',
+              }}
+            >
+              <Button
+                onClick={() => setComposerOpen(true)}
+                variant="primary"
+                className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
+                icon={<Plus />}
+              >
+                Create post
+              </Button>
             </div>
           )}
         </>
+      )}
+
+      {/* Composer modal - rendered via portal to cover entire viewport */}
+      {showComposer && composerOpen && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+          <div
+            className={`absolute inset-0 ${isLight ? "bg-black/50" : "bg-black/80"}`}
+            onClick={() => !publishing && setComposerOpen(false)}
+          />
+          <div className="relative z-10 w-full max-w-xl mx-auto p-4">
+            <div className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? "" : ""}`}>
+              <div className="flex items-center justify-between">
+                <div className={`font-medium ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create post</div>
+                <button
+                  onClick={() => !publishing && setComposerOpen(false)}
+                  className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
+                  aria-label="Close composer"
+                >
+                  <CloseIcon className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+              <div className={`flex items-start gap-2 px-3 py-2 rounded-lg border ${isLight ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-amber-900/20 border-amber-700/30 text-amber-300"}`}>
+                <svg className="h-5 w-5 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium">Publish only your own content, do not use AI-generated content or content from others.</span>
+              </div>
+              <MentionInput
+                value={text}
+                onChange={setText}
+                placeholder="What do you want to share?"
+                className={`input w-full outline-none min-h-[120px] text-base md:text-lg ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                userId={uid}
+              />
+              <input
+                ref={unifiedFileRef}
+                type="file"
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  if (!file) { setImg(null); setVid(null); return; }
+                  if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
+                  else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
+                  else { setImg(null); setVid(null); }
+                }}
+              />
+              <div className="flex items-center gap-3">
+                <EmojiPicker
+                  onEmojiSelect={handleEmojiSelect}
+                  variant={isLight ? 'light' : 'dark'}
+                  align="left"
+                />
+                <button
+                  onClick={() => unifiedFileRef.current?.click()}
+                  className={`px-3 py-2 rounded-xl border text-sm transition flex items-center gap-2 ${
+                    isLight
+                      ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
+                      : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                  }`}
+                >
+                  <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                  <span>Media</span>
+                </button>
+                {(img || vid) && (
+                  <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                    {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
+                  </span>
+                )}
+                <div className="ml-auto">
+                  <Button onClick={onPublish} disabled={publishing} variant="primary">
+                    {publishing ? "Publishing..." : "Publish"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Views Chart Modal */}
