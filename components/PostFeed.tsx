@@ -915,23 +915,42 @@ export default function PostFeed({
                             >
                               {username}
                             </a>
-                            {fullName && (
+                            {(fullName || p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
                               <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                                {fullName}
+                                |
                               </span>
                             )}
+                            {fullName && (
+                              <>
+                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                  {fullName}
+                                </span>
+                                {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                                  <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                    |
+                                  </span>
+                                )}
+                              </>
+                            )}
                             {p.category && (
-                              <div className={`text-xs px-2 py-1 rounded-md font-medium ${
-                                hasCategory && categoryDirection
-                                  ? isLight
-                                    ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
-                                    : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
-                                  : isLight
-                                  ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
-                                  : 'text-telegram-text-secondary bg-white/5'
-                              }`}>
-                                {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
-                              </div>
+                              <>
+                                <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                  hasCategory && categoryDirection
+                                    ? isLight
+                                      ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                                      : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                                    : isLight
+                                    ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
+                                    : 'text-telegram-text-secondary bg-white/5'
+                                }`}>
+                                  {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                                </div>
+                                {(growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0) && (
+                                  <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                    |
+                                  </span>
+                                )}
+                              </>
                             )}
                             {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
                               const statusConfig = {

@@ -612,23 +612,42 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   >
                     {username}
                   </a>
-                  {fullName && (
+                  {(fullName || post.category || growthStatuses.length > 0) && (
                     <span className="text-sm text-slate-500 dark:text-slate-400">
-                      {fullName}
+                      |
                     </span>
                   )}
+                  {fullName && (
+                    <>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        {fullName}
+                      </span>
+                      {(post.category || growthStatuses.length > 0) && (
+                        <span className="text-sm text-slate-500 dark:text-slate-400">
+                          |
+                        </span>
+                      )}
+                    </>
+                  )}
                   {post.category && (
-                    <div className={`text-xs px-2 py-1 rounded-md font-medium ${
-                      hasCategory && categoryDirection
-                        ? isLight
-                          ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
-                          : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
-                        : isLight
-                        ? 'text-slate-500 bg-slate-100/50 border border-slate-200'
-                        : 'text-slate-400 bg-white/5 border border-slate-700'
-                    }`}>
-                      {categoryDirection ? `${categoryDirection.emoji} ${post.category}` : post.category}
-                    </div>
+                    <>
+                      <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                        hasCategory && categoryDirection
+                          ? isLight
+                            ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                            : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                          : isLight
+                          ? 'text-slate-500 bg-slate-100/50 border border-slate-200'
+                          : 'text-slate-400 bg-white/5 border border-slate-700'
+                      }`}>
+                        {categoryDirection ? `${categoryDirection.emoji} ${post.category}` : post.category}
+                      </div>
+                      {growthStatuses.length > 0 && (
+                        <span className="text-sm text-slate-500 dark:text-slate-400">
+                          |
+                        </span>
+                      )}
+                    </>
                   )}
                   {growthStatuses.length > 0 && growthStatuses.map((status) => {
                     const statusConfig = {
