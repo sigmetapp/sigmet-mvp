@@ -25,6 +25,7 @@ const adminMenu = [
   { label: 'Users', href: '/admin/users', icon: '👥' },
   { label: 'Stats', href: '/admin/stats', icon: '📊' },
   { label: 'Tickets', href: '/admin/tickets', icon: '🎫' },
+  { label: 'Projects', href: '/admin/projects', icon: '📁' },
   { label: 'SW Weights', href: '/sw/weights', icon: '⚖️' },
 ];
 
