@@ -26,8 +26,10 @@ create index if not exists profiles_educational_institution_idx on public.profil
 
 -- Enable RLS on educational_institutions
 alter table public.educational_institutions enable row level security;
-create policy if not exists "read educational_institutions" on public.educational_institutions for select using (true);
-create policy if not exists "insert educational_institutions" on public.educational_institutions for insert with check (true);
+drop policy if exists "read educational_institutions" on public.educational_institutions;
+create policy "read educational_institutions" on public.educational_institutions for select using (true);
+drop policy if exists "insert educational_institutions" on public.educational_institutions;
+create policy "insert educational_institutions" on public.educational_institutions for insert with check (true);
 
 -- Update track_profile_change function to track new fields
 create or replace function public.track_profile_change()
