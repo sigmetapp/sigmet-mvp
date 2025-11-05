@@ -920,42 +920,38 @@ export default function PostFeed({
                                 {fullName}
                               </span>
                             )}
-                          </div>
-                          {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              {p.category && (
-                                <div className={`text-xs px-2 py-1 rounded-md font-medium ${
-                                  hasCategory && categoryDirection
-                                    ? isLight
-                                      ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
-                                      : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
-                                    : isLight
-                                    ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
-                                    : 'text-telegram-text-secondary bg-white/5'
-                                }`}>
-                                  {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                            {p.category && (
+                              <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                hasCategory && categoryDirection
+                                  ? isLight
+                                    ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                                    : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                                  : isLight
+                                  ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
+                                  : 'text-telegram-text-secondary bg-white/5'
+                              }`}>
+                                {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                              </div>
+                            )}
+                            {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
+                              const statusConfig = {
+                                proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
+                                grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
+                                drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
+                              };
+                              const config = statusConfig[status];
+                              return (
+                                <div
+                                  key={status}
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
+                                  title={config.label}
+                                >
+                                  <span>{config.emoji}</span>
+                                  <span>{config.label}</span>
                                 </div>
-                              )}
-                              {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
-                                const statusConfig = {
-                                  proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
-                                  grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
-                                  drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
-                                };
-                                const config = statusConfig[status];
-                                return (
-                                  <div
-                                    key={status}
-                                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
-                                    title={config.label}
-                                  >
-                                    <span>{config.emoji}</span>
-                                    <span>{config.label}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                       <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
