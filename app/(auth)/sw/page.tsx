@@ -645,8 +645,10 @@ export default function SWPage() {
                         {level.name}
                         {isCurrent && <span className="ml-2 text-xs text-telegram-blue">(Current)</span>}
                       </div>
-                      <div className="text-white/60 text-xs">
-                        {level.maxSW ? `${level.minSW} - ${level.maxSW} SW` : `${level.minSW}+ SW`}
+                      <div className="px-3 py-1.5 rounded-full bg-white/10 border border-white/20">
+                        <span className="text-white font-semibold text-sm">
+                          {level.maxSW ? `${level.minSW.toLocaleString()} - ${level.maxSW.toLocaleString()} pts` : `${level.minSW.toLocaleString()}+ pts`}
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1">
