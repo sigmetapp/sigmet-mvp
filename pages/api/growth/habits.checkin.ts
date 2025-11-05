@@ -195,7 +195,7 @@ export default async function handler(
 
     // Create check-in
     const checkedAt = new Date().toISOString();
-    const pointsAwarded = task.base_points || 5;
+    const pointsAwarded = task.base_points || 20;
 
     const baseInsertPayload: Record<string, any> = {
       user_task_id: userTaskId,
@@ -266,7 +266,7 @@ export default async function handler(
     // Check for streak milestone bonus
     const milestone = getStreakMilestone(task.period, newStreak);
     if (milestone) {
-      const bonusPoints = Math.ceil((task.base_points || 5) * 2);
+      const bonusPoints = Math.ceil((task.base_points || 20) * 2);
       await supabase.from('sw_ledger').insert({
         user_id: user.id,
         direction_id: task.direction_id,
@@ -282,7 +282,7 @@ export default async function handler(
       checkin,
       userTask: updatedTask,
       streak: newStreak,
-      bonus: milestone ? { milestone, points: Math.ceil((task.base_points || 5) * 2) } : null,
+      bonus: milestone ? { milestone, points: Math.ceil((task.base_points || 20) * 2) } : null,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
