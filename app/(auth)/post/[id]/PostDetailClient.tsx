@@ -27,6 +27,7 @@ type PostRecord = {
 
 type Profile = {
   username: string | null;
+  full_name: string | null;
   avatar_url: string | null;
 };
 
@@ -131,7 +132,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     if (data.user_id) {
       const { data: profile } = await supabase
         .from<Profile>('profiles')
-        .select('username, avatar_url')
+        .select('username, full_name, avatar_url')
         .eq('user_id', data.user_id)
         .maybeSingle();
       if (profile) setAuthorProfile(profile);
@@ -558,6 +559,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const commentCount = comments.length || initialPost.commentCount || 0;
   const avatar = authorProfile?.avatar_url || AVATAR_FALLBACK;
   const username = authorProfile?.username || (post.user_id ? post.user_id.slice(0, 8) : 'anon');
+  const fullName = authorProfile?.full_name || null;
 
   // Calculate total reactions count (sum of all reaction types)
   const totalReactions = useMemo(() => {
@@ -601,14 +603,21 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
               />
               <div className="flex flex-col min-w-0">
-                <a
-                  href={`/u/${encodeURIComponent(authorProfile?.username || post.user_id || '')}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate hover:underline"
-                  data-prevent-card-navigation="true"
-                >
-                  {username}
-                </a>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <a
+                    href={`/u/${encodeURIComponent(authorProfile?.username || post.user_id || '')}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate hover:underline"
+                    data-prevent-card-navigation="true"
+                  >
+                    {username}
+                  </a>
+                  {fullName && (
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      {fullName}
+                    </span>
+                  )}
+                </div>
                 {(post.category || growthStatuses.length > 0) && (
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                     {post.category && (

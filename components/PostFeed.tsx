@@ -96,8 +96,8 @@ export default function PostFeed({
   const [publishing, setPublishing] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
 
-  // Map author user_id -> profile info (username, avatar)
-  const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; avatar_url: string | null }>>({});
+  // Map author user_id -> profile info (username, full_name, avatar)
+  const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; full_name: string | null; avatar_url: string | null }>>({});
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBody, setEditBody] = useState<string>("");
@@ -173,19 +173,23 @@ export default function PostFeed({
       // Preload comment counts for visible posts
       preloadCommentCounts(data as Post[]);
 
-      // Preload author profiles (username, avatar)
+      // Preload author profiles (username, full_name, avatar)
       const userIds = Array.from(
         new Set((data as Post[]).map((p) => p.user_id).filter((x): x is string => Boolean(x)))
       );
       if (userIds.length > 0) {
         const { data: profs } = await supabase
           .from("profiles")
-          .select("user_id, username, avatar_url")
+          .select("user_id, username, full_name, avatar_url")
           .in("user_id", userIds);
         if (profs) {
-          const map: Record<string, { username: string | null; avatar_url: string | null }> = {};
+          const map: Record<string, { username: string | null; full_name: string | null; avatar_url: string | null }> = {};
           for (const p of profs as any[]) {
-            map[p.user_id as string] = { username: p.username ?? null, avatar_url: p.avatar_url ?? null };
+            map[p.user_id as string] = { 
+              username: p.username ?? null, 
+              full_name: p.full_name ?? null,
+              avatar_url: p.avatar_url ?? null 
+            };
           }
           setProfilesByUserId(map);
         }
@@ -859,6 +863,7 @@ export default function PostFeed({
             const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
             const avatar = profile?.avatar_url || AVATAR_FALLBACK;
             const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
+            const fullName = profile?.full_name || null;
             const commentCount = commentCounts[p.id] ?? 0;
             
             // Check if post has category that matches available directions
@@ -901,14 +906,21 @@ export default function PostFeed({
                           className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
                         />
                         <div className="flex flex-col min-w-0">
-                          <a 
-                            href={`/u/${p.user_id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
-                            data-prevent-card-navigation="true"
-                          >
-                            {username}
-                          </a>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <a 
+                              href={`/u/${p.user_id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
+                              data-prevent-card-navigation="true"
+                            >
+                              {username}
+                            </a>
+                            {fullName && (
+                              <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                {fullName}
+                              </span>
+                            )}
+                          </div>
                           {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               {p.category && (
