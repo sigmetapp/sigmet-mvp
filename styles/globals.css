@@ -18,6 +18,7 @@
   --telegram-text: #000000;
   --telegram-text-secondary: #707579;
   --telegram-hover: #F0F0F0;
+  --app-header-height: 56px;
 }
 
 /* Light theme overrides */

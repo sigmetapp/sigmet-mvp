@@ -54,9 +54,12 @@ export default function SidebarShell({ user, children }: { user: User; children:
         )}
 
         {/* Main content */}
-        <main className={`min-h-screen flex-1 overflow-y-auto px-4 pt-4 pb-4 lg:px-8 lg:py-6 lg:pt-6 transition-colors relative z-0 ${
+        <main
+          data-scroll-container="true"
+          className={`min-h-screen flex-1 overflow-y-auto px-4 pt-4 pb-4 lg:px-8 lg:py-6 lg:pt-6 transition-colors relative z-0 ${
           isLight ? "text-telegram-text" : "text-telegram-text"
-        }`}>
+          }`}
+        >
           {children}
         </main>
       </div>
