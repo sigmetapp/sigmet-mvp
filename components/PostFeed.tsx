@@ -751,56 +751,6 @@ export default function PostFeed({
     </svg>
   );
 
-  // Track button position to prevent overlap with footer
-  const [buttonBottom, setButtonBottom] = useState(24); // 6 * 4 = 24px (bottom-6)
-
-  useEffect(() => {
-    if (!showComposer) return;
-    
-    const updateButtonPosition = () => {
-      const footer = document.querySelector('footer');
-      if (!footer) {
-        setButtonBottom(24);
-        return;
-      }
-      
-      const footerRect = footer.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      
-      // If footer is visible in viewport (footer top is above viewport bottom)
-      if (footerRect.top < viewportHeight) {
-        // Calculate how much footer is visible
-        const footerVisibleDistance = viewportHeight - footerRect.top;
-        const buttonHeight = 60; // Approximate button height with padding
-        const safeDistance = footerVisibleDistance + buttonHeight + 16; // 16px padding above footer
-        setButtonBottom(Math.max(24, safeDistance));
-      } else {
-        // Footer is below viewport, use default position
-        setButtonBottom(24);
-      }
-    };
-
-    // Update on scroll and resize with throttling for performance
-    let ticking = false;
-    const handleUpdate = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          updateButtonPosition();
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    window.addEventListener('scroll', handleUpdate, { passive: true });
-    window.addEventListener('resize', handleUpdate);
-    updateButtonPosition(); // Initial calculation
-
-    return () => {
-      window.removeEventListener('scroll', handleUpdate);
-      window.removeEventListener('resize', handleUpdate);
-    };
-  }, [showComposer]);
 
   // Build post URL with optional back to profile parameter
   const getPostUrl = useCallback((postId: number) => {
@@ -902,6 +852,20 @@ export default function PostFeed({
       {showFilters && !renderFiltersOutside && (
         <div className="card p-3 md:p-4 mb-6">
           {filtersJSX}
+        </div>
+      )}
+
+      {/* Create Post button - positioned next to posts */}
+      {showComposer && (
+        <div className="flex justify-center mb-4">
+          <Button
+            onClick={() => setComposerOpen(true)}
+            variant="primary"
+            className="shadow-lg z-40 rounded-full px-6 py-4 text-base"
+            icon={<Plus />}
+          >
+            Create post
+          </Button>
         </div>
       )}
 
@@ -1288,21 +1252,8 @@ export default function PostFeed({
         )}
       </div>
 
-      {/* Create Post button - positioned at bottom right, 12px from posts edge */}
-      {showComposer && (
-        <>
-          <Button
-            onClick={() => setComposerOpen(true)}
-            variant="primary"
-            className="fixed feed-create-button shadow-lg z-40 rounded-full px-6 py-4 text-base"
-            style={{ bottom: `${buttonBottom}px` }}
-            icon={<Plus />}
-          >
-            Create post
-          </Button>
-
-          {/* Composer modal */}
-          {composerOpen && (
+      {/* Composer modal */}
+      {showComposer && composerOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center">
               <div
                 className={`absolute inset-0 ${isLight ? "bg-black/50" : "bg-black/80"}`}
@@ -1378,7 +1329,6 @@ export default function PostFeed({
               </div>
             </div>
           )}
-        </>
       )}
 
       {/* Views Chart Modal */}
