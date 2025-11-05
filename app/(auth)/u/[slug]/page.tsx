@@ -28,6 +28,76 @@ type Profile = {
   last_activity_at?: string | null;
 };
 
+type SWLevel = {
+  name: string;
+  minSW: number;
+  maxSW?: number;
+  features: string[];
+  color: string;
+};
+
+const SW_LEVELS: SWLevel[] = [
+  {
+    name: 'Beginner',
+    minSW: 0,
+    maxSW: 100,
+    features: [],
+    color: 'text-gray-400'
+  },
+  {
+    name: 'Growing',
+    minSW: 100,
+    maxSW: 500,
+    features: [],
+    color: 'text-blue-400'
+  },
+  {
+    name: 'Advance',
+    minSW: 500,
+    maxSW: 2000,
+    features: [],
+    color: 'text-purple-400'
+  },
+  {
+    name: 'Expert',
+    minSW: 2000,
+    maxSW: 10000,
+    features: [],
+    color: 'text-yellow-400'
+  },
+  {
+    name: 'Leader',
+    minSW: 10000,
+    maxSW: 50000,
+    features: [],
+    color: 'text-orange-400'
+  },
+  {
+    name: 'Angel',
+    minSW: 50000,
+    features: [],
+    color: 'text-pink-400'
+  }
+];
+
+function getSWLevel(sw: number, levels: SWLevel[]): SWLevel {
+  for (let i = levels.length - 1; i >= 0; i--) {
+    if (sw >= levels[i].minSW) {
+      return levels[i];
+    }
+  }
+  return levels[0];
+}
+
+function getNextLevel(sw: number, levels: SWLevel[]): SWLevel | null {
+  const currentLevel = getSWLevel(sw, levels);
+  const currentIndex = levels.findIndex(level => level.name === currentLevel.name);
+  if (currentIndex < levels.length - 1) {
+    return levels[currentIndex + 1];
+  }
+  return null;
+}
+
 
 export default function PublicProfilePage() {
   const AVATAR_FALLBACK =
@@ -678,11 +748,74 @@ export default function PublicProfilePage() {
         ) : (
           <div className="flex items-start gap-4">
             <div className="relative flex flex-col items-center">
-              <img
-                src={profile.avatar_url || AVATAR_FALLBACK}
-                alt="avatar"
-                className="h-40 w-40 rounded-full object-cover border border-white/10"
-              />
+              <div className="relative">
+                {(() => {
+                  if (loadingSW || totalSW === null) {
+                    return (
+                      <img
+                        src={profile.avatar_url || AVATAR_FALLBACK}
+                        alt="avatar"
+                        className="h-40 w-40 rounded-full object-cover border border-white/10"
+                      />
+                    );
+                  }
+                  const currentLevel = getSWLevel(totalSW, SW_LEVELS);
+                  const nextLevel = getNextLevel(totalSW, SW_LEVELS);
+                  const progressToNext = nextLevel 
+                    ? Math.max(0, Math.min(100, ((totalSW - currentLevel.minSW) / (nextLevel.minSW - currentLevel.minSW)) * 100))
+                    : 100;
+                  
+                  // Calculate circumference for progress circle (radius = 80, so circumference = 2 * π * 80 ≈ 502.65)
+                  const radius = 80;
+                  const circumference = 2 * Math.PI * radius;
+                  const strokeDashoffset = circumference - (progressToNext / 100) * circumference;
+                  
+                  // Get color for progress circle based on level
+                  const colorMap: Record<string, string> = {
+                    'text-gray-400': '#9ca3af',
+                    'text-blue-400': '#60a5fa',
+                    'text-purple-400': '#a78bfa',
+                    'text-yellow-400': '#fbbf24',
+                    'text-orange-400': '#fb923c',
+                    'text-pink-400': '#f472b6',
+                  };
+                  const progressColor = colorMap[currentLevel.color] || '#60a5fa';
+                  
+                  return (
+                    <div className="relative inline-block">
+                      <svg className="absolute top-0 left-0 w-40 h-40 transform -rotate-90" viewBox="0 0 164 164" style={{ overflow: 'visible' }}>
+                        {/* Background circle */}
+                        <circle
+                          cx="82"
+                          cy="82"
+                          r={radius}
+                          fill="none"
+                          stroke="rgba(255, 255, 255, 0.1)"
+                          strokeWidth="4"
+                        />
+                        {/* Progress circle */}
+                        <circle
+                          cx="82"
+                          cy="82"
+                          r={radius}
+                          fill="none"
+                          stroke={progressColor}
+                          strokeWidth="4"
+                          strokeDasharray={circumference}
+                          strokeDashoffset={strokeDashoffset}
+                          strokeLinecap="round"
+                          className="transition-all duration-300"
+                        />
+                      </svg>
+                      <img
+                        src={profile.avatar_url || AVATAR_FALLBACK}
+                        alt="avatar"
+                        className="h-40 w-40 rounded-full object-cover border border-white/10 relative z-10"
+                      />
+                    </div>
+                  );
+                })()}
+              </div>
               {isMe && (
                 <>
                   <input
@@ -694,7 +827,7 @@ export default function PublicProfilePage() {
                   />
                   <button
                     onClick={() => avatarInputRef.current?.click()}
-                    className="absolute -bottom-1 -right-1 h-7 px-2 rounded-full text-xs border border-white/20 bg-white/10 hover:bg-white/20 backdrop-blur"
+                    className="absolute -bottom-1 -right-1 h-7 px-2 rounded-full text-xs border border-white/20 bg-white/10 hover:bg-white/20 backdrop-blur z-20"
                     disabled={avatarUploading}
                   >
                     {avatarUploading ? '...' : 'Edit'}
@@ -853,6 +986,26 @@ export default function PublicProfilePage() {
                       <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80 text-xs">N/A</div>
                     )}
                   </div>
+                  {(() => {
+                    if (loadingSW || totalSW === null) return null;
+                    const currentLevel = getSWLevel(totalSW, SW_LEVELS);
+                    const colorMap: Record<string, string> = {
+                      'text-gray-400': 'border-gray-400/50 bg-gray-400/20 text-gray-300',
+                      'text-blue-400': 'border-blue-400/50 bg-blue-400/20 text-blue-300',
+                      'text-purple-400': 'border-purple-400/50 bg-purple-400/20 text-purple-300',
+                      'text-yellow-400': 'border-yellow-400/50 bg-yellow-400/20 text-yellow-300',
+                      'text-orange-400': 'border-orange-400/50 bg-orange-400/20 text-orange-300',
+                      'text-pink-400': 'border-pink-400/50 bg-pink-400/20 text-pink-300',
+                    };
+                    const badgeClass = colorMap[currentLevel.color] || 'border-white/20 bg-white/10 text-white/80';
+                    return (
+                      <div className="mb-2 flex items-center gap-2">
+                        <div className={`px-2 py-0.5 rounded-full border text-xs font-medium ${badgeClass}`}>
+                          {currentLevel.name}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {loadingSW ? (
                     <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                       <div className="h-full w-full bg-white/20 animate-pulse"></div>
