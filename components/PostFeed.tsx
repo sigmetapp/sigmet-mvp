@@ -126,6 +126,14 @@ export default function PostFeed({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const inlineButtonRef = useRef<HTMLDivElement>(null);
+  const buttonColumnRef = useRef<HTMLDivElement>(null);
+  const measurementRaf = useRef<number | null>(null);
+  const [fixedButtonStyle, setFixedButtonStyle] = useState<{
+    left: number;
+    width: number;
+    top: number;
+  } | null>(null);
 
   // Map author user_id -> profile info (username, full_name, avatar)
   const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; full_name: string | null; avatar_url: string | null }>>({});
@@ -351,7 +359,97 @@ export default function PostFeed({
       }
     })();
   }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
 
+    if (!(showComposer && buttonPosition === "inline")) {
+      setFixedButtonStyle(null);
+      return;
+    }
+
+    const getStickyTopOffset = () => {
+      const rootStyles = getComputedStyle(document.documentElement);
+      const raw = rootStyles.getPropertyValue("--app-header-height").trim();
+      const headerHeight = raw.endsWith("px") ? parseFloat(raw) : parseFloat(raw || "56");
+      const safeHeaderHeight = Number.isFinite(headerHeight) ? headerHeight : 56;
+      return safeHeaderHeight + 24;
+    };
+
+    const measure = () => {
+      if (!buttonColumnRef.current || !inlineButtonRef.current) {
+        return;
+      }
+
+      const columnRect = buttonColumnRef.current.getBoundingClientRect();
+      const buttonRect = inlineButtonRef.current.getBoundingClientRect();
+      const topOffset = getStickyTopOffset();
+      const buttonHeight = buttonRect.height;
+      const shouldFix =
+        columnRect.top < topOffset && columnRect.bottom - buttonHeight > topOffset;
+
+      const nextStyle = shouldFix
+        ? {
+            left: buttonRect.left,
+            width: buttonRect.width,
+            top: topOffset,
+          }
+        : null;
+
+      setFixedButtonStyle((prev) => {
+        if (!nextStyle) {
+          return prev ? null : prev;
+        }
+
+        if (
+          prev &&
+          Math.abs(prev.left - nextStyle.left) < 0.5 &&
+          Math.abs(prev.width - nextStyle.width) < 0.5 &&
+          Math.abs(prev.top - nextStyle.top) < 0.5
+        ) {
+          return prev;
+        }
+
+        return nextStyle;
+      });
+    };
+
+    const scheduleMeasure = () => {
+      if (measurementRaf.current !== null) {
+        return;
+      }
+
+      measurementRaf.current = window.requestAnimationFrame(() => {
+        measurementRaf.current = null;
+        measure();
+      });
+    };
+
+    // Initial measurement
+    scheduleMeasure();
+    measure();
+
+    const scrollContainer = buttonColumnRef.current?.closest(
+      "[data-scroll-container=\"true\"]"
+    );
+
+    const handleScroll = () => scheduleMeasure();
+
+    scrollContainer?.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("scroll", scheduleMeasure, true);
+    window.addEventListener("resize", scheduleMeasure);
+
+    return () => {
+      if (measurementRaf.current !== null) {
+        window.cancelAnimationFrame(measurementRaf.current);
+        measurementRaf.current = null;
+      }
+      scrollContainer?.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("scroll", scheduleMeasure, true);
+      window.removeEventListener("resize", scheduleMeasure);
+    };
+  }, [showComposer, buttonPosition, posts.length]);
 
   // preload likes state for my user
   useEffect(() => {
@@ -1297,6 +1395,17 @@ export default function PostFeed({
     </>
   );
 
+  const renderCreatePostButton = () => (
+    <Button
+      onClick={() => setComposerOpen(true)}
+      variant="primary"
+      className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
+      icon={<Plus />}
+    >
+      Create post
+    </Button>
+  );
+
   return (
     <div className={className || ''}>
       {/* Filters toggle - render inside if not rendering outside */}
@@ -1307,53 +1416,59 @@ export default function PostFeed({
       )}
 
       {/* Feed with Create Post button on the right (if inline) */}
-        {buttonPosition === 'inline' && showComposer ? (
-          <div className="flex gap-6 items-start">
-            {/* Posts */}
-            <div className="flex-1 space-y-3 min-w-0 max-w-3xl">
-              {renderPostsList()}
-            </div>
+      {buttonPosition === 'inline' && showComposer ? (
+        <div className="flex gap-6 items-start">
+          {/* Posts */}
+          <div className="flex-1 space-y-3 min-w-0 max-w-3xl">
+            {renderPostsList()}
+          </div>
 
-            {/* Create Post button - inline on the right */}
-            <div className="create-post-sticky z-30 flex-shrink-0 self-start">
-              <Button
-                onClick={() => setComposerOpen(true)}
-                variant="primary"
-                className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
-                icon={<Plus />}
-              >
-                Create post
-              </Button>
+          {/* Create Post button - inline on the right */}
+          <div ref={buttonColumnRef} className="relative flex-shrink-0 self-start">
+            <div
+              ref={inlineButtonRef}
+              style={{ visibility: fixedButtonStyle ? 'hidden' : 'visible' }}
+            >
+              {renderCreatePostButton()}
             </div>
           </div>
-        ) : (
-          <>
-            {/* Feed */}
-            <div className="space-y-3">
-              {renderPostsList()}
-            </div>
+        </div>
+      ) : (
+        <>
+          {/* Feed */}
+          <div className="space-y-3">
+            {renderPostsList()}
+          </div>
 
-            {/* Create Post button - fixed on the right, follows scroll */}
-            {showComposer && buttonPosition === 'fixed' && (
-              <div
-                className="fixed z-40"
-                style={{
-                  top: 'calc(var(--app-header-height, 56px) + 24px)',
-                  right: '24px',
-                }}
-              >
-                <Button
-                  onClick={() => setComposerOpen(true)}
-                  variant="primary"
-                  className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
-                  icon={<Plus />}
-                >
-                  Create post
-                </Button>
-              </div>
-            )}
-          </>
-        )}
+          {/* Create Post button - fixed on the right, follows scroll */}
+          {showComposer && buttonPosition === 'fixed' && (
+            <div
+              className="fixed z-40"
+              style={{
+                top: 'calc(var(--app-header-height, 56px) + 24px)',
+                right: '24px',
+              }}
+            >
+              {renderCreatePostButton()}
+            </div>
+          )}
+        </>
+      )}
+
+      {fixedButtonStyle && typeof document !== 'undefined' && createPortal(
+        <div
+          className="z-40"
+          style={{
+            position: 'fixed',
+            top: fixedButtonStyle.top,
+            left: fixedButtonStyle.left,
+            width: fixedButtonStyle.width,
+          }}
+        >
+          {renderCreatePostButton()}
+        </div>,
+        document.body
+      )}
 
       {/* Composer modal - rendered via portal to cover entire viewport */}
       {showComposer && composerOpen && typeof window !== 'undefined' && createPortal(

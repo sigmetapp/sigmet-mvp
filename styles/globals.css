@@ -21,11 +21,6 @@
   --app-header-height: 56px;
 }
 
-.create-post-sticky {
-  position: sticky;
-  top: calc(var(--app-header-height, 56px) + 24px);
-}
-
 /* Light theme overrides */
 html.theme-light {
   --bg-grad-from: #ffffff;
