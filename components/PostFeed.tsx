@@ -7,7 +7,6 @@ import {
   useMemo,
   useCallback,
 } from "react";
-import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabaseClient";
 import Button from "@/components/Button";
 import PostCard from "@/components/PostCard";
@@ -1310,84 +1309,83 @@ export default function PostFeed({
         </div>
       )}
 
-      {/* Composer modal - rendered via portal to ensure it covers entire viewport */}
-      {showComposer && composerOpen && typeof window !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div
-                className={`absolute inset-0 ${isLight ? "bg-black/50" : "bg-black/80"}`}
-                onClick={() => !publishing && setComposerOpen(false)}
-              />
-              <div className="relative z-10 w-full max-w-xl mx-auto p-4">
-                <div className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? "" : ""}`}>
-                  <div className="flex items-center justify-between">
-                    <div className={`font-medium ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create post</div>
-                    <button
-                      onClick={() => !publishing && setComposerOpen(false)}
-                      className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
-                      aria-label="Close composer"
-                    >
-                      <CloseIcon className="h-5 w-5" aria-hidden="true" />
-                    </button>
-                  </div>
-                  <div className={`flex items-start gap-2 px-3 py-2 rounded-lg border ${isLight ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-amber-900/20 border-amber-700/30 text-amber-300"}`}>
-                    <svg className="h-5 w-5 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                      <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-sm font-medium">Publish only your own content, do not use AI-generated content or content from others.</span>
-                  </div>
-                  <MentionInput
-                    value={text}
-                    onChange={setText}
-                    placeholder="What do you want to share?"
-                    className={`input w-full outline-none min-h-[120px] text-base md:text-lg ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
-                    userId={uid}
+      {/* Composer modal - covers entire viewport */}
+      {showComposer && composerOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+            <div
+              className={`absolute inset-0 ${isLight ? "bg-black/50" : "bg-black/80"}`}
+              onClick={() => !publishing && setComposerOpen(false)}
+            />
+            <div className="relative z-10 w-full max-w-xl mx-auto p-4">
+              <div className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? "" : ""}`}>
+                <div className="flex items-center justify-between">
+                  <div className={`font-medium ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create post</div>
+                  <button
+                    onClick={() => !publishing && setComposerOpen(false)}
+                    className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
+                    aria-label="Close composer"
+                  >
+                    <CloseIcon className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className={`flex items-start gap-2 px-3 py-2 rounded-lg border ${isLight ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-amber-900/20 border-amber-700/30 text-amber-300"}`}>
+                  <svg className="h-5 w-5 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                    <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm font-medium">Publish only your own content, do not use AI-generated content or content from others.</span>
+                </div>
+                <MentionInput
+                  value={text}
+                  onChange={setText}
+                  placeholder="What do you want to share?"
+                  className={`input w-full outline-none min-h-[120px] text-base md:text-lg ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                  userId={uid}
+                />
+                <input
+                  ref={unifiedFileRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    if (!file) { setImg(null); setVid(null); return; }
+                    if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
+                    else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
+                    else { setImg(null); setVid(null); }
+                  }}
+                />
+                <div className="flex items-center gap-3">
+                  <EmojiPicker
+                    onEmojiSelect={handleEmojiSelect}
+                    variant={isLight ? 'light' : 'dark'}
+                    align="left"
                   />
-                  <input
-                    ref={unifiedFileRef}
-                    type="file"
-                    accept="image/*,video/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (!file) { setImg(null); setVid(null); return; }
-                      if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
-                      else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
-                      else { setImg(null); setVid(null); }
-                    }}
-                  />
-                  <div className="flex items-center gap-3">
-                    <EmojiPicker
-                      onEmojiSelect={handleEmojiSelect}
-                      variant={isLight ? 'light' : 'dark'}
-                      align="left"
-                    />
-                    <button
-                      onClick={() => unifiedFileRef.current?.click()}
-                      className={`px-3 py-2 rounded-xl border text-sm transition flex items-center gap-2 ${
-                        isLight
-                          ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                          : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
-                      }`}
-                    >
-                      <ImageIcon className="h-4 w-4" aria-hidden="true" />
-                      <span>Media</span>
-                    </button>
-                    {(img || vid) && (
-                      <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                        {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
-                      </span>
-                    )}
-                    <div className="ml-auto">
-                      <Button onClick={onPublish} disabled={publishing} variant="primary">
-                        {publishing ? "Publishing..." : "Publish"}
-                      </Button>
-                    </div>
+                  <button
+                    onClick={() => unifiedFileRef.current?.click()}
+                    className={`px-3 py-2 rounded-xl border text-sm transition flex items-center gap-2 ${
+                      isLight
+                        ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
+                        : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                    }`}
+                  >
+                    <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                    <span>Media</span>
+                  </button>
+                  {(img || vid) && (
+                    <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                      {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
+                    </span>
+                  )}
+                  <div className="ml-auto">
+                    <Button onClick={onPublish} disabled={publishing} variant="primary">
+                      {publishing ? "Publishing..." : "Publish"}
+                    </Button>
                   </div>
                 </div>
               </div>
             </div>
-        </div>,
-        document.body
+          </div>
+        </div>
       )}
 
       {/* Views Chart Modal */}
