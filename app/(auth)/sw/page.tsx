@@ -42,34 +42,37 @@ const SW_LEVELS: SWLevel[] = [
     minSW: 0,
     maxSW: 100,
     features: [
-      'Basic social network features',
-      'Post publishing',
-      'Commenting',
-      'Reacting to posts'
+      'View feed',
+      'Post to feed',
+      'Comment on materials',
+      'Followers'
     ],
     color: 'text-gray-400'
   },
   {
-    name: 'Active',
+    name: 'Growing',
     minSW: 100,
     maxSW: 500,
     features: [
-      'All "Beginner" level features',
-      'Invite friends',
-      'Access to extended statistics',
-      'Priority in notifications'
+      'Grow 8 panel',
+      'Badge near nickname / Avatar frame',
+      'Partial moderation of posts and comments',
+      'Access to Trust Flow functionality',
+      'White theme',
+      'Connections functionality'
     ],
     color: 'text-blue-400'
   },
   {
-    name: 'Influencer',
+    name: 'Advance',
     minSW: 500,
     maxSW: 2000,
     features: [
-      'All "Active" level features',
-      'Create groups and communities',
-      'Extended profile features',
-      'Priority support'
+      'Create more than 20 posts per day',
+      'Increased ranking priority (x2)',
+      'Badge near nickname / Avatar frame',
+      'Voting and challenges functionality',
+      'Post and comment moderation'
     ],
     color: 'text-purple-400'
   },
@@ -78,23 +81,38 @@ const SW_LEVELS: SWLevel[] = [
     minSW: 2000,
     maxSW: 10000,
     features: [
-      'All "Influencer" level features',
-      'Content moderation',
-      'Access to platform analytics',
-      'VIP status'
+      'Increased ranking priority (x3)',
+      'Badge near nickname / Avatar frame',
+      'Display profile to followers and connections in separate block at top',
+      'Soon....',
+      'Soon....'
     ],
     color: 'text-yellow-400'
   },
   {
-    name: 'Legend',
+    name: 'Leader',
     minSW: 10000,
+    maxSW: 50000,
     features: [
-      'All "Expert" level features',
-      'Exclusive features',
-      'Personal support',
-      'Participate in platform development'
+      'Soon....',
+      'Soon....',
+      'Soon....',
+      'Soon....',
+      'Soon....'
     ],
     color: 'text-orange-400'
+  },
+  {
+    name: 'Angel',
+    minSW: 50000,
+    features: [
+      'Soon....',
+      'Soon....',
+      'Soon....',
+      'Soon....',
+      'Soon....'
+    ],
+    color: 'text-pink-400'
   }
 ];
 
@@ -604,17 +622,17 @@ export default function SWPage() {
 
       {/* Levels Tab */}
       {activeTab === 'levels' && (
-        <div className="space-y-4">
-          <div className="card p-4">
-            <h2 className="text-lg font-semibold text-white mb-4">SW Levels & Features</h2>
-            <div className="space-y-4">
+        <div className="space-y-3">
+          <div className="card p-3">
+            <h2 className="text-lg font-semibold text-white mb-3">SW Levels & Features</h2>
+            <div className="space-y-2">
               {swLevels.map((level, index) => {
                 const isCurrent = currentLevel.name === level.name;
                 const isUnlocked = totalSW >= level.minSW;
                 return (
                   <div
                     key={level.name}
-                    className={`p-4 rounded-lg border-2 ${
+                    className={`p-3 rounded-lg border ${
                       isCurrent
                         ? 'border-telegram-blue bg-telegram-blue/10'
                         : isUnlocked
@@ -622,20 +640,20 @@ export default function SWPage() {
                         : 'border-white/10 bg-white/5 opacity-60'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className={`text-xl font-bold ${level.color}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className={`text-lg font-bold ${level.color}`}>
                         {level.name}
-                        {isCurrent && <span className="ml-2 text-sm text-telegram-blue">(Current)</span>}
+                        {isCurrent && <span className="ml-2 text-xs text-telegram-blue">(Current)</span>}
                       </div>
-                      <div className="text-white/60 text-sm">
+                      <div className="text-white/60 text-xs">
                         {level.maxSW ? `${level.minSW} - ${level.maxSW} SW` : `${level.minSW}+ SW`}
                       </div>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       {level.features.map((feature, featureIndex) => (
-                        <div key={featureIndex} className="flex items-start gap-2">
-                          <span className="text-telegram-blue mt-1">✓</span>
-                          <span className={`text-sm ${isUnlocked ? 'text-white/80' : 'text-white/50'}`}>
+                        <div key={featureIndex} className="flex items-start gap-1.5">
+                          <span className="text-telegram-blue mt-0.5 text-xs">✓</span>
+                          <span className={`text-xs ${isUnlocked ? 'text-white/80' : 'text-white/50'}`}>
                             {feature}
                           </span>
                         </div>
