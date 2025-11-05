@@ -25,6 +25,7 @@ type Profile = {
   directions_selected: string[] | null;
   show_online_status?: boolean | null;
   created_at?: string;
+  last_activity_at?: string | null;
 };
 
 
@@ -94,6 +95,15 @@ export default function PublicProfilePage() {
     supabase.auth.getUser().then(({ data }) => setViewerId(data.user?.id ?? null));
   }, []);
 
+  // Helper function to check if user is online based on last_activity_at
+  const isOnlineByActivity = (lastActivityAt: string | null | undefined): boolean => {
+    if (!lastActivityAt) return false;
+    const lastActivity = new Date(lastActivityAt);
+    const now = new Date();
+    const diffInMinutes = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
+    return diffInMinutes < 5; // Online if activity was within last 5 minutes
+  };
+
   // Track online status for the viewed profile
   useEffect(() => {
     if (!profile?.user_id) return;
@@ -106,6 +116,7 @@ export default function PublicProfilePage() {
       username: profile.username,
       show_online_status: profile.show_online_status,
       showStatus,
+      last_activity_at: profile.last_activity_at,
     });
 
     if (!showStatus) {
@@ -114,6 +125,19 @@ export default function PublicProfilePage() {
       setIsOnline(null);
       return;
     }
+
+    // Helper function to check online status (presence OR activity within 5 minutes)
+    const checkOnlineStatus = (presenceOnline: boolean, lastActivityAt?: string | null): boolean => {
+      const activityOnline = isOnlineByActivity(lastActivityAt);
+      const isOnline = presenceOnline || activityOnline;
+      console.log('[Online Status] Status check:', {
+        presenceOnline,
+        activityOnline,
+        lastActivityAt,
+        isOnline,
+      });
+      return isOnline;
+    };
 
     // Subscribe to presence channel for this user
     const channelName = `presence:${profile.user_id}`;
@@ -124,31 +148,36 @@ export default function PublicProfilePage() {
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         console.log('[Online Status] Presence sync event:', { state });
-        const hasOnline = Object.keys(state).length > 0 && 
+        const presenceOnline = Object.keys(state).length > 0 && 
           Object.values(state).some((presences: any[]) => 
             presences.some((p: any) => p.online === true)
           );
-        console.log('[Online Status] Sync result - hasOnline:', hasOnline);
-        setIsOnline(hasOnline);
+        const finalStatus = checkOnlineStatus(presenceOnline, profile.last_activity_at);
+        console.log('[Online Status] Sync result - presenceOnline:', presenceOnline, 'finalStatus:', finalStatus);
+        setIsOnline(finalStatus);
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
         console.log('[Online Status] Presence join event:', { key, newPresences });
-        const isUserOnline = newPresences.some((p: any) => p.online === true);
-        if (isUserOnline) {
+        const presenceOnline = newPresences.some((p: any) => p.online === true);
+        const finalStatus = checkOnlineStatus(presenceOnline, profile.last_activity_at);
+        if (finalStatus) {
           console.log('[Online Status] User joined as online');
           setIsOnline(true);
+        } else {
+          setIsOnline(false);
         }
       })
       .on('presence', { event: 'leave' }, () => {
         console.log('[Online Status] Presence leave event');
         // Check if any presence remains
         const state = channel.presenceState();
-        const hasOnline = Object.keys(state).length > 0 && 
+        const presenceOnline = Object.keys(state).length > 0 && 
           Object.values(state).some((presences: any[]) => 
             presences.some((p: any) => p.online === true)
           );
-        console.log('[Online Status] Leave result - hasOnline:', hasOnline);
-        setIsOnline(hasOnline);
+        const finalStatus = checkOnlineStatus(presenceOnline, profile.last_activity_at);
+        console.log('[Online Status] Leave result - presenceOnline:', presenceOnline, 'finalStatus:', finalStatus);
+        setIsOnline(finalStatus);
       })
       .subscribe((status) => {
         console.log('[Online Status] Channel subscription status:', status);
@@ -162,23 +191,57 @@ export default function PublicProfilePage() {
         console.log('[Online Status] Performing initial presence check');
         const state = await getPresenceMap(profile.user_id);
         console.log('[Online Status] Initial presence state:', state);
-        const hasOnline = Object.keys(state).length > 0 && 
+        const presenceOnline = Object.keys(state).length > 0 && 
           Object.values(state).some((presences: any[]) => 
             presences.some((p: any) => p.online === true)
           );
-        console.log('[Online Status] Initial check result - hasOnline:', hasOnline);
-        setIsOnline(hasOnline);
+        const finalStatus = checkOnlineStatus(presenceOnline, profile.last_activity_at);
+        console.log('[Online Status] Initial check result - presenceOnline:', presenceOnline, 'finalStatus:', finalStatus);
+        setIsOnline(finalStatus);
       } catch (error) {
         console.error('[Online Status] Initial check error:', error);
-        setIsOnline(false);
+        // Fallback to activity-based check
+        const activityOnline = isOnlineByActivity(profile.last_activity_at);
+        setIsOnline(activityOnline);
       }
     })();
+
+    // Poll for last_activity_at updates every 30 seconds
+    const activityPollInterval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('last_activity_at')
+          .eq('user_id', profile.user_id)
+          .maybeSingle();
+        
+        if (data) {
+          const newLastActivityAt = (data as any).last_activity_at;
+          if (newLastActivityAt !== profile.last_activity_at) {
+            // Update profile with new last_activity_at
+            setProfile((prev) => prev ? { ...prev, last_activity_at: newLastActivityAt } : null);
+            
+            // Recheck online status
+            const state = channel.presenceState();
+            const presenceOnline = Object.keys(state).length > 0 && 
+              Object.values(state).some((presences: any[]) => 
+                presences.some((p: any) => p.online === true)
+              );
+            const finalStatus = checkOnlineStatus(presenceOnline, newLastActivityAt);
+            setIsOnline(finalStatus);
+          }
+        }
+      } catch (error) {
+        console.error('[Online Status] Error polling activity:', error);
+      }
+    }, 30000);
 
     return () => {
       channel.unsubscribe();
       setPresenceChannel(null);
+      clearInterval(activityPollInterval);
     };
-  }, [profile?.user_id, profile?.show_online_status]);
+  }, [profile?.user_id, profile?.show_online_status, profile?.last_activity_at]);
 
   useEffect(() => {
     if (!slug) return;
@@ -189,7 +252,7 @@ export default function PublicProfilePage() {
       if (uuidLike) {
         const { data } = await supabase
           .from('profiles')
-          .select('user_id, username')
+          .select('user_id, username, last_activity_at')
           .eq('user_id', slug)
           .maybeSingle();
         const prof = (data as unknown as Profile) || null;
@@ -206,7 +269,7 @@ export default function PublicProfilePage() {
       // Otherwise, resolve strictly by username
       const { data } = await supabase
         .from('profiles')
-        .select('user_id, username, full_name, bio, country, website_url, facebook_url, instagram_url, twitter_url, avatar_url, directions_selected, show_online_status, created_at')
+        .select('user_id, username, full_name, bio, country, website_url, facebook_url, instagram_url, twitter_url, avatar_url, directions_selected, show_online_status, created_at, last_activity_at')
         .eq('username', slug)
         .maybeSingle();
       setProfile(((data as unknown) as Profile) || null);
