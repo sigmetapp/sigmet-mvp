@@ -37,61 +37,61 @@ type SWLevel = {
 
 const SW_LEVELS: SWLevel[] = [
   {
-    name: 'Новичок',
+    name: 'Beginner',
     minSW: 0,
     maxSW: 100,
     features: [
-      'Базовые функции социальной сети',
-      'Публикация постов',
-      'Комментирование',
-      'Реакции на посты'
+      'Basic social network features',
+      'Post publishing',
+      'Commenting',
+      'Reacting to posts'
     ],
     color: 'text-gray-400'
   },
   {
-    name: 'Активный',
+    name: 'Active',
     minSW: 100,
     maxSW: 500,
     features: [
-      'Все функции уровня "Новичок"',
-      'Приглашение друзей',
-      'Доступ к расширенной статистике',
-      'Приоритет в уведомлениях'
+      'All "Beginner" level features',
+      'Invite friends',
+      'Access to extended statistics',
+      'Priority in notifications'
     ],
     color: 'text-blue-400'
   },
   {
-    name: 'Влиятельный',
+    name: 'Influencer',
     minSW: 500,
     maxSW: 2000,
     features: [
-      'Все функции уровня "Активный"',
-      'Создание групп и сообществ',
-      'Расширенные возможности профиля',
-      'Приоритетная поддержка'
+      'All "Active" level features',
+      'Create groups and communities',
+      'Extended profile features',
+      'Priority support'
     ],
     color: 'text-purple-400'
   },
   {
-    name: 'Эксперт',
+    name: 'Expert',
     minSW: 2000,
     maxSW: 10000,
     features: [
-      'Все функции уровня "Влиятельный"',
-      'Модерация контента',
-      'Доступ к аналитике платформы',
-      'VIP статус'
+      'All "Influencer" level features',
+      'Content moderation',
+      'Access to platform analytics',
+      'VIP status'
     ],
     color: 'text-yellow-400'
   },
   {
-    name: 'Легенда',
+    name: 'Legend',
     minSW: 10000,
     features: [
-      'Все функции уровня "Эксперт"',
-      'Эксклюзивные функции',
-      'Персональная поддержка',
-      'Участие в развитии платформы'
+      'All "Expert" level features',
+      'Exclusive features',
+      'Personal support',
+      'Participate in platform development'
     ],
     color: 'text-orange-400'
   }
@@ -260,7 +260,7 @@ export default function SWPage() {
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">Social Weight (SW)</h1>
           <p className="text-white/70 text-sm mt-2">
-            Ваш Social Weight отражает вашу активность и вовлеченность в социальной сети.
+            Your Social Weight reflects your activity and engagement in the social network.
           </p>
         </div>
         {isAdmin && (
@@ -284,7 +284,7 @@ export default function SWPage() {
       {cached && (
         <div className="card p-3 bg-blue-500/10 border border-blue-500/20">
           <div className="text-blue-300 text-sm">
-            ⚡ Данные загружены из кэша (обновлено {cacheAge} секунд назад). Обновление происходит каждые 5 минут.
+            ⚡ Data loaded from cache (updated {cacheAge} seconds ago). Updates occur every 5 minutes.
           </div>
         </div>
       )}
@@ -299,7 +299,7 @@ export default function SWPage() {
               : 'text-white/60 hover:text-white/80'
           }`}
         >
-          Обзор
+          Overview
         </button>
         <button
           onClick={() => setActiveTab('factors')}
@@ -309,7 +309,7 @@ export default function SWPage() {
               : 'text-white/60 hover:text-white/80'
           }`}
         >
-          Как увеличить SW
+          How to Increase SW
         </button>
         <button
           onClick={() => setActiveTab('levels')}
@@ -319,7 +319,7 @@ export default function SWPage() {
               : 'text-white/60 hover:text-white/80'
           }`}
         >
-          Уровни и возможности
+          Levels & Features
         </button>
         {isAdmin && (
           <button
@@ -330,7 +330,7 @@ export default function SWPage() {
                 : 'text-white/60 hover:text-white/80'
             }`}
           >
-            Расчеты (Админ)
+            Breakdown (Admin)
           </button>
         )}
       </div>
@@ -341,14 +341,14 @@ export default function SWPage() {
           {/* Total SW */}
           <div className="card p-6">
             <div className="text-center">
-              <div className="text-white/60 text-sm mb-2">Ваш Social Weight</div>
+              <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
               <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
               {originalSW && originalSW !== totalSW && (
                 <div className="text-white/50 text-xs mb-2">
-                  Исходный SW: {originalSW.toLocaleString()} (инфляция: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
+                  Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
                 </div>
               )}
-              <div className="text-white/60 text-sm">Всего очков</div>
+              <div className="text-white/60 text-sm">Total Points</div>
             </div>
           </div>
 
@@ -356,15 +356,15 @@ export default function SWPage() {
           <div className="card p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="text-white/60 text-sm mb-1">Текущий уровень</div>
+                <div className="text-white/60 text-sm mb-1">Current Level</div>
                 <div className={`text-xl font-bold ${currentLevel.color}`}>{currentLevel.name}</div>
               </div>
               {nextLevel && (
                 <div className="text-right">
-                  <div className="text-white/60 text-sm mb-1">Следующий уровень</div>
+                  <div className="text-white/60 text-sm mb-1">Next Level</div>
                   <div className={`text-lg font-semibold ${getSWLevel(nextLevel.minSW).color}`}>{nextLevel.name}</div>
                   <div className="text-white/50 text-xs mt-1">
-                    {nextLevel.minSW - totalSW} очков до следующего уровня
+                    {nextLevel.minSW - totalSW} points to next level
                   </div>
                 </div>
               )}
@@ -385,15 +385,15 @@ export default function SWPage() {
               <div className="flex items-start gap-3">
                 <div className="text-yellow-400 text-xl">⚠️</div>
                 <div className="flex-1">
-                  <div className="text-yellow-300 font-medium mb-1">Инфляция SW</div>
+                  <div className="text-yellow-300 font-medium mb-1">SW Inflation</div>
                   <div className="text-white/70 text-sm">
-                    Ваш SW уменьшается на {((1 - inflationRate) * 100).toFixed(2)}% из-за:
+                    Your SW is decreasing by {((1 - inflationRate) * 100).toFixed(2)}% due to:
                     <ul className="list-disc list-inside mt-2 space-y-1">
-                      <li>Времени, прошедшего с момента регистрации</li>
-                      <li>Роста количества пользователей в сети</li>
+                      <li>Time elapsed since registration</li>
+                      <li>Growth in the number of users in the network</li>
                     </ul>
                     <div className="mt-2 text-xs text-white/60">
-                      Для поддержания SW необходимо постоянно увеличивать активность.
+                      To maintain SW, you need to constantly increase your activity.
                     </div>
                   </div>
                 </div>
@@ -407,85 +407,85 @@ export default function SWPage() {
       {activeTab === 'factors' && (
         <div className="space-y-4">
           <div className="card p-4">
-            <h2 className="text-lg font-semibold text-white mb-4">Как увеличить ваш SW</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">How to Increase Your SW</h2>
             <div className="space-y-4">
               <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">1. Заполните профиль</div>
+                <div className="text-white font-medium mb-2">1. Complete Your Profile</div>
                 <div className="text-white/70 text-sm mb-2">
-                  Заполните все поля профиля (имя, био, страна, аватар) - это даст вам дополнительные очки.
+                  Fill in all profile fields (name, bio, country, avatar) - this will give you additional points.
                 </div>
                 <div className="text-white/50 text-xs">
-                  Текущий вклад: {breakdown.profileComplete.points} очков
+                  Current contribution: {breakdown.profileComplete.points} points
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">2. Выполняйте задачи Growth Directions</div>
+                <div className="text-white font-medium mb-2">2. Complete Growth Directions Tasks</div>
                 <div className="text-white/70 text-sm mb-2">
-                  Выполняйте задачи из направлений роста - это основной источник очков SW.
+                  Complete tasks from growth directions - this is the main source of SW points.
                 </div>
                 <div className="text-white/50 text-xs">
-                  Текущий вклад: {breakdown.growth.points.toFixed(0)} очков ({breakdown.growth.count} задач)
+                  Current contribution: {breakdown.growth.points.toFixed(0)} points ({breakdown.growth.count} tasks)
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">3. Публикуйте посты</div>
+                <div className="text-white font-medium mb-2">3. Publish Posts</div>
                 <div className="text-white/70 text-sm mb-2">
-                  Каждый опубликованный пост добавляет очки к вашему SW.
+                  Each published post adds points to your SW.
                 </div>
                 <div className="text-white/50 text-xs">
-                  Текущий вклад: {breakdown.posts.points} очков ({breakdown.posts.count} постов)
+                  Current contribution: {breakdown.posts.points} points ({breakdown.posts.count} posts)
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">4. Комментируйте</div>
+                <div className="text-white font-medium mb-2">4. Comment</div>
                 <div className="text-white/70 text-sm mb-2">
-                  Активное комментирование постов других пользователей увеличивает ваш SW.
+                  Actively commenting on other users' posts increases your SW.
                 </div>
                 <div className="text-white/50 text-xs">
-                  Текущий вклад: {breakdown.comments.points} очков ({breakdown.comments.count} комментариев)
+                  Current contribution: {breakdown.comments.points} points ({breakdown.comments.count} comments)
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">5. Создавайте связи</div>
+                <div className="text-white font-medium mb-2">5. Create Connections</div>
                 <div className="text-white/70 text-sm mb-2">
-                  Взаимные упоминания в постах создают связи, которые дают дополнительные очки.
+                  Mutual mentions in posts create connections that give additional points.
                 </div>
                 <div className="text-white/50 text-xs">
-                  Текущий вклад: {breakdown.connections.points} очков ({breakdown.connections.count} связей)
+                  Current contribution: {breakdown.connections.points} points ({breakdown.connections.count} connections)
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">6. Привлекайте подписчиков</div>
+                <div className="text-white font-medium mb-2">6. Attract Followers</div>
                 <div className="text-white/70 text-sm mb-2">
-                  Чем больше у вас подписчиков, тем выше ваш SW.
+                  The more followers you have, the higher your SW.
                 </div>
                 <div className="text-white/50 text-xs">
-                  Текущий вклад: {breakdown.followers.points} очков ({breakdown.followers.count} подписчиков)
+                  Current contribution: {breakdown.followers.points} points ({breakdown.followers.count} followers)
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">7. Получайте реакции</div>
+                <div className="text-white font-medium mb-2">7. Get Reactions</div>
                 <div className="text-white/70 text-sm mb-2">
-                  Реакции на ваши посты увеличивают ваш SW.
+                  Reactions on your posts increase your SW.
                 </div>
                 <div className="text-white/50 text-xs">
-                  Текущий вклад: {breakdown.reactions.points} очков ({Math.round(breakdown.reactions.count)} реакций)
+                  Current contribution: {breakdown.reactions.points} points ({Math.round(breakdown.reactions.count)} reactions)
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">8. Приглашайте друзей</div>
+                <div className="text-white font-medium mb-2">8. Invite Friends</div>
                 <div className="text-white/70 text-sm mb-2">
-                  Приглашайте друзей через инвайт-коды. Каждый приглашенный друг дает вам очки.
+                  Invite friends via invite codes. Each invited friend gives you points.
                 </div>
                 <div className="text-white/50 text-xs">
-                  Текущий вклад: {breakdown.invites?.points || 0} очков ({breakdown.invites?.count || 0} приглашений)
+                  Current contribution: {breakdown.invites?.points || 0} points ({breakdown.invites?.count || 0} invites)
                 </div>
               </div>
             </div>
@@ -497,7 +497,7 @@ export default function SWPage() {
       {activeTab === 'levels' && (
         <div className="space-y-4">
           <div className="card p-4">
-            <h2 className="text-lg font-semibold text-white mb-4">Уровни SW и их возможности</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">SW Levels & Features</h2>
             <div className="space-y-4">
               {SW_LEVELS.map((level, index) => {
                 const isCurrent = currentLevel.name === level.name;
@@ -516,7 +516,7 @@ export default function SWPage() {
                     <div className="flex items-center justify-between mb-3">
                       <div className={`text-xl font-bold ${level.color}`}>
                         {level.name}
-                        {isCurrent && <span className="ml-2 text-sm text-telegram-blue">(Текущий)</span>}
+                        {isCurrent && <span className="ml-2 text-sm text-telegram-blue">(Current)</span>}
                       </div>
                       <div className="text-white/60 text-sm">
                         {level.maxSW ? `${level.minSW} - ${level.maxSW} SW` : `${level.minSW}+ SW`}
@@ -544,7 +544,7 @@ export default function SWPage() {
       {activeTab === 'breakdown' && isAdmin && (
         <div className="space-y-4">
           <div className="card p-4 space-y-2">
-            <h2 className="text-lg font-semibold text-white mb-2">SW Breakdown (Детальный расчет)</h2>
+            <h2 className="text-lg font-semibold text-white mb-2">SW Breakdown (Detailed Calculation)</h2>
             
             <div className="space-y-2">
               {/* Registration */}
