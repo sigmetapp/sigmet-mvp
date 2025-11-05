@@ -1592,7 +1592,7 @@ export default function PublicProfilePage() {
           <h2 className="text-lg text-white/90 animate-fade-in">Posts</h2>
         )}
         {!loadingProfile && profile && (
-          <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+          <div style={{ maxWidth: '650px', margin: '0 auto', width: '100%' }}>
             <PostFeed
               filterUserId={profile.user_id}
               showFilters={false}
