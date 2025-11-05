@@ -1332,7 +1332,6 @@ export default function PostFeed({
               </div>
             </div>
           )}
-      )}
 
       {/* Views Chart Modal */}
       {viewsChartOpen && (
