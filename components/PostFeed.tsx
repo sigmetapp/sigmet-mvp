@@ -855,10 +855,8 @@ export default function PostFeed({
         </div>
       )}
 
-      {/* Feed with Create Post button on the right */}
-      <div className="flex gap-6 items-start relative">
-        {/* Posts */}
-        <div className="flex-1 space-y-3 min-w-0 max-w-3xl">
+      {/* Feed */}
+      <div className="space-y-3">
         {loading ? (
           <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
         ) : (
@@ -1238,22 +1236,27 @@ export default function PostFeed({
             );
           })
         )}
-        </div>
-
-        {/* Create Post button - sticky on the right */}
-        {showComposer && (
-          <div className="sticky top-6 flex-shrink-0 self-start">
-            <Button
-              onClick={() => setComposerOpen(true)}
-              variant="primary"
-              className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
-              icon={<Plus />}
-            >
-              Create post
-            </Button>
-          </div>
-        )}
       </div>
+
+      {/* Create Post button - fixed on the right, follows scroll */}
+      {showComposer && (
+        <div
+          className="fixed z-40"
+          style={{
+            top: '24px',
+            right: '24px',
+          }}
+        >
+          <Button
+            onClick={() => setComposerOpen(true)}
+            variant="primary"
+            className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
+            icon={<Plus />}
+          >
+            Create post
+          </Button>
+        </div>
+      )}
 
       {/* Composer modal - rendered via portal to cover entire viewport */}
       {showComposer && composerOpen && typeof window !== 'undefined' && createPortal(
