@@ -328,58 +328,320 @@ export default function PerformanceTestPage() {
             </div>
           </div>
 
+          {/* Performance Benchmarks */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4">Рекомендательные диапазоны производительности</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-3">База данных (DB)</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-700">Отлично:</span>
+                    <span className="font-medium text-green-600">&lt; 100ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-700">Хорошо:</span>
+                    <span className="font-medium text-yellow-600">100-500ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-700">Приемлемо:</span>
+                    <span className="font-medium text-orange-600">500-1000ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-700">Плохо:</span>
+                    <span className="font-medium text-red-600">&gt; 1000ms</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <div className="text-xs text-blue-600">
+                      <strong>Цель:</strong> Среднее время &lt; 200ms
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h3 className="font-semibold text-purple-900 mb-3">API Endpoints</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-purple-700">Отлично:</span>
+                    <span className="font-medium text-green-600">&lt; 200ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-purple-700">Хорошо:</span>
+                    <span className="font-medium text-yellow-600">200-500ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-purple-700">Приемлемо:</span>
+                    <span className="font-medium text-orange-600">500-2000ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-purple-700">Плохо:</span>
+                    <span className="font-medium text-red-600">&gt; 2000ms</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-purple-200">
+                    <div className="text-xs text-purple-600">
+                      <strong>Цель:</strong> Среднее время &lt; 500ms
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                <h3 className="font-semibold text-indigo-900 mb-3">Память сервера</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-indigo-700">Отлично:</span>
+                    <span className="font-medium text-green-600">Heap &lt; 50%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-indigo-700">Хорошо:</span>
+                    <span className="font-medium text-yellow-600">Heap 50-70%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-indigo-700">Внимание:</span>
+                    <span className="font-medium text-orange-600">Heap 70-80%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-indigo-700">Критично:</span>
+                    <span className="font-medium text-red-600">Heap &gt; 80%</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-indigo-200">
+                    <div className="text-xs text-indigo-600">
+                      <strong>Цель:</strong> RSS &lt; 500MB для MVP
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                <h3 className="font-semibold text-teal-900 mb-3">Успешность запросов</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-teal-700">Отлично:</span>
+                    <span className="font-medium text-green-600">100%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-teal-700">Хорошо:</span>
+                    <span className="font-medium text-yellow-600">95-99%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-teal-700">Внимание:</span>
+                    <span className="font-medium text-orange-600">90-95%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-teal-700">Критично:</span>
+                    <span className="font-medium text-red-600">&lt; 90%</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-teal-200">
+                    <div className="text-xs text-teal-600">
+                      <strong>Цель:</strong> 100% успешность
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <h3 className="font-semibold text-amber-900 mb-3">Размер ответов API</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-700">Отлично:</span>
+                    <span className="font-medium text-green-600">&lt; 50 KB</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-700">Хорошо:</span>
+                    <span className="font-medium text-yellow-600">50-200 KB</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-700">Приемлемо:</span>
+                    <span className="font-medium text-orange-600">200-500 KB</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-700">Плохо:</span>
+                    <span className="font-medium text-red-600">&gt; 500 KB</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-amber-200">
+                    <div className="text-xs text-amber-600">
+                      <strong>Цель:</strong> Средний размер &lt; 100 KB
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
+                <h3 className="font-semibold text-rose-900 mb-3">CPU Usage</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-rose-700">Низкое:</span>
+                    <span className="font-medium text-green-600">&lt; 100ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-rose-700">Среднее:</span>
+                    <span className="font-medium text-yellow-600">100-500ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-rose-700">Высокое:</span>
+                    <span className="font-medium text-orange-600">500-1000ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-rose-700">Очень высокое:</span>
+                    <span className="font-medium text-red-600">&gt; 1000ms</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-rose-200">
+                    <div className="text-xs text-rose-600">
+                      <strong>Примечание:</strong> Замеряется за время запроса
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Performance Recommendations */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Performance Recommendations</h2>
+            <h2 className="text-xl font-semibold mb-4">Анализ производительности и рекомендации</h2>
             <div className="space-y-2">
-              {data.database.statistics.max > 1000 && (
+              {/* Database Performance Analysis */}
+              {data.database.statistics.average < 100 ? (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="font-medium text-green-800">✅ База данных: Отлично</div>
+                  <div className="text-sm text-green-700 mt-1">
+                    Среднее время запросов: {formatDuration(data.database.statistics.average)} (цель: &lt; 200ms)
+                  </div>
+                </div>
+              ) : data.database.statistics.average < 500 ? (
                 <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="font-medium text-yellow-800">⚠️ Slow Database Queries</div>
+                  <div className="font-medium text-yellow-800">⚠️ База данных: Хорошо</div>
                   <div className="text-sm text-yellow-700 mt-1">
-                    Some database queries are taking more than 1 second. Consider optimizing indexes or query structure.
+                    Среднее время запросов: {formatDuration(data.database.statistics.average)}. Рекомендуется оптимизация индексов для достижения &lt; 200ms.
                   </div>
                 </div>
-              )}
-              {data.api.statistics.max > 2000 && (
+              ) : data.database.statistics.average < 1000 ? (
                 <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                  <div className="font-medium text-orange-800">⚠️ Slow API Endpoints</div>
+                  <div className="font-medium text-orange-800">⚠️ База данных: Приемлемо, но требует внимания</div>
                   <div className="text-sm text-orange-700 mt-1">
-                    Some API endpoints are taking more than 2 seconds. Consider caching or optimizing response times.
+                    Среднее время запросов: {formatDuration(data.database.statistics.average)}. Необходимо оптимизировать запросы и индексы.
                   </div>
                 </div>
-              )}
-              {data.server.memory.heapUsed / data.server.memory.heapTotal > 0.8 && (
+              ) : (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="font-medium text-red-800">⚠️ High Memory Usage</div>
+                  <div className="font-medium text-red-800">❌ База данных: Критично</div>
                   <div className="text-sm text-red-700 mt-1">
-                    Heap memory usage is above 80%. Monitor for potential memory leaks.
+                    Среднее время запросов: {formatDuration(data.database.statistics.average)} (&gt; 1000ms). Требуется срочная оптимизация: проверьте индексы, оптимизируйте запросы, рассмотрите кэширование.
                   </div>
                 </div>
               )}
+
+              {/* API Performance Analysis */}
+              {data.api.statistics.average < 200 ? (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="font-medium text-green-800">✅ API Endpoints: Отлично</div>
+                  <div className="text-sm text-green-700 mt-1">
+                    Среднее время ответа: {formatDuration(data.api.statistics.average)} (цель: &lt; 500ms)
+                  </div>
+                </div>
+              ) : data.api.statistics.average < 500 ? (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="font-medium text-yellow-800">⚠️ API Endpoints: Хорошо</div>
+                  <div className="text-sm text-yellow-700 mt-1">
+                    Среднее время ответа: {formatDuration(data.api.statistics.average)}. Рассмотрите оптимизацию для достижения &lt; 500ms.
+                  </div>
+                </div>
+              ) : data.api.statistics.average < 2000 ? (
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="font-medium text-orange-800">⚠️ API Endpoints: Приемлемо, но требует внимания</div>
+                  <div className="text-sm text-orange-700 mt-1">
+                    Среднее время ответа: {formatDuration(data.api.statistics.average)}. Рекомендуется кэширование и оптимизация.
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="font-medium text-red-800">❌ API Endpoints: Критично</div>
+                  <div className="text-sm text-red-700 mt-1">
+                    Среднее время ответа: {formatDuration(data.api.statistics.average)} (&gt; 2000ms). Требуется срочная оптимизация: кэширование, оптимизация запросов, рассмотрите CDN.
+                  </div>
+                </div>
+              )}
+
+              {/* Memory Analysis */}
+              {(() => {
+                const heapUsagePercent = (data.server.memory.heapUsed / data.server.memory.heapTotal) * 100;
+                if (heapUsagePercent < 50) {
+                  return (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="font-medium text-green-800">✅ Память: Отлично</div>
+                      <div className="text-sm text-green-700 mt-1">
+                        Использование heap: {Math.round(heapUsagePercent)}% ({data.server.memory.heapUsed} MB / {data.server.memory.heapTotal} MB)
+                      </div>
+                    </div>
+                  );
+                } else if (heapUsagePercent < 70) {
+                  return (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="font-medium text-yellow-800">⚠️ Память: Хорошо</div>
+                      <div className="text-sm text-yellow-700 mt-1">
+                        Использование heap: {Math.round(heapUsagePercent)}% ({data.server.memory.heapUsed} MB / {data.server.memory.heapTotal} MB)
+                      </div>
+                    </div>
+                  );
+                } else if (heapUsagePercent < 80) {
+                  return (
+                    <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="font-medium text-orange-800">⚠️ Память: Требует внимания</div>
+                      <div className="text-sm text-orange-700 mt-1">
+                        Использование heap: {Math.round(heapUsagePercent)}% ({data.server.memory.heapUsed} MB / {data.server.memory.heapTotal} MB). Мониторьте на предмет утечек памяти.
+                      </div>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="font-medium text-red-800">❌ Память: Критично</div>
+                      <div className="text-sm text-red-700 mt-1">
+                        Использование heap: {Math.round(heapUsagePercent)}% ({data.server.memory.heapUsed} MB / {data.server.memory.heapTotal} MB) (&gt; 80%). Проверьте на утечки памяти, рассмотрите увеличение ресурсов.
+                      </div>
+                    </div>
+                  );
+                }
+              })()}
+
+              {/* RSS Memory Check */}
+              {data.server.memory.rss > 500 && (
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="font-medium text-orange-800">⚠️ RSS Memory: Выше целевого</div>
+                  <div className="text-sm text-orange-700 mt-1">
+                    RSS: {data.server.memory.rss} MB (цель для MVP: &lt; 500 MB). Рассмотрите оптимизацию для MVP проекта.
+                  </div>
+                </div>
+              )}
+
+              {/* Success Rate Analysis */}
               {data.database.statistics.successRate < 100 && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="font-medium text-red-800">❌ Database Errors</div>
+                  <div className="font-medium text-red-800">❌ Ошибки базы данных</div>
                   <div className="text-sm text-red-700 mt-1">
-                    Some database queries are failing. Check database connection and query syntax.
+                    Успешность запросов: {data.database.statistics.successRate}% (цель: 100%). Проверьте подключение к БД и синтаксис запросов.
                   </div>
                 </div>
               )}
               {data.api.statistics.successRate < 100 && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="font-medium text-red-800">❌ API Errors</div>
+                  <div className="font-medium text-red-800">❌ Ошибки API</div>
                   <div className="text-sm text-red-700 mt-1">
-                    Some API endpoints are returning errors. Check server logs and endpoint implementations.
+                    Успешность запросов: {data.api.statistics.successRate}% (цель: 100%). Проверьте логи сервера и реализацию endpoints.
                   </div>
                 </div>
               )}
-              {data.database.statistics.max < 500 &&
-                data.api.statistics.max < 1000 &&
+
+              {/* Overall Performance */}
+              {data.database.statistics.average < 200 &&
+                data.api.statistics.average < 500 &&
                 data.database.statistics.successRate === 100 &&
-                data.api.statistics.successRate === 100 && (
+                data.api.statistics.successRate === 100 &&
+                (data.server.memory.heapUsed / data.server.memory.heapTotal) * 100 < 70 && (
                   <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="font-medium text-green-800">✅ Good Performance</div>
+                    <div className="font-medium text-green-800">✅ Общая производительность: Отлично</div>
                     <div className="text-sm text-green-700 mt-1">
-                      All systems are performing well. Response times are within acceptable ranges.
+                      Все системы работают в пределах рекомендуемых диапазонов. Время отклика и использование ресурсов оптимальны.
                     </div>
                   </div>
                 )}
