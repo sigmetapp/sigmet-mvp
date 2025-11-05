@@ -1261,6 +1261,9 @@ export default function PostFeed({
                       <CloseIcon className="h-5 w-5" aria-hidden="true" />
                     </button>
                   </div>
+                  <div className={`text-sm ${isLight ? "text-telegram-text-secondary/80" : "text-telegram-text-secondary/80"}`}>
+                    Publish only your own content, do not use AI-generated content or content from others.
+                  </div>
                   <MentionInput
                     value={text}
                     onChange={setText}
