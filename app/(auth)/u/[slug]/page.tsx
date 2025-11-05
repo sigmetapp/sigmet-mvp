@@ -154,6 +154,7 @@ export default function PublicProfilePage() {
   // SW (Social Weight) state
   const [totalSW, setTotalSW] = useState<number | null>(null);
   const [loadingSW, setLoadingSW] = useState(false);
+  const [swLevels, setSwLevels] = useState<SWLevel[]>(SW_LEVELS); // Start with default levels
 
   const isMe = useMemo(() => {
     if (!viewerId || !profile) return false;
@@ -538,6 +539,33 @@ export default function PublicProfilePage() {
         if (response.ok) {
           const data = await response.json();
           setTotalSW(data.totalSW || 0);
+          
+          // Load SW levels from weights if available (same logic as /sw page)
+          if (data.weights?.sw_levels) {
+            try {
+              const levels = typeof data.weights.sw_levels === 'string' 
+                ? JSON.parse(data.weights.sw_levels)
+                : data.weights.sw_levels;
+              
+              // Map levels to include features (if not in DB, use defaults)
+              const mappedLevels = levels.map((level: any, index: number) => {
+                const defaultLevel = SW_LEVELS.find(l => l.name === level.name) || SW_LEVELS[index] || SW_LEVELS[0];
+                return {
+                  name: level.name || defaultLevel.name,
+                  minSW: level.minSW ?? defaultLevel.minSW,
+                  maxSW: level.maxSW ?? defaultLevel.maxSW,
+                  features: defaultLevel.features,
+                  color: defaultLevel.color,
+                };
+              });
+              
+              if (mappedLevels.length > 0) {
+                setSwLevels(mappedLevels);
+              }
+            } catch (err) {
+              console.error('Error parsing sw_levels:', err);
+            }
+          }
         } else {
           setTotalSW(null);
         }
@@ -765,11 +793,16 @@ export default function PublicProfilePage() {
                       />
                     );
                   }
-                  const currentLevel = getSWLevel(totalSW, SW_LEVELS);
-                  const nextLevel = getNextLevel(totalSW, SW_LEVELS);
+                  const currentLevel = getSWLevel(totalSW, swLevels);
+                  const nextLevel = getNextLevel(totalSW, swLevels);
+                  
+                  // Calculate progress percentage (same formula as /sw page)
                   const progressToNext = nextLevel 
-                    ? Math.max(0, Math.min(100, ((totalSW - currentLevel.minSW) / (nextLevel.minSW - currentLevel.minSW)) * 100))
+                    ? ((totalSW - currentLevel.minSW) / (nextLevel.minSW - currentLevel.minSW)) * 100
                     : 100;
+                  
+                  // Clamp progress between 0 and 100
+                  const clampedProgress = Math.max(0, Math.min(100, progressToNext));
                   
                   // Calculate circumference for progress circle
                   // Make SVG larger to show thick progress border around avatar
@@ -779,7 +812,10 @@ export default function PublicProfilePage() {
                   // Radius creates border that's visible around avatar (half of thick stroke will be outside)
                   const radius = (avatarSize / 2) + 4;
                   const circumference = 2 * Math.PI * radius;
-                  const strokeDashoffset = circumference - (progressToNext / 100) * circumference;
+                  
+                  // Calculate strokeDashoffset: circumference when 0% progress, 0 when 100% progress
+                  // Formula: offset = circumference - (progress / 100) * circumference
+                  const strokeDashoffset = circumference - (clampedProgress / 100) * circumference;
                   
                   // Get color for progress circle based on level
                   const colorMap: Record<string, string> = {
@@ -1016,7 +1052,7 @@ export default function PublicProfilePage() {
                   </div>
                   {(() => {
                     if (loadingSW || totalSW === null) return null;
-                    const currentLevel = getSWLevel(totalSW, SW_LEVELS);
+                    const currentLevel = getSWLevel(totalSW, swLevels);
                     const colorMap: Record<string, string> = {
                       'text-gray-400': 'border-gray-400/50 bg-gray-400/20 text-gray-300',
                       'text-blue-400': 'border-blue-400/50 bg-blue-400/20 text-blue-300',
