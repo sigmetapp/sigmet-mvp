@@ -663,7 +663,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   <a
                     href={`/u/${encodeURIComponent(authorProfile?.username || post.user_id || '')}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate hover:underline"
+                    className={`text-sm font-semibold truncate hover:underline ${
+                      isLight ? 'text-slate-900' : 'text-slate-100'
+                    }`}
                     data-prevent-card-navigation="true"
                   >
                     {username}
@@ -789,7 +791,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4 md:py-5">
+    <div className="mx-auto flex w-full max-w-[652px] flex-col gap-4 px-4 py-4 md:py-5">
       {/* Back button */}
       {fromProfile && profileUsername ? (
         <Button

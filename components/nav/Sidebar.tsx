@@ -17,7 +17,6 @@ const menu = [
   { label: 'Messages', href: '/dms', icon: '✉️', badgeKey: 'unreadDM' as const },
   { label: 'SW', href: '/sw', icon: '⚖️' },
   { label: 'Growth 8', href: '/growth-directions', icon: '🌱' },
-  { label: 'Invite systems', href: '/invite', icon: '🎟️' },
   { label: 'Settings', href: '/profile', icon: '⚙️' },
 ];
 
