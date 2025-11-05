@@ -26,6 +26,7 @@ const adminMenu = [
   { label: 'Stats', href: '/admin/stats', icon: '📊' },
   { label: 'Tickets', href: '/admin/tickets', icon: '🎫' },
   { label: 'SW Weights', href: '/sw/weights', icon: '⚖️' },
+  { label: 'Performance', href: '/test', icon: '⚡' },
 ];
 
 export default function Sidebar({ user }: SidebarProps) {
