@@ -740,14 +740,20 @@ export default function PublicProfilePage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Profile header */}
-      <div className="card p-4 md:p-6">
+      <div className={`card p-4 md:p-6 ${!loadingProfile && profile ? 'animate-fade-in-up' : ''}`}>
         {loadingProfile ? (
-          <div className="text-white/70">Loading profile…</div>
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-20 h-20 rounded-full skeleton"></div>
+              <div className="h-6 w-48 skeleton rounded"></div>
+              <div className="h-4 w-32 skeleton rounded"></div>
+            </div>
+          </div>
         ) : !profile ? (
-          <div className="text-white/70">Profile not found</div>
+          <div className="text-white/70 animate-fade-in">Profile not found</div>
         ) : (
           <div className="flex items-start gap-4">
-            <div className="relative flex flex-col items-center">
+            <div className="relative flex flex-col items-center animate-fade-in-scale animate-stagger-1">
               <div className="relative">
                 {(() => {
                   if (loadingSW || totalSW === null) {
@@ -755,7 +761,7 @@ export default function PublicProfilePage() {
                       <img
                         src={profile.avatar_url || AVATAR_FALLBACK}
                         alt="avatar"
-                        className="h-40 w-40 rounded-full object-cover border border-white/10"
+                        className="h-40 w-40 rounded-full object-cover border border-white/10 animate-fade-in-scale"
                       />
                     );
                   }
@@ -789,13 +795,14 @@ export default function PublicProfilePage() {
                   return (
                     <div className="relative inline-flex items-center justify-center">
                       <svg 
-                        className="absolute transform -rotate-90" 
+                        className="absolute transform -rotate-90 animate-fade-in-scale" 
                         width={svgSize} 
                         height={svgSize}
                         viewBox={`0 0 ${svgSize} ${svgSize}`}
                         style={{ 
                           left: `${(avatarSize - svgSize) / 2}px`,
                           top: `${(avatarSize - svgSize) / 2}px`,
+                          animationDelay: '0.2s',
                         }}
                       >
                         {/* Background circle */}
@@ -818,17 +825,20 @@ export default function PublicProfilePage() {
                           strokeDasharray={circumference}
                           strokeDashoffset={strokeDashoffset}
                           strokeLinecap="round"
-                          className="transition-all duration-300"
+                          className="animate-fade-in"
                           style={{ 
                             filter: `drop-shadow(0 0 6px ${progressColor}60)`,
-                            opacity: 0.95
+                            opacity: 0.95,
+                            animationDelay: '0.3s',
+                            transition: 'stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.6s ease-out 0.3s'
                           }}
                         />
                       </svg>
                       <img
                         src={profile.avatar_url || AVATAR_FALLBACK}
                         alt="avatar"
-                        className="h-40 w-40 rounded-full object-cover border border-white/10 relative z-10"
+                        className="h-40 w-40 rounded-full object-cover border border-white/10 relative z-10 animate-fade-in-scale"
+                        style={{ animationDelay: '0.1s' }}
                       />
                     </div>
                   );
@@ -861,10 +871,10 @@ export default function PublicProfilePage() {
                 </Link>
               )}
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 animate-fade-in-up animate-stagger-2">
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-semibold text-white truncate">
+                  <h1 className="text-2xl font-semibold text-white truncate animate-fade-in">
                     {profile.full_name || profile.username || profile.user_id.slice(0, 8)}
                   </h1>
                   {(() => {
@@ -991,7 +1001,7 @@ export default function PublicProfilePage() {
               {/* Social Weight and Trust Flow side by side */}
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Social Weight */}
-                <div className="rounded-2xl border border-white/15 bg-white/5 p-3">
+                <div className={`rounded-2xl border border-white/15 bg-white/5 p-3 animate-fade-in-up ${!loadingSW && totalSW !== null ? 'animate-stagger-3' : ''}`}>
                   <div className="flex items-center justify-between text-white/80 text-sm mb-2">
                     <div className="font-medium">Social Weight</div>
                     {loadingSW ? (
@@ -1026,7 +1036,7 @@ export default function PublicProfilePage() {
                   })()}
                   {loadingSW ? (
                     <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                      <div className="h-full w-full bg-white/20 animate-pulse"></div>
+                      <div className="h-full w-20 skeleton rounded-full"></div>
                     </div>
                   ) : totalSW !== null ? (
                     <div className="h-2 rounded-full bg-white/10 overflow-hidden">
@@ -1049,7 +1059,7 @@ export default function PublicProfilePage() {
                 </div>
 
                 {/* Trust Flow */}
-                <div className="rounded-2xl border border-white/15 bg-white/5 p-3">
+                <div className={`rounded-2xl border border-white/15 bg-white/5 p-3 animate-fade-in-up animate-stagger-4`}>
                   <div className="flex items-center justify-between text-white/80 text-sm mb-2">
                     <div className="font-medium">Trust Flow</div>
                     <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80">{trustScore}%</div>
@@ -1119,7 +1129,7 @@ export default function PublicProfilePage() {
       {!loadingProfile && profile && (
         <div className="grid md:grid-cols-2 gap-6">
           {/* Info block - Bio, Location, Website, Joined */}
-          <div className="card p-4 md:p-6">
+          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-5">
             <div className="space-y-4">
               {/* Bio */}
               {profile.bio && (
@@ -1249,7 +1259,7 @@ export default function PublicProfilePage() {
           </div>
 
           {/* Stats block - Connections, Following, Followers, Referrals */}
-          <div className="card p-4 md:p-6">
+          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-6">
             <div className="space-y-3">
               {/* Connections */}
               <div className="flex items-center justify-between gap-3">
@@ -1385,7 +1395,7 @@ export default function PublicProfilePage() {
 
       {/* Badges block */}
       {!loadingProfile && profile && displayedBadges.length > 0 && (
-        <div className="card p-4 md:p-6">
+        <div className="card p-4 md:p-6 animate-fade-in-up">
           <h2 className="text-lg font-medium text-white/90 mb-4">Badges</h2>
           <div className="flex flex-wrap items-center gap-3">
             {displayedBadges.map((badge) => (
@@ -1467,8 +1477,10 @@ export default function PublicProfilePage() {
       )}
 
       {/* Posts */}
-      <div className="space-y-4">
-        <h2 className="text-lg text-white/90">Posts</h2>
+      <div className={`space-y-4 ${!loadingProfile && profile ? 'animate-fade-in-up' : ''}`}>
+        {!loadingProfile && profile && (
+          <h2 className="text-lg text-white/90 animate-fade-in">Posts</h2>
+        )}
         {!loadingProfile && profile && (
           <PostFeed
             filterUserId={profile.user_id}
