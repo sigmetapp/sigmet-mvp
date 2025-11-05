@@ -1045,7 +1045,7 @@ export default function PostFeed({
                             <img 
                               src={p.image_url} 
                               loading="lazy" 
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} 
+                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} 
                               alt="post image" 
                             />
                           </div>
@@ -1055,7 +1055,7 @@ export default function PostFeed({
                             <video 
                               controls 
                               preload="metadata" 
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
                             >
                               <source src={p.video_url} />
                             </video>

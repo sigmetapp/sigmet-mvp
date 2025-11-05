@@ -205,7 +205,7 @@ export default function PostCard({
   );
 
   const containerClassName = [
-    'relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900',
+    'relative overflow-hidden rounded-none border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900',
     'post-card-glow',
     disableNavigation ? 'cursor-default' : 'cursor-pointer',
     className,

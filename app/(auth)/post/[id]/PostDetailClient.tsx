@@ -743,7 +743,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
           {/* Media */}
           {(post.image_url || post.video_url) && (
-            <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="overflow-hidden rounded-none border border-slate-200 dark:border-slate-700">
               {post.image_url && (
                 <img
                   src={post.image_url}
