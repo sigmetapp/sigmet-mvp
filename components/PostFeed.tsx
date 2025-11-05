@@ -88,6 +88,8 @@ export type PostFeedProps = {
   showComposer?: boolean; // Show "Create post" button
   backToProfileUsername?: string | null; // If set, add from=profile parameter when navigating to post
   className?: string;
+  renderFiltersOutside?: boolean; // If true, filters will be rendered outside via renderFilters prop
+  renderFilters?: (filters: React.ReactNode) => void; // Callback to render filters externally
 };
 
 export default function PostFeed({
@@ -96,6 +98,8 @@ export default function PostFeed({
   showComposer = true,
   backToProfileUsername = null,
   className = "",
+  renderFiltersOutside = false,
+  renderFilters,
 }: PostFeedProps) {
   const router = useRouter();
   const { theme } = useTheme();
@@ -806,82 +810,98 @@ export default function PostFeed({
     return `/post/${postId}`;
   }, [backToProfileUsername]);
 
+  // Build filters JSX
+  const filtersJSX = useMemo(() => {
+    if (!showFilters) return null;
+    
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => {
+            setActiveFilter('all');
+            setActiveDirection(null);
+          }}
+          className={`px-3 py-1.5 rounded-full text-sm transition border ${
+            activeFilter === 'all'
+              ? isLight
+                ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+              : isLight
+              ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
+              : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+          }`}
+        >
+          All
+        </button>
+        <button
+          onClick={() => {
+            setActiveFilter('discuss');
+            setActiveDirection(null);
+          }}
+          className={`px-3 py-1.5 rounded-full text-sm transition border ${
+            activeFilter === 'discuss'
+              ? isLight
+                ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+              : isLight
+              ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
+              : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+          }`}
+        >
+          {DISCUSS_EMOJI} Discuss
+        </button>
+        {myDirections.length > 0 && availableDirections.length > 0 && myDirections.map((id) => {
+          const meta = availableDirections.find((a) => a.id === id);
+          const slug = meta ? meta.slug : '';
+          const emoji = meta ? meta.emoji : resolveDirectionEmoji(slug, null);
+          const title = meta ? meta.title : id;
+          const label = `${emoji} ${title}`;
+          const active = activeFilter === 'direction' && activeDirection === id;
+          return (
+            <button
+              key={id}
+              onClick={() => {
+                if (active) {
+                  // Toggle off: switch back to 'all'
+                  setActiveFilter('all');
+                  setActiveDirection(null);
+                } else {
+                  // Toggle on: switch to 'direction' filter
+                  setActiveFilter('direction');
+                  setActiveDirection(id);
+                }
+              }}
+              className={`px-3 py-1.5 rounded-full text-sm transition border ${
+                active
+                  ? isLight
+                    ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                    : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                  : isLight
+                  ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
+                  : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }, [showFilters, activeFilter, activeDirection, myDirections, availableDirections, isLight, DISCUSS_EMOJI]);
+
+  // Render filters externally if requested
+  useEffect(() => {
+    if (renderFiltersOutside && renderFilters) {
+      renderFilters(filtersJSX);
+    }
+  }, [renderFiltersOutside, renderFilters, filtersJSX]);
+
   return (
     <div className={className}>
-      {/* Filters toggle */}
-      {showFilters && (
+      {/* Filters toggle - render inside if not rendering outside */}
+      {showFilters && !renderFiltersOutside && (
         <div className="card p-3 md:p-4 mb-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => {
-                setActiveFilter('all');
-                setActiveDirection(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-sm transition border ${
-                activeFilter === 'all'
-                  ? isLight
-                    ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                    : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                  : isLight
-                  ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                  : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => {
-                setActiveFilter('discuss');
-                setActiveDirection(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-sm transition border ${
-                activeFilter === 'discuss'
-                  ? isLight
-                    ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                    : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                  : isLight
-                  ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                  : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
-              }`}
-            >
-              {DISCUSS_EMOJI} Discuss
-            </button>
-            {myDirections.length > 0 && availableDirections.length > 0 && myDirections.map((id) => {
-              const meta = availableDirections.find((a) => a.id === id);
-              const slug = meta ? meta.slug : '';
-              const emoji = meta ? meta.emoji : resolveDirectionEmoji(slug, null);
-              const title = meta ? meta.title : id;
-              const label = `${emoji} ${title}`;
-              const active = activeFilter === 'direction' && activeDirection === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => {
-                    if (active) {
-                      // Toggle off: switch back to 'all'
-                      setActiveFilter('all');
-                      setActiveDirection(null);
-                    } else {
-                      // Toggle on: switch to 'direction' filter
-                      setActiveFilter('direction');
-                      setActiveDirection(id);
-                    }
-                  }}
-                  className={`px-3 py-1.5 rounded-full text-sm transition border ${
-                    active
-                      ? isLight
-                        ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                        : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                      : isLight
-                      ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                      : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          {filtersJSX}
         </div>
       )}
 
