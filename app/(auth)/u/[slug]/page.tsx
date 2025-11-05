@@ -805,7 +805,7 @@ export default function PublicProfilePage() {
                           r={radius}
                           fill="none"
                           stroke="rgba(255, 255, 255, 0.25)"
-                          strokeWidth="14"
+                          strokeWidth="9"
                         />
                         {/* Progress circle - very thick and visible */}
                         <circle
@@ -814,7 +814,7 @@ export default function PublicProfilePage() {
                           r={radius}
                           fill="none"
                           stroke={progressColor}
-                          strokeWidth="14"
+                          strokeWidth="9"
                           strokeDasharray={circumference}
                           strokeDashoffset={strokeDashoffset}
                           strokeLinecap="round"
