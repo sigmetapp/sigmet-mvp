@@ -1,5 +1,6 @@
 import "../styles/globals.css";
 import type { Metadata, Viewport } from "next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import PostHogInit from "@/components/PostHogInit";
 import SupabaseAuthSync from "@/components/SupabaseAuthSync";
 import Layout from "@/components/Layout";
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <PostHogInit />
         <SupabaseAuthSync />
+        <SpeedInsights />
         <ThemeProvider>
           <SiteSettingsProvider>
             <Layout>{children}</Layout>

@@ -1114,36 +1114,36 @@ export default function PublicProfilePage() {
                 <div className={`rounded-2xl border border-white/15 bg-white/5 p-3 animate-fade-in-up ${!loadingSW && totalSW !== null ? 'animate-stagger-3' : ''}`}>
                   <div className="flex items-center justify-between text-white/80 text-sm mb-2">
                     <div className="font-medium">Social Weight</div>
-                    {loadingSW ? (
-                      <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80 text-xs">Loading...</div>
-                    ) : totalSW !== null ? (
-                      <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80">
-                        {totalSW.toLocaleString()}
-                      </div>
-                    ) : (
-                      <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80 text-xs">N/A</div>
-                    )}
-                  </div>
-                  {(() => {
-                    if (loadingSW || totalSW === null) return null;
-                    const currentLevel = getSWLevel(totalSW, swLevels);
-                    const colorMap: Record<string, string> = {
-                      'text-gray-400': 'border-gray-400/50 bg-gray-400/20 text-gray-300',
-                      'text-blue-400': 'border-blue-400/50 bg-blue-400/20 text-blue-300',
-                      'text-purple-400': 'border-purple-400/50 bg-purple-400/20 text-purple-300',
-                      'text-yellow-400': 'border-yellow-400/50 bg-yellow-400/20 text-yellow-300',
-                      'text-orange-400': 'border-orange-400/50 bg-orange-400/20 text-orange-300',
-                      'text-pink-400': 'border-pink-400/50 bg-pink-400/20 text-pink-300',
-                    };
-                    const badgeClass = colorMap[currentLevel.color] || 'border-white/20 bg-white/10 text-white/80';
-                    return (
-                      <div className="mb-2 flex items-center gap-2">
-                        <div className={`px-2 py-0.5 rounded-full border text-xs font-medium ${badgeClass}`}>
-                          {currentLevel.name}
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        if (loadingSW || totalSW === null) return null;
+                        const currentLevel = getSWLevel(totalSW, swLevels);
+                        const colorMap: Record<string, string> = {
+                          'text-gray-400': 'border-gray-400/50 bg-gray-400/20 text-gray-300',
+                          'text-blue-400': 'border-blue-400/50 bg-blue-400/20 text-blue-300',
+                          'text-purple-400': 'border-purple-400/50 bg-purple-400/20 text-purple-300',
+                          'text-yellow-400': 'border-yellow-400/50 bg-yellow-400/20 text-yellow-300',
+                          'text-orange-400': 'border-orange-400/50 bg-orange-400/20 text-orange-300',
+                          'text-pink-400': 'border-pink-400/50 bg-pink-400/20 text-pink-300',
+                        };
+                        const badgeClass = colorMap[currentLevel.color] || 'border-white/20 bg-white/10 text-white/80';
+                        return (
+                          <div className={`px-2 py-0.5 rounded-full border text-xs font-medium ${badgeClass}`}>
+                            {currentLevel.name}
+                          </div>
+                        );
+                      })()}
+                      {loadingSW ? (
+                        <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80 text-xs">Loading...</div>
+                      ) : totalSW !== null ? (
+                        <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80">
+                          {totalSW.toLocaleString()}
                         </div>
-                      </div>
-                    );
-                  })()}
+                      ) : (
+                        <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80 text-xs">N/A</div>
+                      )}
+                    </div>
+                  </div>
                   {loadingSW ? (
                     <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                       <div className="h-full w-20 skeleton rounded-full"></div>
