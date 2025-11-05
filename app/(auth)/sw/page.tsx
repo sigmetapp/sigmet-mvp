@@ -25,6 +25,7 @@ type SWData = {
   inflationRate?: number;
   cached?: boolean;
   cacheAge?: number;
+  swLevels?: SWLevel[];
 };
 
 type SWLevel = {
@@ -97,20 +98,20 @@ const SW_LEVELS: SWLevel[] = [
   }
 ];
 
-function getSWLevel(sw: number): SWLevel {
-  for (let i = SW_LEVELS.length - 1; i >= 0; i--) {
-    if (sw >= SW_LEVELS[i].minSW) {
-      return SW_LEVELS[i];
+function getSWLevel(sw: number, levels: SWLevel[]): SWLevel {
+  for (let i = levels.length - 1; i >= 0; i--) {
+    if (sw >= levels[i].minSW) {
+      return levels[i];
     }
   }
-  return SW_LEVELS[0];
+  return levels[0];
 }
 
-function getNextLevel(sw: number): SWLevel | null {
-  const currentLevel = getSWLevel(sw);
-  const currentIndex = SW_LEVELS.findIndex(level => level.name === currentLevel.name);
-  if (currentIndex < SW_LEVELS.length - 1) {
-    return SW_LEVELS[currentIndex + 1];
+function getNextLevel(sw: number, levels: SWLevel[]): SWLevel | null {
+  const currentLevel = getSWLevel(sw, levels);
+  const currentIndex = levels.findIndex(level => level.name === currentLevel.name);
+  if (currentIndex < levels.length - 1) {
+    return levels[currentIndex + 1];
   }
   return null;
 }
@@ -130,6 +131,7 @@ export default function SWPage() {
     reactionsCount: number;
     invitesCount: number;
   } | null>(null);
+  const [swLevels, setSwLevels] = useState<SWLevel[]>(SW_LEVELS); // Start with default levels
 
   useEffect(() => {
     checkAdmin();
@@ -202,6 +204,34 @@ export default function SWPage() {
 
       const data = await response.json();
       setSwData(data);
+      
+      // Load SW levels from weights if available
+      if (data.weights?.sw_levels) {
+        try {
+          const levels = typeof data.weights.sw_levels === 'string' 
+            ? JSON.parse(data.weights.sw_levels)
+            : data.weights.sw_levels;
+          
+          // Map levels to include features (if not in DB, use defaults)
+          const mappedLevels = levels.map((level: any, index: number) => {
+            const defaultLevel = SW_LEVELS.find(l => l.name === level.name) || SW_LEVELS[index] || SW_LEVELS[0];
+            return {
+              name: level.name || defaultLevel.name,
+              minSW: level.minSW ?? defaultLevel.minSW,
+              maxSW: level.maxSW ?? defaultLevel.maxSW,
+              features: defaultLevel.features, // Keep features from defaults for now
+              color: defaultLevel.color,
+            };
+          });
+          
+          if (mappedLevels.length > 0) {
+            setSwLevels(mappedLevels);
+          }
+        } catch (err) {
+          console.error('Error parsing sw_levels:', err);
+        }
+      }
+      
       setLoading(false);
       setError(null);
     } catch (error: any) {
@@ -280,8 +310,8 @@ export default function SWPage() {
   }
 
   const { totalSW, breakdown, inflationRate, originalSW, cached, cacheAge } = swData;
-  const currentLevel = getSWLevel(totalSW);
-  const nextLevel = getNextLevel(totalSW);
+  const currentLevel = getSWLevel(totalSW, swLevels);
+  const nextLevel = getNextLevel(totalSW, swLevels);
   const progressToNext = nextLevel ? ((totalSW - currentLevel.minSW) / (nextLevel.minSW - currentLevel.minSW)) * 100 : 100;
 
   return (
@@ -393,7 +423,7 @@ export default function SWPage() {
               {nextLevel && (
                 <div className="text-right">
                   <div className="text-white/60 text-sm mb-1">Next Level</div>
-                  <div className={`text-lg font-semibold ${getSWLevel(nextLevel.minSW).color}`}>{nextLevel.name}</div>
+                  <div className={`text-lg font-semibold ${getSWLevel(nextLevel.minSW, swLevels).color}`}>{nextLevel.name}</div>
                   <div className="text-white/50 text-xs mt-1">
                     {nextLevel.minSW - totalSW} points to next level
                   </div>
@@ -578,7 +608,7 @@ export default function SWPage() {
           <div className="card p-4">
             <h2 className="text-lg font-semibold text-white mb-4">SW Levels & Features</h2>
             <div className="space-y-4">
-              {SW_LEVELS.map((level, index) => {
+              {swLevels.map((level, index) => {
                 const isCurrent = currentLevel.name === level.name;
                 const isUnlocked = totalSW >= level.minSW;
                 return (

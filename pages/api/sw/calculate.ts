@@ -91,10 +91,17 @@ export default async function handler(
 
       if (timeDiff < CACHE_DURATION_MS && cachedScore.breakdown) {
         // Return cached value if it's fresh (less than 5 minutes old)
+        // But we still need weights for sw_levels, so load them
+        const { data: cachedWeights, error: cachedWeightsError } = await supabase
+          .from('sw_weights')
+          .select('*')
+          .eq('id', 1)
+          .single();
+
         return res.status(200).json({
           totalSW: cachedScore.total || 0,
           breakdown: cachedScore.breakdown,
-          weights: null, // Weights not cached, but breakdown contains weight info
+          weights: cachedWeights || null, // Load weights for sw_levels
           cached: true,
           cacheAge: Math.floor(timeDiff / 1000), // age in seconds
           inflationRate: cachedScore.inflation_rate || 1.0,
