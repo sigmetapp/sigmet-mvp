@@ -89,15 +89,15 @@ export default function EducationalInstitutionSelect({
             queryBuilder = queryBuilder.eq("type", type);
           }
 
-          const { data, error } = await queryBuilder;
+          const { data: localData, error: localError } = await queryBuilder;
           if (cancelled) return;
 
-          if (!error && data) {
-            setInstitutions(data.map((inst) => ({ ...inst, source: "local" as const })));
+          if (!localError && localData) {
+            setInstitutions(localData.map((inst) => ({ ...inst, source: "local" as const })));
           }
         }
-      } catch (error) {
-        console.error("Error searching institutions:", error);
+      } catch (searchError) {
+        console.error("Error searching institutions:", searchError);
         // Fallback to local search only
         let queryBuilder = supabase
           .from("educational_institutions")
@@ -109,11 +109,11 @@ export default function EducationalInstitutionSelect({
           queryBuilder = queryBuilder.eq("type", type);
         }
 
-        const { data, error } = await queryBuilder;
+        const { data: fallbackData, error: fallbackError } = await queryBuilder;
         if (cancelled) return;
 
-        if (!error && data) {
-          setInstitutions(data.map((inst) => ({ ...inst, source: "local" as const })));
+        if (!fallbackError && fallbackData) {
+          setInstitutions(fallbackData.map((inst) => ({ ...inst, source: "local" as const })));
         }
       } finally {
         if (!cancelled) {
