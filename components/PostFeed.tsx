@@ -25,16 +25,34 @@ function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return dateString;
   
-  const datePart = new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   
   const timePart = new Intl.DateTimeFormat('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+  }).format(date);
+  
+  // Check if date is today
+  if (dateOnly.getTime() === today.getTime()) {
+    return `today, ${timePart}`;
+  }
+  
+  // Check if date is yesterday
+  if (dateOnly.getTime() === yesterday.getTime()) {
+    return `yesterday, ${timePart}`;
+  }
+  
+  // For all other dates, use the original format
+  const datePart = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   }).format(date);
   
   // Format: "Nov 3, 2025, 11:04 AM"
