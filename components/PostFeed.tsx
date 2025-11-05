@@ -1407,7 +1407,7 @@ export default function PostFeed({
   );
 
   return (
-    <div className={className || ''}>
+    <div className={className?.includes('max-w') ? '' : (className || '')}>
       {/* Filters toggle - render inside if not rendering outside */}
       {showFilters && !renderFiltersOutside && (
         <div className="card p-3 md:p-4 mb-6">
@@ -1436,7 +1436,7 @@ export default function PostFeed({
       ) : (
         <>
           {/* Feed */}
-          <div className="space-y-3">
+          <div className={`space-y-3 ${className?.includes('max-w') ? className : ''}`}>
             {renderPostsList()}
           </div>
 

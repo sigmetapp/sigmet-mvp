@@ -1592,16 +1592,14 @@ export default function PublicProfilePage() {
           <h2 className="text-lg text-white/90 animate-fade-in">Posts</h2>
         )}
         {!loadingProfile && profile && (
-          <div className="max-w-[960px] mx-auto">
-            <PostFeed
-              filterUserId={profile.user_id}
-              showFilters={false}
-              showComposer={false}
-              backToProfileUsername={profile.username || slug}
-              className=""
-              enableLazyLoad={true}
-            />
-          </div>
+          <PostFeed
+            filterUserId={profile.user_id}
+            showFilters={false}
+            showComposer={false}
+            backToProfileUsername={profile.username || slug}
+            className="max-w-[960px] mx-auto"
+            enableLazyLoad={true}
+          />
         )}
       </div>
     </div>
