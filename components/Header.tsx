@@ -9,7 +9,7 @@ import { Sun, Moon, Menu, X } from "lucide-react";
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/feed", label: "Feed" },
-  { href: "https://sigmet-mvp.vercel.app/invite", label: "Invite" },
+  { href: "/invite", label: "Invite" },
 ];
 
 export default function Header() {
