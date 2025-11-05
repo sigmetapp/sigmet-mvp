@@ -663,7 +663,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   <a
                     href={`/u/${encodeURIComponent(authorProfile?.username || post.user_id || '')}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate hover:underline"
+                    className={`text-sm font-semibold truncate hover:underline ${
+                      isLight ? 'text-slate-900' : 'text-slate-100'
+                    }`}
                     data-prevent-card-navigation="true"
                   >
                     {username}
