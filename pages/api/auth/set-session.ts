@@ -70,6 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({ ok: true });
   } catch (e: any) {
-    return res.status(200).json({ ok: false, message: e?.message || 'Failed to set session cookies' });
+    console.error('auth/set-session error:', e);
+    return res.status(500).json({ ok: false, message: e?.message || 'Failed to set session cookies' });
   }
 }

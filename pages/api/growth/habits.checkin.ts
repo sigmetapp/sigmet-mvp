@@ -1,8 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { supabaseAdmin } from '@/lib/supabaseServer';
 
 function getStartOfDay(date: Date): Date {
   const d = new Date(date);
@@ -119,9 +116,7 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { persistSession: false },
-  });
+  const supabase = supabaseAdmin();
 
   // Get current user from session
   const authHeader = req.headers.authorization;
