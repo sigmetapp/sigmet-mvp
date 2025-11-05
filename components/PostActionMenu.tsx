@@ -320,7 +320,7 @@ export default function PostActionMenu({
           whileTap={{ scale: 0.95 }}
           transition={{ duration: 0.1 }}
         >
-          <MoreVertical className="h-5 w-5" />
+          <MoreVertical className="h-5 w-5 text-white" />
         </motion.div>
       </motion.button>
 
