@@ -33,114 +33,114 @@ insert into public.growth_tasks (direction_id, task_type, period, title, descrip
 
 -- Learning & Knowledge
 select (select id from dirs where slug = 'learning'), 'habit'::public.task_type, 'daily'::public.habit_period,
-       'Read something new', 'Read or study something new every day.', 5, 1
+       'Read something new', 'Read or study something new every day.', 15, 1
 union all select (select id from dirs where slug = 'learning'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Capture structured notes', 'Take structured notes or summaries after learning sessions.', 6, 2
+       'Capture structured notes', 'Take structured notes or summaries after learning sessions.', 20, 2
 union all select (select id from dirs where slug = 'learning'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Learning media session', 'Watch or listen to educational content each week.', 6, 3
+       'Learning media session', 'Watch or listen to educational content each week.', 25, 3
 union all select (select id from dirs where slug = 'learning'), 'goal'::public.task_type, null,
-       'Complete an online course', 'Finish a full online course or certification.', 60, 4
+       'Complete an online course', 'Finish a full online course or certification.', 45, 4
 union all select (select id from dirs where slug = 'learning'), 'goal'::public.task_type, null,
-       'Publish a learning recap', 'Write a blog or post summarizing what you learned.', 40, 5
+       'Publish a learning recap', 'Write a blog or post summarizing what you learned.', 50, 5
 union all select (select id from dirs where slug = 'learning'), 'goal'::public.task_type, null,
-       'Teach or mentor', 'Teach or mentor someone on a skill you have mastered.', 70, 6
+       'Teach or mentor', 'Teach or mentor someone on a skill you have mastered.', 60, 6
 
 -- Career & Projects
 union all select (select id from dirs where slug = 'career'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Plan weekly goals', 'Plan your weekly goals and track progress.', 6, 1
+       'Plan weekly goals', 'Plan your weekly goals and track progress.', 15, 1
 union all select (select id from dirs where slug = 'career'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Share project updates', 'Communicate project updates consistently.', 6, 2
+       'Share project updates', 'Communicate project updates consistently.', 20, 2
 union all select (select id from dirs where slug = 'career'), 'habit'::public.task_type, 'monthly'::public.habit_period,
-       'Learn a new tool', 'Learn one new professional tool or method each month.', 7, 3
+       'Learn a new tool', 'Learn one new professional tool or method each month.', 25, 3
 union all select (select id from dirs where slug = 'career'), 'goal'::public.task_type, null,
-       'Launch a project', 'Launch a personal or team project.', 80, 4
+       'Launch a project', 'Launch a personal or team project.', 45, 4
 union all select (select id from dirs where slug = 'career'), 'goal'::public.task_type, null,
-       'Present your solution', 'Present your idea or solution to others.', 60, 5
+       'Present your solution', 'Present your idea or solution to others.', 50, 5
 union all select (select id from dirs where slug = 'career'), 'goal'::public.task_type, null,
-       'Reach a milestone', 'Reach a professional milestone such as a promotion or first sale.', 100, 6
+       'Reach a milestone', 'Reach a professional milestone such as a promotion or first sale.', 60, 6
 
 -- Finance & Stability
 union all select (select id from dirs where slug = 'finance'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Track cash flow', 'Track income and expenses every week.', 6, 1
+       'Track cash flow', 'Track income and expenses every week.', 15, 1
 union all select (select id from dirs where slug = 'finance'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Automate savings', 'Save a small percentage of your income regularly.', 6, 2
+       'Automate savings', 'Save a small percentage of your income regularly.', 20, 2
 union all select (select id from dirs where slug = 'finance'), 'habit'::public.task_type, 'monthly'::public.habit_period,
-       'Review financial goals', 'Review your financial goals each month.', 7, 3
+       'Review financial goals', 'Review your financial goals each month.', 25, 3
 union all select (select id from dirs where slug = 'finance'), 'goal'::public.task_type, null,
-       'Build an emergency fund', 'Build your first emergency fund.', 70, 4
+       'Build an emergency fund', 'Build your first emergency fund.', 45, 4
 union all select (select id from dirs where slug = 'finance'), 'goal'::public.task_type, null,
-       'Eliminate a debt', 'Eliminate a debt or financial burden.', 90, 5
+       'Eliminate a debt', 'Eliminate a debt or financial burden.', 50, 5
 union all select (select id from dirs where slug = 'finance'), 'goal'::public.task_type, null,
-       'Make an investment', 'Make your first investment or create a passive income stream.', 80, 6
+       'Make an investment', 'Make your first investment or create a passive income stream.', 60, 6
 
 -- Health & Vitality
 union all select (select id from dirs where slug = 'health'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Exercise three times', 'Exercise at least three times each week.', 6, 1
+       'Exercise three times', 'Exercise at least three times each week.', 15, 1
 union all select (select id from dirs where slug = 'health'), 'habit'::public.task_type, 'daily'::public.habit_period,
-       'Prioritize quality sleep', 'Get 7-8 hours of quality sleep every day.', 5, 2
+       'Prioritize quality sleep', 'Get 7-8 hours of quality sleep every day.', 20, 2
 union all select (select id from dirs where slug = 'health'), 'habit'::public.task_type, 'daily'::public.habit_period,
-       'Hydrate and eat well', 'Drink enough water and eat balanced meals.', 5, 3
+       'Hydrate and eat well', 'Drink enough water and eat balanced meals.', 25, 3
 union all select (select id from dirs where slug = 'health'), 'goal'::public.task_type, null,
-       'Complete a health check', 'Complete a health check-up or analysis.', 60, 4
+       'Complete a health check', 'Complete a health check-up or analysis.', 45, 4
 union all select (select id from dirs where slug = 'health'), 'goal'::public.task_type, null,
-       'Join a challenge', 'Join a sports challenge or event.', 80, 5
+       'Join a challenge', 'Join a sports challenge or event.', 50, 5
 union all select (select id from dirs where slug = 'health'), 'goal'::public.task_type, null,
-       'Quit an unhealthy habit', 'Quit an unhealthy habit for 30 days.', 90, 6
+       'Quit an unhealthy habit', 'Quit an unhealthy habit for 30 days.', 60, 6
 
 -- Relationships & Family
 union all select (select id from dirs where slug = 'relationships'), 'habit'::public.task_type, 'daily'::public.habit_period,
-       'Check in with loved ones', 'Stay in touch with family or friends every day.', 5, 1
+       'Check in with loved ones', 'Stay in touch with family or friends every day.', 15, 1
 union all select (select id from dirs where slug = 'relationships'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Express gratitude', 'Express gratitude or appreciation often.', 6, 2
+       'Express gratitude', 'Express gratitude or appreciation often.', 20, 2
 union all select (select id from dirs where slug = 'relationships'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Quality time together', 'Spend quality time without distractions.', 6, 3
+       'Quality time together', 'Spend quality time without distractions.', 25, 3
 union all select (select id from dirs where slug = 'relationships'), 'goal'::public.task_type, null,
-       'Host a gathering', 'Organize a meaningful family or friends gathering.', 60, 4
+       'Host a gathering', 'Organize a meaningful family or friends gathering.', 45, 4
 union all select (select id from dirs where slug = 'relationships'), 'goal'::public.task_type, null,
        'Reconnect meaningfully', 'Reconnect with someone after a long time.', 50, 5
 union all select (select id from dirs where slug = 'relationships'), 'goal'::public.task_type, null,
-       'Resolve a misunderstanding', 'Resolve a misunderstanding through honest conversation.', 70, 6
+       'Resolve a misunderstanding', 'Resolve a misunderstanding through honest conversation.', 60, 6
 
 -- Community & Society
 union all select (select id from dirs where slug = 'community'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Stay informed locally', 'Stay informed about your community or causes.', 6, 1
+       'Stay informed locally', 'Stay informed about your community or causes.', 15, 1
 union all select (select id from dirs where slug = 'community'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Support initiatives', 'Support local or online initiatives you care about.', 6, 2
+       'Support initiatives', 'Support local or online initiatives you care about.', 20, 2
 union all select (select id from dirs where slug = 'community'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Engage in dialogue', 'Engage in respectful discussions and share ideas.', 6, 3
+       'Engage in dialogue', 'Engage in respectful discussions and share ideas.', 25, 3
 union all select (select id from dirs where slug = 'community'), 'goal'::public.task_type, null,
-       'Volunteer at an event', 'Volunteer or help in a community event.', 60, 4
+       'Volunteer at an event', 'Volunteer or help in a community event.', 45, 4
 union all select (select id from dirs where slug = 'community'), 'goal'::public.task_type, null,
-       'Start an initiative', 'Start a public or social initiative.', 100, 5
+       'Start an initiative', 'Start a public or social initiative.', 50, 5
 union all select (select id from dirs where slug = 'community'), 'goal'::public.task_type, null,
-       'Host a community meetup', 'Host or speak at a community meetup.', 80, 6
+       'Host a community meetup', 'Host or speak at a community meetup.', 60, 6
 
 -- Creativity & Expression
 union all select (select id from dirs where slug = 'creativity'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Create every week', 'Create or design something every week.', 6, 1
+       'Create every week', 'Create or design something every week.', 15, 1
 union all select (select id from dirs where slug = 'creativity'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Experiment creatively', 'Experiment with new creative tools or mediums.', 6, 2
+       'Experiment creatively', 'Experiment with new creative tools or mediums.', 20, 2
 union all select (select id from dirs where slug = 'creativity'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Share your work', 'Share your work publicly or with friends.', 6, 3
+       'Share your work', 'Share your work publicly or with friends.', 25, 3
 union all select (select id from dirs where slug = 'creativity'), 'goal'::public.task_type, null,
-       'Finish a creative project', 'Finish a full creative project such as a song or article.', 80, 4
+       'Finish a creative project', 'Finish a full creative project such as a song or article.', 45, 4
 union all select (select id from dirs where slug = 'creativity'), 'goal'::public.task_type, null,
-       'Join a creative event', 'Participate in a creative contest or exhibition.', 70, 5
+       'Join a creative event', 'Participate in a creative contest or exhibition.', 50, 5
 union all select (select id from dirs where slug = 'creativity'), 'goal'::public.task_type, null,
        'Collaborate with a creator', 'Collaborate with another creator on a joint idea.', 60, 6
 
 -- Mindfulness & Purpose
 union all select (select id from dirs where slug = 'mindfulness_purpose'), 'habit'::public.task_type, 'daily'::public.habit_period,
-       'Daily reflection', 'Practice daily reflection, meditation, or journaling.', 5, 1
+       'Daily reflection', 'Practice daily reflection, meditation, or journaling.', 15, 1
 union all select (select id from dirs where slug = 'mindfulness_purpose'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Offline or nature time', 'Spend time offline or in nature every week.', 6, 2
+       'Offline or nature time', 'Spend time offline or in nature every week.', 20, 2
 union all select (select id from dirs where slug = 'mindfulness_purpose'), 'habit'::public.task_type, 'weekly'::public.habit_period,
-       'Balance productivity and rest', 'Maintain balance between productivity and rest.', 6, 3
+       'Balance productivity and rest', 'Maintain balance between productivity and rest.', 25, 3
 union all select (select id from dirs where slug = 'mindfulness_purpose'), 'goal'::public.task_type, null,
-       'Define core values', 'Define your core values and life goals.', 70, 4
+       'Define core values', 'Define your core values and life goals.', 45, 4
 union all select (select id from dirs where slug = 'mindfulness_purpose'), 'goal'::public.task_type, null,
-       'Complete a digital detox', 'Experience a full digital detox day.', 60, 5
+       'Complete a digital detox', 'Experience a full digital detox day.', 50, 5
 union all select (select id from dirs where slug = 'mindfulness_purpose'), 'goal'::public.task_type, null,
-       'Act with deeper purpose', 'Make a conscious decision that aligns with your deeper purpose.', 80, 6;
+       'Act with deeper purpose', 'Make a conscious decision that aligns with your deeper purpose.', 60, 6;
 
 commit;
