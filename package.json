@@ -13,7 +13,10 @@
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:headed": "playwright test --headed",
-    "e2e:install": "playwright install --with-deps"
+    "e2e:install": "playwright install --with-deps",
+    "load-test": "cd load-test && node node-load-test.js",
+    "load-test:k6": "cd load-test && k6 run k6-load-test.js",
+    "load-test:monitor": "cd load-test && node monitor-resources.js"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",

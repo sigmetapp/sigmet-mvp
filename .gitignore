@@ -1,1 +1,7 @@
 node_modules
+
+# Load test results
+load-test/load-test-resources.json
+load-test/load-test-results.json
+load-test/monitor.log
+load-test/*.json
