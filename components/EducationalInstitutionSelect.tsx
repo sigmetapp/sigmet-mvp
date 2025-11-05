@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type EducationalInstitution = {
-  id: number;
+  id?: number;
   name: string;
   type: "school" | "college" | "university";
   country?: string;
   city?: string;
+  source?: "local" | "external";
 };
 
 type EducationalInstitutionSelectProps = {
@@ -62,24 +63,63 @@ export default function EducationalInstitutionSelect({
     setLoading(true);
 
     (async () => {
-      let queryBuilder = supabase
-        .from("educational_institutions")
-        .select("*")
-        .ilike("name", `%${query.trim()}%`)
-        .limit(20);
+      try {
+        // Search via API which includes both local and external sources
+        const searchParams = new URLSearchParams({
+          query: query.trim(),
+          ...(type && { type }),
+        });
 
-      if (type) {
-        queryBuilder = queryBuilder.eq("type", type);
+        const response = await fetch(`/api/educational-institutions/search?${searchParams}`);
+        if (cancelled) return;
+
+        if (response.ok) {
+          const { results } = await response.json();
+          if (cancelled) return;
+          setInstitutions(results || []);
+        } else {
+          // Fallback to local search only
+          let queryBuilder = supabase
+            .from("educational_institutions")
+            .select("*")
+            .ilike("name", `%${query.trim()}%`)
+            .limit(20);
+
+          if (type) {
+            queryBuilder = queryBuilder.eq("type", type);
+          }
+
+          const { data, error } = await queryBuilder;
+          if (cancelled) return;
+
+          if (!error && data) {
+            setInstitutions(data.map((inst) => ({ ...inst, source: "local" as const })));
+          }
+        }
+      } catch (error) {
+        console.error("Error searching institutions:", error);
+        // Fallback to local search only
+        let queryBuilder = supabase
+          .from("educational_institutions")
+          .select("*")
+          .ilike("name", `%${query.trim()}%`)
+          .limit(20);
+
+        if (type) {
+          queryBuilder = queryBuilder.eq("type", type);
+        }
+
+        const { data, error } = await queryBuilder;
+        if (cancelled) return;
+
+        if (!error && data) {
+          setInstitutions(data.map((inst) => ({ ...inst, source: "local" as const })));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      const { data, error } = await queryBuilder;
-
-      if (cancelled) return;
-
-      if (!error && data) {
-        setInstitutions(data);
-      }
-      setLoading(false);
     })();
 
     return () => {
@@ -97,11 +137,19 @@ export default function EducationalInstitutionSelect({
     return () => document.removeEventListener("click", onDocClick);
   }, []);
 
-  function select(institution: EducationalInstitution) {
+  function select(institution: EducationalInstitution | null) {
+    if (!institution) {
+      // User wants to use custom name
+      setOpen(false);
+      // Pass null ID but keep the query as the name
+      onChange(null, { name: query.trim(), type: type || 'university' } as EducationalInstitution);
+      return;
+    }
+    
     setQuery(institution.name);
     setOpen(false);
     setSelectedInstitution(institution);
-    onChange(institution.id, institution);
+    onChange(institution.id || null, institution);
   }
 
   function clear() {
@@ -140,27 +188,39 @@ export default function EducationalInstitutionSelect({
         <div className="absolute z-10 mt-1 w-full max-h-72 overflow-auto rounded-md bg-[#0b0b0b] border border-white/10 shadow-lg">
           {loading ? (
             <div className="px-3 py-2 text-sm text-white/60">Searching...</div>
-          ) : institutions.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-white/60">
-              No results found. The institution will be created when you save.
-            </div>
           ) : (
             <>
-              {institutions.map((inst) => (
-                <button
-                  key={inst.id}
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-white/5"
-                  onClick={() => select(inst)}
-                >
-                  <div className="font-medium">{inst.name}</div>
-                  <div className="text-xs text-white/60 capitalize">
-                    {inst.type}
-                    {inst.city && ` • ${inst.city}`}
-                    {inst.country && ` • ${inst.country}`}
-                  </div>
-                </button>
-              ))}
+              {institutions.length > 0 && (
+                <>
+                  {institutions.map((inst, idx) => (
+                    <button
+                      key={inst.id || `external-${idx}`}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-white/5"
+                      onClick={() => select(inst)}
+                    >
+                      <div className="font-medium">{inst.name}</div>
+                      <div className="text-xs text-white/60 capitalize">
+                        {inst.type}
+                        {inst.city && ` • ${inst.city}`}
+                        {inst.country && ` • ${inst.country}`}
+                        {inst.source === "external" && (
+                          <span className="ml-1 text-telegram-blue">(external)</span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                  <div className="border-t border-white/10 my-1"></div>
+                </>
+              )}
+              {/* Always show option to use custom name */}
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-white/5 text-telegram-blue font-medium"
+                onClick={() => select(null)}
+              >
+                Use "{query}" as custom institution name
+              </button>
             </>
           )}
         </div>

@@ -75,10 +75,12 @@ function ProfileSettings() {
   async function saveProfile() {
     if (!profile) return;
     
-    // Create educational institution if name is provided but no ID
+    // Handle educational institution
     let institutionId = profile.educational_institution_id;
+    
+    // If user typed a name but no ID is set (custom entry or external source)
     if (educationalInstitutionName && educationalInstitutionType && !institutionId) {
-      // Try to find existing institution
+      // Try to find existing institution by name and type
       const { data: existing } = await supabase
         .from('educational_institutions')
         .select('id')
@@ -89,7 +91,7 @@ function ProfileSettings() {
       if (existing) {
         institutionId = existing.id;
       } else {
-        // Create new institution
+        // Create new institution in local database
         const countryCity = profile.country ? profile.country.split(', ') : [];
         const city = countryCity.length > 1 ? countryCity.slice(0, -1).join(', ') : null;
         const country = countryCity.length > 1 ? countryCity[countryCity.length - 1] : (countryCity[0] || null);
