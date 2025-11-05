@@ -1315,7 +1315,7 @@ export default function PostFeed({
           </div>
 
           {/* Create Post button - inline on the right */}
-          <div className="sticky top-6 flex-shrink-0 self-start">
+          <div className="sticky top-24 z-30 flex-shrink-0 self-start">
             <Button
               onClick={() => setComposerOpen(true)}
               variant="primary"
