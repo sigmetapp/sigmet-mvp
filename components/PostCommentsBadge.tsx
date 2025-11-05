@@ -2,6 +2,7 @@
 
 import React, { useCallback } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { useTheme } from '@/components/ThemeProvider';
 
 export interface PostCommentsBadgeProps {
   count?: number;
@@ -61,6 +62,8 @@ export default function PostCommentsBadge({
   loading = false,
 }: PostCommentsBadgeProps) {
   const shouldReduceMotion = useReducedMotion();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const config = sizeConfigs[size];
 
   const handleClick = useCallback(() => {
@@ -114,6 +117,8 @@ export default function PostCommentsBadge({
     ? { duration: 0.15 }
     : { type: 'spring', stiffness: 500, damping: 28 };
 
+  const textColorClass = isLight ? 'text-zinc-900' : 'text-zinc-300';
+
   return (
     <motion.button
       type="button"
@@ -142,8 +147,7 @@ export default function PostCommentsBadge({
         dark:bg-zinc-900/10
         shadow-sm
         backdrop-blur
-        text-zinc-800
-        dark:text-zinc-300
+        ${textColorClass}
         transition-all
         duration-150
         will-change-transform
