@@ -110,7 +110,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
   );
 
   return (
-    <div ref={containerRef} className={`relative flex-1 max-w-md ${className}`}>
+    <div ref={containerRef} className={`relative w-[313px] ${className}`}>
       <div className="relative">
         <Search
           className={`absolute left-3 top-1/2 -translate-y-1/2 ${
