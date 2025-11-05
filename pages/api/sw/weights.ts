@@ -64,23 +64,41 @@ export default async function handler(
         post_points,
         comment_points,
         reaction_points,
+        daily_inflation_rate,
+        user_growth_inflation_rate,
+        min_inflation_rate,
+        invite_points,
+        growth_bonus_percentage,
+        cache_duration_minutes,
+        sw_levels,
       } = req.body;
+
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      };
+
+      // Update only provided fields
+      if (registration_points !== undefined) updateData.registration_points = registration_points;
+      if (profile_complete_points !== undefined) updateData.profile_complete_points = profile_complete_points;
+      if (growth_total_points_multiplier !== undefined) updateData.growth_total_points_multiplier = growth_total_points_multiplier;
+      if (follower_points !== undefined) updateData.follower_points = follower_points;
+      if (connection_first_points !== undefined) updateData.connection_first_points = connection_first_points;
+      if (connection_repeat_points !== undefined) updateData.connection_repeat_points = connection_repeat_points;
+      if (post_points !== undefined) updateData.post_points = post_points;
+      if (comment_points !== undefined) updateData.comment_points = comment_points;
+      if (reaction_points !== undefined) updateData.reaction_points = reaction_points;
+      if (daily_inflation_rate !== undefined) updateData.daily_inflation_rate = daily_inflation_rate;
+      if (user_growth_inflation_rate !== undefined) updateData.user_growth_inflation_rate = user_growth_inflation_rate;
+      if (min_inflation_rate !== undefined) updateData.min_inflation_rate = min_inflation_rate;
+      if (invite_points !== undefined) updateData.invite_points = invite_points;
+      if (growth_bonus_percentage !== undefined) updateData.growth_bonus_percentage = growth_bonus_percentage;
+      if (cache_duration_minutes !== undefined) updateData.cache_duration_minutes = cache_duration_minutes;
+      if (sw_levels !== undefined) updateData.sw_levels = sw_levels;
 
       const { data: weights, error } = await supabase
         .from('sw_weights')
-        .update({
-          registration_points: registration_points ?? 50,
-          profile_complete_points: profile_complete_points ?? 20,
-          growth_total_points_multiplier: growth_total_points_multiplier ?? 1,
-          follower_points: follower_points ?? 5,
-          connection_first_points: connection_first_points ?? 100,
-          connection_repeat_points: connection_repeat_points ?? 40,
-          post_points: post_points ?? 20,
-          comment_points: comment_points ?? 10,
-          reaction_points: reaction_points ?? 1,
-          updated_at: new Date().toISOString(),
-          updated_by: user.id,
-        })
+        .update(updateData)
         .eq('id', 1)
         .select()
         .single();

@@ -433,10 +433,12 @@ export default async function handler(
         // Continue without invites
       }
 
-      const invitePoints = invitesCount * 50; // 50 pts per invite
+      const invitePointsPerInvite = weights.invite_points ?? 50;
+      const invitePoints = invitesCount * invitePointsPerInvite;
 
-      // Calculate 5% bonus on invited users' growth points
-      const growthBonusPoints = inviteeGrowthTotalPoints * 0.05;
+      // Calculate bonus on invited users' growth points
+      const growthBonusPercentage = weights.growth_bonus_percentage ?? 0.05;
+      const growthBonusPoints = inviteeGrowthTotalPoints * growthBonusPercentage;
 
     // Calculate total SW
     const totalSW = 
@@ -470,15 +472,18 @@ export default async function handler(
         daysSinceRegistration = Math.floor((now - registrationDate) / (24 * 60 * 60 * 1000));
       }
 
-      // Inflation formula:
-      // - Base inflation: 1.0 (no inflation)
-      // - Daily reduction: -0.1% per day (0.001 per day)
-      // - User growth reduction: -0.01% per 100 users (0.0001 per 100 users)
-      const dailyInflation = 1.0 - (daysSinceRegistration * 0.001); // 0.1% per day
-      const userGrowthInflation = 1.0 - ((userCount / 100) * 0.0001); // 0.01% per 100 users
+      // Inflation formula using parameters from weights
+      const dailyInflationRate = weights.daily_inflation_rate ?? 0.001;
+      const userGrowthInflationRate = weights.user_growth_inflation_rate ?? 0.0001;
+      const minInflationRate = weights.min_inflation_rate ?? 0.5;
+      
+      // Daily reduction: -dailyInflationRate per day
+      const dailyInflation = 1.0 - (daysSinceRegistration * dailyInflationRate);
+      // User growth reduction: -userGrowthInflationRate per 100 users
+      const userGrowthInflation = 1.0 - ((userCount / 100) * userGrowthInflationRate);
       
       // Combined inflation (multiplicative)
-      inflationRate = Math.max(0.5, dailyInflation * userGrowthInflation); // Minimum 50% value
+      inflationRate = Math.max(minInflationRate, dailyInflation * userGrowthInflation);
     } catch (inflationErr) {
       console.warn('Error calculating inflation:', inflationErr);
       inflationRate = 1.0; // Default to no inflation on error
@@ -536,13 +541,13 @@ export default async function handler(
       invites: {
         points: invitePoints,
         count: invitesCount,
-        weight: 50,
+        weight: invitePointsPerInvite,
       },
       growthBonus: {
         points: Math.round(growthBonusPoints * 100) / 100,
         count: invitesCount,
-        weight: 0.05,
-        description: '5% bonus on invited users\' growth points',
+        weight: growthBonusPercentage,
+        description: `${(growthBonusPercentage * 100).toFixed(0)}% bonus on invited users' growth points`,
       },
     };
 
