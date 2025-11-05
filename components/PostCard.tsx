@@ -84,7 +84,31 @@ export default function PostCard({
     if (!post.createdAt) return undefined;
     if (!createdAtDate) return post.createdAt;
     try {
-      return new Intl.DateTimeFormat(undefined, {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const dateOnly = new Date(createdAtDate.getFullYear(), createdAtDate.getMonth(), createdAtDate.getDate());
+      
+      const timePart = new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).format(createdAtDate);
+      
+      // Check if date is today
+      if (dateOnly.getTime() === today.getTime()) {
+        return `Today, ${timePart}`;
+      }
+      
+      // Check if date is yesterday
+      if (dateOnly.getTime() === yesterday.getTime()) {
+        return `Yesterday, ${timePart}`;
+      }
+      
+      // For all other dates, use the original format
+      return new Intl.DateTimeFormat('en-US', {
         dateStyle: 'medium',
         timeStyle: 'short',
       }).format(createdAtDate);
@@ -181,7 +205,7 @@ export default function PostCard({
   );
 
   const containerClassName = [
-    'relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900',
+    'relative overflow-hidden rounded-none border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900',
     'post-card-glow',
     disableNavigation ? 'cursor-default' : 'cursor-pointer',
     className,

@@ -44,6 +44,44 @@ type CommentRecord = {
 const AVATAR_FALLBACK =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
 
+function formatDateWithTodayYesterday(dateString: string): string {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+  
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  const timePart = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+  
+  // Check if date is today
+  if (dateOnly.getTime() === today.getTime()) {
+    return `Today, ${timePart}`;
+  }
+  
+  // Check if date is yesterday
+  if (dateOnly.getTime() === yesterday.getTime()) {
+    return `Yesterday, ${timePart}`;
+  }
+  
+  // For all other dates, use the original format
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+}
+
 const EMPTY_COUNTS: Record<ReactionType, number> = {
   inspire: 0,
   respect: 0,
@@ -456,14 +494,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   <div className="flex flex-col min-w-0">
                     <span className={`text-sm font-medium truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{username}</span>
                     <time className="text-xs text-slate-500 dark:text-slate-400" dateTime={comment.created_at}>
-                      {new Intl.DateTimeFormat('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true,
-                      }).format(new Date(comment.created_at))}
+                      {formatDateWithTodayYesterday(comment.created_at)}
                     </time>
                   </div>
                 </div>
@@ -547,10 +578,35 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const formattedDate = useMemo(() => {
     if (!post?.created_at) return '';
     try {
+      const date = new Date(post.created_at);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      
+      const timePart = new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).format(date);
+      
+      // Check if date is today
+      if (dateOnly.getTime() === today.getTime()) {
+        return `Today, ${timePart}`;
+      }
+      
+      // Check if date is yesterday
+      if (dateOnly.getTime() === yesterday.getTime()) {
+        return `Yesterday, ${timePart}`;
+      }
+      
+      // For all other dates, use the original format (dateStyle: 'medium', timeStyle: 'short')
       return new Intl.DateTimeFormat('en-US', {
         dateStyle: 'medium',
         timeStyle: 'short',
-      }).format(new Date(post.created_at));
+      }).format(date);
     } catch (error) {
       return new Date(post.created_at).toLocaleString('en-US');
     }
@@ -687,7 +743,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
           {/* Media */}
           {(post.image_url || post.video_url) && (
-            <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="overflow-hidden rounded-none border border-slate-200 dark:border-slate-700">
               {post.image_url && (
                 <img
                   src={post.image_url}

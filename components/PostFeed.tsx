@@ -25,16 +25,34 @@ function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return dateString;
   
-  const datePart = new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   
   const timePart = new Intl.DateTimeFormat('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+  }).format(date);
+  
+  // Check if date is today
+  if (dateOnly.getTime() === today.getTime()) {
+    return `Today, ${timePart}`;
+  }
+  
+  // Check if date is yesterday
+  if (dateOnly.getTime() === yesterday.getTime()) {
+    return `Yesterday, ${timePart}`;
+  }
+  
+  // For all other dates, use the original format
+  const datePart = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   }).format(date);
   
   // Format: "Nov 3, 2025, 11:04 AM"
@@ -1027,7 +1045,7 @@ export default function PostFeed({
                             <img 
                               src={p.image_url} 
                               loading="lazy" 
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} 
+                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} 
                               alt="post image" 
                             />
                           </div>
@@ -1037,7 +1055,7 @@ export default function PostFeed({
                             <video 
                               controls 
                               preload="metadata" 
-                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-2xl border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                              className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
                             >
                               <source src={p.video_url} />
                             </video>
