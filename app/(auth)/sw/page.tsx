@@ -19,9 +19,101 @@ type SWBreakdown = {
 
 type SWData = {
   totalSW: number;
+  originalSW?: number;
   breakdown: SWBreakdown;
   weights: any;
+  inflationRate?: number;
+  cached?: boolean;
+  cacheAge?: number;
 };
+
+type SWLevel = {
+  name: string;
+  minSW: number;
+  maxSW?: number;
+  features: string[];
+  color: string;
+};
+
+const SW_LEVELS: SWLevel[] = [
+  {
+    name: 'Новичок',
+    minSW: 0,
+    maxSW: 100,
+    features: [
+      'Базовые функции социальной сети',
+      'Публикация постов',
+      'Комментирование',
+      'Реакции на посты'
+    ],
+    color: 'text-gray-400'
+  },
+  {
+    name: 'Активный',
+    minSW: 100,
+    maxSW: 500,
+    features: [
+      'Все функции уровня "Новичок"',
+      'Приглашение друзей',
+      'Доступ к расширенной статистике',
+      'Приоритет в уведомлениях'
+    ],
+    color: 'text-blue-400'
+  },
+  {
+    name: 'Влиятельный',
+    minSW: 500,
+    maxSW: 2000,
+    features: [
+      'Все функции уровня "Активный"',
+      'Создание групп и сообществ',
+      'Расширенные возможности профиля',
+      'Приоритетная поддержка'
+    ],
+    color: 'text-purple-400'
+  },
+  {
+    name: 'Эксперт',
+    minSW: 2000,
+    maxSW: 10000,
+    features: [
+      'Все функции уровня "Влиятельный"',
+      'Модерация контента',
+      'Доступ к аналитике платформы',
+      'VIP статус'
+    ],
+    color: 'text-yellow-400'
+  },
+  {
+    name: 'Легенда',
+    minSW: 10000,
+    features: [
+      'Все функции уровня "Эксперт"',
+      'Эксклюзивные функции',
+      'Персональная поддержка',
+      'Участие в развитии платформы'
+    ],
+    color: 'text-orange-400'
+  }
+];
+
+function getSWLevel(sw: number): SWLevel {
+  for (let i = SW_LEVELS.length - 1; i >= 0; i--) {
+    if (sw >= SW_LEVELS[i].minSW) {
+      return SW_LEVELS[i];
+    }
+  }
+  return SW_LEVELS[0];
+}
+
+function getNextLevel(sw: number): SWLevel | null {
+  const currentLevel = getSWLevel(sw);
+  const currentIndex = SW_LEVELS.findIndex(level => level.name === currentLevel.name);
+  if (currentIndex < SW_LEVELS.length - 1) {
+    return SW_LEVELS[currentIndex + 1];
+  }
+  return null;
+}
 
 export default function SWPage() {
   const [loading, setLoading] = useState(true);
@@ -29,10 +121,28 @@ export default function SWPage() {
   const [swData, setSwData] = useState<SWData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | undefined>();
+  const [activeTab, setActiveTab] = useState<'overview' | 'factors' | 'levels' | 'breakdown'>('overview');
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
+    checkAdmin();
     loadSW();
   }, []);
+
+  async function checkAdmin() {
+    try {
+      const { data, error } = await supabase.rpc('is_admin_uid');
+      if (error) {
+        console.error('Error checking admin:', error);
+        setIsAdmin(false);
+      } else {
+        setIsAdmin(data ?? false);
+      }
+    } catch (err) {
+      console.error('Error checking admin:', err);
+      setIsAdmin(false);
+    }
+  }
 
   async function loadSW() {
     try {
@@ -114,7 +224,7 @@ export default function SWPage() {
     }
   }
 
-  if (loading) {
+  if (loading || isAdmin === null) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-6 md:p-6">
         <div className="text-white/70">Loading SW data…</div>
@@ -138,24 +248,30 @@ export default function SWPage() {
     );
   }
 
-  const { totalSW, breakdown } = swData;
+  const { totalSW, breakdown, inflationRate, originalSW, cached, cacheAge } = swData;
+  const currentLevel = getSWLevel(totalSW);
+  const nextLevel = getNextLevel(totalSW);
+  const progressToNext = nextLevel ? ((totalSW - currentLevel.minSW) / (nextLevel.minSW - currentLevel.minSW)) * 100 : 100;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 md:p-6 space-y-3">
+    <div className="max-w-4xl mx-auto px-4 py-6 md:p-6 space-y-4">
+      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">Social Weight (SW)</h1>
           <p className="text-white/70 text-sm mt-2">
-            Your Social Weight is calculated based on various factors that reflect your engagement and activity on the platform.
+            Ваш Social Weight отражает вашу активность и вовлеченность в социальной сети.
           </p>
         </div>
-        <Button
-          onClick={recalculateSW}
-          variant="secondary"
-          disabled={recalculating || loading}
-        >
-          {recalculating ? 'Recalculating...' : 'Recalculate SW'}
-        </Button>
+        {isAdmin && (
+          <Button
+            onClick={recalculateSW}
+            variant="secondary"
+            disabled={recalculating || loading}
+          >
+            {recalculating ? 'Recalculating...' : 'Recalculate SW'}
+          </Button>
+        )}
       </div>
 
       {note && (
@@ -164,143 +280,398 @@ export default function SWPage() {
         </div>
       )}
 
-      {/* Total SW */}
-      <div className="card p-4">
-        <div className="text-center">
-          <div className="text-white/60 text-sm mb-1">Your Social Weight</div>
-          <div className="text-4xl font-bold text-white mb-1">{totalSW.toLocaleString()}</div>
-          <div className="text-white/60 text-sm">Total Points</div>
+      {/* Cache indicator */}
+      {cached && (
+        <div className="card p-3 bg-blue-500/10 border border-blue-500/20">
+          <div className="text-blue-300 text-sm">
+            ⚡ Данные загружены из кэша (обновлено {cacheAge} секунд назад). Обновление происходит каждые 5 минут.
+          </div>
         </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-white/10">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === 'overview'
+              ? 'text-white border-b-2 border-telegram-blue'
+              : 'text-white/60 hover:text-white/80'
+          }`}
+        >
+          Обзор
+        </button>
+        <button
+          onClick={() => setActiveTab('factors')}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === 'factors'
+              ? 'text-white border-b-2 border-telegram-blue'
+              : 'text-white/60 hover:text-white/80'
+          }`}
+        >
+          Как увеличить SW
+        </button>
+        <button
+          onClick={() => setActiveTab('levels')}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === 'levels'
+              ? 'text-white border-b-2 border-telegram-blue'
+              : 'text-white/60 hover:text-white/80'
+          }`}
+        >
+          Уровни и возможности
+        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('breakdown')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'breakdown'
+                ? 'text-white border-b-2 border-telegram-blue'
+                : 'text-white/60 hover:text-white/80'
+            }`}
+          >
+            Расчеты (Админ)
+          </button>
+        )}
       </div>
 
-      {/* Breakdown */}
-      <div className="card p-4 space-y-2">
-        <h2 className="text-lg font-semibold text-white mb-2">SW Breakdown</h2>
-        
-        <div className="space-y-2">
-          {/* Registration */}
-          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <div>
-              <div className="text-white font-medium text-sm">Registration</div>
-              <div className="text-white/60 text-xs">Account creation</div>
-            </div>
-            <div className="text-right">
-              <div className="text-white font-semibold text-sm">{breakdown.registration.points} pts</div>
-              <div className="text-white/60 text-xs">{breakdown.registration.count} × {breakdown.registration.weight}</div>
-            </div>
-          </div>
-
-          {/* Profile Complete */}
-          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <div>
-              <div className="text-white font-medium text-sm">Profile Complete</div>
-              <div className="text-white/60 text-xs">All profile fields filled</div>
-            </div>
-            <div className="text-right">
-              <div className="text-white font-semibold text-sm">{breakdown.profileComplete.points} pts</div>
-              <div className="text-white/60 text-xs">{breakdown.profileComplete.count} × {breakdown.profileComplete.weight}</div>
+      {/* Overview Tab */}
+      {activeTab === 'overview' && (
+        <div className="space-y-4">
+          {/* Total SW */}
+          <div className="card p-6">
+            <div className="text-center">
+              <div className="text-white/60 text-sm mb-2">Ваш Social Weight</div>
+              <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
+              {originalSW && originalSW !== totalSW && (
+                <div className="text-white/50 text-xs mb-2">
+                  Исходный SW: {originalSW.toLocaleString()} (инфляция: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
+                </div>
+              )}
+              <div className="text-white/60 text-sm">Всего очков</div>
             </div>
           </div>
 
-          {/* Growth */}
-          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <div>
-              <div className="text-white font-medium text-sm">Growth Directions</div>
-              <div className="text-white/60 text-xs">{breakdown.growth.description}</div>
+          {/* Current Level */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-white/60 text-sm mb-1">Текущий уровень</div>
+                <div className={`text-xl font-bold ${currentLevel.color}`}>{currentLevel.name}</div>
+              </div>
+              {nextLevel && (
+                <div className="text-right">
+                  <div className="text-white/60 text-sm mb-1">Следующий уровень</div>
+                  <div className={`text-lg font-semibold ${getSWLevel(nextLevel.minSW).color}`}>{nextLevel.name}</div>
+                  <div className="text-white/50 text-xs mt-1">
+                    {nextLevel.minSW - totalSW} очков до следующего уровня
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="text-right">
-              <div className="text-white font-semibold text-sm">{breakdown.growth.points} pts</div>
-              <div className="text-white/60 text-xs">{breakdown.growth.count} tasks × {breakdown.growth.weight}x</div>
-            </div>
+            {nextLevel && (
+              <div className="w-full bg-white/10 rounded-full h-2">
+                <div
+                  className="bg-telegram-blue h-2 rounded-full transition-all"
+                  style={{ width: `${Math.min(100, Math.max(0, progressToNext))}%` }}
+                />
+              </div>
+            )}
           </div>
 
-          {/* Followers */}
-          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <div>
-              <div className="text-white font-medium text-sm">Followers</div>
-              <div className="text-white/60 text-xs">People following you</div>
-            </div>
-            <div className="text-right">
-              <div className="text-white font-semibold text-sm">{breakdown.followers.points} pts</div>
-              <div className="text-white/60 text-xs">{breakdown.followers.count} × {breakdown.followers.weight}</div>
-            </div>
-          </div>
-
-          {/* Connections */}
-          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <div>
-              <div className="text-white font-medium text-sm">Connections</div>
-              <div className="text-white/60 text-xs">
-                Mutual mentions: {breakdown.connections.firstCount} first ({breakdown.connections.firstWeight}pts), {breakdown.connections.repeatCount} repeat ({breakdown.connections.repeatWeight}pts)
+          {/* Inflation Indicator */}
+          {inflationRate && inflationRate < 1 && (
+            <div className="card p-4 bg-yellow-500/10 border border-yellow-500/20">
+              <div className="flex items-start gap-3">
+                <div className="text-yellow-400 text-xl">⚠️</div>
+                <div className="flex-1">
+                  <div className="text-yellow-300 font-medium mb-1">Инфляция SW</div>
+                  <div className="text-white/70 text-sm">
+                    Ваш SW уменьшается на {((1 - inflationRate) * 100).toFixed(2)}% из-за:
+                    <ul className="list-disc list-inside mt-2 space-y-1">
+                      <li>Времени, прошедшего с момента регистрации</li>
+                      <li>Роста количества пользователей в сети</li>
+                    </ul>
+                    <div className="mt-2 text-xs text-white/60">
+                      Для поддержания SW необходимо постоянно увеличивать активность.
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-white font-semibold text-sm">{breakdown.connections.points} pts</div>
-              <div className="text-white/60 text-xs">{breakdown.connections.count} connections</div>
-            </div>
-          </div>
+          )}
+        </div>
+      )}
 
-          {/* Posts */}
-          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <div>
-              <div className="text-white font-medium text-sm">Posts</div>
-              <div className="text-white/60 text-xs">Published posts</div>
-            </div>
-            <div className="text-right">
-              <div className="text-white font-semibold text-sm">{breakdown.posts.points} pts</div>
-              <div className="text-white/60 text-xs">{breakdown.posts.count} × {breakdown.posts.weight}</div>
-            </div>
-          </div>
+      {/* Factors Tab */}
+      {activeTab === 'factors' && (
+        <div className="space-y-4">
+          <div className="card p-4">
+            <h2 className="text-lg font-semibold text-white mb-4">Как увеличить ваш SW</h2>
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-white/5">
+                <div className="text-white font-medium mb-2">1. Заполните профиль</div>
+                <div className="text-white/70 text-sm mb-2">
+                  Заполните все поля профиля (имя, био, страна, аватар) - это даст вам дополнительные очки.
+                </div>
+                <div className="text-white/50 text-xs">
+                  Текущий вклад: {breakdown.profileComplete.points} очков
+                </div>
+              </div>
 
-          {/* Comments */}
-          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <div>
-              <div className="text-white font-medium text-sm">Comments</div>
-              <div className="text-white/60 text-xs">Published comments</div>
-            </div>
-            <div className="text-right">
-              <div className="text-white font-semibold text-sm">{breakdown.comments.points} pts</div>
-              <div className="text-white/60 text-xs">{breakdown.comments.count} × {breakdown.comments.weight}</div>
-            </div>
-          </div>
+              <div className="p-3 rounded-lg bg-white/5">
+                <div className="text-white font-medium mb-2">2. Выполняйте задачи Growth Directions</div>
+                <div className="text-white/70 text-sm mb-2">
+                  Выполняйте задачи из направлений роста - это основной источник очков SW.
+                </div>
+                <div className="text-white/50 text-xs">
+                  Текущий вклад: {breakdown.growth.points.toFixed(0)} очков ({breakdown.growth.count} задач)
+                </div>
+              </div>
 
-          {/* Reactions */}
-          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <div>
-              <div className="text-white font-medium text-sm">Reactions</div>
-              <div className="text-white/60 text-xs">Reactions received on your posts</div>
-            </div>
-            <div className="text-right">
-              <div className="text-white font-semibold text-sm">{breakdown.reactions.points} pts</div>
-              <div className="text-white/60 text-xs">{Math.round(breakdown.reactions.count)} × {breakdown.reactions.weight}</div>
-            </div>
-          </div>
+              <div className="p-3 rounded-lg bg-white/5">
+                <div className="text-white font-medium mb-2">3. Публикуйте посты</div>
+                <div className="text-white/70 text-sm mb-2">
+                  Каждый опубликованный пост добавляет очки к вашему SW.
+                </div>
+                <div className="text-white/50 text-xs">
+                  Текущий вклад: {breakdown.posts.points} очков ({breakdown.posts.count} постов)
+                </div>
+              </div>
 
-          {/* Invites */}
-          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <div>
-              <div className="text-white font-medium text-sm">Invite People</div>
-              <div className="text-white/60 text-xs">People who joined via your invite code and received 70 pts</div>
-            </div>
-            <div className="text-right">
-              <div className="text-white font-semibold text-sm">{breakdown.invites?.points || 0} pts</div>
-              <div className="text-white/60 text-xs">{breakdown.invites?.count || 0} × {breakdown.invites?.weight || 50}</div>
-            </div>
-          </div>
+              <div className="p-3 rounded-lg bg-white/5">
+                <div className="text-white font-medium mb-2">4. Комментируйте</div>
+                <div className="text-white/70 text-sm mb-2">
+                  Активное комментирование постов других пользователей увеличивает ваш SW.
+                </div>
+                <div className="text-white/50 text-xs">
+                  Текущий вклад: {breakdown.comments.points} очков ({breakdown.comments.count} комментариев)
+                </div>
+              </div>
 
-          {/* Growth Bonus */}
-          <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <div>
-              <div className="text-white font-medium text-sm">Growth Bonus</div>
-              <div className="text-white/60 text-xs">{breakdown.growthBonus?.description || "5% bonus on invited users' growth points"}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-white font-semibold text-sm">{(breakdown.growthBonus?.points || 0).toFixed(2)} pts</div>
-              <div className="text-white/60 text-xs">{((breakdown.growthBonus?.weight || 0.05) * 100)}% of invited users' growth points</div>
+              <div className="p-3 rounded-lg bg-white/5">
+                <div className="text-white font-medium mb-2">5. Создавайте связи</div>
+                <div className="text-white/70 text-sm mb-2">
+                  Взаимные упоминания в постах создают связи, которые дают дополнительные очки.
+                </div>
+                <div className="text-white/50 text-xs">
+                  Текущий вклад: {breakdown.connections.points} очков ({breakdown.connections.count} связей)
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-white/5">
+                <div className="text-white font-medium mb-2">6. Привлекайте подписчиков</div>
+                <div className="text-white/70 text-sm mb-2">
+                  Чем больше у вас подписчиков, тем выше ваш SW.
+                </div>
+                <div className="text-white/50 text-xs">
+                  Текущий вклад: {breakdown.followers.points} очков ({breakdown.followers.count} подписчиков)
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-white/5">
+                <div className="text-white font-medium mb-2">7. Получайте реакции</div>
+                <div className="text-white/70 text-sm mb-2">
+                  Реакции на ваши посты увеличивают ваш SW.
+                </div>
+                <div className="text-white/50 text-xs">
+                  Текущий вклад: {breakdown.reactions.points} очков ({Math.round(breakdown.reactions.count)} реакций)
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-white/5">
+                <div className="text-white font-medium mb-2">8. Приглашайте друзей</div>
+                <div className="text-white/70 text-sm mb-2">
+                  Приглашайте друзей через инвайт-коды. Каждый приглашенный друг дает вам очки.
+                </div>
+                <div className="text-white/50 text-xs">
+                  Текущий вклад: {breakdown.invites?.points || 0} очков ({breakdown.invites?.count || 0} приглашений)
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Levels Tab */}
+      {activeTab === 'levels' && (
+        <div className="space-y-4">
+          <div className="card p-4">
+            <h2 className="text-lg font-semibold text-white mb-4">Уровни SW и их возможности</h2>
+            <div className="space-y-4">
+              {SW_LEVELS.map((level, index) => {
+                const isCurrent = currentLevel.name === level.name;
+                const isUnlocked = totalSW >= level.minSW;
+                return (
+                  <div
+                    key={level.name}
+                    className={`p-4 rounded-lg border-2 ${
+                      isCurrent
+                        ? 'border-telegram-blue bg-telegram-blue/10'
+                        : isUnlocked
+                        ? 'border-white/20 bg-white/5'
+                        : 'border-white/10 bg-white/5 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className={`text-xl font-bold ${level.color}`}>
+                        {level.name}
+                        {isCurrent && <span className="ml-2 text-sm text-telegram-blue">(Текущий)</span>}
+                      </div>
+                      <div className="text-white/60 text-sm">
+                        {level.maxSW ? `${level.minSW} - ${level.maxSW} SW` : `${level.minSW}+ SW`}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {level.features.map((feature, featureIndex) => (
+                        <div key={featureIndex} className="flex items-start gap-2">
+                          <span className="text-telegram-blue mt-1">✓</span>
+                          <span className={`text-sm ${isUnlocked ? 'text-white/80' : 'text-white/50'}`}>
+                            {feature}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Breakdown Tab (Admin only) */}
+      {activeTab === 'breakdown' && isAdmin && (
+        <div className="space-y-4">
+          <div className="card p-4 space-y-2">
+            <h2 className="text-lg font-semibold text-white mb-2">SW Breakdown (Детальный расчет)</h2>
+            
+            <div className="space-y-2">
+              {/* Registration */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                <div>
+                  <div className="text-white font-medium text-sm">Registration</div>
+                  <div className="text-white/60 text-xs">Account creation</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{breakdown.registration.points} pts</div>
+                  <div className="text-white/60 text-xs">{breakdown.registration.count} × {breakdown.registration.weight}</div>
+                </div>
+              </div>
+
+              {/* Profile Complete */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                <div>
+                  <div className="text-white font-medium text-sm">Profile Complete</div>
+                  <div className="text-white/60 text-xs">All profile fields filled</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{breakdown.profileComplete.points} pts</div>
+                  <div className="text-white/60 text-xs">{breakdown.profileComplete.count} × {breakdown.profileComplete.weight}</div>
+                </div>
+              </div>
+
+              {/* Growth */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                <div>
+                  <div className="text-white font-medium text-sm">Growth Directions</div>
+                  <div className="text-white/60 text-xs">{breakdown.growth.description}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{breakdown.growth.points} pts</div>
+                  <div className="text-white/60 text-xs">{breakdown.growth.count} tasks × {breakdown.growth.weight}x</div>
+                </div>
+              </div>
+
+              {/* Followers */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                <div>
+                  <div className="text-white font-medium text-sm">Followers</div>
+                  <div className="text-white/60 text-xs">People following you</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{breakdown.followers.points} pts</div>
+                  <div className="text-white/60 text-xs">{breakdown.followers.count} × {breakdown.followers.weight}</div>
+                </div>
+              </div>
+
+              {/* Connections */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                <div>
+                  <div className="text-white font-medium text-sm">Connections</div>
+                  <div className="text-white/60 text-xs">
+                    Mutual mentions: {breakdown.connections.firstCount} first ({breakdown.connections.firstWeight}pts), {breakdown.connections.repeatCount} repeat ({breakdown.connections.repeatWeight}pts)
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{breakdown.connections.points} pts</div>
+                  <div className="text-white/60 text-xs">{breakdown.connections.count} connections</div>
+                </div>
+              </div>
+
+              {/* Posts */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                <div>
+                  <div className="text-white font-medium text-sm">Posts</div>
+                  <div className="text-white/60 text-xs">Published posts</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{breakdown.posts.points} pts</div>
+                  <div className="text-white/60 text-xs">{breakdown.posts.count} × {breakdown.posts.weight}</div>
+                </div>
+              </div>
+
+              {/* Comments */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                <div>
+                  <div className="text-white font-medium text-sm">Comments</div>
+                  <div className="text-white/60 text-xs">Published comments</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{breakdown.comments.points} pts</div>
+                  <div className="text-white/60 text-xs">{breakdown.comments.count} × {breakdown.comments.weight}</div>
+                </div>
+              </div>
+
+              {/* Reactions */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                <div>
+                  <div className="text-white font-medium text-sm">Reactions</div>
+                  <div className="text-white/60 text-xs">Reactions received on your posts</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{breakdown.reactions.points} pts</div>
+                  <div className="text-white/60 text-xs">{Math.round(breakdown.reactions.count)} × {breakdown.reactions.weight}</div>
+                </div>
+              </div>
+
+              {/* Invites */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                <div>
+                  <div className="text-white font-medium text-sm">Invite People</div>
+                  <div className="text-white/60 text-xs">People who joined via your invite code and received 70 pts</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{breakdown.invites?.points || 0} pts</div>
+                  <div className="text-white/60 text-xs">{breakdown.invites?.count || 0} × {breakdown.invites?.weight || 50}</div>
+                </div>
+              </div>
+
+              {/* Growth Bonus */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                <div>
+                  <div className="text-white font-medium text-sm">Growth Bonus</div>
+                  <div className="text-white/60 text-xs">{breakdown.growthBonus?.description || "5% bonus on invited users' growth points"}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{(breakdown.growthBonus?.points || 0).toFixed(2)} pts</div>
+                  <div className="text-white/60 text-xs">{((breakdown.growthBonus?.weight || 0.05) * 100)}% of invited users' growth points</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

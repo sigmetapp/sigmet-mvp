@@ -63,6 +63,33 @@ export default async function handler(
   };
 
   try {
+    // Check cache: if sw_scores was updated less than 5 minutes ago, return cached value
+    const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+    
+    const { data: cachedScore, error: cacheError } = await supabase
+      .from('sw_scores')
+      .select('total, last_updated, breakdown, inflation_rate')
+      .eq('user_id', userId)
+      .single();
+
+    if (!cacheError && cachedScore && cachedScore.last_updated) {
+      const lastUpdated = new Date(cachedScore.last_updated).getTime();
+      const now = Date.now();
+      const timeDiff = now - lastUpdated;
+
+      if (timeDiff < CACHE_DURATION_MS && cachedScore.breakdown) {
+        // Return cached value if it's fresh (less than 5 minutes old)
+        return res.status(200).json({
+          totalSW: cachedScore.total || 0,
+          breakdown: cachedScore.breakdown,
+          weights: null, // Weights not cached, but breakdown contains weight info
+          cached: true,
+          cacheAge: Math.floor(timeDiff / 1000), // age in seconds
+          inflationRate: cachedScore.inflation_rate || 1.0,
+        });
+      }
+    }
+
     const preferredUserColumns = ['user_id', 'author_id'];
 
     const isUndefinedColumnError = (error: any) => {
@@ -598,10 +625,71 @@ export default async function handler(
       },
     };
 
+    // Calculate inflation rate
+    // Inflation decreases SW based on:
+    // 1. Time elapsed (daily reduction)
+    // 2. Number of users in the network (more users = more inflation)
+    let inflationRate = 1.0;
+    
+    try {
+      // Get total number of users
+      const { count: totalUsers, error: usersError } = await supabase
+        .from('profiles')
+        .select('user_id', { count: 'exact', head: true });
+
+      const userCount = totalUsers || 0;
+      
+      // Calculate days since registration (if profile exists)
+      let daysSinceRegistration = 0;
+      if (profile && profile.created_at) {
+        const registrationDate = new Date(profile.created_at).getTime();
+        const now = Date.now();
+        daysSinceRegistration = Math.floor((now - registrationDate) / (24 * 60 * 60 * 1000));
+      }
+
+      // Inflation formula:
+      // - Base inflation: 1.0 (no inflation)
+      // - Daily reduction: -0.1% per day (0.001 per day)
+      // - User growth reduction: -0.01% per 100 users (0.0001 per 100 users)
+      const dailyInflation = 1.0 - (daysSinceRegistration * 0.001); // 0.1% per day
+      const userGrowthInflation = 1.0 - ((userCount / 100) * 0.0001); // 0.01% per 100 users
+      
+      // Combined inflation (multiplicative)
+      inflationRate = Math.max(0.5, dailyInflation * userGrowthInflation); // Minimum 50% value
+    } catch (inflationErr) {
+      console.warn('Error calculating inflation:', inflationErr);
+      inflationRate = 1.0; // Default to no inflation on error
+    }
+
+    // Apply inflation to total SW
+    const inflatedSW = Math.floor(totalSW * inflationRate);
+
+    // Save to cache (sw_scores table)
+    try {
+      await supabase
+        .from('sw_scores')
+        .upsert({
+          user_id: userId,
+          total: inflatedSW,
+          breakdown: breakdown,
+          inflation_rate: inflationRate,
+          inflation_last_updated: new Date().toISOString(),
+          last_updated: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id',
+        });
+    } catch (cacheErr) {
+      console.warn('Error saving to sw_scores cache:', cacheErr);
+      // Continue even if cache save fails
+    }
+
     return res.status(200).json({
-      totalSW,
+      totalSW: inflatedSW,
+      originalSW: totalSW, // Original SW before inflation
       breakdown,
       weights,
+      inflationRate,
+      cached: false,
     });
   } catch (error: any) {
     // Enhanced error logging
