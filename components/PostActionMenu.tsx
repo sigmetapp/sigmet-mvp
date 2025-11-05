@@ -373,7 +373,7 @@ export default function PostActionMenu({
                           type="button"
                           onClick={handleEdit}
                           role="menuitem"
-                          className={`w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${isLight ? 'text-zinc-900' : 'text-telegram-text'} hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:bg-black/5 dark:focus-visible:bg-white/5`}
+                          className={`w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${isLight ? 'text-white' : 'text-telegram-text'} hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:bg-black/5 dark:focus-visible:bg-white/5`}
                         >
                           <Pencil className="h-4 w-4" />
                           <span>Edit</span>
@@ -410,11 +410,11 @@ export default function PostActionMenu({
                     >
                       <p
                         id="confirm-title"
-                        className={`text-sm ${isLight ? 'text-zinc-900' : 'text-telegram-text'} font-medium`}
+                        className={`text-sm ${isLight ? 'text-white' : 'text-telegram-text'} font-medium`}
                       >
                         Confirm deletion
                       </p>
-                      <p className={`text-xs ${isLight ? 'text-zinc-700' : 'text-telegram-text-secondary'}`}>
+                      <p className={`text-xs ${isLight ? 'text-white/80' : 'text-telegram-text-secondary'}`}>
                         Are you sure you want to delete this post? This action
                         cannot be undone.
                       </p>
@@ -423,7 +423,7 @@ export default function PostActionMenu({
                           ref={cancelButtonRef}
                           type="button"
                           onClick={handleDeleteCancel}
-                          className={`flex-1 px-3 py-2 rounded-lg text-sm border border-white/10 bg-transparent ${isLight ? 'text-zinc-900' : 'text-telegram-text'} hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50`}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm border border-white/10 bg-transparent ${isLight ? 'text-white' : 'text-telegram-text'} hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50`}
                         >
                           Cancel
                         </button>
