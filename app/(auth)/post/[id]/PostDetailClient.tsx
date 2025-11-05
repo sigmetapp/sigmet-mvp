@@ -593,9 +593,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       disableNavigation
       className={`select-text ${isLight ? '!bg-white !border-slate-200' : ''}`}
       renderContent={(postCardPost, defaultContent) => (
-        <div className="relative z-10 flex flex-col gap-3">
+        <div className="relative z-10 flex flex-col gap-2">
           {/* Header with avatar and clickable nickname */}
-          <header className="flex items-start justify-between gap-4">
+          <header className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <img
                 src={avatar}
@@ -714,7 +714,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 md:py-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4 md:py-5">
       {/* Back button */}
       {fromProfile && profileUsername ? (
         <Button
@@ -745,7 +745,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       ) : loadingPost ? (
         <div className="h-48 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
       ) : (
-        <article className="space-y-4">
+        <article className="space-y-3">
           {editing ? (
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <textarea
