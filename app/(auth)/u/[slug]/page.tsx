@@ -765,8 +765,8 @@ export default function PublicProfilePage() {
                     ? Math.max(0, Math.min(100, ((totalSW - currentLevel.minSW) / (nextLevel.minSW - currentLevel.minSW)) * 100))
                     : 100;
                   
-                  // Calculate circumference for progress circle (radius = 80, so circumference = 2 * π * 80 ≈ 502.65)
-                  const radius = 80;
+                  // Calculate circumference for progress circle (radius = 76, accounting for thicker stroke, so circumference = 2 * π * 76 ≈ 477.5)
+                  const radius = 76;
                   const circumference = 2 * Math.PI * radius;
                   const strokeDashoffset = circumference - (progressToNext / 100) * circumference;
                   
@@ -790,8 +790,8 @@ export default function PublicProfilePage() {
                           cy="82"
                           r={radius}
                           fill="none"
-                          stroke="rgba(255, 255, 255, 0.1)"
-                          strokeWidth="4"
+                          stroke="rgba(255, 255, 255, 0.15)"
+                          strokeWidth="10"
                         />
                         {/* Progress circle */}
                         <circle
@@ -800,7 +800,7 @@ export default function PublicProfilePage() {
                           r={radius}
                           fill="none"
                           stroke={progressColor}
-                          strokeWidth="4"
+                          strokeWidth="10"
                           strokeDasharray={circumference}
                           strokeDashoffset={strokeDashoffset}
                           strokeLinecap="round"
