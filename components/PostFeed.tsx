@@ -321,17 +321,18 @@ export default function PostFeed({
             // Map DB reaction types to component types
             const reactionMap: Record<string, ReactionType> = {
               inspire: 'inspire',
-              respect: 'respect',
-              relate: 'relate',
-              support: 'support',
-              celebrate: 'celebrate',
+              respect: 'inspire', // Migrate to inspire
+              relate: 'inspire', // Migrate to inspire
+              support: 'inspire', // Migrate to inspire
+              celebrate: 'inspire', // Migrate to inspire
             };
 
             const reactionType = reactionMap[kind];
             if (reactionType && counts[pid]) {
-              counts[pid][reactionType] = (counts[pid][reactionType] || 0) + 1;
+              // All reactions go to inspire
+              counts[pid].inspire = (counts[pid].inspire || 0) + 1;
               if (uid && userId === uid) {
-                selected[pid] = reactionType;
+                selected[pid] = 'inspire';
               }
             }
           }
@@ -1093,14 +1094,15 @@ export default function PostFeed({
                                 const kind = r.kind as string;
                                 const reactionMap: Record<string, ReactionType> = {
                                   inspire: 'inspire',
-                                  respect: 'respect',
-                                  relate: 'relate',
-                                  support: 'support',
-                                  celebrate: 'celebrate',
+                                  respect: 'inspire', // Migrate to inspire
+                                  relate: 'inspire', // Migrate to inspire
+                                  support: 'inspire', // Migrate to inspire
+                                  celebrate: 'inspire', // Migrate to inspire
                                 };
                                 const reactionType = reactionMap[kind];
                                 if (reactionType) {
-                                  newCounts[reactionType] = (newCounts[reactionType] || 0) + 1;
+                                  // All reactions go to inspire
+                                  newCounts.inspire = (newCounts.inspire || 0) + 1;
                                 }
                               }
                             }

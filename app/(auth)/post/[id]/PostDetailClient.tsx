@@ -166,18 +166,19 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
     const reactionMap: Record<string, ReactionType> = {
       inspire: 'inspire',
-      respect: 'respect',
-      relate: 'relate',
-      support: 'support',
-      celebrate: 'celebrate',
+      respect: 'inspire', // Migrate to inspire
+      relate: 'inspire', // Migrate to inspire
+      support: 'inspire', // Migrate to inspire
+      celebrate: 'inspire', // Migrate to inspire
     };
 
     for (const row of data as Array<{ kind: string; user_id: string }>) {
       const reactionType = reactionMap[row.kind];
       if (!reactionType) continue;
-      counts[reactionType] = (counts[reactionType] || 0) + 1;
+      // All reactions go to inspire
+      counts.inspire = (counts.inspire || 0) + 1;
       if (uid && row.user_id === uid) {
-        selected = reactionType;
+        selected = 'inspire';
       }
     }
 
