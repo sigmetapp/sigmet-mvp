@@ -847,7 +847,7 @@ export default function PublicProfilePage() {
   }, [profile?.user_id]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 space-y-6">
       {/* Profile header */}
       <div className={`card p-4 md:p-6 ${!loadingProfile && profile ? 'animate-fade-in-up' : ''}`}>
         {loadingProfile ? (
@@ -1592,14 +1592,16 @@ export default function PublicProfilePage() {
           <h2 className="text-lg text-white/90 animate-fade-in">Posts</h2>
         )}
         {!loadingProfile && profile && (
-          <PostFeed
-            filterUserId={profile.user_id}
-            showFilters={false}
-            showComposer={false}
-            backToProfileUsername={profile.username || slug}
-            className=""
-            enableLazyLoad={true}
-          />
+          <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+            <PostFeed
+              filterUserId={profile.user_id}
+              showFilters={false}
+              showComposer={false}
+              backToProfileUsername={profile.username || slug}
+              className=""
+              enableLazyLoad={true}
+            />
+          </div>
         )}
       </div>
     </div>
