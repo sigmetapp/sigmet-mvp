@@ -1,8 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,7 +17,7 @@ export default async function handler(
   }
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = supabaseAdmin();
     
     const { data, error } = await supabase.rpc('get_post_views_last_7_days', {
       p_post_id: postId,
