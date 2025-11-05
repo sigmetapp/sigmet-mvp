@@ -142,7 +142,7 @@ export default function PostCommentsBadge({
         dark:bg-zinc-900/10
         shadow-sm
         backdrop-blur
-        text-zinc-600
+        text-zinc-800
         dark:text-zinc-300
         transition-all
         duration-150
