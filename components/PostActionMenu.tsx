@@ -373,9 +373,9 @@ export default function PostActionMenu({
                           type="button"
                           onClick={handleEdit}
                           role="menuitem"
-                          className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-telegram-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:bg-black/5 dark:focus-visible:bg-white/5"
+                          className={`w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${isLight ? 'text-white' : 'text-telegram-text'} hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:bg-black/5 dark:focus-visible:bg-white/5`}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className={`h-4 w-4 ${isLight ? 'text-white' : ''}`} />
                           <span>Edit</span>
                         </button>
                       )}
