@@ -855,7 +855,7 @@ export default function PostFeed({
       )}
 
       {/* Feed */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+      <div className="space-y-3">
         {loading ? (
           <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
         ) : (
@@ -889,7 +889,7 @@ export default function PostFeed({
                   commentsCount: commentCount,
                 }}
                 disableNavigation={true}
-                className={`telegram-card-feature p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out ${
+                className={`telegram-card-feature p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out w-[80%] mx-auto ${
                   hasCategory && categoryDirection
                     ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
                     : ''
