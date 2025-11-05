@@ -855,22 +855,10 @@ export default function PostFeed({
         </div>
       )}
 
-      {/* Create Post button - positioned next to posts */}
-      {showComposer && (
-        <div className="flex justify-center mb-4">
-          <Button
-            onClick={() => setComposerOpen(true)}
-            variant="primary"
-            className="shadow-lg z-40 rounded-full px-6 py-4 text-base"
-            icon={<Plus />}
-          >
-            Create post
-          </Button>
-        </div>
-      )}
-
-      {/* Feed */}
-      <div className="space-y-3">
+      {/* Feed with Create Post button on the right */}
+      <div className="flex gap-6 items-start">
+        {/* Posts */}
+        <div className="flex-1 space-y-3 min-w-0 max-w-3xl">
         {loading ? (
           <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
         ) : (
@@ -904,7 +892,7 @@ export default function PostFeed({
                   commentsCount: commentCount,
                 }}
                 disableNavigation={true}
-                className={`card p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out w-[68%] mx-auto ${
+                className={`card p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out ${
                   hasCategory && categoryDirection
                     ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
                     : ''
@@ -1249,6 +1237,21 @@ export default function PostFeed({
               />
             );
           })
+        )}
+        </div>
+
+        {/* Create Post button - positioned right of posts */}
+        {showComposer && (
+          <div className="sticky top-6 flex-shrink-0">
+            <Button
+              onClick={() => setComposerOpen(true)}
+              variant="primary"
+              className="shadow-lg z-40 rounded-full px-6 py-4 text-base whitespace-nowrap"
+              icon={<Plus />}
+            >
+              Create post
+            </Button>
+          </div>
         )}
       </div>
 
