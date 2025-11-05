@@ -847,7 +847,7 @@ export default function PublicProfilePage() {
   }, [profile?.user_id]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 space-y-6">
       {/* Profile header */}
       <div className={`card p-4 md:p-6 ${!loadingProfile && profile ? 'animate-fade-in-up' : ''}`}>
         {loadingProfile ? (
