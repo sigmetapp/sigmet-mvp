@@ -765,8 +765,13 @@ export default function PublicProfilePage() {
                     ? Math.max(0, Math.min(100, ((totalSW - currentLevel.minSW) / (nextLevel.minSW - currentLevel.minSW)) * 100))
                     : 100;
                   
-                  // Calculate circumference for progress circle (radius = 76, accounting for thicker stroke, so circumference = 2 * π * 76 ≈ 477.5)
-                  const radius = 76;
+                  // Calculate circumference for progress circle
+                  // Make SVG larger to show thick progress border around avatar
+                  const avatarSize = 160; // h-40 = 160px
+                  const svgSize = 200; // Larger to accommodate thick border
+                  const center = svgSize / 2;
+                  // Radius creates border that's visible around avatar (half of thick stroke will be outside)
+                  const radius = (avatarSize / 2) + 4;
                   const circumference = 2 * Math.PI * radius;
                   const strokeDashoffset = circumference - (progressToNext / 100) * circumference;
                   
@@ -782,29 +787,42 @@ export default function PublicProfilePage() {
                   const progressColor = colorMap[currentLevel.color] || '#60a5fa';
                   
                   return (
-                    <div className="relative inline-block">
-                      <svg className="absolute top-0 left-0 w-40 h-40 transform -rotate-90" viewBox="0 0 164 164" style={{ overflow: 'visible' }}>
+                    <div className="relative inline-flex items-center justify-center">
+                      <svg 
+                        className="absolute transform -rotate-90" 
+                        width={svgSize} 
+                        height={svgSize}
+                        viewBox={`0 0 ${svgSize} ${svgSize}`}
+                        style={{ 
+                          left: `${(avatarSize - svgSize) / 2}px`,
+                          top: `${(avatarSize - svgSize) / 2}px`,
+                        }}
+                      >
                         {/* Background circle */}
                         <circle
-                          cx="82"
-                          cy="82"
+                          cx={center}
+                          cy={center}
                           r={radius}
                           fill="none"
-                          stroke="rgba(255, 255, 255, 0.15)"
-                          strokeWidth="10"
+                          stroke="rgba(255, 255, 255, 0.25)"
+                          strokeWidth="20"
                         />
-                        {/* Progress circle */}
+                        {/* Progress circle - very thick and visible */}
                         <circle
-                          cx="82"
-                          cy="82"
+                          cx={center}
+                          cy={center}
                           r={radius}
                           fill="none"
                           stroke={progressColor}
-                          strokeWidth="10"
+                          strokeWidth="20"
                           strokeDasharray={circumference}
                           strokeDashoffset={strokeDashoffset}
                           strokeLinecap="round"
                           className="transition-all duration-300"
+                          style={{ 
+                            filter: `drop-shadow(0 0 6px ${progressColor}60)`,
+                            opacity: 0.95
+                          }}
                         />
                       </svg>
                       <img
