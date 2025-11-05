@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Search, User, MapPin, FileText, Users, MessageSquare } from "lucide-react";
 import Link from "next/link";
@@ -35,7 +35,7 @@ interface SearchResult {
   }>;
 }
 
-export default function SearchPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { theme } = useTheme();
@@ -455,5 +455,19 @@ export default function SearchPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+        <div className="text-center py-12">
+          <p>Loading...</p>
+        </div>
+      </div>
+    }>
+      <SearchPageContent />
+    </Suspense>
   );
 }
