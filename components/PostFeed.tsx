@@ -1315,10 +1315,7 @@ export default function PostFeed({
             </div>
 
             {/* Create Post button - inline on the right */}
-            <div
-              className="sticky z-30 flex-shrink-0 self-start"
-              style={{ top: "calc(var(--app-header-height, 56px) + 24px)" }}
-            >
+            <div className="create-post-sticky z-30 flex-shrink-0 self-start">
               <Button
                 onClick={() => setComposerOpen(true)}
                 variant="primary"
