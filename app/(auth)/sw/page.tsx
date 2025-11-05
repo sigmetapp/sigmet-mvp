@@ -624,7 +624,7 @@ export default function SWPage() {
       {activeTab === 'levels' && (
         <div className="space-y-3">
           <div className="card p-3">
-            <h2 className="text-lg font-semibold text-white mb-3">SW Levels & Features</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">SW Levels & Features</h2>
             <div className="space-y-2">
               {swLevels.map((level, index) => {
                 const isCurrent = currentLevel.name === level.name;
@@ -641,21 +641,21 @@ export default function SWPage() {
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className={`text-lg font-bold ${level.color}`}>
+                      <div className={`text-xl font-bold ${level.color}`}>
                         {level.name}
-                        {isCurrent && <span className="ml-2 text-xs text-telegram-blue">(Current)</span>}
+                        {isCurrent && <span className="ml-2 text-sm text-telegram-blue">(Current)</span>}
                       </div>
                       <div className="px-3 py-1.5 rounded-full bg-white/10 border border-white/20">
-                        <span className="text-white font-semibold text-sm">
+                        <span className="text-white font-semibold text-base">
                           {level.maxSW ? `${level.minSW.toLocaleString()} - ${level.maxSW.toLocaleString()} pts` : `${level.minSW.toLocaleString()}+ pts`}
                         </span>
                       </div>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       {level.features.map((feature, featureIndex) => (
-                        <div key={featureIndex} className="flex items-start gap-1.5">
-                          <span className="text-telegram-blue mt-0.5 text-xs">✓</span>
-                          <span className={`text-xs ${isUnlocked ? 'text-white/80' : 'text-white/50'}`}>
+                        <div key={featureIndex} className="flex items-start gap-2">
+                          <span className="text-telegram-blue mt-0.5 text-sm">✓</span>
+                          <span className={`text-sm ${isUnlocked ? 'text-white/80' : 'text-white/50'}`}>
                             {feature}
                           </span>
                         </div>
