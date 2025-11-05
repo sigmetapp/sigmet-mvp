@@ -328,7 +328,7 @@ html.theme-light .telegram-card-glow:hover {
   position: relative;
   background: rgba(60, 75, 100, 0.9);
   border: 1px solid rgba(51, 144, 236, 0.15);
-  border-radius: 16px;
+  border-radius: 0;
   padding: 24px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
@@ -339,7 +339,7 @@ html.theme-light .telegram-card-glow:hover {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 16px;
+  border-radius: 0;
   background: linear-gradient(135deg, rgba(51, 144, 236, 0.12), rgba(91, 168, 240, 0.06));
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -391,7 +391,7 @@ html.theme-light .telegram-card-feature:hover {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 12px;
+  border-radius: 0;
   background: linear-gradient(135deg, 
     rgba(51, 144, 236, 0.08) 0%, 
     rgba(91, 168, 240, 0.05) 50%, 
