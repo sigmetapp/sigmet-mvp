@@ -93,6 +93,7 @@ export type PostFeedProps = {
   renderFilters?: (filters: React.ReactNode) => void; // Callback to render filters externally
   buttonPosition?: 'fixed' | 'inline'; // Position of Create Post button: 'fixed' = fixed to viewport, 'inline' = next to posts
   enableLazyLoad?: boolean; // Enable lazy loading with pagination
+  postsMaxWidth?: string; // Max width for posts container (e.g., "960px", "75%")
 };
 
 export default function PostFeed({
@@ -105,6 +106,7 @@ export default function PostFeed({
   renderFilters,
   buttonPosition = 'fixed',
   enableLazyLoad = false,
+  postsMaxWidth,
 }: PostFeedProps) {
   const router = useRouter();
   const { theme } = useTheme();
@@ -1407,7 +1409,7 @@ export default function PostFeed({
   );
 
   return (
-    <div className={className?.includes('max-w') ? '' : (className || '')}>
+    <div className={className || ''}>
       {/* Filters toggle - render inside if not rendering outside */}
       {showFilters && !renderFiltersOutside && (
         <div className="card p-3 md:p-4 mb-6">
@@ -1436,7 +1438,10 @@ export default function PostFeed({
       ) : (
         <>
           {/* Feed */}
-          <div className={`space-y-3 ${className?.includes('max-w') ? className : ''}`}>
+          <div 
+            className="space-y-3"
+            style={postsMaxWidth ? { maxWidth: postsMaxWidth, margin: '0 auto' } : undefined}
+          >
             {renderPostsList()}
           </div>
 

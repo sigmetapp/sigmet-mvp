@@ -1597,8 +1597,9 @@ export default function PublicProfilePage() {
             showFilters={false}
             showComposer={false}
             backToProfileUsername={profile.username || slug}
-            className="max-w-[960px] mx-auto"
+            className=""
             enableLazyLoad={true}
+            postsMaxWidth="960px"
           />
         )}
       </div>
