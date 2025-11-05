@@ -96,8 +96,8 @@ export default function PostFeed({
   const [publishing, setPublishing] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
 
-  // Map author user_id -> profile info (username, avatar)
-  const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; avatar_url: string | null }>>({});
+  // Map author user_id -> profile info (username, full_name, avatar)
+  const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; full_name: string | null; avatar_url: string | null }>>({});
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBody, setEditBody] = useState<string>("");
@@ -173,19 +173,23 @@ export default function PostFeed({
       // Preload comment counts for visible posts
       preloadCommentCounts(data as Post[]);
 
-      // Preload author profiles (username, avatar)
+      // Preload author profiles (username, full_name, avatar)
       const userIds = Array.from(
         new Set((data as Post[]).map((p) => p.user_id).filter((x): x is string => Boolean(x)))
       );
       if (userIds.length > 0) {
         const { data: profs } = await supabase
           .from("profiles")
-          .select("user_id, username, avatar_url")
+          .select("user_id, username, full_name, avatar_url")
           .in("user_id", userIds);
         if (profs) {
-          const map: Record<string, { username: string | null; avatar_url: string | null }> = {};
+          const map: Record<string, { username: string | null; full_name: string | null; avatar_url: string | null }> = {};
           for (const p of profs as any[]) {
-            map[p.user_id as string] = { username: p.username ?? null, avatar_url: p.avatar_url ?? null };
+            map[p.user_id as string] = { 
+              username: p.username ?? null, 
+              full_name: p.full_name ?? null,
+              avatar_url: p.avatar_url ?? null 
+            };
           }
           setProfilesByUserId(map);
         }
@@ -321,17 +325,18 @@ export default function PostFeed({
             // Map DB reaction types to component types
             const reactionMap: Record<string, ReactionType> = {
               inspire: 'inspire',
-              respect: 'respect',
-              relate: 'relate',
-              support: 'support',
-              celebrate: 'celebrate',
+              respect: 'inspire', // Migrate to inspire
+              relate: 'inspire', // Migrate to inspire
+              support: 'inspire', // Migrate to inspire
+              celebrate: 'inspire', // Migrate to inspire
             };
 
             const reactionType = reactionMap[kind];
             if (reactionType && counts[pid]) {
-              counts[pid][reactionType] = (counts[pid][reactionType] || 0) + 1;
+              // All reactions go to inspire
+              counts[pid].inspire = (counts[pid].inspire || 0) + 1;
               if (uid && userId === uid) {
-                selected[pid] = reactionType;
+                selected[pid] = 'inspire';
               }
             }
           }
@@ -850,7 +855,7 @@ export default function PostFeed({
       )}
 
       {/* Feed */}
-      <div className="space-y-6">
+      <div className="space-y-3">
         {loading ? (
           <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
         ) : (
@@ -858,6 +863,7 @@ export default function PostFeed({
             const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
             const avatar = profile?.avatar_url || AVATAR_FALLBACK;
             const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
+            const fullName = profile?.full_name || null;
             const commentCount = commentCounts[p.id] ?? 0;
             
             // Check if post has category that matches available directions
@@ -883,7 +889,7 @@ export default function PostFeed({
                   commentsCount: commentCount,
                 }}
                 disableNavigation={true}
-                className={`telegram-card-feature md:p-6 space-y-2 relative transition-transform duration-200 ease-out ${
+                className={`telegram-card-feature p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out w-[80%] mx-auto ${
                   hasCategory && categoryDirection
                     ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
                     : ''
@@ -900,17 +906,34 @@ export default function PostFeed({
                           className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
                         />
                         <div className="flex flex-col min-w-0">
-                          <a 
-                            href={`/u/${p.user_id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
-                            data-prevent-card-navigation="true"
-                          >
-                            {username}
-                          </a>
-                          {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              {p.category && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <a 
+                              href={`/u/${p.user_id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
+                              data-prevent-card-navigation="true"
+                            >
+                              {username}
+                            </a>
+                            {(fullName || p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                              <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                |
+                              </span>
+                            )}
+                            {fullName && (
+                              <>
+                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                  {fullName}
+                                </span>
+                                {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                                  <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                    |
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            {p.category && (
+                              <>
                                 <div className={`text-xs px-2 py-1 rounded-md font-medium ${
                                   hasCategory && categoryDirection
                                     ? isLight
@@ -922,27 +945,32 @@ export default function PostFeed({
                                 }`}>
                                   {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
                                 </div>
-                              )}
-                              {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
-                                const statusConfig = {
-                                  proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
-                                  grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
-                                  drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
-                                };
-                                const config = statusConfig[status];
-                                return (
-                                  <div
-                                    key={status}
-                                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
-                                    title={config.label}
-                                  >
-                                    <span>{config.emoji}</span>
-                                    <span>{config.label}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                                {(growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0) && (
+                                  <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                    |
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
+                              const statusConfig = {
+                                proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
+                                grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
+                                drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
+                              };
+                              const config = statusConfig[status];
+                              return (
+                                <div
+                                  key={status}
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
+                                  title={config.label}
+                                >
+                                  <span>{config.emoji}</span>
+                                  <span>{config.label}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                       <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
@@ -1093,14 +1121,15 @@ export default function PostFeed({
                                 const kind = r.kind as string;
                                 const reactionMap: Record<string, ReactionType> = {
                                   inspire: 'inspire',
-                                  respect: 'respect',
-                                  relate: 'relate',
-                                  support: 'support',
-                                  celebrate: 'celebrate',
+                                  respect: 'inspire', // Migrate to inspire
+                                  relate: 'inspire', // Migrate to inspire
+                                  support: 'inspire', // Migrate to inspire
+                                  celebrate: 'inspire', // Migrate to inspire
                                 };
                                 const reactionType = reactionMap[kind];
                                 if (reactionType) {
-                                  newCounts[reactionType] = (newCounts[reactionType] || 0) + 1;
+                                  // All reactions go to inspire
+                                  newCounts.inspire = (newCounts.inspire || 0) + 1;
                                 }
                               }
                             }

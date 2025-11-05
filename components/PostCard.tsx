@@ -181,7 +181,7 @@ export default function PostCard({
   );
 
   const containerClassName = [
-    'relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900',
+    'relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-800 dark:bg-slate-900',
     'post-card-glow',
     disableNavigation ? 'cursor-default' : 'cursor-pointer',
     className,
@@ -197,8 +197,8 @@ export default function PostCard({
   }, [post.commentsCount]);
 
   const defaultContent = (
-    <div className="relative z-10 flex flex-col gap-3">
-      <header className="flex items-start justify-between gap-4">
+    <div className="relative z-10 flex flex-col gap-2">
+      <header className="flex items-start justify-between gap-3">
         <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{post.author}</div>
         {formattedCreatedAt && (
           <time

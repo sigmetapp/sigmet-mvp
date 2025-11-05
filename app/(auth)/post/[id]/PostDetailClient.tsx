@@ -27,6 +27,7 @@ type PostRecord = {
 
 type Profile = {
   username: string | null;
+  full_name: string | null;
   avatar_url: string | null;
 };
 
@@ -131,7 +132,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     if (data.user_id) {
       const { data: profile } = await supabase
         .from<Profile>('profiles')
-        .select('username, avatar_url')
+        .select('username, full_name, avatar_url')
         .eq('user_id', data.user_id)
         .maybeSingle();
       if (profile) setAuthorProfile(profile);
@@ -166,18 +167,19 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
     const reactionMap: Record<string, ReactionType> = {
       inspire: 'inspire',
-      respect: 'respect',
-      relate: 'relate',
-      support: 'support',
-      celebrate: 'celebrate',
+      respect: 'inspire', // Migrate to inspire
+      relate: 'inspire', // Migrate to inspire
+      support: 'inspire', // Migrate to inspire
+      celebrate: 'inspire', // Migrate to inspire
     };
 
     for (const row of data as Array<{ kind: string; user_id: string }>) {
       const reactionType = reactionMap[row.kind];
       if (!reactionType) continue;
-      counts[reactionType] = (counts[reactionType] || 0) + 1;
+      // All reactions go to inspire
+      counts.inspire = (counts.inspire || 0) + 1;
       if (uid && row.user_id === uid) {
-        selected = reactionType;
+        selected = 'inspire';
       }
     }
 
@@ -557,6 +559,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const commentCount = comments.length || initialPost.commentCount || 0;
   const avatar = authorProfile?.avatar_url || AVATAR_FALLBACK;
   const username = authorProfile?.username || (post.user_id ? post.user_id.slice(0, 8) : 'anon');
+  const fullName = authorProfile?.full_name || null;
 
   // Calculate total reactions count (sum of all reaction types)
   const totalReactions = useMemo(() => {
@@ -590,9 +593,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       disableNavigation
       className={`select-text ${isLight ? '!bg-white !border-slate-200' : ''}`}
       renderContent={(postCardPost, defaultContent) => (
-        <div className="relative z-10 flex flex-col gap-3">
+        <div className="relative z-10 flex flex-col gap-2">
           {/* Header with avatar and clickable nickname */}
-          <header className="flex items-start justify-between gap-4">
+          <header className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <img
                 src={avatar}
@@ -600,17 +603,34 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
               />
               <div className="flex flex-col min-w-0">
-                <a
-                  href={`/u/${encodeURIComponent(authorProfile?.username || post.user_id || '')}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate hover:underline"
-                  data-prevent-card-navigation="true"
-                >
-                  {username}
-                </a>
-                {(post.category || growthStatuses.length > 0) && (
-                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                    {post.category && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <a
+                    href={`/u/${encodeURIComponent(authorProfile?.username || post.user_id || '')}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate hover:underline"
+                    data-prevent-card-navigation="true"
+                  >
+                    {username}
+                  </a>
+                  {(fullName || post.category || growthStatuses.length > 0) && (
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      |
+                    </span>
+                  )}
+                  {fullName && (
+                    <>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        {fullName}
+                      </span>
+                      {(post.category || growthStatuses.length > 0) && (
+                        <span className="text-sm text-slate-500 dark:text-slate-400">
+                          |
+                        </span>
+                      )}
+                    </>
+                  )}
+                  {post.category && (
+                    <>
                       <div className={`text-xs px-2 py-1 rounded-md font-medium ${
                         hasCategory && categoryDirection
                           ? isLight
@@ -622,27 +642,32 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                       }`}>
                         {categoryDirection ? `${categoryDirection.emoji} ${post.category}` : post.category}
                       </div>
-                    )}
-                    {growthStatuses.length > 0 && growthStatuses.map((status) => {
-                      const statusConfig = {
-                        proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
-                        grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
-                        drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
-                      };
-                      const config = statusConfig[status];
-                      return (
-                        <div
-                          key={status}
-                          className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
-                          title={config.label}
-                        >
-                          <span>{config.emoji}</span>
-                          <span>{config.label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                      {growthStatuses.length > 0 && (
+                        <span className="text-sm text-slate-500 dark:text-slate-400">
+                          |
+                        </span>
+                      )}
+                    </>
+                  )}
+                  {growthStatuses.length > 0 && growthStatuses.map((status) => {
+                    const statusConfig = {
+                      proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
+                      grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
+                      drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
+                    };
+                    const config = statusConfig[status];
+                    return (
+                      <div
+                        key={status}
+                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
+                        title={config.label}
+                      >
+                        <span>{config.emoji}</span>
+                        <span>{config.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
             {formattedDate && (
@@ -708,7 +733,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 md:py-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4 md:py-5">
       {/* Back button */}
       {fromProfile && profileUsername ? (
         <Button
@@ -739,7 +764,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       ) : loadingPost ? (
         <div className="h-48 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
       ) : (
-        <article className="space-y-4">
+        <article className="space-y-3">
           {editing ? (
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <textarea

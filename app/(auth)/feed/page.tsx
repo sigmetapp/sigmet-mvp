@@ -18,7 +18,7 @@ export default function FeedPage() {
           </div>
         </div>
 
-        <div className="max-w-3xl mx-auto">
+        <div className="w-full">
           <PostFeed
             showFilters={true}
             showComposer={true}

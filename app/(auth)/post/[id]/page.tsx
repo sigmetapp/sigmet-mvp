@@ -16,6 +16,7 @@ type PostRecord = {
 
 type Profile = {
   username: string | null;
+  full_name: string | null;
   avatar_url: string | null;
 };
 
@@ -43,7 +44,7 @@ export default async function PostDetailPage({ params }: { params: { id: string 
   if (post.user_id) {
     const { data: profile } = await admin
       .from<Profile>('profiles')
-      .select('username, avatar_url')
+      .select('username, full_name, avatar_url')
       .eq('user_id', post.user_id)
       .maybeSingle();
     if (profile) {
