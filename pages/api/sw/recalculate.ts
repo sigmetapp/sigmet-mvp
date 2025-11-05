@@ -433,10 +433,12 @@ export default async function handler(
         // Continue without invites
       }
 
-      const invitePoints = invitesCount * 50; // 50 pts per invite
+      const invitePointsPerInvite = weights.invite_points ?? 50;
+      const invitePoints = invitesCount * invitePointsPerInvite;
 
-      // Calculate 5% bonus on invited users' growth points
-      const growthBonusPoints = inviteeGrowthTotalPoints * 0.05;
+      // Calculate bonus on invited users' growth points
+      const growthBonusPercentage = weights.growth_bonus_percentage ?? 0.05;
+      const growthBonusPoints = inviteeGrowthTotalPoints * growthBonusPercentage;
 
     // Calculate total SW
     const totalSW = 
@@ -451,13 +453,114 @@ export default async function handler(
       invitePoints +
       growthBonusPoints;
 
-    // Update sw_scores table if it exists
+    // Calculate inflation rate (same logic as calculate endpoint)
+    let inflationRate = 1.0;
+    
+    try {
+      // Get total number of users
+      const { count: totalUsers, error: usersError } = await supabase
+        .from('profiles')
+        .select('user_id', { count: 'exact', head: true });
+
+      const userCount = totalUsers || 0;
+      
+      // Calculate days since registration (if profile exists)
+      let daysSinceRegistration = 0;
+      if (profile && profile.created_at) {
+        const registrationDate = new Date(profile.created_at).getTime();
+        const now = Date.now();
+        daysSinceRegistration = Math.floor((now - registrationDate) / (24 * 60 * 60 * 1000));
+      }
+
+      // Inflation formula using parameters from weights
+      const dailyInflationRate = weights.daily_inflation_rate ?? 0.001;
+      const userGrowthInflationRate = weights.user_growth_inflation_rate ?? 0.0001;
+      const minInflationRate = weights.min_inflation_rate ?? 0.5;
+      
+      // Daily reduction: -dailyInflationRate per day
+      const dailyInflation = 1.0 - (daysSinceRegistration * dailyInflationRate);
+      // User growth reduction: -userGrowthInflationRate per 100 users
+      const userGrowthInflation = 1.0 - ((userCount / 100) * userGrowthInflationRate);
+      
+      // Combined inflation (multiplicative)
+      inflationRate = Math.max(minInflationRate, dailyInflation * userGrowthInflation);
+    } catch (inflationErr) {
+      console.warn('Error calculating inflation:', inflationErr);
+      inflationRate = 1.0; // Default to no inflation on error
+    }
+
+    // Apply inflation to total SW
+    const inflatedSW = Math.floor(totalSW * inflationRate);
+
+    // Build breakdown for caching
+    const breakdown = {
+      registration: {
+        points: registrationPoints,
+        count: profile ? 1 : 0,
+        weight: weights.registration_points,
+      },
+      profileComplete: {
+        points: profileCompletePoints,
+        count: profileCompletePoints > 0 ? 1 : 0,
+        weight: weights.profile_complete_points,
+      },
+      growth: {
+        points: growthTotalPoints,
+        count: 0, // Growth ledger count not available in recalculate
+        weight: weights.growth_total_points_multiplier,
+        description: 'Growth Directions Total Points',
+      },
+      followers: {
+        points: followersPoints,
+        count: followersCount || 0,
+        weight: weights.follower_points,
+      },
+      connections: {
+        points: connectionsPoints,
+        count: connectionsCount,
+        firstCount: firstConnectionsCount,
+        repeatCount: repeatConnectionsCount,
+        firstWeight: weights.connection_first_points,
+        repeatWeight: weights.connection_repeat_points,
+      },
+      posts: {
+        points: postsPoints,
+        count: postsCount,
+        weight: weights.post_points,
+      },
+      comments: {
+        points: commentsPoints,
+        count: commentsCount,
+        weight: weights.comment_points,
+      },
+      reactions: {
+        points: reactionsPoints,
+        count: reactionsCount,
+        weight: weights.reaction_points,
+      },
+      invites: {
+        points: invitePoints,
+        count: invitesCount,
+        weight: invitePointsPerInvite,
+      },
+      growthBonus: {
+        points: Math.round(growthBonusPoints * 100) / 100,
+        count: invitesCount,
+        weight: growthBonusPercentage,
+        description: `${(growthBonusPercentage * 100).toFixed(0)}% bonus on invited users' growth points`,
+      },
+    };
+
+    // Update sw_scores table with breakdown and inflation
     try {
       await supabase
         .from('sw_scores')
         .upsert({
           user_id: userId,
-          total: totalSW,
+          total: inflatedSW,
+          breakdown: breakdown,
+          inflation_rate: inflationRate,
+          inflation_last_updated: new Date().toISOString(),
           last_updated: new Date().toISOString(),
         }, {
           onConflict: 'user_id',
@@ -469,7 +572,9 @@ export default async function handler(
 
     return res.status(200).json({
       success: true,
-      totalSW,
+      totalSW: inflatedSW,
+      originalSW: totalSW,
+      inflationRate,
       message: 'SW recalculated successfully',
     });
   } catch (error: any) {

@@ -63,6 +63,52 @@ export default async function handler(
   };
 
   try {
+    // Get SW weights first to get cache duration
+    const { data: weights, error: weightsError } = await supabase
+      .from('sw_weights')
+      .select('*')
+      .eq('id', 1)
+      .single();
+
+    if (weightsError || !weights) {
+      return res.status(500).json({ error: 'Failed to load SW weights' });
+    }
+
+    // Check cache: if sw_scores was updated less than cache_duration_minutes ago, return cached value
+    const cacheDurationMinutes = weights.cache_duration_minutes ?? 5;
+    const CACHE_DURATION_MS = cacheDurationMinutes * 60 * 1000;
+    
+    const { data: cachedScore, error: cacheError } = await supabase
+      .from('sw_scores')
+      .select('total, last_updated, breakdown, inflation_rate')
+      .eq('user_id', userId)
+      .single();
+
+    if (!cacheError && cachedScore && cachedScore.last_updated) {
+      const lastUpdated = new Date(cachedScore.last_updated).getTime();
+      const now = Date.now();
+      const timeDiff = now - lastUpdated;
+
+      if (timeDiff < CACHE_DURATION_MS && cachedScore.breakdown) {
+        // Return cached value if it's fresh (less than 5 minutes old)
+        // But we still need weights for sw_levels, so load them
+        const { data: cachedWeights, error: cachedWeightsError } = await supabase
+          .from('sw_weights')
+          .select('*')
+          .eq('id', 1)
+          .single();
+
+        return res.status(200).json({
+          totalSW: cachedScore.total || 0,
+          breakdown: cachedScore.breakdown,
+          weights: cachedWeights || null, // Load weights for sw_levels
+          cached: true,
+          cacheAge: Math.floor(timeDiff / 1000), // age in seconds
+          inflationRate: cachedScore.inflation_rate || 1.0,
+        });
+      }
+    }
+
     const preferredUserColumns = ['user_id', 'author_id'];
 
     const isUndefinedColumnError = (error: any) => {
@@ -155,16 +201,7 @@ export default async function handler(
       return [];
     };
 
-    // Get SW weights
-    const { data: weights, error: weightsError } = await supabase
-      .from('sw_weights')
-      .select('*')
-      .eq('id', 1)
-      .single();
-
-    if (weightsError || !weights) {
-      return res.status(500).json({ error: 'Failed to load SW weights' });
-    }
+    // Weights already loaded above for cache check
 
     // Get user profile
     const { data: profile, error: profileError } = await supabase
@@ -521,10 +558,12 @@ export default async function handler(
         // Continue without invites
       }
 
-      const invitePoints = invitesCount * 50; // 50 pts per invite
+      const invitePointsPerInvite = weights.invite_points ?? 50;
+      const invitePoints = invitesCount * invitePointsPerInvite;
 
-      // Calculate 5% bonus on invited users' growth points
-      const growthBonusPoints = inviteeGrowthTotalPoints * 0.05;
+      // Calculate bonus on invited users' growth points
+      const growthBonusPercentage = weights.growth_bonus_percentage ?? 0.05;
+      const growthBonusPoints = inviteeGrowthTotalPoints * growthBonusPercentage;
 
     // Calculate total SW
     const totalSW = 
@@ -588,20 +627,84 @@ export default async function handler(
       invites: {
         points: invitePoints,
         count: invitesCount,
-        weight: 50,
+        weight: invitePointsPerInvite,
       },
       growthBonus: {
         points: Math.round(growthBonusPoints * 100) / 100, // Round to 2 decimal places
         count: invitesCount,
-        weight: 0.05,
-        description: '5% bonus on invited users\' growth points',
+        weight: growthBonusPercentage,
+        description: `${(growthBonusPercentage * 100).toFixed(0)}% bonus on invited users' growth points`,
       },
     };
 
+    // Calculate inflation rate
+    // Inflation decreases SW based on:
+    // 1. Time elapsed (daily reduction)
+    // 2. Number of users in the network (more users = more inflation)
+    let inflationRate = 1.0;
+    
+    try {
+      // Get total number of users
+      const { count: totalUsers, error: usersError } = await supabase
+        .from('profiles')
+        .select('user_id', { count: 'exact', head: true });
+
+      const userCount = totalUsers || 0;
+      
+      // Calculate days since registration (if profile exists)
+      let daysSinceRegistration = 0;
+      if (profile && profile.created_at) {
+        const registrationDate = new Date(profile.created_at).getTime();
+        const now = Date.now();
+        daysSinceRegistration = Math.floor((now - registrationDate) / (24 * 60 * 60 * 1000));
+      }
+
+      // Inflation formula using parameters from weights
+      const dailyInflationRate = weights.daily_inflation_rate ?? 0.001;
+      const userGrowthInflationRate = weights.user_growth_inflation_rate ?? 0.0001;
+      const minInflationRate = weights.min_inflation_rate ?? 0.5;
+      
+      // Daily reduction: -dailyInflationRate per day
+      const dailyInflation = 1.0 - (daysSinceRegistration * dailyInflationRate);
+      // User growth reduction: -userGrowthInflationRate per 100 users
+      const userGrowthInflation = 1.0 - ((userCount / 100) * userGrowthInflationRate);
+      
+      // Combined inflation (multiplicative)
+      inflationRate = Math.max(minInflationRate, dailyInflation * userGrowthInflation);
+    } catch (inflationErr) {
+      console.warn('Error calculating inflation:', inflationErr);
+      inflationRate = 1.0; // Default to no inflation on error
+    }
+
+    // Apply inflation to total SW
+    const inflatedSW = Math.floor(totalSW * inflationRate);
+
+    // Save to cache (sw_scores table)
+    try {
+      await supabase
+        .from('sw_scores')
+        .upsert({
+          user_id: userId,
+          total: inflatedSW,
+          breakdown: breakdown,
+          inflation_rate: inflationRate,
+          inflation_last_updated: new Date().toISOString(),
+          last_updated: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id',
+        });
+    } catch (cacheErr) {
+      console.warn('Error saving to sw_scores cache:', cacheErr);
+      // Continue even if cache save fails
+    }
+
     return res.status(200).json({
-      totalSW,
+      totalSW: inflatedSW,
+      originalSW: totalSW, // Original SW before inflation
       breakdown,
       weights,
+      inflationRate,
+      cached: false,
     });
   } catch (error: any) {
     // Enhanced error logging
