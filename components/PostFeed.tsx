@@ -7,6 +7,7 @@ import {
   useMemo,
   useCallback,
 } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabaseClient";
 import Button from "@/components/Button";
 import PostCard from "@/components/PostCard";
@@ -751,57 +752,6 @@ export default function PostFeed({
     </svg>
   );
 
-  // Track button position to prevent overlap with footer
-  const [buttonBottom, setButtonBottom] = useState(24); // Default bottom margin
-
-  useEffect(() => {
-    if (!showComposer) return;
-    
-    const updateButtonPosition = () => {
-      const footer = document.querySelector('footer');
-      if (!footer) {
-        setButtonBottom(24);
-        return;
-      }
-      
-      const footerRect = footer.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      
-      // If footer is visible in viewport (footer top is above viewport bottom)
-      if (footerRect.top < viewportHeight) {
-        // Calculate how much footer is visible
-        const footerVisibleDistance = viewportHeight - footerRect.top;
-        const buttonHeight = 60; // Approximate button height with padding
-        const safeDistance = footerVisibleDistance + buttonHeight + 16; // 16px padding above footer
-        setButtonBottom(Math.max(24, safeDistance));
-      } else {
-        // Footer is below viewport, use default position
-        setButtonBottom(24);
-      }
-    };
-
-    // Update on scroll and resize with throttling for performance
-    let ticking = false;
-    const handleUpdate = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          updateButtonPosition();
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    window.addEventListener('scroll', handleUpdate, { passive: true });
-    window.addEventListener('resize', handleUpdate);
-    updateButtonPosition(); // Initial calculation
-
-    return () => {
-      window.removeEventListener('scroll', handleUpdate);
-      window.removeEventListener('resize', handleUpdate);
-    };
-  }, [showComposer]);
-
   // Build post URL with optional back to profile parameter
   const getPostUrl = useCallback((postId: number) => {
     if (backToProfileUsername) {
@@ -905,8 +855,10 @@ export default function PostFeed({
         </div>
       )}
 
-      {/* Feed */}
-      <div className="space-y-3">
+      {/* Feed with Create Post button on the right */}
+      <div className="flex gap-6 items-start relative">
+        {/* Posts */}
+        <div className="flex-1 space-y-3 min-w-0 max-w-3xl">
         {loading ? (
           <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
         ) : (
@@ -1286,30 +1238,25 @@ export default function PostFeed({
             );
           })
         )}
+        </div>
+
+        {/* Create Post button - sticky on the right */}
+        {showComposer && (
+          <div className="sticky top-6 flex-shrink-0 self-start">
+            <Button
+              onClick={() => setComposerOpen(true)}
+              variant="primary"
+              className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
+              icon={<Plus />}
+            >
+              Create post
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Create Post button - fixed at bottom right, respects footer */}
-      {showComposer && (
-        <div
-          className="fixed z-40"
-          style={{
-            bottom: `${buttonBottom}px`,
-            right: '24px',
-          }}
-        >
-          <Button
-            onClick={() => setComposerOpen(true)}
-            variant="primary"
-            className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
-            icon={<Plus />}
-          >
-            Create post
-          </Button>
-        </div>
-      )}
-
-      {/* Composer modal - covers entire viewport */}
-      {showComposer && composerOpen && (
+      {/* Composer modal - rendered via portal to cover entire viewport */}
+      {showComposer && composerOpen && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           <div
             className={`absolute inset-0 ${isLight ? "bg-black/50" : "bg-black/80"}`}
@@ -1383,7 +1330,8 @@ export default function PostFeed({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Views Chart Modal */}
