@@ -20,6 +20,7 @@ import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
 import { Image as ImageIcon, Paperclip, X as CloseIcon } from "lucide-react";
 import { formatTextWithMentions } from "@/lib/formatText";
+import ViewsChart from "@/components/ViewsChart";
 
 function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
@@ -124,6 +125,7 @@ export default function PostFeed({
   const [replyInput, setReplyInput] = useState<Record<number, string>>({});
   const [replyOpen, setReplyOpen] = useState<Record<number, boolean>>({});
   const [commentFile, setCommentFile] = useState<Record<number, File | null>>({});
+  const [viewsChartOpen, setViewsChartOpen] = useState<number | null>(null);
   
   const handleEmojiSelect = useCallback((emoji: string) => {
     setText((prev) => prev + emoji);
@@ -505,6 +507,17 @@ export default function PostFeed({
         p_id: postId,
       });
       if (error) throw error;
+      
+      // Also increment view history
+      try {
+        await supabase.rpc("increment_post_view_history", {
+          p_post_id: postId,
+          p_date: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
+        });
+      } catch (historyError) {
+        // Silently fail if history table doesn't exist yet
+        console.warn('Failed to update view history:', historyError);
+      }
     } catch {
       const current = posts.find((p) => p.id === postId)?.views ?? 0;
       await supabase
@@ -1066,10 +1079,18 @@ export default function PostFeed({
 
                     {/* footer */}
                     <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                      <div className="flex items-center gap-1" title="Views">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewsChartOpen(p.id);
+                        }}
+                        className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                        title="View statistics"
+                        data-prevent-card-navigation="true"
+                      >
                         <Eye />
                         <span className="text-sm">{p.views ?? 0}</span>
-                      </div>
+                      </button>
 
                       <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
                         <PostReactions
@@ -1338,6 +1359,15 @@ export default function PostFeed({
             </div>
           )}
         </>
+      )}
+
+      {/* Views Chart Modal */}
+      {viewsChartOpen && (
+        <ViewsChart
+          postId={viewsChartOpen}
+          isOpen={true}
+          onClose={() => setViewsChartOpen(null)}
+        />
       )}
     </div>
   );
