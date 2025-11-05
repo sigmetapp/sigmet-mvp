@@ -355,7 +355,11 @@ export default function PostActionMenu({
                 <motion.div
                   {...menuAnimation}
                   ref={menuRef}
-                  className="fixed z-[9991] w-44 rounded-xl border border-white/10 bg-white dark:bg-zinc-900 shadow-xl p-1"
+                  className={`fixed z-[9991] w-44 rounded-xl border shadow-xl p-1 ${
+                    isLight 
+                      ? 'bg-white border-white/20' 
+                      : 'bg-zinc-900 border-white/10'
+                  }`}
                   data-testid="action-menu"
                   style={{
                     top: menuPosition?.top ?? 0,
@@ -373,16 +377,16 @@ export default function PostActionMenu({
                           type="button"
                           onClick={handleEdit}
                           role="menuitem"
-                          className={`w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${isLight ? 'text-white' : 'text-telegram-text'} hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:bg-black/5 dark:focus-visible:bg-white/5`}
+                          className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-telegram-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:bg-black/5 dark:focus-visible:bg-white/5"
                         >
-                          <Pencil className={`h-4 w-4 ${isLight ? 'text-white' : ''}`} />
+                          <Pencil className="h-4 w-4" />
                           <span>Edit</span>
                         </button>
                       )}
                       {onDelete && (
                         <>
                           {onEdit && (
-                            <div className="h-px bg-white/10 dark:bg-white/10 my-1" />
+                            <div className={`h-px my-1 ${isLight ? 'bg-black/10' : 'bg-white/10'}`} />
                           )}
                           <button
                             ref={deleteButtonRef}
@@ -410,11 +414,11 @@ export default function PostActionMenu({
                     >
                       <p
                         id="confirm-title"
-                        className={`text-sm ${isLight ? 'text-white' : 'text-telegram-text'} font-medium`}
+                        className="text-sm text-telegram-text font-medium"
                       >
                         Confirm deletion
                       </p>
-                      <p className={`text-xs ${isLight ? 'text-white/80' : 'text-telegram-text-secondary'}`}>
+                      <p className="text-xs text-telegram-text-secondary">
                         Are you sure you want to delete this post? This action
                         cannot be undone.
                       </p>
@@ -423,7 +427,7 @@ export default function PostActionMenu({
                           ref={cancelButtonRef}
                           type="button"
                           onClick={handleDeleteCancel}
-                          className={`flex-1 px-3 py-2 rounded-lg text-sm border border-white/10 bg-transparent ${isLight ? 'text-white' : 'text-telegram-text'} hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50`}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm border bg-transparent ${isLight ? 'border-black/20 text-telegram-text hover:bg-black/5' : 'border-white/10 text-telegram-text hover:bg-white/5'} transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50`}
                         >
                           Cancel
                         </button>
