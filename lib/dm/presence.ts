@@ -141,3 +141,25 @@ export function getPresenceState(userId: string): boolean {
     return false;
   }
 }
+
+/**
+ * Get presence map for a user (for initial check)
+ */
+export async function getPresenceMap(userId: string): Promise<Record<string, any[]>> {
+  try {
+    const channel = getPresenceChannel(userId);
+    
+    // Ensure subscribed
+    const state = (channel as any).state;
+    if (state !== 'joined' && state !== 'joining') {
+      await channel.subscribe();
+      // Wait a bit for sync to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    return channel.presenceState();
+  } catch (error) {
+    console.error(`Error getting presence map for ${userId}:`, error);
+    return {};
+  }
+}
