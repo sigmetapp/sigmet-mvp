@@ -1307,40 +1307,17 @@ export default function PostFeed({
       )}
 
       {/* Feed with Create Post button on the right (if inline) */}
-      {buttonPosition === 'inline' && showComposer ? (
-        <div className="flex gap-6 items-start">
-          {/* Posts */}
-          <div className="flex-1 space-y-3 min-w-0 max-w-3xl">
-            {renderPostsList()}
-          </div>
+        {buttonPosition === 'inline' && showComposer ? (
+          <div className="flex gap-6 items-start">
+            {/* Posts */}
+            <div className="flex-1 space-y-3 min-w-0 max-w-3xl">
+              {renderPostsList()}
+            </div>
 
-          {/* Create Post button - inline on the right */}
-          <div className="sticky top-24 z-30 flex-shrink-0 self-start">
-            <Button
-              onClick={() => setComposerOpen(true)}
-              variant="primary"
-              className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
-              icon={<Plus />}
-            >
-              Create post
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Feed */}
-          <div className="space-y-3">
-            {renderPostsList()}
-          </div>
-
-          {/* Create Post button - fixed on the right, follows scroll */}
-          {showComposer && buttonPosition === 'fixed' && (
+            {/* Create Post button - inline on the right */}
             <div
-              className="fixed z-40"
-              style={{
-                top: '24px',
-                right: '24px',
-              }}
+              className="sticky z-30 flex-shrink-0 self-start"
+              style={{ top: "calc(var(--app-header-height, 56px) + 24px)" }}
             >
               <Button
                 onClick={() => setComposerOpen(true)}
@@ -1351,9 +1328,35 @@ export default function PostFeed({
                 Create post
               </Button>
             </div>
-          )}
-        </>
-      )}
+          </div>
+        ) : (
+          <>
+            {/* Feed */}
+            <div className="space-y-3">
+              {renderPostsList()}
+            </div>
+
+            {/* Create Post button - fixed on the right, follows scroll */}
+            {showComposer && buttonPosition === 'fixed' && (
+              <div
+                className="fixed z-40"
+                style={{
+                  top: 'calc(var(--app-header-height, 56px) + 24px)',
+                  right: '24px',
+                }}
+              >
+                <Button
+                  onClick={() => setComposerOpen(true)}
+                  variant="primary"
+                  className="shadow-lg rounded-full px-6 py-4 text-base whitespace-nowrap"
+                  icon={<Plus />}
+                >
+                  Create post
+                </Button>
+              </div>
+            )}
+          </>
+        )}
 
       {/* Composer modal - rendered via portal to cover entire viewport */}
       {showComposer && composerOpen && typeof window !== 'undefined' && createPortal(
