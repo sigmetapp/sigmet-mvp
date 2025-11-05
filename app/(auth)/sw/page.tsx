@@ -123,11 +123,42 @@ export default function SWPage() {
   const [note, setNote] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState<'overview' | 'factors' | 'levels' | 'breakdown'>('overview');
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [recentActivity, setRecentActivity] = useState<{
+    profileComplete: boolean;
+    postsCount: number;
+    commentsCount: number;
+    reactionsCount: number;
+    invitesCount: number;
+  } | null>(null);
 
   useEffect(() => {
     checkAdmin();
     loadSW();
+    loadRecentActivity();
   }, []);
+
+  async function loadRecentActivity() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) return;
+
+      const response = await fetch('/api/sw/recent-activity', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRecentActivity(data);
+      }
+    } catch (error: any) {
+      console.error('Error loading recent activity:', error);
+    }
+  }
 
   async function checkAdmin() {
     try {
@@ -409,83 +440,131 @@ export default function SWPage() {
           <div className="card p-4">
             <h2 className="text-lg font-semibold text-white mb-4">How to Increase Your SW</h2>
             <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">1. Complete Your Profile</div>
-                <div className="text-white/70 text-sm mb-2">
-                  Fill in all profile fields (name, bio, country, avatar) - this will give you additional points.
+              {/* Profile Complete - Single action */}
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
+                <div className="flex-1">
+                  <div className="text-white font-medium mb-2">1. Complete Your Profile</div>
+                  <div className="text-white/70 text-sm">
+                    Fill in all profile fields (name, bio, country, avatar) - this will give you additional points.
+                  </div>
                 </div>
-                <div className="text-white/50 text-xs">
-                  Current contribution: {breakdown.profileComplete.points} points
-                </div>
-              </div>
-
-              <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">2. Complete Growth Directions Tasks</div>
-                <div className="text-white/70 text-sm mb-2">
-                  Complete tasks from growth directions - this is the main source of SW points.
-                </div>
-                <div className="text-white/50 text-xs">
-                  Current contribution: {breakdown.growth.points.toFixed(0)} points ({breakdown.growth.count} tasks)
+                <div className="ml-4 flex items-center">
+                  {recentActivity?.profileComplete ? (
+                    <span className="text-green-400 text-xl">✓</span>
+                  ) : (
+                    <span className="text-white/30 text-xl">○</span>
+                  )}
                 </div>
               </div>
 
-              <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">3. Publish Posts</div>
-                <div className="text-white/70 text-sm mb-2">
-                  Each published post adds points to your SW.
+              {/* Growth Directions - Single action (but can have multiple tasks) */}
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
+                <div className="flex-1">
+                  <div className="text-white font-medium mb-2">2. Complete Growth Directions Tasks</div>
+                  <div className="text-white/70 text-sm">
+                    Complete tasks from growth directions - this is the main source of SW points.
+                  </div>
                 </div>
-                <div className="text-white/50 text-xs">
-                  Current contribution: {breakdown.posts.points} points ({breakdown.posts.count} posts)
-                </div>
-              </div>
-
-              <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">4. Comment</div>
-                <div className="text-white/70 text-sm mb-2">
-                  Actively commenting on other users' posts increases your SW.
-                </div>
-                <div className="text-white/50 text-xs">
-                  Current contribution: {breakdown.comments.points} points ({breakdown.comments.count} comments)
+                <div className="ml-4 flex items-center">
+                  {breakdown.growth.count > 0 ? (
+                    <span className="text-green-400 text-xl">✓</span>
+                  ) : (
+                    <span className="text-white/30 text-xl">○</span>
+                  )}
                 </div>
               </div>
 
-              <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">5. Create Connections</div>
-                <div className="text-white/70 text-sm mb-2">
-                  Mutual mentions in posts create connections that give additional points.
+              {/* Posts - Repeatable action */}
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
+                <div className="flex-1">
+                  <div className="text-white font-medium mb-2">3. Publish Posts</div>
+                  <div className="text-white/70 text-sm">
+                    Each published post adds points to your SW.
+                  </div>
                 </div>
-                <div className="text-white/50 text-xs">
-                  Current contribution: {breakdown.connections.points} points ({breakdown.connections.count} connections)
-                </div>
-              </div>
-
-              <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">6. Attract Followers</div>
-                <div className="text-white/70 text-sm mb-2">
-                  The more followers you have, the higher your SW.
-                </div>
-                <div className="text-white/50 text-xs">
-                  Current contribution: {breakdown.followers.points} points ({breakdown.followers.count} followers)
+                <div className="ml-4 flex items-center">
+                  <span className="text-white/70 text-sm font-medium">
+                    {recentActivity ? `${recentActivity.postsCount} today` : '...'}
+                  </span>
                 </div>
               </div>
 
-              <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">7. Get Reactions</div>
-                <div className="text-white/70 text-sm mb-2">
-                  Reactions on your posts increase your SW.
+              {/* Comments - Repeatable action */}
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
+                <div className="flex-1">
+                  <div className="text-white font-medium mb-2">4. Comment</div>
+                  <div className="text-white/70 text-sm">
+                    Actively commenting on other users' posts increases your SW.
+                  </div>
                 </div>
-                <div className="text-white/50 text-xs">
-                  Current contribution: {breakdown.reactions.points} points ({Math.round(breakdown.reactions.count)} reactions)
+                <div className="ml-4 flex items-center">
+                  <span className="text-white/70 text-sm font-medium">
+                    {recentActivity ? `${recentActivity.commentsCount} today` : '...'}
+                  </span>
                 </div>
               </div>
 
-              <div className="p-3 rounded-lg bg-white/5">
-                <div className="text-white font-medium mb-2">8. Invite Friends</div>
-                <div className="text-white/70 text-sm mb-2">
-                  Invite friends via invite codes. Each invited friend gives you points.
+              {/* Connections - Single action (but can have multiple connections) */}
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
+                <div className="flex-1">
+                  <div className="text-white font-medium mb-2">5. Create Connections</div>
+                  <div className="text-white/70 text-sm">
+                    Mutual mentions in posts create connections that give additional points.
+                  </div>
                 </div>
-                <div className="text-white/50 text-xs">
-                  Current contribution: {breakdown.invites?.points || 0} points ({breakdown.invites?.count || 0} invites)
+                <div className="ml-4 flex items-center">
+                  {breakdown.connections.count > 0 ? (
+                    <span className="text-green-400 text-xl">✓</span>
+                  ) : (
+                    <span className="text-white/30 text-xl">○</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Followers - Single action (but can have multiple followers) */}
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
+                <div className="flex-1">
+                  <div className="text-white font-medium mb-2">6. Attract Followers</div>
+                  <div className="text-white/70 text-sm">
+                    The more followers you have, the higher your SW.
+                  </div>
+                </div>
+                <div className="ml-4 flex items-center">
+                  {breakdown.followers.count > 0 ? (
+                    <span className="text-green-400 text-xl">✓</span>
+                  ) : (
+                    <span className="text-white/30 text-xl">○</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Reactions - Repeatable action */}
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
+                <div className="flex-1">
+                  <div className="text-white font-medium mb-2">7. Get Reactions</div>
+                  <div className="text-white/70 text-sm">
+                    Reactions on your posts increase your SW.
+                  </div>
+                </div>
+                <div className="ml-4 flex items-center">
+                  <span className="text-white/70 text-sm font-medium">
+                    {recentActivity ? `${recentActivity.reactionsCount} today` : '...'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Invites - Repeatable action */}
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
+                <div className="flex-1">
+                  <div className="text-white font-medium mb-2">8. Invite Friends</div>
+                  <div className="text-white/70 text-sm">
+                    Invite friends via invite codes. Each invited friend gives you points.
+                  </div>
+                </div>
+                <div className="ml-4 flex items-center">
+                  <span className="text-white/70 text-sm font-medium">
+                    {recentActivity ? `${recentActivity.invitesCount} today` : '...'}
+                  </span>
                 </div>
               </div>
             </div>
