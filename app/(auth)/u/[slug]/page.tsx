@@ -1595,9 +1595,10 @@ export default function PublicProfilePage() {
           <PostFeed
             filterUserId={profile.user_id}
             showFilters={false}
-            showComposer={isMe}
+            showComposer={false}
             backToProfileUsername={profile.username || slug}
             className=""
+            enableLazyLoad={true}
           />
         )}
       </div>

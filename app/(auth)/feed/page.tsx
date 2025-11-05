@@ -34,6 +34,8 @@ export default function FeedPage() {
             className=""
             renderFiltersOutside={true}
             renderFilters={setFiltersElement}
+            buttonPosition="inline"
+            enableLazyLoad={false}
           />
         </div>
       </div>
