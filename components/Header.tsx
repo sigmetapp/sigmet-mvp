@@ -5,6 +5,7 @@ import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { supabase } from "@/lib/supabaseClient";
 import { useTheme } from "@/components/ThemeProvider";
 import { Sun, Moon, Menu, X } from "lucide-react";
+import SearchInput from "@/components/SearchInput";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -47,7 +48,7 @@ export default function Header() {
     >
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
         {/* LOGO + TITLE */}
-        <Link href="/" className="flex items-center gap-2 group">
+        <Link href="/" className="flex items-center gap-2 group flex-shrink-0">
           {logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -66,13 +67,18 @@ export default function Header() {
               S
             </div>
           )}
-          <span className={`${isLight ? "text-telegram-text" : "text-telegram-text"} font-semibold tracking-tight`}>
+          <span className={`${isLight ? "text-telegram-text" : "text-telegram-text"} font-semibold tracking-tight hidden sm:inline`}>
             {site_name || "SIGMET"}
           </span>
         </Link>
 
+        {/* SEARCH INPUT - CENTERED */}
+        <div className="flex-1 flex justify-center hidden md:block">
+          <SearchInput />
+        </div>
+
         {/* DESKTOP NAV */}
-        <nav className="ml-auto hidden md:flex items-center gap-1">
+        <nav className="ml-auto hidden md:flex items-center gap-1 flex-shrink-0">
           {navLinks.map((l) => {
             const active = pathname === l.href;
             const isExternal = l.href.startsWith("http");
@@ -170,6 +176,11 @@ export default function Header() {
         >
           {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
+      </div>
+
+      {/* MOBILE SEARCH */}
+      <div className="md:hidden px-4 pb-3">
+        <SearchInput />
       </div>
 
       {/* MOBILE MENU */}
