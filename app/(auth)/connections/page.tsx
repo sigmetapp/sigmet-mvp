@@ -205,33 +205,32 @@ function ConnectionsInner() {
           }
         }
 
-        // Calculate connections: mutual mentions
-        // A connection is when: user A tagged me in their post AND I tagged user A in my post
-        // Count connections as pairs: each post where they mention me + each post where I mention them = 1 connection per pair
+        // Calculate connections: non-mutual tags
+        // A connection is created when: user A tags me OR I tag user A
+        // Each tag counts as 1 connection
+        // If they tagged me 2 times, that's 2 connections
+        // If I tagged them 1 time, that's 1 connection
+        // Total connections = sum of all tags (their tags + my tags)
         const connections: Connection[] = [];
         
-        for (const userId of Object.keys(theyMentionedMe)) {
-          const theirPosts = theyMentionedMe[userId];
+        // Combine all users who mentioned me or whom I mentioned
+        const allConnectedUsers = new Set<string>();
+        Object.keys(theyMentionedMe).forEach(uid => allConnectedUsers.add(uid));
+        Object.keys(iMentionedThem).forEach(uid => allConnectedUsers.add(uid));
+        
+        for (const userId of allConnectedUsers) {
+          const theirPosts = theyMentionedMe[userId] || new Set();
           const myPosts = iMentionedThem[userId] || new Set();
 
-          // Count connections: each post where they mentioned me AND each post where I mentioned them
-          // This represents mutual tagging - if they tagged me in N posts and I tagged them in M posts,
-          // we have min(N, M) connections (each pair represents a mutual connection)
-          // But actually, we want to count all mutual pairs, so:
-          // If they tagged me 3 times and I tagged them 2 times, that's 2 connections (the minimum)
-          // This represents the number of mutual mentions
-          let mutualCount = 0;
+          // Count connections: sum of all tags
+          // Each post where they mentioned me = 1 connection
+          // Each post where I mentioned them = 1 connection
+          const connectionsCount = theirPosts.size + myPosts.size;
 
-          if (theirPosts.size > 0 && myPosts.size > 0) {
-            // Count as the minimum of both - represents actual mutual connections
-            // Each connection requires both: they tagged me AND I tagged them
-            mutualCount = Math.min(theirPosts.size, myPosts.size);
-          }
-
-          if (mutualCount > 0) {
+          if (connectionsCount > 0) {
             connections.push({
               userId,
-              connectionsCount: mutualCount,
+              connectionsCount,
             });
           }
         }
@@ -614,7 +613,7 @@ function ConnectionsInner() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">{title}</h1>
-          <p className="text-white/70 text-sm">People you've tagged and who tagged you in posts. Connections are based on mutual mentions.</p>
+          <p className="text-white/70 text-sm">People you've tagged and who tagged you in posts. Each tag counts as 1 connection.</p>
         </div>
       </div>
 
@@ -624,7 +623,7 @@ function ConnectionsInner() {
         {loading ? (
           <div className="text-white/70 text-sm">Loading…</div>
         ) : connections.length === 0 ? (
-          <div className="text-white/60 text-sm">No connections yet. Tag each other in posts to create connections.</div>
+          <div className="text-white/60 text-sm">No connections yet. Tag people in posts to create connections.</div>
         ) : (
           <div className="space-y-3">
             {connections.map((c) => {

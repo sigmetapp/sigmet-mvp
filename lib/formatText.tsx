@@ -2,6 +2,17 @@ import React from 'react';
 import Link from 'next/link';
 
 /**
+ * Проверяет, содержит ли текст упоминания через @
+ * @param text - Текст для проверки
+ * @returns true если есть упоминания, иначе false
+ */
+export function hasMentions(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const mentionRegex = /@(\w+)/g;
+  return mentionRegex.test(text);
+}
+
+/**
  * Парсит текст и выделяет упоминания через @ светло-зеленой подчеркнутой линией
  * @param text - Текст для обработки
  * @returns React элементы с выделенными упоминаниями

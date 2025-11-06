@@ -11,7 +11,7 @@ import PostCard from '@/components/PostCard';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveDirectionEmoji } from '@/lib/directions';
 import EmojiPicker from '@/components/EmojiPicker';
-import { formatTextWithMentions } from '@/lib/formatText';
+import { formatTextWithMentions, hasMentions } from '@/lib/formatText';
 
 type PostRecord = {
   id: number;
@@ -670,21 +670,27 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   >
                     {username}
                   </a>
-                  {(fullName || post.category || growthStatuses.length > 0) && (
-                    <span className="text-sm text-slate-500 dark:text-slate-400">
-                      |
-                    </span>
-                  )}
+                  {(() => {
+                    const postHasMentions = hasMentions(post.body);
+                    return (fullName || post.category || postHasMentions || growthStatuses.length > 0) && (
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        |
+                      </span>
+                    );
+                  })()}
                   {fullName && (
                     <>
                       <span className="text-sm text-slate-500 dark:text-slate-400">
                         {fullName}
                       </span>
-                      {(post.category || growthStatuses.length > 0) && (
-                        <span className="text-sm text-slate-500 dark:text-slate-400">
-                          |
-                        </span>
-                      )}
+                      {(() => {
+                        const postHasMentions = hasMentions(post.body);
+                        return (post.category || postHasMentions || growthStatuses.length > 0) && (
+                          <span className="text-sm text-slate-500 dark:text-slate-400">
+                            |
+                          </span>
+                        );
+                      })()}
                     </>
                   )}
                   {post.category && (
@@ -699,6 +705,25 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                           : 'text-slate-400 bg-white/5 border border-slate-700'
                       }`}>
                         {categoryDirection ? `${categoryDirection.emoji} ${post.category}` : post.category}
+                      </div>
+                      {(() => {
+                        const postHasMentions = hasMentions(post.body);
+                        return (postHasMentions || growthStatuses.length > 0) && (
+                          <span className="text-sm text-slate-500 dark:text-slate-400">
+                            |
+                          </span>
+                        );
+                      })()}
+                    </>
+                  )}
+                  {hasMentions(post.body) && (
+                    <>
+                      <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                        isLight
+                          ? 'bg-green-500/20 text-green-600 border border-green-500/30 shadow-sm'
+                          : 'bg-green-500/25 text-green-400 border border-green-500/40 shadow-sm'
+                      }`}>
+                        Connections
                       </div>
                       {growthStatuses.length > 0 && (
                         <span className="text-sm text-slate-500 dark:text-slate-400">
