@@ -261,11 +261,22 @@ export default function DmsChatWindow({ partnerId }: Props) {
           });
         }
 
-        // Load Social Weight (default 75)
+        // Load Social Weight from sw_scores table
         try {
-          // For now, default value. Replace with actual query when SW table exists
-          setSocialWeight(75);
-        } catch {
+          const { data: swData } = await supabase
+            .from('sw_scores')
+            .select('total')
+            .eq('user_id', partnerId)
+            .maybeSingle();
+          
+          if (swData && swData.total !== null && swData.total !== undefined) {
+            setSocialWeight(Math.round(swData.total));
+          } else {
+            // Default to 75 if no SW data found
+            setSocialWeight(75);
+          }
+        } catch (swErr) {
+          console.error('Error loading Social Weight:', swErr);
           setSocialWeight(75);
         }
 
@@ -768,11 +779,14 @@ export default function DmsChatWindow({ partnerId }: Props) {
     );
   }
 
-  const partnerName =
-    partnerProfile?.full_name ||
-    partnerProfile?.username ||
+  // Get partner name - prioritize full_name, then username, then fallback
+  const partnerName = partnerProfile?.full_name || 
+    partnerProfile?.username || 
     partnerId.slice(0, 8);
   const partnerAvatar = partnerProfile?.avatar_url || AVATAR_FALLBACK;
+  
+  // Ensure isOnline is properly set (default to false if null)
+  const displayOnline = isOnline === true;
 
   return (
     <div className="card card-glow flex flex-col h-full overflow-hidden">
@@ -800,17 +814,17 @@ export default function DmsChatWindow({ partnerId }: Props) {
               {/* Online/Offline Badge */}
               <span
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-medium ${
-                  isOnline
+                  displayOnline
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                     : 'bg-white/10 text-white/60 border border-white/20'
                 }`}
               >
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${
-                    isOnline ? 'bg-emerald-400' : 'bg-white/40'
+                    displayOnline ? 'bg-emerald-400' : 'bg-white/40'
                   }`}
                 />
-                {isOnline ? 'online' : 'offline'}
+                {displayOnline ? 'online' : 'offline'}
               </span>
               
               {/* Social Weight Badge */}
@@ -835,7 +849,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
                   title="Days streak"
                 >
-                  <span className="text-xs leading-none" role="img" aria-hidden="true">
+                  <span className="text-xs leading-none" role="img" aria-label="fire">
                     {'\uD83D\uDD25'}
                   </span>
                   {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
