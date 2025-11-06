@@ -433,10 +433,16 @@ export default async function handler(
           // A connection is when: user A tagged me in their post AND I tagged user A in my post
           // Count connections as the minimum of both mentions
           // First connection overall gets more points, repeat connections get less
-          for (const userId_conn of Object.keys(theyMentionedMe)) {
+          // Check all users who mentioned me OR whom I mentioned to find mutual connections
+          const allConnectedUsers = new Set<string>();
+          Object.keys(theyMentionedMe).forEach(uid => allConnectedUsers.add(uid));
+          Object.keys(iMentionedThem).forEach(uid => allConnectedUsers.add(uid));
+          
+          for (const userId_conn of allConnectedUsers) {
             const theirPosts = theyMentionedMe[userId_conn] || new Set();
             const myPosts = iMentionedThem[userId_conn] || new Set();
 
+            // Only count mutual connections (both sides must have mentioned each other)
             if (theirPosts.size > 0 && myPosts.size > 0) {
               // Count as the minimum of both - represents actual mutual connections
               const mutualCount = Math.min(theirPosts.size, myPosts.size);
@@ -454,8 +460,29 @@ export default async function handler(
                   repeatConnectionsCount++;
                 }
               }
+              
+              // Debug logging
+              console.log('Connection found:', {
+                userId: userId_conn,
+                theirPosts: theirPosts.size,
+                myPosts: myPosts.size,
+                mutualCount,
+                firstConnectionsCount,
+                repeatConnectionsCount,
+                totalConnections: connectionsCount
+              });
             }
           }
+          
+          // Debug logging for all connections
+          console.log('All connections summary:', {
+            totalConnections: connectionsCount,
+            firstConnections: firstConnectionsCount,
+            repeatConnections: repeatConnectionsCount,
+            theyMentionedMeCount: Object.keys(theyMentionedMe).length,
+            iMentionedThemCount: Object.keys(iMentionedThem).length,
+            allConnectedUsersCount: allConnectedUsers.size
+          });
         }
       }
     }
