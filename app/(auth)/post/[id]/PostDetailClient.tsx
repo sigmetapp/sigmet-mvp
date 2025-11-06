@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { resolveDirectionEmoji } from '@/lib/directions';
 import EmojiPicker from '@/components/EmojiPicker';
 import { formatTextWithMentions, hasMentions } from '@/lib/formatText';
+import AvatarWithBadge from '@/components/AvatarWithBadge';
 
 type PostRecord = {
   id: number;
@@ -125,6 +126,10 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commenterProfiles, setCommenterProfiles] = useState<Record<string, Profile>>({});
+  
+  // SW scores
+  const [authorSWScore, setAuthorSWScore] = useState<number>(0);
+  const [commenterSWScores, setCommenterSWScores] = useState<Record<string, number>>({});
 
   const [commentInput, setCommentInput] = useState('');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
@@ -174,6 +179,21 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         .eq('user_id', data.user_id)
         .maybeSingle();
       if (profile) setAuthorProfile(profile);
+
+      // Load SW score for author
+      try {
+        const { data: swData } = await supabase
+          .from('sw_scores')
+          .select('total')
+          .eq('user_id', data.user_id)
+          .maybeSingle();
+        if (swData) {
+          setAuthorSWScore((swData.total as number) || 0);
+        }
+      } catch {
+        // SW scores table may not exist
+        setAuthorSWScore(0);
+      }
     }
 
     setLoadingPost(false);
@@ -294,6 +314,31 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         }
         setCommenterProfiles(map);
       }
+
+      // Load SW scores for commenters
+      try {
+        const { data: swData } = await supabase
+          .from('sw_scores')
+          .select('user_id, total')
+          .in('user_id', userIds);
+        if (swData) {
+          const swMap: Record<string, number> = {};
+          for (const row of swData as Array<{ user_id: string; total: number }>) {
+            swMap[row.user_id] = row.total || 0;
+          }
+          setCommenterSWScores(swMap);
+        } else {
+          // If no SW data, set empty map
+          setCommenterSWScores({});
+        }
+      } catch (error) {
+        // SW scores table may not exist
+        console.error('Error loading SW scores for commenters:', error);
+        setCommenterSWScores({});
+      }
+    } else {
+      // If no userIds, set empty map
+      setCommenterSWScores({});
     }
 
     setCommentsLoading(false);
@@ -484,13 +529,21 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         const profile = comment.user_id ? commenterProfiles[comment.user_id] : undefined;
         const username = profile?.username || (comment.user_id ? comment.user_id.slice(0, 8) : 'Anon');
         const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+        const swScore = comment.user_id ? (commenterSWScores[comment.user_id] ?? 0) : 0;
+        const profileUrl = comment.user_id ? (profile?.username ? `/u/${profile.username}` : `/u/${comment.user_id}`) : undefined;
 
         return (
           <div key={comment.id} className={`mt-4 ${depth === 0 ? '' : 'ml-4 border-l border-slate-200 dark:border-slate-700 pl-4'}`}>
             <div className={`rounded-xl p-3 ${isLight ? 'bg-white shadow-sm' : 'bg-slate-800/70 shadow-md'} transition-all`}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <img src={avatar} alt="avatar" className="h-8 w-8 rounded-full object-cover border border-white/10" />
+                  <AvatarWithBadge
+                    avatarUrl={avatar}
+                    swScore={swScore}
+                    size="sm"
+                    alt="avatar"
+                    href={profileUrl}
+                  />
                   <div className="flex flex-col min-w-0">
                     <span className={`text-sm font-medium truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{username}</span>
                     <time className="text-xs text-slate-500 dark:text-slate-400" dateTime={comment.created_at}>
@@ -572,7 +625,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         );
       });
     },
-    [commenterProfiles, isLight, replyInput, replyOpen, replySubmitting, submitComment, toggleReply, commentsByParent]
+    [commenterProfiles, commenterSWScores, isLight, replyInput, replyOpen, replySubmitting, submitComment, toggleReply, commentsByParent]
   );
 
   const formattedDate = useMemo(() => {
@@ -653,10 +706,12 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           {/* Header with avatar and clickable nickname */}
           <header className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <img
-                src={avatar}
+              <AvatarWithBadge
+                avatarUrl={avatar}
+                swScore={authorSWScore}
+                size="sm"
                 alt="avatar"
-                className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
+                href={`/u/${encodeURIComponent(authorProfile?.username || post.user_id || '')}`}
               />
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">

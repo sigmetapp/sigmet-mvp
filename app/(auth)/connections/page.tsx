@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import Button from "@/components/Button";
 import { RequireAuth } from "@/components/RequireAuth";
+import AvatarWithBadge from "@/components/AvatarWithBadge";
 
 type SimpleProfile = {
   user_id: string;
@@ -61,6 +62,7 @@ function ConnectionsInner() {
     reason: 'connection' | 'mutual_follow';
   }>>([]);
   const [recommendedProfiles, setRecommendedProfiles] = useState<Record<string, SimpleProfile>>({});
+  const [recommendedSWScores, setRecommendedSWScores] = useState<Record<string, number>>({});
 
   const title = useMemo(() => "Connections", []);
 
@@ -570,8 +572,27 @@ function ConnectionsInner() {
             }
           }
           setRecommendedProfiles(recMap);
+
+          // Load SW scores for recommended people
+          try {
+            const { data: swData } = await supabase
+              .from("sw_scores")
+              .select("user_id, total")
+              .in("user_id", recommendedIds);
+            const swMap: Record<string, number> = {};
+            if (swData) {
+              for (const row of swData as any[]) {
+                swMap[row.user_id as string] = (row.total as number) || 0;
+              }
+            }
+            setRecommendedSWScores(swMap);
+          } catch {
+            // SW scores table may not exist
+            setRecommendedSWScores({});
+          }
         } else {
           setRecommendedProfiles({});
+          setRecommendedSWScores({});
         }
       } finally {
         setLoading(false);
@@ -639,13 +660,13 @@ function ConnectionsInner() {
 
               return (
                 <div key={c.userId} className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
-                  <Link href={profileUrl} className="flex-shrink-0">
-                    <img
-                      src={avatar}
-                      alt={displayName}
-                      className="h-12 w-12 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
-                    />
-                  </Link>
+                  <AvatarWithBadge
+                    avatarUrl={avatar}
+                    swScore={swScore}
+                    size="md"
+                    alt={displayName}
+                    href={profileUrl}
+                  />
                   <div className="min-w-0 flex-1">
                     <Link href={profileUrl} className="block hover:underline">
                       <div className="text-white font-medium truncate">{displayName}</div>
@@ -703,13 +724,13 @@ function ConnectionsInner() {
 
                   return (
                     <div key={uid} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <Link href={profileUrl} className="flex-shrink-0">
-                        <img
-                          src={avatar}
-                          alt={displayName}
-                          className="h-10 w-10 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
-                        />
-                      </Link>
+                      <AvatarWithBadge
+                        avatarUrl={avatar}
+                        swScore={swScore}
+                        size="sm"
+                        alt={displayName}
+                        href={profileUrl}
+                      />
                       <Link href={profileUrl} className="min-w-0 flex-1 hover:underline">
                         <div className="text-white font-medium truncate">{displayName}</div>
                         <div className="text-white/60 text-sm truncate">@{username}</div>
@@ -762,13 +783,13 @@ function ConnectionsInner() {
 
                   return (
                     <div key={uid} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <Link href={profileUrl} className="flex-shrink-0">
-                        <img
-                          src={avatar}
-                          alt={displayName}
-                          className="h-10 w-10 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
-                        />
-                      </Link>
+                      <AvatarWithBadge
+                        avatarUrl={avatar}
+                        swScore={swScore}
+                        size="sm"
+                        alt={displayName}
+                        href={profileUrl}
+                      />
                       <Link href={profileUrl} className="min-w-0 flex-1 hover:underline">
                         <div className="text-white font-medium truncate">{displayName}</div>
                         <div className="text-white/60 text-sm truncate">@{username}</div>
@@ -825,16 +846,17 @@ function ConnectionsInner() {
                 const reasonText = rec.reason === 'connection' 
                   ? 'Connected through your connections' 
                   : 'Mutual follow';
+                const swScore = recommendedSWScores[rec.userId] || 0;
 
                 return (
                   <div key={rec.userId} className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
-                    <Link href={profileUrl} className="flex-shrink-0">
-                      <img
-                        src={avatar}
-                        alt={displayName}
-                        className="h-12 w-12 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
-                      />
-                    </Link>
+                    <AvatarWithBadge
+                      avatarUrl={avatar}
+                      swScore={swScore}
+                      size="md"
+                      alt={displayName}
+                      href={profileUrl}
+                    />
                     <div className="min-w-0 flex-1">
                       <Link href={profileUrl} className="block hover:underline">
                         <div className="text-white font-medium truncate">{displayName}</div>

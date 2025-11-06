@@ -24,6 +24,7 @@ import MentionInput from "@/components/MentionInput";
 import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag } from "lucide-react";
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
+import AvatarWithBadge from "@/components/AvatarWithBadge";
 
 function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
@@ -141,6 +142,9 @@ export default function PostFeed({
 
   // Map author user_id -> profile info (username, full_name, avatar)
   const [profilesByUserId, setProfilesByUserId] = useState<Record<string, { username: string | null; full_name: string | null; avatar_url: string | null }>>({});
+  
+  // Map author user_id -> SW score
+  const [swScoresByUserId, setSwScoresByUserId] = useState<Record<string, number>>({});
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBody, setEditBody] = useState<string>("");
@@ -262,6 +266,25 @@ export default function PostFeed({
             }
             return map;
           });
+        }
+
+        // Load SW scores for authors
+        try {
+          const { data: swData } = await supabase
+            .from("sw_scores")
+            .select("user_id, total")
+            .in("user_id", userIds);
+          if (swData) {
+            setSwScoresByUserId((prev) => {
+              const map = { ...prev };
+              for (const row of swData as any[]) {
+                map[row.user_id as string] = (row.total as number) || 0;
+              }
+              return map;
+            });
+          }
+        } catch {
+          // SW scores table may not exist
         }
       }
     }
@@ -1113,10 +1136,12 @@ export default function PostFeed({
                   {/* header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                      <img
-                        src={avatar}
+                      <AvatarWithBadge
+                        avatarUrl={avatar}
+                        swScore={p.user_id ? (swScoresByUserId[p.user_id] || 0) : 0}
+                        size="sm"
                         alt="avatar"
-                        className="h-9 w-9 rounded-full object-cover border border-white/10 shrink-0"
+                        href={`/u/${p.user_id}`}
                       />
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
