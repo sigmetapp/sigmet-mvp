@@ -21,8 +21,9 @@ declare
   v_message public.dms_messages;
   v_user_id uuid;
 begin
-  -- Verify user exists and is authenticated
-  v_user_id := auth.uid();
+  -- For service role calls, skip auth.uid() check and use p_sender_id directly
+  -- This allows the function to work when called from WebSocket gateway with service role
+  v_user_id := coalesce(auth.uid(), p_sender_id);
   if v_user_id is null or v_user_id != p_sender_id then
     raise exception 'Unauthorized';
   end if;

@@ -78,6 +78,35 @@ export function useWebSocketDm(threadId: ThreadId | null) {
     const normalizedThreadId = assertThreadId(threadId, 'Invalid thread ID');
     const wsClient = wsClientRef.current;
 
+    // Load initial messages from database
+    (async () => {
+      try {
+        const { listMessages } = await import('@/lib/dms');
+        const initialMessages = await listMessages(normalizedThreadId, { limit: 50 });
+        
+        if (initialMessages && initialMessages.length > 0) {
+          // Sort chronologically
+          const sorted = initialMessages.sort((a, b) => {
+            const timeA = new Date(a.created_at).getTime();
+            const timeB = new Date(b.created_at).getTime();
+            if (timeA !== timeB) return timeA - timeB;
+            return a.id - b.id;
+          });
+          
+          setMessages(sorted);
+          
+          // Set last server message ID
+          const lastMsg = sorted[sorted.length - 1];
+          if (lastMsg) {
+            setLastServerMsgId(lastMsg.id);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading initial messages:', err);
+        // Continue without initial messages
+      }
+    })();
+
     // Subscribe to thread
     wsClient.subscribe(normalizedThreadId);
 
