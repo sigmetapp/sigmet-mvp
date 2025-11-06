@@ -41,26 +41,45 @@ export async function sendMessage(
   // Instant broadcast for recipients
   sendBroadcast({ client_msg_id, body, sender_id: sessionUserId });
 
-  // Single idempotent RPC call
-  const { data, error } = await supabase.rpc('send_message', {
-    p_thread_id: Number(threadId),
-    p_client_msg_id: client_msg_id,
-    p_body: body,
-    p_kind: attachments.length > 0 ? 'media' : 'text',
-    p_attachments: attachments.length > 0 ? attachments : [],
-  });
+  // Use existing API endpoint which already handles idempotency via insert_dms_message
+  // The insert_dms_message function checks for duplicate client_msg_id
+  try {
+    const response = await fetch('/api/dms/messages.send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        thread_id: Number(threadId),
+        body: body,
+        attachments: attachments.length > 0 ? attachments : [],
+        client_msg_id: client_msg_id, // Pass client_msg_id for idempotency
+      }),
+    });
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      upsertLocal({ client_msg_id, status: 'failed' });
+      return { ok: false, error: errorData.error || `Failed to send: ${response.statusText}` };
+    }
+
+    const result = await response.json();
+    if (!result.ok || !result.message) {
+      upsertLocal({ client_msg_id, status: 'failed' });
+      return { ok: false, error: result.error || 'Failed to send message' };
+    }
+
+    const message = result.message;
+    upsertLocal({
+      client_msg_id,
+      id: typeof message.id === 'string' ? parseInt(message.id, 10) : message.id,
+      created_at: message.created_at,
+      status: 'sent',
+    });
+
+    return { ok: true, data: message };
+  } catch (err: any) {
     upsertLocal({ client_msg_id, status: 'failed' });
-    return { ok: false, error };
+    return { ok: false, error: err };
   }
-
-  upsertLocal({
-    client_msg_id,
-    id: data.id,
-    created_at: data.created_at,
-    status: 'sent',
-  });
-
-  return { ok: true, data };
 }

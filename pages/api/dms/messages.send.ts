@@ -54,6 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let body = (req.body?.body as string | undefined) ?? null;
   const attachments = (req.body?.attachments as unknown) ?? [];
   const attachmentsArray = Array.isArray(attachments) ? attachments : [];
+  const client_msg_id = (req.body?.client_msg_id as string | undefined) ?? null;
   const messageKind = inferMessageKind(attachmentsArray);
 
     if (!threadId) {
@@ -131,13 +132,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let msgErr: any = null;
 
     if (typeof (authedClient as any).rpc === 'function') {
-      const rpcResult = await (authedClient as any).rpc('insert_dms_message', {
+      // Use the version with client_msg_id if available (6 parameters)
+      const rpcParams: any = {
         p_thread_id: threadId,
         p_sender_id: user.id,
         p_body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
         p_kind: messageKind,
         p_attachments: attachmentsArray,
-      });
+      };
+      
+      // Add client_msg_id if provided (for idempotency)
+      if (client_msg_id) {
+        rpcParams.p_client_msg_id = client_msg_id;
+      }
+      
+      const rpcResult = await (authedClient as any).rpc('insert_dms_message', rpcParams);
 
       message = rpcResult?.data ?? null;
       msgErr = rpcResult?.error ?? null;
@@ -156,15 +165,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
         : authedClient;
       
+      const insertData: any = {
+        thread_id: threadId,
+        sender_id: user.id,
+        kind: messageKind,
+        body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
+        attachments: attachmentsArray,
+      };
+      
+      // Add client_msg_id if provided (for idempotency)
+      if (client_msg_id) {
+        insertData.client_msg_id = client_msg_id;
+      }
+      
       const { data: fallbackMsg, error: fallbackErr } = await fallbackClient
         .from('dms_messages')
-        .insert({ 
-          thread_id: threadId, 
-          sender_id: user.id, 
-            kind: messageKind, 
-            body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
-            attachments: attachmentsArray
-        })
+        .insert(insertData)
         .select('*')
         .single();
       
