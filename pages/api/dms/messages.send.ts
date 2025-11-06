@@ -129,17 +129,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
     }
-
     // Use PostgreSQL function to insert message (bypasses RLS via SECURITY DEFINER)
-    // This is more reliable than service role key
-    const { data: message, error: msgErr } = await authedClient.rpc('insert_dms_message', {
-      p_thread_id: threadId,
-      p_sender_id: user.id,
-      p_body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
-      p_kind: 'text',
-      p_attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : []
-    });
-    
+    // This is more reliable than service role key. When the RPC helper is unavailable
+    // (e.g. in unit tests with lightweight mocks), fall back to the direct insert path.
+    let message: any = null;
+    let msgErr: any = null;
+
+    if (typeof (authedClient as any).rpc === 'function') {
+      const rpcResult = await (authedClient as any).rpc('insert_dms_message', {
+        p_thread_id: threadId,
+        p_sender_id: user.id,
+        p_body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
+        p_kind: 'text',
+        p_attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : [],
+      });
+
+      message = rpcResult?.data ?? null;
+      msgErr = rpcResult?.error ?? null;
+    } else {
+      msgErr = { message: 'rpc_not_available' };
+    }
+
     // If RPC doesn't work, fallback to direct insert with service role
     let finalMessage = message;
     if (msgErr || !message) {
