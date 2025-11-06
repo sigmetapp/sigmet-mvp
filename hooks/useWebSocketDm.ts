@@ -12,6 +12,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { getWebSocketClient, type WSEvent } from '@/lib/dm/websocket';
 import { supabase } from '@/lib/supabaseClient';
 import type { Message } from '@/lib/dms';
@@ -54,6 +55,9 @@ export function useWebSocketDm(threadId: ThreadId | null) {
   const [lastServerMsgId, setLastServerMsgId] = useState<number | null>(null);
   const [transport, setTransport] = useState<'websocket' | 'supabase'>('websocket');
   const [partnerId, setPartnerId] = useState<string | null>(null);
+  
+  // Track sent message IDs to filter out own echoes
+  const sentClientMsgIdsRef = useRef<Set<string>>(new Set());
   
   const wsClientRef = useRef(getWebSocketClient());
   const authTokenRef = useRef<string | null>(null);
@@ -217,6 +221,13 @@ export function useWebSocketDm(threadId: ThreadId | null) {
             const message = event.message as any;
             const serverMsgId = event.server_msg_id;
             const sequenceNumber = event.sequence_number ?? message.sequence_number ?? null;
+            const clientMsgId = message.client_msg_id ?? null;
+            
+            // Filter out own messages by client_msg_id (avoid echo)
+            if (clientMsgId && sentClientMsgIdsRef.current.has(clientMsgId)) {
+              return;
+            }
+            
             const normalizedMessage: Message = {
               id: serverMsgId,
               thread_id: normalizedThreadId,
@@ -228,7 +239,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               edited_at: message.edited_at || null,
               deleted_at: message.deleted_at || null,
               sequence_number: typeof sequenceNumber === 'number' ? sequenceNumber : null,
-              client_msg_id: message.client_msg_id ?? null,
+              client_msg_id: clientMsgId,
             };
 
             setMessages((prev) => {
@@ -247,6 +258,36 @@ export function useWebSocketDm(threadId: ThreadId | null) {
             });
 
             setLastServerMsgId(serverMsgId);
+          }
+        };
+
+        const handleMessageAck = (event: WSEvent) => {
+          if (event.type === 'message_ack') {
+            // Update message status to 'sent' when ack is received
+            // This is handled by the WebSocket client internally
+            // We can trigger a re-render if needed by updating state
+          }
+        };
+
+        const handleMessagePersisted = (event: WSEvent) => {
+          if (event.type === 'message_persisted') {
+            // Update message status to 'persisted' and update metadata
+            // Note: db_message_id is UUID (string), not a number
+            // We keep the original message ID but update created_at and mark as persisted
+            setMessages((prev) => {
+              return prev.map((msg) => {
+                if ((msg as any).client_msg_id === event.client_msg_id) {
+                  // Update message with persisted status and DB timestamp
+                  return {
+                    ...msg,
+                    created_at: event.db_created_at || msg.created_at,
+                    // Store db_message_id in meta if needed
+                    ...((msg as any).db_message_id ? {} : { db_message_id: event.db_message_id }),
+                  };
+                }
+                return msg;
+              });
+            });
           }
         };
 
@@ -329,6 +370,8 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       const unsubSync = wsClient.on('sync_response', handleSync);
       const unsubConnected = wsClient.on('connected', handleConnected);
       const unsubError = wsClient.on('error', handleError);
+      const unsubMessageAck = wsClient.on('message_ack', handleMessageAck);
+      const unsubMessagePersisted = wsClient.on('message_persisted', handleMessagePersisted);
 
       setIsConnected(wsClient.getState() === 'authenticated');
 
@@ -340,6 +383,8 @@ export function useWebSocketDm(threadId: ThreadId | null) {
         unsubSync();
         unsubConnected();
         unsubError();
+        unsubMessageAck();
+        unsubMessagePersisted();
         wsClient.unsubscribe(normalizedThreadId);
       };
     } else {
@@ -466,7 +511,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
     };
   }, [partnerId, transport]);
 
-  // Send message (no optimistic updates - wait for server response)
+  // Send message with local-echo support
   const sendMessage = useCallback(async (
     threadId: ThreadId,
     body: string | null,
@@ -480,17 +525,51 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       throw new Error('Not authenticated');
     }
 
-    const clientMsgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Generate UUID v4 for client_msg_id
+    const clientMsgId = uuidv4();
+    
+    // Track this client_msg_id to filter out own echoes
+    sentClientMsgIdsRef.current.add(clientMsgId);
+
+    // Create local-echo message with 'sending' status
+    const localEchoMessage: Message = {
+      id: -1, // Temporary ID
+      thread_id: normalizedThreadId,
+      sender_id: currentUserId,
+      kind: 'text',
+      body: body,
+      attachments: Array.isArray(attachments) ? attachments : [],
+      created_at: new Date().toISOString(),
+      edited_at: null,
+      deleted_at: null,
+      client_msg_id: clientMsgId,
+    };
+
+    // Add local-echo message immediately
+    setMessages((prev) => {
+      // Check if already exists
+      if (prev.some((m) => (m as any).client_msg_id === clientMsgId)) {
+        return prev;
+      }
+      return sortMessagesChronologically([...prev, localEchoMessage]);
+    });
 
     const canUseWebSocket = transport === 'websocket' && wsClient.getState() === 'authenticated';
 
     if (canUseWebSocket) {
       try {
         const result = await wsClient.sendMessage(normalizedThreadId, body, attachments, clientMsgId);
+        
+        // Status will be updated via message_ack and message_persisted events
+        // The WebSocket client handles status updates internally
+        
         return result;
       } catch (error) {
         console.warn('WebSocket sendMessage failed, falling back to Supabase realtime:', error);
         setTransport('supabase');
+        // Remove local echo on error
+        setMessages((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
+        sentClientMsgIdsRef.current.delete(clientMsgId);
         // Continue to fallback below
       }
     }
@@ -499,10 +578,27 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       const { sendMessage: sendMessageHttp } = await import('@/lib/dms');
       const savedMessage = await sendMessageHttp(normalizedThreadId, body || null, attachments);
 
+      // Update local echo with real message
+      setMessages((prev) => {
+        return prev.map((msg) => {
+          if ((msg as any).client_msg_id === clientMsgId) {
+            return {
+              ...savedMessage,
+              client_msg_id: clientMsgId,
+            };
+          }
+          return msg;
+        });
+      });
+
       setLastServerMsgId(savedMessage.id);
+      sentClientMsgIdsRef.current.delete(clientMsgId); // Remove from filter after successful send
 
       return { client_msg_id: clientMsgId, server_msg_id: savedMessage.id };
     } catch (error) {
+      // Remove local echo on error
+      setMessages((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
+      sentClientMsgIdsRef.current.delete(clientMsgId);
       throw error;
     }
   }, [transport]);
