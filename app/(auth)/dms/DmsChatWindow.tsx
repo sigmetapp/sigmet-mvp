@@ -939,6 +939,12 @@ export default function DmsChatWindow({ partnerId }: Props) {
             ) : (
               <div className="text-white text-sm font-medium truncate">{partnerName}</div>
             )}
+            {/* Typing status */}
+            {partnerTyping && (
+              <div className="text-xs text-white/60 mt-0.5">
+                typing...
+              </div>
+            )}
             <div className="flex items-center gap-1.5 flex-wrap mt-1">
               {/* Online/Offline Badge */}
               <span
