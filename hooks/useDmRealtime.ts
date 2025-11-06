@@ -56,7 +56,11 @@ export function useDmRealtime(
     let cancelled = false;
 
     const channel = supabase
-      .channel(`dms_messages:${normalizedThreadId}`)
+      .channel(`dms_messages:${normalizedThreadId}`, {
+        config: {
+          broadcast: { self: true },
+        },
+      })
       .on(
         'postgres_changes',
         {
@@ -117,7 +121,13 @@ export function useDmRealtime(
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[useDmRealtime] Subscribed to thread ${normalizedThreadId}`);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error(`[useDmRealtime] Channel error for thread ${normalizedThreadId}`);
+        }
+      });
 
     return () => {
       cancelled = true;

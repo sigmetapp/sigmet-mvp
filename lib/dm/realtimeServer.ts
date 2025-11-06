@@ -32,7 +32,9 @@ function getServerClient() {
       },
       realtime: {
         params: {
-          eventsPerSecond: 5,
+          // Increased from 5 to 50 to allow faster message delivery
+          // This should help reduce delays in real-time message delivery
+          eventsPerSecond: 50,
         },
       },
     });
