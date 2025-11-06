@@ -1,16 +1,13 @@
 "use client";
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import type { User } from '@supabase/supabase-js';
 import Sidebar from './Sidebar';
 import { useTheme } from '@/components/ThemeProvider';
-import { useSiteSettings } from '@/components/SiteSettingsContext';
 
 export default function SidebarShell({ user, children }: { user: User; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const { theme } = useTheme();
-  const { logo_url, site_name } = useSiteSettings();
   const isLight = theme === "light";
 
   return (
@@ -37,36 +34,7 @@ export default function SidebarShell({ user, children }: { user: User; children:
         >
           ☰
         </button>
-        <Link href="/" className="flex items-center gap-2 flex-1 min-w-0">
-          {logo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logo_url}
-              alt="Logo"
-              width={24}
-              height={24}
-              className="rounded-md flex-shrink-0"
-            />
-          ) : (
-            <div className={`h-6 w-6 rounded-md grid place-items-center border flex-shrink-0 ${
-              isLight 
-                ? "bg-telegram-blue/10 border-telegram-blue/20 text-telegram-blue" 
-                : "bg-telegram-blue/20 border-telegram-blue/30 text-telegram-blue-light"
-            }`}>
-              <span className="text-xs font-semibold">S</span>
-            </div>
-          )}
-          <span className={`${isLight ? "text-telegram-text" : "text-telegram-text"} font-semibold tracking-tight text-sm truncate`}>
-            {site_name || "SIGMET"}
-          </span>
-          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold tracking-wide flex-shrink-0 ${
-            isLight
-              ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-[0_2px_6px_rgba(249,115,22,0.3)]"
-              : "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-[0_2px_6px_rgba(249,115,22,0.4)]"
-          }`}>
-            Pre-Alpha
-          </span>
-        </Link>
+        <div className={`text-sm pointer-events-none ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Menu</div>
       </div>
 
       <div className="mx-auto flex max-w-7xl">
