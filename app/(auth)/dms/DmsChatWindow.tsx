@@ -691,13 +691,14 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
       if (isFromPartner) {
         playIncomingNotification();
-        // Acknowledge message as delivered when received
+        // Acknowledge message as read when received (user is viewing the chat)
         if (thread?.id) {
-          acknowledgeMessage(lastMessage.id, thread.id);
-          // Mark as delivered in local state
+          // Send 'read' status since user is actively viewing the chat
+          acknowledgeMessage(lastMessage.id, thread.id, 'read');
+          // Mark as read in local state
           setMessageReceipts((prev) => {
             const updated = new Map(prev);
-            updated.set(lastMessage.id, 'delivered');
+            updated.set(lastMessage.id, 'read');
             return updated;
           });
         }
