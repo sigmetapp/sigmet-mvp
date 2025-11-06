@@ -1353,8 +1353,8 @@ export default function PublicProfilePage() {
                         className="hover:underline inline-flex items-center gap-1 break-all"
                       >
                         <span className="truncate">
-                          {profile.website_url && profile.website_url.length > 10 
-                            ? profile.website_url.substring(0, 10) + '...' 
+                          {profile.website_url && profile.website_url.length > 20 
+                            ? profile.website_url.substring(0, 20) + '...' 
                             : profile.website_url}
                         </span>
                         <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
