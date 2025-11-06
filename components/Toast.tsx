@@ -36,22 +36,24 @@ export default function Toast({ message, type = 'success', duration = 3000, onCl
     : (isLight ? 'bg-blue-500' : 'bg-blue-600');
 
   return (
-    <div
-      className={`fixed top-4 right-4 z-[10000] ${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] max-w-[500px] transition-opacity duration-300 ${
-        isVisible ? 'opacity-100' : 'opacity-0'
-      }`}
-    >
-      <span className="flex-1 text-sm font-medium">{message}</span>
-      <button
-        onClick={() => {
-          setIsVisible(false);
-          setTimeout(() => onClose?.(), 300);
-        }}
-        className="hover:opacity-80 transition-opacity"
-        aria-label="Close"
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-none">
+      <div
+        className={`${bgColor} text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] max-w-[500px] transition-opacity duration-300 pointer-events-auto ${
+          isVisible ? 'opacity-100' : 'opacity-0'
+        }`}
       >
-        <CloseIcon className="h-4 w-4" />
-      </button>
+        <span className="flex-1 text-sm font-medium">{message}</span>
+        <button
+          onClick={() => {
+            setIsVisible(false);
+            setTimeout(() => onClose?.(), 300);
+          }}
+          className="hover:opacity-80 transition-opacity"
+          aria-label="Close"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }
