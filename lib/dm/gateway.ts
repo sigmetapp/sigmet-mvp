@@ -117,10 +117,21 @@ async function handleSendMessage(
   clientMsgId: string
 ) {
   try {
-    const supabase = getSupabaseService();
+    // Use service role client for all operations to bypass RLS
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
-    // Verify membership
-    const { data: membership } = await supabase
+    if (!serviceRoleKey) {
+      send(conn.ws, { type: 'error', error: 'Service role key not configured', code: 'CONFIG_ERROR' });
+      return;
+    }
+    
+    const serviceClient = createClient(url, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    
+    // Verify membership (bypasses RLS with service role)
+    const { data: membership } = await serviceClient
       .from('dms_thread_participants')
       .select('thread_id')
       .eq('thread_id', threadId)
@@ -138,21 +149,7 @@ async function handleSendMessage(
       ? JSON.parse(JSON.stringify(attachments))
       : [];
     
-    // Use service role client for RPC to bypass RLS
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!serviceRoleKey) {
-      send(conn.ws, { type: 'error', error: 'Service role key not configured', code: 'CONFIG_ERROR' });
-      return;
-    }
-    
-    const serviceClient = createClient(url, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    
-    // Set the user context for the RPC function
-    // The function uses auth.uid() so we need to set the user
+    // Call RPC function with service role client
     const { data: message, error } = await serviceClient.rpc('insert_dms_message', {
       p_thread_id: threadId,
       p_sender_id: conn.userId,
@@ -239,7 +236,7 @@ async function handleSendMessage(
     // Update client_msg_id if function doesn't support it (for backward compatibility)
     if (clientMsgId && !message.client_msg_id) {
       try {
-        await supabase
+        await serviceClient
           .from('dms_messages')
           .update({ client_msg_id: clientMsgId })
           .eq('id', message.id);
@@ -251,8 +248,9 @@ async function handleSendMessage(
     }
 
     // Thread update is handled by the function, but ensure it's updated
+    // (Function already updates thread, but we ensure it's done)
     try {
-      await supabase
+      await serviceClient
         .from('dms_threads')
         .update({
           last_message_id: message.id,

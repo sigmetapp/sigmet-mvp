@@ -23,12 +23,18 @@ declare
 begin
   -- For service role calls, skip auth.uid() check and use p_sender_id directly
   -- This allows the function to work when called from WebSocket gateway with service role
-  v_user_id := coalesce(auth.uid(), p_sender_id);
-  if v_user_id is null or v_user_id != p_sender_id then
-    raise exception 'Unauthorized';
+  -- SECURITY DEFINER functions run as the function owner (postgres), so auth.uid() may be null
+  -- We trust p_sender_id when called via service role
+  v_user_id := auth.uid();
+  
+  -- If auth.uid() is null (service role call), use p_sender_id directly
+  -- Otherwise verify that auth.uid() matches p_sender_id
+  if v_user_id is not null and v_user_id != p_sender_id then
+    raise exception 'Unauthorized: user ID mismatch';
   end if;
   
-  -- Verify thread membership (using RLS-aware check)
+  -- Verify thread membership (bypasses RLS due to SECURITY DEFINER)
+  -- Use service role context to check membership
   if not exists (
     select 1 from public.dms_thread_participants
     where thread_id = p_thread_id
@@ -91,8 +97,9 @@ begin
 end;
 $$;
 
--- Grant execute permission to authenticated users (with new signature)
+-- Grant execute permission to authenticated users and service_role (with new signature)
 grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb, text) to authenticated;
+grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb, text) to service_role;
 
 -- Update comment
 comment on function public.insert_dms_message is 
