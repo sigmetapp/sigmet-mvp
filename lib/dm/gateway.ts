@@ -452,37 +452,10 @@ async function handleSendMessage(
       }
     }
 
-    // Also maintain backward compatibility with old dms_messages table
-    // This can be removed once fully migrated
-    const messageKind = inferMessageKind(attachmentsJsonb);
-    try {
-      const { data: legacyMessage } = await serviceClient.rpc('insert_dms_message', {
-        p_thread_id: threadId,
-        p_sender_id: conn.userId,
-        p_body: body || (attachmentsJsonb.length > 0 ? '\u200B' : null),
-        p_kind: messageKind,
-        p_attachments: attachmentsJsonb,
-        p_client_msg_id: clientMsgId || null,
-      }).catch(() => ({ data: null, error: null }));
-
-      if (legacyMessage) {
-        // Update thread
-        await serviceClient
-          .from('dms_threads')
-          .update({
-            last_message_id: legacyMessage.id,
-            last_message_at: legacyMessage.created_at,
-          })
-          .eq('id', threadId)
-          .catch(() => {}); // Ignore errors
-
-        // Broadcast legacy message event for backward compatibility
-        deliverMessageToThread(conn, threadId, legacyMessage, clientMsgId);
-      }
-    } catch (legacyErr) {
-      // Ignore legacy errors, new system should work independently
-      gatewayLogger.warn('Legacy message insert failed (non-critical):', legacyErr);
-    }
+    // NOTE: Legacy dms_messages system is disabled for dual-channel architecture
+    // Messages are only persisted via BullMQ worker to the new 'messages' table
+    // Legacy broadcast is skipped to prevent duplication
+    // If you need backward compatibility, enable this section but ensure proper deduplication
 
   } catch (err: any) {
     gatewayLogger.error('Send message error:', err);
