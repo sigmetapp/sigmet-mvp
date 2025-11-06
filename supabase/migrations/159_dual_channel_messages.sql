@@ -77,7 +77,17 @@ create policy "delete_messages"
   );
 
 -- Enable realtime replication for the new messages table
-alter publication supabase_realtime add table public.messages;
+-- Note: This may fail if table is already in publication, which is fine
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' 
+    and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+end $$;
 
 -- Set replica identity to full for better change tracking
 alter table public.messages replica identity full;
