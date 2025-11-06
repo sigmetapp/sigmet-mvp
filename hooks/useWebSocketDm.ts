@@ -233,46 +233,37 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               client_msg_id: message.client_msg_id ?? null,
             };
 
-            if (normalizedMessage.client_msg_id) {
-              const pending = pendingMessagesRef.current.get(normalizedMessage.client_msg_id);
-              if (pending) {
-                setMessages((prev) => {
-                  // Remove both optimistic message (by client_msg_id) and any duplicate by server ID
-                  const filtered = prev.filter((m) => 
-                    (m as any).client_msg_id !== normalizedMessage.client_msg_id && m.id !== serverMsgId
-                  );
-                  return sortMessagesChronologically([...filtered, normalizedMessage]);
-                });
-                pendingMessagesRef.current.delete(normalizedMessage.client_msg_id);
-              } else {
-                setMessages((prev) => {
-                  // Check for duplicates by both ID and client_msg_id
-                  // Also check if this is our own message that we already have
-                  const isOurMessage = normalizedMessage.sender_id === currentUserIdRef.current;
-                  if (isOurMessage && prev.some((m) => m.id === serverMsgId)) {
-                    // If it's our message and we already have it, don't add again
-                    return prev;
-                  }
-                  if (prev.some((m) => m.id === serverMsgId || (m as any).client_msg_id === normalizedMessage.client_msg_id)) {
-                    return prev;
-                  }
-                  return sortMessagesChronologically([...prev, normalizedMessage]);
-                });
+            const isOurMessage = normalizedMessage.sender_id === currentUserIdRef.current;
+
+            setMessages((prev) => {
+              // Always check for duplicates by server ID first
+              if (prev.some((m) => m.id === serverMsgId)) {
+                // Message already exists, don't add again
+                return prev;
               }
-            } else {
-              setMessages((prev) => {
-                // Check for duplicates by ID
-                // Also check if this is our own message that we already have
-                const isOurMessage = normalizedMessage.sender_id === currentUserIdRef.current;
-                if (isOurMessage && prev.some((m) => m.id === serverMsgId)) {
-                  // If it's our message and we already have it, don't add again
-                  return prev;
+
+              // If this is our own message, also check by client_msg_id to replace optimistic message
+              if (isOurMessage && normalizedMessage.client_msg_id) {
+                const hasOptimistic = prev.some((m) => (m as any).client_msg_id === normalizedMessage.client_msg_id);
+                if (hasOptimistic) {
+                  // Replace optimistic message with server message
+                  const filtered = prev.filter((m) => (m as any).client_msg_id !== normalizedMessage.client_msg_id);
+                  return sortMessagesChronologically([...filtered, normalizedMessage]);
                 }
-                if (prev.some((m) => m.id === serverMsgId)) {
-                  return prev;
-                }
-                return sortMessagesChronologically([...prev, normalizedMessage]);
-              });
+              }
+
+              // For other messages, check by client_msg_id to avoid duplicates
+              if (normalizedMessage.client_msg_id && prev.some((m) => (m as any).client_msg_id === normalizedMessage.client_msg_id)) {
+                return prev;
+              }
+
+              // Add new message
+              return sortMessagesChronologically([...prev, normalizedMessage]);
+            });
+
+            // Clean up pending message if it exists
+            if (normalizedMessage.client_msg_id) {
+              pendingMessagesRef.current.delete(normalizedMessage.client_msg_id);
             }
 
             setLastServerMsgId(serverMsgId);
@@ -406,41 +397,36 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               pendingMessagesRef.current.delete(row.client_msg_id);
             }
 
+            const isOurMessage = normalizedMessage.sender_id === currentUserIdRef.current;
+
             setMessages((prev) => {
               if (change.type === 'DELETE') {
                 return prev.filter((m) => m.id !== serverMsgId);
               }
 
-                // Remove any optimistic messages with the same client_msg_id
-                if (row.client_msg_id) {
+              // Always check for duplicates by server ID first
+              if (prev.some((m) => m.id === serverMsgId)) {
+                // Message already exists, don't add again
+                return prev;
+              }
+
+              // If this is our own message, also check by client_msg_id to replace optimistic message
+              if (isOurMessage && row.client_msg_id) {
+                const hasOptimistic = prev.some((m) => (m as any).client_msg_id === row.client_msg_id);
+                if (hasOptimistic) {
+                  // Replace optimistic message with server message
                   const filtered = prev.filter((m) => (m as any).client_msg_id !== row.client_msg_id);
-                  const byId = new Map<number, Message>();
-                  for (const msg of filtered) {
-                    byId.set(msg.id, msg);
-                  }
-                  // Only add if not already present (avoid duplicates)
-                  if (!byId.has(serverMsgId)) {
-                    byId.set(serverMsgId, normalizedMessage);
-                  }
-                  return sortMessagesChronologically(Array.from(byId.values()));
-                } else {
-                  // Check for duplicates by ID
-                  // Also check if this is our own message that we already have
-                  const isOurMessage = normalizedMessage.sender_id === currentUserIdRef.current;
-                  if (isOurMessage && prev.some((m) => m.id === serverMsgId)) {
-                    // If it's our message and we already have it, don't add again
-                    return prev;
-                  }
-                  if (prev.some((m) => m.id === serverMsgId)) {
-                    return prev;
-                  }
-                  const byId = new Map<number, Message>();
-                  for (const msg of prev) {
-                    byId.set(msg.id, msg);
-                  }
-                  byId.set(serverMsgId, normalizedMessage);
-                  return sortMessagesChronologically(Array.from(byId.values()));
+                  return sortMessagesChronologically([...filtered, normalizedMessage]);
                 }
+              }
+
+              // For other messages, check by client_msg_id to avoid duplicates
+              if (row.client_msg_id && prev.some((m) => (m as any).client_msg_id === row.client_msg_id)) {
+                return prev;
+              }
+
+              // Add new message
+              return sortMessagesChronologically([...prev, normalizedMessage]);
             });
 
             setLastServerMsgId(serverMsgId);
@@ -620,18 +606,20 @@ export function useWebSocketDm(threadId: ThreadId | null) {
   }, [transport]);
 
   // Acknowledge message
-  const acknowledgeMessage = useCallback((messageId: number, threadId: ThreadId) => {
+  const acknowledgeMessage = useCallback((messageId: number, threadId: ThreadId, status: 'delivered' | 'read' = 'read') => {
     const normalizedThreadId = assertThreadId(threadId, 'Invalid thread ID');
     const wsClient = wsClientRef.current;
     const canUseWebSocket = transport === 'websocket' && wsClient.getState() === 'authenticated';
 
     if (canUseWebSocket) {
-      wsClient.acknowledgeMessage(messageId, normalizedThreadId);
+      wsClient.acknowledgeMessage(messageId, normalizedThreadId, status);
       return;
     }
 
     void (async () => {
       try {
+        // For read status, use the messages.read endpoint which updates receipts to 'read'
+        // For delivered status, we could use a different endpoint, but for now we'll use read
         await fetch('/api/dms/messages.read', {
           method: 'POST',
           headers: {
