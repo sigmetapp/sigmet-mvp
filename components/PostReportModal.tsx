@@ -38,11 +38,9 @@ export default function PostReportModal({
 
   const handleSubmit = async () => {
     if (!selectedType) {
-      alert('Please select a complaint type');
       return;
     }
     if (!description.trim()) {
-      alert('Please provide a description');
       return;
     }
 
@@ -52,9 +50,8 @@ export default function PostReportModal({
       setSelectedType(null);
       setDescription('');
       onClose();
-      alert('Your complaint has been submitted');
     } catch (error: any) {
-      alert(error?.message || 'Failed to submit complaint');
+      // Error handling is done in parent component
     } finally {
       setSubmitting(false);
     }

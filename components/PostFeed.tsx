@@ -16,6 +16,7 @@ import PostReactions, { ReactionType } from "@/components/PostReactions";
 import PostActionMenu from "@/components/PostActionMenu";
 import PostCommentsBadge from "@/components/PostCommentsBadge";
 import PostReportModal from "@/components/PostReportModal";
+import Toast from "@/components/Toast";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
@@ -150,6 +151,7 @@ export default function PostFeed({
   const [commentFile, setCommentFile] = useState<Record<number, File | null>>({});
   const [viewsChartOpen, setViewsChartOpen] = useState<number | null>(null);
   const [reportModalOpen, setReportModalOpen] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
   const handleEmojiSelect = useCallback((emoji: string) => {
     setText((prev) => prev + emoji);
@@ -927,7 +929,7 @@ export default function PostFeed({
   // Handle post report submission
   const handleReportSubmit = useCallback(async (postId: number, complaintType: 'harassment' | 'misinformation' | 'inappropriate_content', description: string) => {
     if (!uid) {
-      alert('Sign in required');
+      setToast({ message: 'Sign in required', type: 'error' });
       return;
     }
 
@@ -948,7 +950,10 @@ export default function PostFeed({
 
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Failed to submit report');
+      
+      setToast({ message: 'Your complaint has been submitted', type: 'success' });
     } catch (error: any) {
+      setToast({ message: error?.message || 'Failed to submit complaint', type: 'error' });
       throw error;
     }
   }, [uid, getPostUrl]);
@@ -1670,6 +1675,15 @@ export default function PostFeed({
           onSubmit={async (complaintType, description) => {
             await handleReportSubmit(reportModalOpen, complaintType, description);
           }}
+        />
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
         />
       )}
     </div>
