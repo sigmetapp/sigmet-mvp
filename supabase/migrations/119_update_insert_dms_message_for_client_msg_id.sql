@@ -1,6 +1,10 @@
 -- Update insert_dms_message function to support client_msg_id
 -- This allows deduplication of messages sent via WebSocket
 
+-- Drop old function if exists (with old signature - 5 parameters)
+drop function if exists public.insert_dms_message(bigint, uuid, text, text, jsonb);
+
+-- Create new function with client_msg_id support (6 parameters)
 create or replace function public.insert_dms_message(
   p_thread_id bigint,
   p_sender_id uuid,
@@ -86,8 +90,8 @@ begin
 end;
 $$;
 
--- Grant execute permission to authenticated users
-grant execute on function public.insert_dms_message to authenticated;
+-- Grant execute permission to authenticated users (with new signature)
+grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb, text) to authenticated;
 
 -- Update comment
 comment on function public.insert_dms_message is 
