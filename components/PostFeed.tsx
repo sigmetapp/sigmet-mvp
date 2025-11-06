@@ -178,9 +178,9 @@ export default function PostFeed({
   const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
   const [myDirections, setMyDirections] = useState<string[]>([]);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'discuss' | 'direction'>( 'all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'connections' | 'discuss' | 'direction'>( 'all');
 
-  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'discuss' | 'direction', offset = 0, limit = 50) => {
+  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'connections' | 'discuss' | 'direction', offset = 0, limit = 50) => {
     if (offset === 0) {
       setLoading(true);
     } else {
@@ -197,7 +197,14 @@ export default function PostFeed({
     }
     
     // Apply filter based on filterType
-    if (filterType === 'discuss') {
+    if (filterType === 'connections') {
+      // Filter posts that contain mentions (@username pattern)
+      // body must not be null and not empty, and must contain @ followed by word characters
+      query = query
+        .not('body', 'is', null)
+        .not('body', 'eq', '')
+        .ilike('body', '%@%');
+    } else if (filterType === 'discuss') {
       // Filter posts that contain "?" in body (body must not be null and not empty)
       query = query
         .not('body', 'is', null)
@@ -275,7 +282,9 @@ export default function PostFeed({
       return;
     }
     
-    if (activeFilter === 'discuss') {
+    if (activeFilter === 'connections') {
+      loadFeed(null, 'connections', 0, limit);
+    } else if (activeFilter === 'discuss') {
       loadFeed(null, 'discuss', 0, limit);
     } else if (activeFilter === 'direction') {
       if (availableDirections.length > 0) {
@@ -296,7 +305,7 @@ export default function PostFeed({
         if (entries[0].isIntersecting && hasMore && !loadingMore) {
           const currentFilter = !showFilters ? 'all' : activeFilter;
           const currentDirection = activeFilter === 'direction' ? activeDirection : null;
-          loadFeed(currentDirection, currentFilter, posts.length, 10);
+          loadFeed(currentDirection, currentFilter as 'all' | 'connections' | 'discuss' | 'direction', posts.length, 10);
         }
       },
       { threshold: 0.1 }
@@ -935,6 +944,23 @@ export default function PostFeed({
           }`}
         >
           All
+        </button>
+        <button
+          onClick={() => {
+            setActiveFilter('connections');
+            setActiveDirection(null);
+          }}
+          className={`px-3 py-1.5 rounded-full text-sm transition border ${
+            activeFilter === 'connections'
+              ? isLight
+                ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+              : isLight
+              ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
+              : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+          }`}
+        >
+          Connections
         </button>
         <button
           onClick={() => {
