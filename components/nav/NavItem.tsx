@@ -10,9 +10,10 @@ export type NavItemProps = {
   href: string;
   icon?: React.ReactNode;
   badgeCount?: number;
+  bordered?: boolean;
 };
 
-export default function NavItem({ label, href, icon, badgeCount }: NavItemProps) {
+export default function NavItem({ label, href, icon, badgeCount, bordered }: NavItemProps) {
   const pathname = usePathname() || '/';
   const isActive = pathname === href || pathname.startsWith(href + '/');
   const { theme } = useTheme();
@@ -24,6 +25,7 @@ export default function NavItem({ label, href, icon, badgeCount }: NavItemProps)
         href={href}
         aria-current={isActive ? 'page' : undefined}
         className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors outline-none
+          ${bordered ? 'border' : ''}
           ${isActive
             ? isLight
               ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
@@ -32,6 +34,7 @@ export default function NavItem({ label, href, icon, badgeCount }: NavItemProps)
             ? "text-telegram-text-secondary hover:bg-telegram-blue/10 hover:text-telegram-blue"
             : "text-telegram-text-secondary hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
           }`}
+        style={bordered ? { borderColor: 'rgb(0, 255, 200)' } : undefined}
       >
         {/* left accent for active item */}
         {isActive && (

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
 
@@ -216,6 +218,7 @@ function getNextLevel(sw: number, levels: SWLevel[]): SWLevel | null {
 }
 
 export default function SWPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
   const [swData, setSwData] = useState<SWData | null>(null);
@@ -229,13 +232,25 @@ export default function SWPage() {
     commentsCount: number;
     reactionsCount: number;
     invitesCount: number;
+    followersCount: number;
+    connectionsCount: number;
   } | null>(null);
   const [swLevels, setSwLevels] = useState<SWLevel[]>(SW_LEVELS); // Start with default levels
+  const [cityLeaders, setCityLeaders] = useState<Array<{
+    userId: string;
+    sw: number;
+    username: string | null;
+    fullName: string | null;
+    avatarUrl: string | null;
+    city: string | null;
+    country: string | null;
+  }>>([]);
 
   useEffect(() => {
     checkAdmin();
     loadSW();
     loadRecentActivity();
+    loadCityLeaders();
   }, []);
 
   async function loadRecentActivity() {
@@ -258,6 +273,29 @@ export default function SWPage() {
       }
     } catch (error: any) {
       console.error('Error loading recent activity:', error);
+    }
+  }
+
+  async function loadCityLeaders() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) return;
+
+      const response = await fetch('/api/sw/city-leaders', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCityLeaders(data.leaders || []);
+      }
+    } catch (error: any) {
+      console.error('Error loading city leaders:', error);
     }
   }
 
@@ -579,6 +617,55 @@ export default function SWPage() {
               </div>
             </div>
           )}
+
+          {/* City Leaders */}
+          <div className="card p-4">
+            <h3 className="text-lg font-semibold text-white mb-4">🏆 City Leaders</h3>
+            {cityLeaders.length > 0 ? (
+              <div className="space-y-3">
+                {cityLeaders.map((leader, index) => {
+                  const displayName = leader.fullName || leader.username || leader.userId.slice(0, 8);
+                  const username = leader.username || leader.userId.slice(0, 8);
+                  const profileUrl = leader.username ? `/u/${leader.username}` : `/u/${leader.userId}`;
+                  const avatarFallback = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
+                  
+                  return (
+                    <Link
+                      key={leader.userId}
+                      href={profileUrl}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex-shrink-0 w-8 text-center">
+                        <span className="text-white/60 text-sm font-semibold">#{index + 1}</span>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <img
+                          src={leader.avatarUrl || avatarFallback}
+                          alt={displayName}
+                          className="h-12 w-12 rounded-full object-cover border border-white/10"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-white font-medium truncate">{displayName}</div>
+                        <div className="text-white/60 text-sm truncate">@{username}</div>
+                        {leader.city && (
+                          <div className="text-white/50 text-xs mt-1">{leader.city}</div>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <div className="text-white font-semibold">{leader.sw.toLocaleString()}</div>
+                        <div className="text-white/60 text-xs">SW</div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-white/60 text-sm py-4">
+                No city leaders found. Complete your profile with city information to see local leaders.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -614,11 +701,13 @@ export default function SWPage() {
                   </div>
                 </div>
                 <div className="ml-4 flex items-center">
-                  {breakdown.growth.count > 0 ? (
-                    <span className="text-green-400 text-xl">✓</span>
-                  ) : (
-                    <span className="text-white/30 text-xl">○</span>
-                  )}
+                  <Button
+                    onClick={() => router.push('/growth-directions')}
+                    variant="primary"
+                    size="sm"
+                  >
+                    Go to Growth Directions
+                  </Button>
                 </div>
               </div>
 
@@ -661,11 +750,9 @@ export default function SWPage() {
                   </div>
                 </div>
                 <div className="ml-4 flex items-center">
-                  {breakdown.connections.count > 0 ? (
-                    <span className="text-green-400 text-xl">✓</span>
-                  ) : (
-                    <span className="text-white/30 text-xl">○</span>
-                  )}
+                  <span className="text-white/70 text-sm font-medium">
+                    {recentActivity ? `${recentActivity.connectionsCount} today` : '...'}
+                  </span>
                 </div>
               </div>
 
@@ -678,11 +765,9 @@ export default function SWPage() {
                   </div>
                 </div>
                 <div className="ml-4 flex items-center">
-                  {breakdown.followers.count > 0 ? (
-                    <span className="text-green-400 text-xl">✓</span>
-                  ) : (
-                    <span className="text-white/30 text-xl">○</span>
-                  )}
+                  <span className="text-white/70 text-sm font-medium">
+                    {recentActivity ? `${recentActivity.followersCount} today` : '...'}
+                  </span>
                 </div>
               </div>
 

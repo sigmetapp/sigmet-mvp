@@ -11,11 +11,11 @@ export type SidebarProps = {
 const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
 
 const menu = [
+  { label: 'SW', href: '/sw', icon: '🏆', bordered: true },
   { label: 'Feeds', href: '/feed', icon: '📜' },
   { label: 'Page', href: '/page', icon: '👤' },
   { label: 'Connections/Follow', href: '/connections', icon: '🔗' },
   { label: 'Messages', href: '/dms', icon: '✉️', badgeKey: 'unreadDM' as const },
-  { label: 'SW', href: '/sw', icon: '⚖️' },
   { label: 'Growth 8', href: '/growth-directions', icon: '🌱' },
   { label: 'Settings', href: '/profile', icon: '⚙️' },
 ];
@@ -45,7 +45,7 @@ export default function Sidebar({ user }: SidebarProps) {
         : "border-telegram-blue/20 bg-[rgba(15,22,35,0.9)] text-telegram-text"
     }`}>
       <div className="px-3 py-3">
-        <div className={`text-sm font-semibold tracking-wide ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Menu</div>
+        <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Menu</div>
       </div>
       <nav className="px-2">
         <ul className="space-y-1">
@@ -56,6 +56,7 @@ export default function Sidebar({ user }: SidebarProps) {
               href={item.href}
               icon={item.icon}
               badgeCount={item.badgeKey === 'unreadDM' ? unreadDM : undefined}
+              bordered={item.bordered}
             />
           ))}
         </ul>

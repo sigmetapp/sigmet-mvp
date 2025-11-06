@@ -147,6 +147,67 @@ export default async function handler(
       console.warn('Error fetching recent invites:', err);
     }
 
+    // Get followers count in last 24 hours (new followers today)
+    let followersCount = 0;
+    try {
+      const { count, error } = await supabase
+        .from('follows')
+        .select('follower_id', { count: 'exact', head: true })
+        .eq('followee_id', userId)
+        .gte('created_at', oneDayAgoISO);
+      
+      if (!error && count !== null) {
+        followersCount = count;
+      }
+    } catch (err) {
+      console.warn('Error fetching recent followers:', err);
+    }
+
+    // Get connections count in last 24 hours
+    // Count posts created today that mention other users (as a proxy for connection activity)
+    let connectionsCount = 0;
+    try {
+      // Get user's profile to get username for mention patterns
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('user_id', userId)
+        .single();
+
+      if (!profileError && profile && profile.username) {
+        // Get posts created today by the user
+        let { data: todayPosts, error: postsError } = await supabase
+          .from('posts')
+          .select('id, body, text, user_id, author_id')
+          .eq('user_id', userId)
+          .gte('created_at', oneDayAgoISO);
+
+        if (postsError) {
+          // Try author_id if user_id doesn't exist
+          const result = await supabase
+            .from('posts')
+            .select('id, body, text, user_id, author_id')
+            .eq('author_id', userId)
+            .gte('created_at', oneDayAgoISO);
+          todayPosts = result.data;
+          postsError = result.error;
+        }
+
+        if (!postsError && todayPosts && todayPosts.length > 0) {
+          // Count posts that mention other users (contain @username or /u/username patterns)
+          const mentionPattern = /@\w+|\/u\/[\w-]+/i;
+          for (const post of todayPosts) {
+            const body = (post as any).body || (post as any).text || '';
+            if (mentionPattern.test(body)) {
+              connectionsCount++;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching recent connections:', err);
+    }
+
     // Check if profile is complete
     let profileComplete = false;
     try {
@@ -175,6 +236,8 @@ export default async function handler(
       commentsCount,
       reactionsCount,
       invitesCount,
+      followersCount,
+      connectionsCount,
     });
   } catch (error: any) {
     console.error('sw/recent-activity error:', error);
