@@ -11,7 +11,7 @@ export type SidebarProps = {
 const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
 
 const menu = [
-  { label: 'SW', href: '/sw', icon: '🏆', highlighted: true },
+  { label: 'SW', href: '/sw', icon: '🏆', bordered: true },
   { label: 'Feeds', href: '/feed', icon: '📜' },
   { label: 'Page', href: '/page', icon: '👤' },
   { label: 'Connections/Follow', href: '/connections', icon: '🔗' },
@@ -56,7 +56,7 @@ export default function Sidebar({ user }: SidebarProps) {
               href={item.href}
               icon={item.icon}
               badgeCount={item.badgeKey === 'unreadDM' ? unreadDM : undefined}
-              highlighted={item.highlighted}
+              bordered={item.bordered}
             />
           ))}
         </ul>
