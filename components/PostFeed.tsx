@@ -1104,7 +1104,7 @@ export default function PostFeed({
               }`}
               onMouseEnter={() => addViewOnce(p.id)}
               renderContent={() => (
-                <div className="relative z-10 space-y-2 min-h-[100px]">
+                <div className="relative z-10 space-y-2">
                   {/* header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
@@ -1453,28 +1453,28 @@ export default function PostFeed({
                       </div>
                     </div>
                   )}
+                  
+                  {/* Report button - only for other users' posts, positioned at bottom right edge of post card */}
+                  {!isMyPost && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReportModalOpen(p.id);
+                      }}
+                      className={`absolute bottom-2 right-2 p-2 rounded-full transition z-30 ${
+                        isLight
+                          ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
+                          : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
+                      }`}
+                      title="Report post"
+                      data-prevent-card-navigation="true"
+                    >
+                      <Flag className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               )}
-            >
-              {/* Report button - only for other users' posts, positioned at bottom right edge of post card */}
-              {!isMyPost && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setReportModalOpen(p.id);
-                  }}
-                  className={`absolute bottom-0 right-0 p-2 rounded-full transition z-20 translate-x-1/2 translate-y-1/2 ${
-                    isLight
-                      ? 'bg-white/90 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/10 shadow-sm'
-                      : 'bg-black/50 hover:bg-black/70 text-telegram-text-secondary hover:text-red-400 border border-white/10 shadow-sm'
-                  }`}
-                  title="Report post"
-                  data-prevent-card-navigation="true"
-                >
-                  <Flag className="h-4 w-4" />
-                </button>
-              )}
-            </PostCard>
+            />
           );
         })
       )}
