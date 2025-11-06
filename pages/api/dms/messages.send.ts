@@ -132,24 +132,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let msgErr: any = null;
 
     if (typeof (authedClient as any).rpc === 'function') {
-      // Use the version with client_msg_id if available (6 parameters)
-      const rpcParams: any = {
-        p_thread_id: threadId,
-        p_sender_id: user.id,
-        p_body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
-        p_kind: messageKind,
-        p_attachments: attachmentsArray,
-      };
-      
-      // Add client_msg_id if provided (for idempotency)
-      if (client_msg_id) {
-        rpcParams.p_client_msg_id = client_msg_id;
+      try {
+        // Try with client_msg_id first (6 parameters) if provided
+        if (client_msg_id) {
+          const rpcResult = await (authedClient as any).rpc('insert_dms_message', {
+            p_thread_id: threadId,
+            p_sender_id: user.id,
+            p_body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
+            p_kind: messageKind,
+            p_attachments: attachmentsArray,
+            p_client_msg_id: client_msg_id,
+          });
+          
+          if (rpcResult?.data) {
+            message = rpcResult.data;
+          } else if (rpcResult?.error) {
+            msgErr = rpcResult.error;
+          }
+        }
+        
+        // If no message yet (either no client_msg_id or previous call failed), try without it (5 parameters)
+        if (!message && !msgErr) {
+          const rpcResult = await (authedClient as any).rpc('insert_dms_message', {
+            p_thread_id: threadId,
+            p_sender_id: user.id,
+            p_body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
+            p_kind: messageKind,
+            p_attachments: attachmentsArray,
+          });
+          
+          if (rpcResult?.data) {
+            message = rpcResult.data;
+            // If we have client_msg_id but used 5-param version, update it manually in fallback
+            if (client_msg_id && message) {
+              // Will be handled in fallback insert
+            }
+          } else if (rpcResult?.error) {
+            msgErr = rpcResult.error;
+          }
+        }
+      } catch (rpcError: any) {
+        console.error('RPC call error:', rpcError);
+        msgErr = rpcError;
       }
-      
-      const rpcResult = await (authedClient as any).rpc('insert_dms_message', rpcParams);
-
-      message = rpcResult?.data ?? null;
-      msgErr = rpcResult?.error ?? null;
     } else {
       msgErr = { message: 'rpc_not_available' };
     }
@@ -178,19 +203,64 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         insertData.client_msg_id = client_msg_id;
       }
       
+      // Try insert first
       const { data: fallbackMsg, error: fallbackErr } = await fallbackClient
         .from('dms_messages')
         .insert(insertData)
         .select('*')
         .single();
       
-      if (fallbackErr || !fallbackMsg) {
-        return res.status(400).json({ ok: false, error: msgErr?.message || fallbackErr?.message || 'Failed to send' });
+      // If we have client_msg_id and got a unique constraint error, try to fetch existing message
+      if (client_msg_id && fallbackErr && (fallbackErr.code === '23505' || fallbackErr.message?.includes('duplicate'))) {
+        // Unique constraint violation - message already exists, fetch it
+        const { data: existingMsg, error: fetchErr } = await fallbackClient
+          .from('dms_messages')
+          .select('*')
+          .eq('thread_id', threadId)
+          .eq('client_msg_id', client_msg_id)
+          .single();
+        
+        if (existingMsg && !fetchErr) {
+          finalMessage = existingMsg;
+        } else {
+          console.error('Failed to fetch existing message:', fetchErr);
+        }
+      } else if (fallbackMsg) {
+        finalMessage = fallbackMsg;
+      } else if (fallbackErr) {
+        console.error('Fallback insert error:', fallbackErr);
+        console.error('Original RPC error:', msgErr);
+        return res.status(400).json({ 
+          ok: false, 
+          error: msgErr?.message || fallbackErr?.message || 'Failed to send message',
+          details: {
+            rpcError: msgErr,
+            fallbackError: fallbackErr,
+          }
+        });
       }
-      finalMessage = fallbackMsg;
+      
+      if (!finalMessage) {
+        console.error('Fallback insert error: no message returned');
+        console.error('Original RPC error:', msgErr);
+        return res.status(400).json({ 
+          ok: false, 
+          error: msgErr?.message || 'Failed to send message',
+          details: {
+            rpcError: msgErr,
+          }
+        });
+      }
     }
 
-      if (!finalMessage) return res.status(400).json({ ok: false, error: msgErr?.message || 'Failed to send' });
+    if (!finalMessage) {
+      console.error('No message created. RPC error:', msgErr);
+      return res.status(400).json({ 
+        ok: false, 
+        error: msgErr?.message || 'Failed to send message',
+        details: { rpcError: msgErr }
+      });
+    }
 
     // Prepare service role client for parallel operations
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;

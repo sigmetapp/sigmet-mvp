@@ -59,14 +59,16 @@ export async function sendMessage(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('API send error:', errorData);
       upsertLocal({ client_msg_id, status: 'failed' });
-      return { ok: false, error: errorData.error || `Failed to send: ${response.statusText}` };
+      return { ok: false, error: errorData.error || `Failed to send: ${response.statusText}`, details: errorData };
     }
 
     const result = await response.json();
     if (!result.ok || !result.message) {
+      console.error('API send result error:', result);
       upsertLocal({ client_msg_id, status: 'failed' });
-      return { ok: false, error: result.error || 'Failed to send message' };
+      return { ok: false, error: result.error || 'Failed to send message', details: result };
     }
 
     const message = result.message;
