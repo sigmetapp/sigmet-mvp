@@ -135,47 +135,79 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         // Try with client_msg_id first (6 parameters) if provided
         if (client_msg_id) {
-          const rpcResult = await (authedClient as any).rpc('insert_dms_message', {
+          console.log('Trying RPC with client_msg_id:', { threadId, client_msg_id, hasBody: !!body });
+          const rpcParams = {
             p_thread_id: threadId,
             p_sender_id: user.id,
             p_body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
             p_kind: messageKind,
             p_attachments: attachmentsArray,
             p_client_msg_id: client_msg_id,
-          });
+          };
+          console.log('RPC params:', { ...rpcParams, p_attachments: Array.isArray(rpcParams.p_attachments) ? rpcParams.p_attachments.length : 'not array' });
           
-          if (rpcResult?.data) {
-            message = rpcResult.data;
+          const rpcResult = await (authedClient as any).rpc('insert_dms_message', rpcParams);
+          console.log('RPC result (full):', JSON.stringify(rpcResult, null, 2));
+          
+          // Supabase RPC can return data directly or in { data, error } format
+          if (rpcResult?.data !== undefined) {
+            // Format: { data, error }
+            if (rpcResult.data) {
+              message = rpcResult.data;
+            } else if (rpcResult.error) {
+              msgErr = rpcResult.error;
+              console.log('RPC error (with client_msg_id):', msgErr);
+            }
+          } else if (rpcResult && !rpcResult.error) {
+            // Format: data directly
+            message = rpcResult;
           } else if (rpcResult?.error) {
             msgErr = rpcResult.error;
+            console.log('RPC error (with client_msg_id):', msgErr);
           }
         }
         
         // If no message yet (either no client_msg_id or previous call failed), try without it (5 parameters)
         if (!message && !msgErr) {
-          const rpcResult = await (authedClient as any).rpc('insert_dms_message', {
+          console.log('Trying RPC without client_msg_id (5 params)');
+          const rpcParams = {
             p_thread_id: threadId,
             p_sender_id: user.id,
             p_body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
             p_kind: messageKind,
             p_attachments: attachmentsArray,
-          });
+          };
           
-          if (rpcResult?.data) {
-            message = rpcResult.data;
-            // If we have client_msg_id but used 5-param version, update it manually in fallback
-            if (client_msg_id && message) {
-              // Will be handled in fallback insert
+          const rpcResult = await (authedClient as any).rpc('insert_dms_message', rpcParams);
+          console.log('RPC result (5 params, full):', JSON.stringify(rpcResult, null, 2));
+          
+          // Supabase RPC can return data directly or in { data, error } format
+          if (rpcResult?.data !== undefined) {
+            // Format: { data, error }
+            if (rpcResult.data) {
+              message = rpcResult.data;
+              // If we have client_msg_id but used 5-param version, update it manually in fallback
+              if (client_msg_id && message) {
+                // Will be handled in fallback insert
+              }
+            } else if (rpcResult.error) {
+              msgErr = rpcResult.error;
+              console.log('RPC error (5 params):', msgErr);
             }
+          } else if (rpcResult && !rpcResult.error) {
+            // Format: data directly
+            message = rpcResult;
           } else if (rpcResult?.error) {
             msgErr = rpcResult.error;
+            console.log('RPC error (5 params):', msgErr);
           }
         }
       } catch (rpcError: any) {
-        console.error('RPC call error:', rpcError);
+        console.error('RPC call exception:', rpcError);
         msgErr = rpcError;
       }
     } else {
+      console.log('RPC not available, using fallback');
       msgErr = { message: 'rpc_not_available' };
     }
 

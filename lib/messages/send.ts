@@ -44,27 +44,48 @@ export async function sendMessage(
   // Use existing API endpoint which already handles idempotency via insert_dms_message
   // The insert_dms_message function checks for duplicate client_msg_id
   try {
+    const requestBody = {
+      thread_id: Number(threadId),
+      body: body,
+      attachments: attachments.length > 0 ? attachments : [],
+      client_msg_id: client_msg_id, // Pass client_msg_id for idempotency
+    };
+    
+    console.log('Sending message:', { threadId: Number(threadId), hasBody: !!body, attachmentsCount: attachments.length, client_msg_id });
+    
     const response = await fetch('/api/dms/messages.send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        thread_id: Number(threadId),
-        body: body,
-        attachments: attachments.length > 0 ? attachments : [],
-        client_msg_id: client_msg_id, // Pass client_msg_id for idempotency
-      }),
+      body: JSON.stringify(requestBody),
     });
 
+    const responseText = await response.text();
+    console.log('API response status:', response.status);
+    console.log('API response text:', responseText);
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      let errorData: any = {};
+      try {
+        errorData = JSON.parse(responseText);
+      } catch {
+        errorData = { error: responseText || `HTTP ${response.status}` };
+      }
       console.error('API send error:', errorData);
       upsertLocal({ client_msg_id, status: 'failed' });
       return { ok: false, error: errorData.error || `Failed to send: ${response.statusText}`, details: errorData };
     }
 
-    const result = await response.json();
+    let result: any = {};
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      console.error('Failed to parse response as JSON:', responseText);
+      upsertLocal({ client_msg_id, status: 'failed' });
+      return { ok: false, error: 'Invalid response from server', details: { rawResponse: responseText } };
+    }
+
     if (!result.ok || !result.message) {
       console.error('API send result error:', result);
       upsertLocal({ client_msg_id, status: 'failed' });
