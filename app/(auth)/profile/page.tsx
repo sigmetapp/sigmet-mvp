@@ -351,7 +351,7 @@ function ProfileSettings() {
 
         {/* Website */}
         <div>
-          <label className="label text-xs">Website / Blog / Portfolio</label>
+          <label className="label text-xs">Projects / Startups / Portfolio</label>
           <input
             className="input text-sm py-1.5"
             value={profile.website_url || ''}

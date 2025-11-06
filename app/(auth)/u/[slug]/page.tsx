@@ -1343,7 +1343,7 @@ export default function PublicProfilePage() {
                     <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
                       isLight ? 'text-telegram-text-secondary' : 'text-white/60'
                     }`}>
-                      Website / Social
+                      Projects / Startups / Portfolio
                     </div>
                     <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
                       <a 
@@ -1352,7 +1352,11 @@ export default function PublicProfilePage() {
                         rel="noopener noreferrer" 
                         className="hover:underline inline-flex items-center gap-1 break-all"
                       >
-                        <span className="truncate">{profile.website_url}</span>
+                        <span className="truncate">
+                          {profile.website_url && profile.website_url.length > 10 
+                            ? profile.website_url.substring(0, 10) + '...' 
+                            : profile.website_url}
+                        </span>
                         <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
