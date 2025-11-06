@@ -1,12 +1,26 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import type { Message } from '@/lib/messages/types';
 
 type UpsertLocal = (m: Partial<Message> & { client_msg_id: string }) => void;
 type AddIncoming = (m: Message) => void;
 type HasLocal = (clientMsgId: string) => boolean;
+
+function createClientComponentClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    }
+  );
+}
 
 export function useChatChannel(
   threadId: number | string | null,
