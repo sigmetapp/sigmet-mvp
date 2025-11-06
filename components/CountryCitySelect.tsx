@@ -37,19 +37,36 @@ export default function CountryCitySelect({
   }, [countries]);
 
   // Build a lazy cache of all cities once (acceptable size for MVP)
+  // Only load when user starts typing to avoid blocking UI on open
   const [allCities, setAllCities] = useState<Suggestion[] | null>(null);
+  const [loadingCities, setLoadingCities] = useState(false);
   useEffect(() => {
-    if (!open || allCities) return;
-    const list = City.getAllCities()?.slice(0) || [];
-    const suggestions: Suggestion[] = list
-      .map((c) => ({
-        city: c.name,
-        countryCode: c.countryCode,
-        country: countryNameByIso.get(c.countryCode) || c.countryCode,
-      }))
-      .filter((v, i, arr) => arr.findIndex((x) => x.city === v.city && x.countryCode === v.countryCode) === i);
-    setAllCities(suggestions);
-  }, [open, allCities, countryNameByIso]);
+    // Only load cities when user has typed at least 1 character to avoid blocking on open
+    if (!open || allCities || loadingCities || query.trim().length === 0) return;
+    
+    // Load cities asynchronously to prevent UI freeze
+    setLoadingCities(true);
+    
+    // Use Promise to make it truly async and non-blocking
+    Promise.resolve().then(() => {
+      try {
+        const list = City.getAllCities()?.slice(0) || [];
+        const suggestions: Suggestion[] = list
+          .map((c) => ({
+            city: c.name,
+            countryCode: c.countryCode,
+            country: countryNameByIso.get(c.countryCode) || c.countryCode,
+          }))
+          .filter((v, i, arr) => arr.findIndex((x) => x.city === v.city && x.countryCode === v.countryCode) === i);
+        setAllCities(suggestions);
+      } catch (error) {
+        console.error('Error loading cities:', error);
+        setAllCities([]);
+      } finally {
+        setLoadingCities(false);
+      }
+    });
+  }, [open, allCities, countryNameByIso, loadingCities, query]);
 
   // Close on outside click
   useEffect(() => {
@@ -98,7 +115,9 @@ export default function CountryCitySelect({
         />
         {open && (
           <div className="absolute z-10 mt-1 w-full max-h-72 overflow-auto rounded-md bg-[#0b0b0b] border border-white/10 shadow-lg">
-            {!allCities ? (
+            {query.trim().length === 0 ? (
+              <div className="px-3 py-2 text-sm text-white/60">Start typing to search cities…</div>
+            ) : loadingCities || !allCities ? (
               <div className="px-3 py-2 text-sm text-white/60">Loading cities…</div>
             ) : filtered.length === 0 ? (
               <div className="px-3 py-2 text-sm text-white/60">No results</div>

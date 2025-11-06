@@ -26,6 +26,10 @@ type Profile = {
   show_online_status?: boolean | null;
   created_at?: string;
   last_activity_at?: string | null;
+  relationship_status?: string | null;
+  educational_institution_id?: number | null;
+  date_of_birth?: string | null;
+  work_career_status?: string | null;
 };
 
 type SWLevel = {
@@ -421,10 +425,28 @@ export default function PublicProfilePage() {
       // Otherwise, resolve strictly by username
       const { data } = await supabase
         .from('profiles')
-        .select('user_id, username, full_name, bio, country, website_url, facebook_url, instagram_url, twitter_url, avatar_url, directions_selected, show_online_status, created_at, last_activity_at')
+        .select('user_id, username, full_name, bio, country, website_url, facebook_url, instagram_url, twitter_url, avatar_url, directions_selected, show_online_status, created_at, last_activity_at, relationship_status, educational_institution_id, date_of_birth, work_career_status')
         .eq('username', slug)
         .maybeSingle();
-      setProfile(((data as unknown) as Profile) || null);
+      const profileData = ((data as unknown) as Profile) || null;
+      setProfile(profileData);
+      
+      // Load educational institution if exists
+      if (profileData?.educational_institution_id) {
+        const { data: inst } = await supabase
+          .from('educational_institutions')
+          .select('name, type')
+          .eq('id', profileData.educational_institution_id)
+          .maybeSingle();
+        if (inst) {
+          setEducationalInstitution({ name: inst.name, type: inst.type });
+        } else {
+          setEducationalInstitution(null);
+        }
+      } else {
+        setEducationalInstitution(null);
+      }
+      
       setLoadingProfile(false);
     })();
   }, [slug, router]);
@@ -806,6 +828,9 @@ export default function PublicProfilePage() {
   // Directions from growth-directions API
   const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string; isPrimary: boolean }>>([]);
   const [loadingDirections, setLoadingDirections] = useState(true);
+  
+  // Educational institution data
+  const [educationalInstitution, setEducationalInstitution] = useState<{ name: string; type: string } | null>(null);
   
   // Load directions from growth-directions API
   useEffect(() => {
@@ -1235,9 +1260,9 @@ export default function PublicProfilePage() {
         )}
       </div>
 
-      {/* Info and Stats blocks side by side */}
+      {/* Info, Additional Info, and Stats blocks side by side */}
       {!loadingProfile && profile && (
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid gap-6 md:grid-cols-[2fr_1fr_1fr]">
           {/* Info block - Bio, Location, Website, Joined */}
           <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-5">
             <div className="space-y-4">
@@ -1318,7 +1343,7 @@ export default function PublicProfilePage() {
                     <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
                       isLight ? 'text-telegram-text-secondary' : 'text-white/60'
                     }`}>
-                      Website / Social
+                      Projects / Startups / Portfolio
                     </div>
                     <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
                       <a 
@@ -1327,7 +1352,11 @@ export default function PublicProfilePage() {
                         rel="noopener noreferrer" 
                         className="hover:underline inline-flex items-center gap-1 break-all"
                       >
-                        <span className="truncate">{profile.website_url}</span>
+                        <span className="truncate">
+                          {profile.website_url && profile.website_url.length > 10 
+                            ? profile.website_url.substring(0, 10) + '...' 
+                            : profile.website_url}
+                        </span>
                         <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
@@ -1361,6 +1390,124 @@ export default function PublicProfilePage() {
                         month: '2-digit', 
                         year: 'numeric' 
                       })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Additional Info block - Relationship Status, Place of Study, Date of birth, Work & Career */}
+          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-7">
+            <div className="space-y-4">
+              {/* Relationship Status */}
+              {profile.relationship_status && (
+                <div className="flex items-start gap-3">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-rose-500/20 to-pink-500/20 border border-rose-500/30' 
+                      : 'bg-gradient-to-br from-rose-500/15 to-pink-500/15 border border-rose-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Relationship Status
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                      {profile.relationship_status === 'single' ? 'Single' :
+                       profile.relationship_status === 'looking' ? 'Looking' :
+                       profile.relationship_status === 'dating' ? 'Dating' :
+                       profile.relationship_status === 'married' ? 'Married' :
+                       profile.relationship_status}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Place of Study */}
+              {educationalInstitution && (
+                <div className="flex items-start gap-3">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-indigo-500/20 to-blue-500/20 border border-indigo-500/30' 
+                      : 'bg-gradient-to-br from-indigo-500/15 to-blue-500/15 border border-indigo-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Place of Study
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                      {educationalInstitution.name} ({educationalInstitution.type === 'school' ? 'School' : educationalInstitution.type === 'college' ? 'College' : 'University'})
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Date of birth */}
+              {profile.date_of_birth && (
+                <div className="flex items-start gap-3">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30' 
+                      : 'bg-gradient-to-br from-cyan-500/15 to-blue-500/15 border border-cyan-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Date of birth
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                      {new Date(profile.date_of_birth).toLocaleDateString('en-GB', { 
+                        day: '2-digit', 
+                        month: '2-digit', 
+                        year: 'numeric' 
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Work & Career */}
+              {profile.work_career_status && (
+                <div className="flex items-start gap-3">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isLight 
+                      ? 'bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30' 
+                      : 'bg-gradient-to-br from-green-500/15 to-emerald-500/15 border border-green-500/30'
+                  }`}>
+                    <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                    }`}>
+                      Work & Career
+                    </div>
+                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                      {profile.work_career_status === 'employed' ? 'Employed' :
+                       profile.work_career_status === 'entrepreneur' ? 'Entrepreneur' :
+                       profile.work_career_status === 'student' ? 'Student' :
+                       profile.work_career_status === 'looking_for_opportunities' ? 'Looking for Opportunities' :
+                       profile.work_career_status === 'unemployed' ? 'Unemployed' :
+                       profile.work_career_status}
                     </div>
                   </div>
                 </div>
