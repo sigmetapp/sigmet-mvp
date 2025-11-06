@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
 import { assertThreadId } from '@/lib/dm/threadId';
 import { inferMessageKind } from '@/lib/dm/messageKind';
+import { broadcastDmMessage } from '@/lib/dm/realtimeServer';
 
 // Simple in-memory rate limiter for development only.
 // For production, use a centralized store like Redis (INCR + EXPIRE)
@@ -182,7 +183,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       finalMessage = fallbackMsg;
     }
 
-    if (!finalMessage) return res.status(400).json({ ok: false, error: msgErr?.message || 'Failed to send' });
+      if (!finalMessage) return res.status(400).json({ ok: false, error: msgErr?.message || 'Failed to send' });
 
     // Thread update is handled by the function, but try to update anyway if function failed
     // Use service role client for update to bypass RLS
@@ -202,7 +203,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           last_message_at: finalMessage.created_at,
         })
         .eq('id', threadId);
-    } catch {}
+      } catch {}
 
     // Attempt to fetch receipts created by trigger (best-effort)
     let messageWithReceipts = finalMessage;
@@ -222,6 +223,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .single();
       if (enriched) messageWithReceipts = enriched as typeof message & { receipts?: any[] };
     } catch {}
+
+      // Broadcast to realtime subscribers (Supabase fallback for Vercel and similar environments)
+      try {
+        const payload = messageWithReceipts || finalMessage;
+        if (payload) {
+          await broadcastDmMessage(threadId, {
+            ...payload,
+            thread_id: threadId,
+          });
+        }
+      } catch (broadcastErr) {
+        console.error('DM broadcast error:', broadcastErr);
+      }
 
     // Push notifications (when recipient tab is not active):
     // For each user in `otherIds`, call Edge Function `push` with

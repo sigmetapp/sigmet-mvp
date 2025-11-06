@@ -1,22 +1,14 @@
 import { supabase } from '@/lib/supabaseClient';
-
-export const DM_ATTACHMENTS_BUCKET = 'dm-attachments';
+import { inferAttachmentType, type AttachmentType, DM_ATTACHMENTS_BUCKET } from '@/lib/dm/attachmentUtils';
 
 export type DmAttachment = {
-  type: 'image' | 'video' | 'audio' | 'file';
+  type: AttachmentType;
   path: string; // Storage path within dm-attachments bucket
   size: number; // Bytes
   mime: string; // e.g., image/png
   width?: number;
   height?: number;
 };
-
-function inferAttachmentType(mime: string): DmAttachment['type'] {
-  if (mime.startsWith('image/')) return 'image';
-  if (mime.startsWith('video/')) return 'video';
-  if (mime.startsWith('audio/')) return 'audio';
-  return 'file';
-}
 
 async function getImageDimensions(file: File): Promise<{ width: number; height: number } | undefined> {
   if (!file.type.startsWith('image/')) return undefined;
@@ -36,92 +28,55 @@ async function getImageDimensions(file: File): Promise<{ width: number; height: 
   });
 }
 
-function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
-}
-
-function getExtensionFromName(name: string): string {
-  const idx = name.lastIndexOf('.');
-  return idx >= 0 ? name.slice(idx) : '';
-}
-
 export async function uploadAttachment(file: File): Promise<DmAttachment> {
   const mime = file.type || 'application/octet-stream';
   const size = file.size;
   const type = inferAttachmentType(mime);
 
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData?.user?.id || 'anon';
+  // Request signed upload URL from server to avoid client-side RLS issues
+  const signResponse = await fetch('/api/dms/attachments.sign', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType: mime,
+      fileSize: size,
+    }),
+  });
 
-  // Try to upload to dm-attachments bucket first, fallback to assets if not found
-  const now = new Date();
-  const yyyy = String(now.getUTCFullYear());
-  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const ext = getExtensionFromName(sanitizeFilename(file.name)) || (mime && `.${mime.split('/')[1]}`) || '';
-  const uuid = (typeof crypto !== 'undefined' && 'randomUUID' in crypto) ? crypto.randomUUID() : `${now.getTime()}-${Math.random().toString(36).slice(2, 10)}`;
-  const path = `dms/${userId}/${yyyy}/${mm}/${uuid}${ext}`;
-
-  // Try dm-attachments bucket first
-  let uploadErr = null;
-  let bucketName = DM_ATTACHMENTS_BUCKET;
-  
-  let { error } = await supabase.storage
-    .from(DM_ATTACHMENTS_BUCKET)
-    .upload(path, file, { contentType: mime, upsert: false });
-
-  uploadErr = error;
-
-  // If bucket not found, try assets bucket as fallback
-  if (uploadErr && (
-    uploadErr.message?.toLowerCase().includes('not found') || 
-    uploadErr.message?.toLowerCase().includes('bucket not found') ||
-    uploadErr.statusCode === '404' ||
-    uploadErr.statusCode === 404 ||
-    uploadErr.message?.includes('The resource was not found')
-  )) {
-    bucketName = 'assets';
-    const assetsPath = `dms/${userId}/${yyyy}/${mm}/${uuid}${ext}`;
-    const result = await supabase.storage
-      .from('assets')
-      .upload(assetsPath, file, { contentType: mime, upsert: false });
-    
-    if (!result.error) {
-      uploadErr = null;
-      // Use assets bucket path
-      const finalPath = assetsPath;
-      
-      const dims = await getImageDimensions(file);
-
-      const attachment: DmAttachment = {
-        type,
-        path: finalPath,
-        size,
-        mime,
-        ...(dims ? { width: dims.width, height: dims.height } : {}),
-      };
-
-      return attachment;
-    } else {
-      // If assets bucket also fails, update error
-      uploadErr = result.error;
-    }
+  if (!signResponse.ok) {
+    const errorBody = await signResponse.json().catch(() => ({}));
+    throw new Error(errorBody.error || 'Failed to prepare attachment upload. Please try again.');
   }
 
-  if (uploadErr) {
-    throw new Error(uploadErr.message || 'Failed to upload file. Please try again.');
+  const { bucket, path, token } = (await signResponse.json()) as {
+    bucket: string;
+    path: string;
+    token: string;
+  };
+
+  const { error: uploadError } = await supabase.storage
+    .from(bucket)
+    .uploadToSignedUrl(path, token, file, {
+      contentType: mime,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message || 'Failed to upload file. Please try again.');
   }
 
   const dims = await getImageDimensions(file);
 
-  const attachment: DmAttachment = {
+  return {
     type,
     path,
     size,
     mime,
     ...(dims ? { width: dims.width, height: dims.height } : {}),
   };
-
-  return attachment;
 }
 
 export async function getSignedUrlForPath(path: string, expiresInSeconds = 60): Promise<string> {
