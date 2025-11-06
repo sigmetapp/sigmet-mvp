@@ -360,17 +360,31 @@ export default function DmsChatWindow({ partnerId }: Props) {
     const { getWebSocketClient } = require('@/lib/dm/websocket');
     const wsClient = getWebSocketClient();
     
-    const handleAck = (event: any) => {
+    const handleAck = async (event: any) => {
       if (event.type === 'ack' && event.thread_id === thread.id) {
         // Only update receipts for messages sent by current user
         // The ack event comes from the partner, so we update the receipt status
-        setMessageReceipts((prev) => {
-          const updated = new Map(prev);
-          // Check if this is a receipt for one of our messages
-          // The status should be 'delivered' or 'read' from the partner
-          updated.set(event.message_id, event.status || 'delivered');
-          return updated;
-        });
+        // Verify that this receipt is for a message sent by current user
+        try {
+          const { data: message } = await supabase
+            .from('dms_messages')
+            .select('sender_id')
+            .eq('id', event.message_id)
+            .eq('sender_id', currentUserId)
+            .maybeSingle();
+          
+          if (message) {
+            // This receipt is for a message sent by current user
+            setMessageReceipts((prev) => {
+              const updated = new Map(prev);
+              // The status should be 'delivered' or 'read' from the partner
+              updated.set(event.message_id, event.status || 'delivered');
+              return updated;
+            });
+          }
+        } catch (err) {
+          console.error('Error verifying ack message:', err);
+        }
       }
     };
 
@@ -397,6 +411,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
     // Also subscribe to realtime updates for receipts
     // This ensures we get updates even if WebSocket ack events don't work
+    // We need to filter receipts for messages sent by current user, where partner is the recipient
+    // So we need to check: receipt.user_id = partnerId AND message.sender_id = currentUserId
+    // Since we can't filter by message sender in the channel filter, we'll filter in the handler
     const receiptsChannel = supabase
       .channel(`receipts:${thread.id}`)
       .on(
@@ -407,15 +424,29 @@ export default function DmsChatWindow({ partnerId }: Props) {
           table: 'dms_message_receipts',
           filter: `user_id=eq.${partnerId}`,
         },
-        (payload) => {
+        async (payload) => {
           const receipt = payload.new as any;
           if (receipt && receipt.message_id) {
-            // Only update if this is for a message sent by current user
-            setMessageReceipts((prev) => {
-              const updated = new Map(prev);
-              updated.set(receipt.message_id, receipt.status || 'delivered');
-              return updated;
-            });
+            // Verify that this receipt is for a message sent by current user
+            try {
+              const { data: message } = await supabase
+                .from('dms_messages')
+                .select('sender_id')
+                .eq('id', receipt.message_id)
+                .eq('sender_id', currentUserId)
+                .maybeSingle();
+              
+              if (message) {
+                // This receipt is for a message sent by current user
+                setMessageReceipts((prev) => {
+                  const updated = new Map(prev);
+                  updated.set(receipt.message_id, receipt.status || 'delivered');
+                  return updated;
+                });
+              }
+            } catch (err) {
+              console.error('Error verifying receipt message:', err);
+            }
           }
         }
       )

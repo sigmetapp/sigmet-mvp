@@ -206,6 +206,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .eq('id', threadId);
       } catch {}
 
+    // Create receipts for all recipients (except sender)
+    // This allows tracking delivery/read status for the sender
+    if (otherIds.length > 0) {
+      try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const receiptClient = serviceRoleKey 
+          ? createClient(url, serviceRoleKey, {
+              auth: { persistSession: false, autoRefreshToken: false },
+            })
+          : authedClient;
+        
+        // Create receipts for all recipients with initial status 'sent'
+        // Status will be updated to 'delivered' when recipient receives the message
+        // and to 'read' when recipient reads the message
+        const receipts = otherIds.map((recipientId) => ({
+          message_id: finalMessage.id,
+          user_id: recipientId,
+          status: 'sent',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+        
+        await receiptClient
+          .from('dms_message_receipts')
+          .upsert(receipts, {
+            onConflict: 'message_id,user_id',
+            ignoreDuplicates: false,
+          });
+      } catch (receiptErr) {
+        console.error('Error creating receipts:', receiptErr);
+        // Don't fail the request if receipts creation fails
+      }
+    }
+
     // Attempt to fetch receipts created by trigger (best-effort)
     let messageWithReceipts = finalMessage;
     try {

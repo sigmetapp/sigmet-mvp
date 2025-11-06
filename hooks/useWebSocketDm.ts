@@ -247,6 +247,12 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               } else {
                 setMessages((prev) => {
                   // Check for duplicates by both ID and client_msg_id
+                  // Also check if this is our own message that we already have
+                  const isOurMessage = normalizedMessage.sender_id === currentUserIdRef.current;
+                  if (isOurMessage && prev.some((m) => m.id === serverMsgId)) {
+                    // If it's our message and we already have it, don't add again
+                    return prev;
+                  }
                   if (prev.some((m) => m.id === serverMsgId || (m as any).client_msg_id === normalizedMessage.client_msg_id)) {
                     return prev;
                   }
@@ -256,6 +262,12 @@ export function useWebSocketDm(threadId: ThreadId | null) {
             } else {
               setMessages((prev) => {
                 // Check for duplicates by ID
+                // Also check if this is our own message that we already have
+                const isOurMessage = normalizedMessage.sender_id === currentUserIdRef.current;
+                if (isOurMessage && prev.some((m) => m.id === serverMsgId)) {
+                  // If it's our message and we already have it, don't add again
+                  return prev;
+                }
                 if (prev.some((m) => m.id === serverMsgId)) {
                   return prev;
                 }
@@ -406,10 +418,19 @@ export function useWebSocketDm(threadId: ThreadId | null) {
                   for (const msg of filtered) {
                     byId.set(msg.id, msg);
                   }
-                  byId.set(serverMsgId, normalizedMessage);
+                  // Only add if not already present (avoid duplicates)
+                  if (!byId.has(serverMsgId)) {
+                    byId.set(serverMsgId, normalizedMessage);
+                  }
                   return sortMessagesChronologically(Array.from(byId.values()));
                 } else {
                   // Check for duplicates by ID
+                  // Also check if this is our own message that we already have
+                  const isOurMessage = normalizedMessage.sender_id === currentUserIdRef.current;
+                  if (isOurMessage && prev.some((m) => m.id === serverMsgId)) {
+                    // If it's our message and we already have it, don't add again
+                    return prev;
+                  }
                   if (prev.some((m) => m.id === serverMsgId)) {
                     return prev;
                   }
