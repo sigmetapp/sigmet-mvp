@@ -57,7 +57,9 @@ export function useWebSocketDm(threadId: ThreadId | null) {
   const [partnerId, setPartnerId] = useState<string | null>(null);
   
   // Track sent message IDs to filter out own echoes
+  // Also track timeouts to clear filters
   const sentClientMsgIdsRef = useRef<Set<string>>(new Set());
+  const filterTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   
   const wsClientRef = useRef(getWebSocketClient());
   const authTokenRef = useRef<string | null>(null);
@@ -224,7 +226,44 @@ export function useWebSocketDm(threadId: ThreadId | null) {
             const clientMsgId = message.client_msg_id ?? null;
             
             // Filter out own messages by client_msg_id (avoid echo)
+            // This prevents duplicate from WebSocket echo
             if (clientMsgId && sentClientMsgIdsRef.current.has(clientMsgId)) {
+              // If we have a local-echo, replace it with real message
+              setMessages((prev) => {
+                const hasLocalEcho = prev.some((m) => 
+                  (m as any).client_msg_id === clientMsgId && m.id === -1
+                );
+                
+                if (hasLocalEcho) {
+                  const normalizedMessage: Message = {
+                    id: serverMsgId,
+                    thread_id: normalizedThreadId,
+                    sender_id: message.sender_id,
+                    kind: message.kind || 'text',
+                    body: message.body,
+                    attachments: Array.isArray(message.attachments) ? message.attachments : [],
+                    created_at: message.created_at,
+                    edited_at: message.edited_at || null,
+                    deleted_at: message.deleted_at || null,
+                    sequence_number: typeof sequenceNumber === 'number' ? sequenceNumber : null,
+                    client_msg_id: clientMsgId,
+                  };
+                  
+                  // Replace local-echo with real message
+                  return sortMessagesChronologically(
+                    prev.map((m) => 
+                      (m as any).client_msg_id === clientMsgId && m.id === -1
+                        ? normalizedMessage
+                        : m
+                    )
+                  );
+                }
+                
+                // No local-echo, but message is filtered (already processed)
+                return prev;
+              });
+              
+              setLastServerMsgId(serverMsgId);
               return;
             }
             
@@ -266,13 +305,15 @@ export function useWebSocketDm(threadId: ThreadId | null) {
                   );
                 }
                 
-                // Check if message with this client_msg_id already exists
-                if (prev.some((m) => (m as any).client_msg_id === normalizedMessage.client_msg_id)) {
+                // Check if message with this client_msg_id already exists (not local-echo)
+                if (prev.some((m) => 
+                  (m as any).client_msg_id === normalizedMessage.client_msg_id && m.id !== -1
+                )) {
                   return prev;
                 }
               }
 
-              // Add new message
+              // Add new message (incoming from other user)
               return sortMessagesChronologically([...prev, normalizedMessage]);
             });
 
@@ -307,14 +348,22 @@ export function useWebSocketDm(threadId: ThreadId | null) {
                 return msg;
               });
               
-              // Remove from filter after persistence (message is now in DB)
-              // Allow some time for any delayed WebSocket events, then remove filter
-              setTimeout(() => {
-                sentClientMsgIdsRef.current.delete(event.client_msg_id);
-              }, 1000);
-              
               return updated;
             });
+            
+            // Clear timeout if it exists
+            const timeout = filterTimeoutsRef.current.get(event.client_msg_id);
+            if (timeout) {
+              clearTimeout(timeout);
+              filterTimeoutsRef.current.delete(event.client_msg_id);
+            }
+            
+            // Remove from filter after persistence (message is now in DB)
+            // Keep filter for a bit longer to catch any delayed WebSocket events
+            // But clear it eventually to allow new messages with same client_msg_id (shouldn't happen, but safety)
+            setTimeout(() => {
+              sentClientMsgIdsRef.current.delete(event.client_msg_id);
+            }, 3000); // 3 seconds to catch delayed events
           }
         };
 
@@ -557,6 +606,21 @@ export function useWebSocketDm(threadId: ThreadId | null) {
     
     // Track this client_msg_id to filter out own echoes
     sentClientMsgIdsRef.current.add(clientMsgId);
+    
+    // Clear any existing timeout for this client_msg_id (shouldn't happen, but safety)
+    const existingTimeout = filterTimeoutsRef.current.get(clientMsgId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+    
+    // Set timeout to clear filter if message_persisted doesn't arrive (fallback)
+    // This prevents filter from staying active forever
+    const filterTimeout = setTimeout(() => {
+      sentClientMsgIdsRef.current.delete(clientMsgId);
+      filterTimeoutsRef.current.delete(clientMsgId);
+    }, 5000); // 5 seconds timeout
+    
+    filterTimeoutsRef.current.set(clientMsgId, filterTimeout);
 
     // Create local-echo message with 'sending' status
     const localEchoMessage: Message = {
@@ -593,6 +657,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
         
         // Status will be updated via message_ack and message_persisted events
         // The WebSocket client handles status updates internally
+        // Filter will be cleared by handleMessagePersisted or after timeout
         
         return result;
       } catch (error) {
@@ -601,6 +666,11 @@ export function useWebSocketDm(threadId: ThreadId | null) {
         // Remove local echo on error
         setMessages((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
         sentClientMsgIdsRef.current.delete(clientMsgId);
+        const timeout = filterTimeoutsRef.current.get(clientMsgId);
+        if (timeout) {
+          clearTimeout(timeout);
+          filterTimeoutsRef.current.delete(clientMsgId);
+        }
         // Continue to fallback below
       }
     }
@@ -615,28 +685,32 @@ export function useWebSocketDm(threadId: ThreadId | null) {
           (m as any).client_msg_id === clientMsgId && m.id === -1
         );
         
-        if (hasLocalEcho) {
-          // Replace local-echo with real message
-          return sortMessagesChronologically(
-            prev.map((msg) => {
-              if ((msg as any).client_msg_id === clientMsgId && msg.id === -1) {
-                return {
-                  ...savedMessage,
-                  client_msg_id: clientMsgId,
-                };
-              }
-              return msg;
-            })
-          );
-        }
-        
-        // If no local-echo, check if message already exists
-        if (prev.some((m) => m.id === savedMessage.id || (m as any).client_msg_id === clientMsgId)) {
-          return prev;
-        }
-        
-        // Add message if it doesn't exist
-        return sortMessagesChronologically([...prev, { ...savedMessage, client_msg_id: clientMsgId }]);
+                if (hasLocalEcho) {
+                  // Replace local-echo with real message
+                  const updated = sortMessagesChronologically(
+                    prev.map((msg) => {
+                      if ((msg as any).client_msg_id === clientMsgId && msg.id === -1) {
+                        return {
+                          ...savedMessage,
+                          client_msg_id: clientMsgId,
+                        };
+                      }
+                      return msg;
+                    })
+                  );
+                  
+                  // Keep filter active to prevent WebSocket echo
+                  // It will be cleared by handleMessagePersisted or timeout
+                  return updated;
+                }
+                
+                // If no local-echo, check if message already exists
+                if (prev.some((m) => m.id === savedMessage.id || (m as any).client_msg_id === clientMsgId)) {
+                  return prev;
+                }
+                
+                // Add message if it doesn't exist (shouldn't happen in normal flow)
+                return sortMessagesChronologically([...prev, { ...savedMessage, client_msg_id: clientMsgId }]);
       });
 
       setLastServerMsgId(savedMessage.id);
@@ -648,6 +722,11 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       // Remove local echo on error
       setMessages((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
       sentClientMsgIdsRef.current.delete(clientMsgId);
+      const timeout = filterTimeoutsRef.current.get(clientMsgId);
+      if (timeout) {
+        clearTimeout(timeout);
+        filterTimeoutsRef.current.delete(clientMsgId);
+      }
       throw error;
     }
   }, [transport]);
