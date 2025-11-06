@@ -482,32 +482,65 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     setUpdatingPost(true);
     try {
       const updatedAt = new Date().toISOString();
+      const updateData: any = { 
+        body: value || null,
+      };
+      
+      // Add updated_at if the field exists
+      updateData.updated_at = updatedAt;
+      
       const { data, error } = await supabase
         .from<PostRecord>('posts')
-        .update({ 
-          body: value || null,
-          updated_at: updatedAt
-        })
+        .update(updateData)
         .eq('id', postId)
         .select('*')
         .maybeSingle();
-      if (error || !data) throw error;
+      if (error || !data) {
+        console.error('Failed to update post:', error);
+        throw error;
+      }
+      console.log('Post updated successfully:', data);
       setPost(data);
       setEditing(false);
       
       // Create system comment about post update
       const formattedDate = formatDateWithTodayYesterday(updatedAt);
       const systemCommentBody = `Post updated on ${formattedDate}`;
-      const { error: commentError } = await supabase
+      
+      // Try both user_id and author_id in case the schema uses different field names
+      const commentData: any = {
+        post_id: postId,
+        body: systemCommentBody,
+      };
+      
+      // Check which field name is used in comments table
+      // First try user_id (as used in the code)
+      commentData.user_id = uid;
+      
+      const { error: commentError, data: commentDataResult } = await supabase
         .from('comments')
-        .insert({
-          post_id: postId,
-          user_id: uid,
-          body: systemCommentBody,
-        });
+        .insert(commentData)
+        .select()
+        .single();
+        
       if (commentError) {
-        console.error('Failed to create system comment', commentError);
-        // Don't throw - post update was successful
+        // If user_id failed, try author_id
+        console.log('Failed with user_id, trying author_id:', commentError);
+        const commentDataWithAuthorId: any = {
+          post_id: postId,
+          body: systemCommentBody,
+          author_id: uid,
+        };
+        const { error: commentError2 } = await supabase
+          .from('comments')
+          .insert(commentDataWithAuthorId);
+        if (commentError2) {
+          console.error('Failed to create system comment with both user_id and author_id:', commentError2);
+          // Don't throw - post update was successful
+        } else {
+          // Reload comments to show the new system comment
+          await loadComments();
+        }
       } else {
         // Reload comments to show the new system comment
         await loadComments();
@@ -652,9 +685,11 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   );
 
   const formattedDate = useMemo(() => {
-    if (!post?.created_at) return '';
+    // Use updated_at if available, otherwise use created_at
+    const dateString = post?.updated_at || post?.created_at;
+    if (!dateString) return '';
     try {
-      const date = new Date(post.created_at);
+      const date = new Date(dateString);
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const yesterday = new Date(today);
@@ -684,9 +719,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         timeStyle: 'short',
       }).format(date);
     } catch (error) {
-      return new Date(post.created_at).toLocaleString('en-US');
+      return new Date(dateString).toLocaleString('en-US');
     }
-  }, [post?.created_at]);
+  }, [post?.created_at, post?.updated_at]);
 
   const commentCount = comments.length || initialPost.commentCount || 0;
   const avatar = authorProfile?.avatar_url || AVATAR_FALLBACK;
@@ -719,7 +754,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         id: String(post.id),
         author: username,
         content: post.body ?? '',
-        createdAt: post.created_at,
+        createdAt: post.updated_at || post.created_at,
         commentsCount: undefined, // Hide comment count in PostCard header
       }}
       disableNavigation
