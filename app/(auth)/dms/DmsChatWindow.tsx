@@ -355,43 +355,78 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   // Listen for message acknowledgments and update receipts
   useEffect(() => {
-    if (!thread?.id || !currentUserId) return;
+    if (!thread?.id || !currentUserId || !partnerId) return;
 
     const { getWebSocketClient } = require('@/lib/dm/websocket');
     const wsClient = getWebSocketClient();
     
     const handleAck = (event: any) => {
       if (event.type === 'ack' && event.thread_id === thread.id) {
+        // Only update receipts for messages sent by current user
+        // The ack event comes from the partner, so we update the receipt status
         setMessageReceipts((prev) => {
           const updated = new Map(prev);
-          updated.set(event.message_id, event.status);
+          // Check if this is a receipt for one of our messages
+          // The status should be 'delivered' or 'read' from the partner
+          updated.set(event.message_id, event.status || 'delivered');
           return updated;
         });
       }
     };
 
-      const handleMessage = (event: any) => {
-        if (event.type === 'message' && event.thread_id === thread.id) {
-          const message = event.message as any;
-          // If this is our message, mark it as sent on server confirmation
-          if (message.sender_id === currentUserId) {
-            setMessageReceipts((prev) => {
-              const updated = new Map(prev);
+    const handleMessage = (event: any) => {
+      if (event.type === 'message' && event.thread_id === thread.id) {
+        const message = event.message as any;
+        // If this is our message, mark it as sent on server confirmation
+        // Receipts will be updated when partner acknowledges
+        if (message.sender_id === currentUserId) {
+          setMessageReceipts((prev) => {
+            const updated = new Map(prev);
+            // Initially mark as 'sent', will be updated to 'delivered'/'read' when partner acknowledges
+            if (!updated.has(event.server_msg_id)) {
               updated.set(event.server_msg_id, 'sent');
-              return updated;
-            });
-          }
+            }
+            return updated;
+          });
         }
-      };
+      }
+    };
 
     const unsubAck = wsClient.on('ack', handleAck);
     const unsubMessage = wsClient.on('message', handleMessage);
 
+    // Also subscribe to realtime updates for receipts
+    // This ensures we get updates even if WebSocket ack events don't work
+    const receiptsChannel = supabase
+      .channel(`receipts:${thread.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'dms_message_receipts',
+          filter: `user_id=eq.${partnerId}`,
+        },
+        (payload) => {
+          const receipt = payload.new as any;
+          if (receipt && receipt.message_id) {
+            // Only update if this is for a message sent by current user
+            setMessageReceipts((prev) => {
+              const updated = new Map(prev);
+              updated.set(receipt.message_id, receipt.status || 'delivered');
+              return updated;
+            });
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       unsubAck();
       unsubMessage();
+      void supabase.removeChannel(receiptsChannel);
     };
-  }, [thread?.id, currentUserId]);
+  }, [thread?.id, currentUserId, partnerId]);
 
   // Get or create thread and load messages
   useEffect(() => {
@@ -447,16 +482,22 @@ export default function DmsChatWindow({ partnerId }: Props) {
         const sorted = sortMessagesChronologically(messagesData);
         oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
         
-        // Load message receipts for delivered/read status
-        if (sorted.length > 0 && currentUserId) {
+        // Load message receipts for messages sent by current user (to show partner's read status)
+        if (sorted.length > 0 && currentUserId && partnerId) {
           try {
-            const messageIds = sorted.map(m => m.id);
-            const { data: receipts } = await supabase
-              .from('dms_message_receipts')
-              .select('message_id, status')
-              .in('message_id', messageIds)
-              .eq('user_id', currentUserId);
+            // Get message IDs of messages sent by current user
+            const myMessageIds = sorted
+              .filter(m => m.sender_id === currentUserId)
+              .map(m => m.id);
             
+            if (myMessageIds.length > 0) {
+              // Load receipts where partner is the recipient (user_id = partnerId)
+              const { data: receipts } = await supabase
+                .from('dms_message_receipts')
+                .select('message_id, status')
+                .in('message_id', myMessageIds)
+                .eq('user_id', partnerId);
+              
               if (receipts) {
                 const receiptsMap = new Map<number, 'sent' | 'delivered' | 'read'>();
                 for (const receipt of receipts) {
@@ -465,6 +506,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                 }
                 setMessageReceipts(receiptsMap);
               }
+            }
           } catch (err) {
             console.error('Error loading message receipts:', err);
           }
@@ -1031,7 +1073,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                   const isRealMessage = msg.id < 1000000000;
                                   
                                   if (receiptStatus === 'read' && isRealMessage) {
-                                    // 2 галочки - прочитано (двойная галочка)
+                                    // 2 галочки - прочитано (двойная галочка) - синие
                                     return (
                                       <svg
                                         xmlns="http://www.w3.org/2000/svg"
@@ -1045,15 +1087,30 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                         <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
                                       </svg>
                                     );
-                                  } else if ((receiptStatus === 'delivered' || (isRealMessage && receiptStatus !== 'read'))) {
-                                    // 1 галочка - доставлено (одинарная галочка)
+                                  } else if (receiptStatus === 'delivered' && isRealMessage) {
+                                    // 1 галочка - доставлено (одинарная галочка) - серая
                                     return (
                                       <svg
                                         xmlns="http://www.w3.org/2000/svg"
                                         viewBox="0 0 16 16"
                                         width="14"
                                         height="14"
-                                        className="text-white"
+                                        className="text-white/70"
+                                        fill="currentColor"
+                                        style={{ minWidth: '14px' }}
+                                      >
+                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                                      </svg>
+                                    );
+                                  } else if (receiptStatus === 'sent' && isRealMessage) {
+                                    // 1 галочка - отправлено (одинарная галочка) - более прозрачная
+                                    return (
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 16 16"
+                                        width="14"
+                                        height="14"
+                                        className="text-white/50"
                                         fill="currentColor"
                                         style={{ minWidth: '14px' }}
                                       >
@@ -1069,7 +1126,23 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                         viewBox="0 0 16 16"
                                         width="14"
                                         height="14"
-                                        className="text-white opacity-70"
+                                        className="text-white/50"
+                                        fill="currentColor"
+                                        style={{ minWidth: '14px' }}
+                                      >
+                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                                      </svg>
+                                    );
+                                  }
+                                  // Если нет статуса, но это реальное сообщение, показываем одну галочку (отправлено)
+                                  if (isRealMessage) {
+                                    return (
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 16 16"
+                                        width="14"
+                                        height="14"
+                                        className="text-white/50"
                                         fill="currentColor"
                                         style={{ minWidth: '14px' }}
                                       >
