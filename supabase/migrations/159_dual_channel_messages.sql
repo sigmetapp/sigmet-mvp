@@ -35,8 +35,14 @@ create index if not exists messages_recipient_idx
 -- Enable RLS
 alter table public.messages enable row level security;
 
+-- Drop policies if they exist (for idempotency)
+drop policy if exists "read_messages" on public.messages;
+drop policy if exists "insert_messages" on public.messages;
+drop policy if exists "update_messages" on public.messages;
+drop policy if exists "delete_messages" on public.messages;
+
 -- RLS Policy: Users can read messages where they are sender or recipient
-create policy if not exists "read_messages"
+create policy "read_messages"
   on public.messages
   for select
   using (
@@ -44,7 +50,7 @@ create policy if not exists "read_messages"
   );
 
 -- RLS Policy: Users can insert messages where they are the sender
-create policy if not exists "insert_messages"
+create policy "insert_messages"
   on public.messages
   for insert
   with check (
@@ -52,7 +58,7 @@ create policy if not exists "insert_messages"
   );
 
 -- RLS Policy: Users can update their own messages (for meta updates, etc.)
-create policy if not exists "update_messages"
+create policy "update_messages"
   on public.messages
   for update
   using (
@@ -63,7 +69,7 @@ create policy if not exists "update_messages"
   );
 
 -- RLS Policy: Users can delete their own messages
-create policy if not exists "delete_messages"
+create policy "delete_messages"
   on public.messages
   for delete
   using (
