@@ -25,9 +25,11 @@ export default function CountryCitySelect({
   onChange: (combined: string) => void;
 }) {
   const initial = useMemo(() => parseCombined(value), [value]);
-  const [query, setQuery] = useState<string>(combine(initial.city, initial.country));
+  const initialQuery = useMemo(() => combine(initial.city, initial.country), [initial]);
+  const [query, setQuery] = useState<string>(initialQuery);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const hasUserTyped = useRef(false); // Track if user has actually typed (not just clicked)
 
   const countries = useMemo(() => Country.getAllCountries(), []);
   const countryNameByIso = useMemo(() => {
@@ -36,36 +38,78 @@ export default function CountryCitySelect({
     return map;
   }, [countries]);
 
+  // Update query when value prop changes externally
+  useEffect(() => {
+    const newInitial = parseCombined(value);
+    const newInitialQuery = combine(newInitial.city, newInitial.country);
+    if (newInitialQuery !== initialQuery) {
+      setQuery(newInitialQuery);
+      hasUserTyped.current = false;
+    }
+  }, [value, initialQuery]);
+
   // Build a lazy cache of all cities once (acceptable size for MVP)
-  // Only load when user starts typing to avoid blocking UI on open
+  // Only load when user actually starts typing (not just clicking on filled field)
   const [allCities, setAllCities] = useState<Suggestion[] | null>(null);
   const [loadingCities, setLoadingCities] = useState(false);
+  
   useEffect(() => {
-    // Only load cities when user has typed at least 1 character to avoid blocking on open
-    if (!open || allCities || loadingCities || query.trim().length === 0) return;
+    // Only load cities when:
+    // 1. Dropdown is open
+    // 2. Cities haven't been loaded yet
+    // 3. Not currently loading
+    // 4. User has actually typed something (query differs from initial)
+    // 5. Query has at least 1 character
+    if (!open || allCities || loadingCities || !hasUserTyped.current || query.trim().length === 0) return;
     
     // Load cities asynchronously to prevent UI freeze
     setLoadingCities(true);
     
-    // Use Promise to make it truly async and non-blocking
-    Promise.resolve().then(() => {
+    // Use setTimeout to defer to next event loop tick, preventing UI freeze
+    const timeoutId = setTimeout(() => {
       try {
-        const list = City.getAllCities()?.slice(0) || [];
-        const suggestions: Suggestion[] = list
-          .map((c) => ({
-            city: c.name,
-            countryCode: c.countryCode,
-            country: countryNameByIso.get(c.countryCode) || c.countryCode,
-          }))
-          .filter((v, i, arr) => arr.findIndex((x) => x.city === v.city && x.countryCode === v.countryCode) === i);
-        setAllCities(suggestions);
+        // Use requestIdleCallback if available for better performance
+        const loadCities = () => {
+          try {
+            const list = City.getAllCities() || [];
+            // Use Set for O(1) duplicate checking instead of O(n) findIndex
+            const seen = new Set<string>();
+            const suggestions: Suggestion[] = [];
+            
+            for (const c of list) {
+              const key = `${c.name}-${c.countryCode}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                suggestions.push({
+                  city: c.name,
+                  countryCode: c.countryCode,
+                  country: countryNameByIso.get(c.countryCode) || c.countryCode,
+                });
+              }
+            }
+            
+            setAllCities(suggestions);
+          } catch (error) {
+            console.error('Error loading cities:', error);
+            setAllCities([]);
+          } finally {
+            setLoadingCities(false);
+          }
+        };
+
+        // Use requestIdleCallback if available, otherwise use setTimeout
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          (window as any).requestIdleCallback(loadCities, { timeout: 2000 });
+        } else {
+          setTimeout(loadCities, 0);
+        }
       } catch (error) {
-        console.error('Error loading cities:', error);
-        setAllCities([]);
-      } finally {
+        console.error('Error setting up city loading:', error);
         setLoadingCities(false);
       }
-    });
+    }, 0);
+    
+    return () => clearTimeout(timeoutId);
   }, [open, allCities, countryNameByIso, loadingCities, query]);
 
   // Close on outside click
@@ -97,6 +141,7 @@ export default function CountryCitySelect({
     const combined = combine(s.city, s.country);
     setQuery(combined);
     setOpen(false);
+    hasUserTyped.current = false; // Reset typing flag after selection
     onChange(combined);
   }
 
@@ -107,15 +152,28 @@ export default function CountryCitySelect({
           className="input"
           value={query}
           onChange={(e) => {
-            setQuery(e.target.value);
+            const newQuery = e.target.value;
+            setQuery(newQuery);
+            // Mark that user has typed if query differs from initial
+            if (newQuery !== initialQuery) {
+              hasUserTyped.current = true;
+            }
             setOpen(true);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setOpen(true);
+            // Reset typing flag when focusing on field with initial value
+            if (query === initialQuery) {
+              hasUserTyped.current = false;
+            }
+          }}
           placeholder="Type your city…"
         />
         {open && (
           <div className="absolute z-10 mt-1 w-full max-h-72 overflow-auto rounded-md bg-[#0b0b0b] border border-white/10 shadow-lg">
             {query.trim().length === 0 ? (
+              <div className="px-3 py-2 text-sm text-white/60">Start typing to search cities…</div>
+            ) : !hasUserTyped.current && query === initialQuery ? (
               <div className="px-3 py-2 text-sm text-white/60">Start typing to search cities…</div>
             ) : loadingCities || !allCities ? (
               <div className="px-3 py-2 text-sm text-white/60">Loading cities…</div>
