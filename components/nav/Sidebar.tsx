@@ -1,8 +1,10 @@
 "use client";
 import React from 'react';
+import Link from 'next/link';
 import type { User } from '@supabase/supabase-js';
 import NavItem from './NavItem';
 import { useTheme } from '@/components/ThemeProvider';
+import { useSiteSettings } from '@/components/SiteSettingsContext';
 
 export type SidebarProps = {
   user: User;
@@ -31,6 +33,7 @@ const adminMenu = [
 
 export default function Sidebar({ user }: SidebarProps) {
   const { theme } = useTheme();
+  const { logo_url, site_name } = useSiteSettings();
   const isLight = theme === "light";
   // Mock badge for now
   const unreadDM = 0;
@@ -44,6 +47,36 @@ export default function Sidebar({ user }: SidebarProps) {
         ? "border-telegram-blue/15 bg-white/90 text-telegram-text"
         : "border-telegram-blue/20 bg-[rgba(15,22,35,0.9)] text-telegram-text"
     }`}>
+      <Link href="/" className="px-3 py-3 border-b border-telegram-blue/10 flex items-center gap-2 hover:opacity-80 transition-opacity">
+        {logo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logo_url}
+            alt="Logo"
+            width={24}
+            height={24}
+            className="rounded-md flex-shrink-0"
+          />
+        ) : (
+          <div className={`h-6 w-6 rounded-md grid place-items-center border flex-shrink-0 ${
+            isLight 
+              ? "bg-telegram-blue/10 border-telegram-blue/20 text-telegram-blue" 
+              : "bg-telegram-blue/20 border-telegram-blue/30 text-telegram-blue-light"
+          }`}>
+            <span className="text-xs font-semibold">S</span>
+          </div>
+        )}
+        <span className={`${isLight ? "text-telegram-text" : "text-telegram-text"} font-semibold tracking-tight text-sm truncate flex-1`}>
+          {site_name || "SIGMET"}
+        </span>
+        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold tracking-wide flex-shrink-0 ${
+          isLight
+            ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-[0_2px_6px_rgba(249,115,22,0.3)]"
+            : "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-[0_2px_6px_rgba(249,115,22,0.4)]"
+        }`}>
+          Pre-Alpha
+        </span>
+      </Link>
       <div className="px-3 py-3">
         <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Menu</div>
       </div>
