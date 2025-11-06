@@ -48,6 +48,17 @@ function ConnectionsInner() {
   const [swScores, setSwScores] = useState<Record<string, number>>({});
   const [followersProfiles, setFollowersProfiles] = useState<Record<string, SimpleProfile>>({});
   const [followingProfiles, setFollowingProfiles] = useState<Record<string, SimpleProfile>>({});
+  
+  // My own metrics
+  const [mySW, setMySW] = useState<number | null>(null);
+  const [myTrustFlow, setMyTrustFlow] = useState<number | null>(null);
+  
+  // Recommended people
+  const [recommendedPeople, setRecommendedPeople] = useState<Array<{
+    userId: string;
+    reason: 'connection' | 'mutual_follow';
+  }>>([]);
+  const [recommendedProfiles, setRecommendedProfiles] = useState<Record<string, SimpleProfile>>({});
 
   const title = useMemo(() => "Connections", []);
 
@@ -317,6 +328,153 @@ function ConnectionsInner() {
           setFollowersProfiles({});
           setFollowingProfiles({});
         }
+
+        // Load my own SW score
+        try {
+          const { data: mySWData } = await supabase
+            .from("sw_scores")
+            .select("total")
+            .eq("user_id", meId)
+            .maybeSingle();
+          setMySW(mySWData ? (mySWData as any).total || 0 : 0);
+        } catch {
+          setMySW(0);
+        }
+
+        // Load my own Trust Flow
+        try {
+          const { data: trustData } = await supabase
+            .from("trust_feedback")
+            .select("value")
+            .eq("target_user_id", meId);
+          const sum = ((trustData as any[]) || []).reduce((acc, r) => acc + (Number(r.value) || 0), 0);
+          const rating = Math.max(0, Math.min(120, 80 + sum * 2));
+          setMyTrustFlow(rating);
+        } catch {
+          setMyTrustFlow(80);
+        }
+
+        // Calculate recommended people
+        const recommended: Array<{ userId: string; reason: 'connection' | 'mutual_follow' }> = [];
+        const recommendedSet = new Set<string>();
+
+        // 1. Find 2nd degree connections (people connected through your connections)
+        const connectionUserIds = connections.map(c => c.userId);
+        if (connectionUserIds.length > 0 && allPosts.length > 0) {
+          const connectionUserIdsSet = new Set(connectionUserIds);
+          
+          // Load all profiles at once to avoid database calls in loop
+          const { data: allProfilesData } = await supabase
+            .from("profiles")
+            .select("user_id, username");
+          
+          const allProfilesMap: Record<string, string> = {};
+          if (allProfilesData) {
+            for (const p of allProfilesData as any[]) {
+              const username = (p.username || "").toLowerCase();
+              if (username) {
+                allProfilesMap[p.user_id as string] = username;
+              }
+            }
+          }
+          
+          // For each connection, find their connections
+          for (const connectionUserId of connectionUserIds) {
+            const connectionProfile = profiles[connectionUserId];
+            if (!connectionProfile?.username) continue;
+            
+            const theirUsername = connectionProfile.username.toLowerCase();
+            const theirMentionPatterns: string[] = [];
+            theirMentionPatterns.push(`@${theirUsername}`);
+            theirMentionPatterns.push(`/u/${theirUsername}`);
+            theirMentionPatterns.push(`/u/${connectionUserId}`);
+
+            // Find posts where others mentioned this connection
+            const theyMentionedConnection: Record<string, Set<number>> = {};
+            const connectionMentionedThem: Record<string, Set<number>> = {};
+
+            for (const post of allPosts) {
+              const authorId = post.user_id;
+              if (!authorId || authorId === meId || authorId === connectionUserId) continue;
+
+              const body = post.body || "";
+              if (hasMention(body, theirMentionPatterns)) {
+                if (!theyMentionedConnection[authorId]) {
+                  theyMentionedConnection[authorId] = new Set();
+                }
+                theyMentionedConnection[authorId].add(post.id);
+              }
+            }
+
+            // Find posts where this connection mentioned others
+            for (const post of allPosts) {
+              if (post.user_id !== connectionUserId) continue;
+              const body = post.body || "";
+              
+              // Check for mentions of other users using the pre-loaded profiles map
+              for (const userId of Object.keys(theyMentionedConnection)) {
+                const otherUsername = allProfilesMap[userId];
+                if (otherUsername) {
+                  const patterns = [`@${otherUsername}`, `/u/${otherUsername}`, `/u/${userId}`];
+                  if (hasMention(body, patterns)) {
+                    if (!connectionMentionedThem[userId]) {
+                      connectionMentionedThem[userId] = new Set();
+                    }
+                    connectionMentionedThem[userId].add(post.id);
+                  }
+                }
+              }
+            }
+
+            // Find mutual connections for this connection
+            for (const userId of Object.keys(theyMentionedConnection)) {
+              if (userId === meId || connectionUserIdsSet.has(userId) || recommendedSet.has(userId)) continue;
+              
+              const theirPosts = theyMentionedConnection[userId];
+              const connectionPosts = connectionMentionedThem[userId] || new Set();
+              
+              if (theirPosts.size > 0 && connectionPosts.size > 0) {
+                recommended.push({ userId, reason: 'connection' });
+                recommendedSet.add(userId);
+              }
+            }
+          }
+        }
+
+        // 2. Find mutual follows (people who follow you AND you follow them)
+        const mutualFollows = Array.from(myFollowers).filter(uid => myFollowing.has(uid));
+        for (const uid of mutualFollows) {
+          if (!recommendedSet.has(uid) && !connectionUserIds.includes(uid)) {
+            recommended.push({ userId: uid, reason: 'mutual_follow' });
+            recommendedSet.add(uid);
+          }
+        }
+
+        setRecommendedPeople(recommended);
+
+        // Load profiles for recommended people
+        if (recommended.length > 0) {
+          const recommendedIds = recommended.map(r => r.userId);
+          const { data: recProfs } = await supabase
+            .from("profiles")
+            .select("user_id, username, full_name, avatar_url")
+            .in("user_id", recommendedIds);
+          
+          const recMap: Record<string, SimpleProfile> = {};
+          if (recProfs) {
+            for (const p of recProfs as any[]) {
+              recMap[p.user_id as string] = {
+                user_id: p.user_id as string,
+                username: (p.username as string | null) ?? null,
+                full_name: (p.full_name as string | null) ?? null,
+                avatar_url: (p.avatar_url as string | null) ?? null,
+              };
+            }
+          }
+          setRecommendedProfiles(recMap);
+        } else {
+          setRecommendedProfiles({});
+        }
       } finally {
         setLoading(false);
       }
@@ -329,6 +487,30 @@ function ConnectionsInner() {
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">{title}</h1>
           <p className="text-white/70 text-sm">People you've tagged and who tagged you in posts. Connections are based on mutual mentions.</p>
+        </div>
+      </div>
+
+      {/* Social Weight and Trust Flow Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="card p-4 md:p-6 space-y-3">
+          <div className="text-white/80 font-medium text-lg">Social Weight</div>
+          {loading ? (
+            <div className="text-white/70 text-sm">Loading…</div>
+          ) : mySW !== null ? (
+            <div className="text-3xl font-bold text-white">{mySW}</div>
+          ) : (
+            <div className="text-white/60 text-sm">No data available</div>
+          )}
+        </div>
+        <div className="card p-4 md:p-6 space-y-3">
+          <div className="text-white/80 font-medium text-lg">Trust Flow</div>
+          {loading ? (
+            <div className="text-white/70 text-sm">Loading…</div>
+          ) : myTrustFlow !== null ? (
+            <div className="text-3xl font-bold text-white">{myTrustFlow}</div>
+          ) : (
+            <div className="text-white/60 text-sm">No data available</div>
+          )}
         </div>
       </div>
 
@@ -461,6 +643,58 @@ function ConnectionsInner() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Recommended People Block */}
+      {meId && (
+        <div className="card p-4 md:p-6 space-y-4">
+          <div className="text-white/80 font-medium text-lg">Recommended People</div>
+          {loading ? (
+            <div className="text-white/70 text-sm">Loading…</div>
+          ) : recommendedPeople.length === 0 ? (
+            <div className="text-white/60 text-sm">No recommendations available yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {recommendedPeople.map((rec) => {
+                const p = recommendedProfiles[rec.userId];
+                const displayName = p?.full_name || p?.username || rec.userId.slice(0, 8);
+                const username = p?.username || rec.userId.slice(0, 8);
+                const avatar = p?.avatar_url || AVATAR_FALLBACK;
+                const profileUrl = username ? `/u/${username}` : `/u/${rec.userId}`;
+                const dmUrl = `/dms?partnerId=${encodeURIComponent(rec.userId)}`;
+                const reasonText = rec.reason === 'connection' 
+                  ? 'Connected through your connections' 
+                  : 'Mutual follow';
+
+                return (
+                  <div key={rec.userId} className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
+                    <Link href={profileUrl} className="flex-shrink-0">
+                      <img
+                        src={avatar}
+                        alt={displayName}
+                        className="h-12 w-12 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
+                      />
+                    </Link>
+                    <div className="min-w-0 flex-1">
+                      <Link href={profileUrl} className="block hover:underline">
+                        <div className="text-white font-medium truncate">{displayName}</div>
+                        <div className="text-white/60 text-sm truncate">@{username}</div>
+                        <div className="text-white/50 text-xs mt-1">{reasonText}</div>
+                      </Link>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <Link href={dmUrl}>
+                        <Button variant="primary" size="sm">
+                          Write
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
