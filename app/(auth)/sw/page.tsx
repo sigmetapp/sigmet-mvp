@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
 
@@ -216,6 +217,7 @@ function getNextLevel(sw: number, levels: SWLevel[]): SWLevel | null {
 }
 
 export default function SWPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
   const [swData, setSwData] = useState<SWData | null>(null);
@@ -229,6 +231,8 @@ export default function SWPage() {
     commentsCount: number;
     reactionsCount: number;
     invitesCount: number;
+    followersCount: number;
+    connectionsCount: number;
   } | null>(null);
   const [swLevels, setSwLevels] = useState<SWLevel[]>(SW_LEVELS); // Start with default levels
 
@@ -614,11 +618,13 @@ export default function SWPage() {
                   </div>
                 </div>
                 <div className="ml-4 flex items-center">
-                  {breakdown.growth.count > 0 ? (
-                    <span className="text-green-400 text-xl">✓</span>
-                  ) : (
-                    <span className="text-white/30 text-xl">○</span>
-                  )}
+                  <Button
+                    onClick={() => router.push('/growth-directions')}
+                    variant="primary"
+                    size="sm"
+                  >
+                    Go to Growth Directions
+                  </Button>
                 </div>
               </div>
 
@@ -661,11 +667,9 @@ export default function SWPage() {
                   </div>
                 </div>
                 <div className="ml-4 flex items-center">
-                  {breakdown.connections.count > 0 ? (
-                    <span className="text-green-400 text-xl">✓</span>
-                  ) : (
-                    <span className="text-white/30 text-xl">○</span>
-                  )}
+                  <span className="text-white/70 text-sm font-medium">
+                    {recentActivity ? `${recentActivity.connectionsCount} today` : '...'}
+                  </span>
                 </div>
               </div>
 
@@ -678,11 +682,9 @@ export default function SWPage() {
                   </div>
                 </div>
                 <div className="ml-4 flex items-center">
-                  {breakdown.followers.count > 0 ? (
-                    <span className="text-green-400 text-xl">✓</span>
-                  ) : (
-                    <span className="text-white/30 text-xl">○</span>
-                  )}
+                  <span className="text-white/70 text-sm font-medium">
+                    {recentActivity ? `${recentActivity.followersCount} today` : '...'}
+                  </span>
                 </div>
               </div>
 
