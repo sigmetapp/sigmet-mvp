@@ -20,12 +20,6 @@ const sizeClasses = {
   lg: 'h-16 w-16',
 };
 
-const badgeSizeClasses = {
-  sm: 'h-3 w-3',
-  md: 'h-4 w-4',
-  lg: 'h-5 w-5',
-};
-
 export default function AvatarWithBadge({
   avatarUrl,
   swScore = 0,
@@ -45,17 +39,20 @@ export default function AvatarWithBadge({
       <img
         src={avatarUrl}
         alt={alt}
-        className={`${sizeClasses[size]} rounded-full object-cover border border-white/10 shrink-0`}
+        className={`${sizeClasses[size]} rounded-full object-cover shrink-0 ${
+          showBadge && colorScheme
+            ? 'border-2'
+            : 'border border-white/10'
+        }`}
+        style={
+          showBadge && colorScheme
+            ? {
+                borderColor: colorScheme.hex,
+              }
+            : undefined
+        }
+        title={showBadge && colorScheme ? level.name : undefined}
       />
-      {showBadge && colorScheme && (
-        <div
-          className={`absolute -bottom-0.5 -right-0.5 ${badgeSizeClasses[size]} rounded-full border-2 border-white/90 dark:border-black/90`}
-          style={{
-            backgroundColor: colorScheme.hex,
-          }}
-          title={level.name}
-        />
-      )}
     </div>
   );
 
