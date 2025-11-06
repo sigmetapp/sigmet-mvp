@@ -318,19 +318,36 @@ export default async function handler(
             }
           }
 
-          for (const userId_conn of Object.keys(theyMentionedMe)) {
+          // Calculate mutual connections
+          // A connection is when: user A tagged me in their post AND I tagged user A in my post
+          // Count connections as the minimum of both mentions
+          // First connection overall gets more points, repeat connections get less
+          // Check all users who mentioned me OR whom I mentioned to find mutual connections
+          const allConnectedUsers = new Set<string>();
+          Object.keys(theyMentionedMe).forEach(uid => allConnectedUsers.add(uid));
+          Object.keys(iMentionedThem).forEach(uid => allConnectedUsers.add(uid));
+          
+          for (const userId_conn of allConnectedUsers) {
             const theirPosts = theyMentionedMe[userId_conn] || new Set();
             const myPosts = iMentionedThem[userId_conn] || new Set();
 
+            // Only count mutual connections (both sides must have mentioned each other)
             if (theirPosts.size > 0 && myPosts.size > 0) {
+              // Count as the minimum of both - represents actual mutual connections
               const mutualCount = Math.min(theirPosts.size, myPosts.size);
               connectionsCount += mutualCount;
               
-              if (mutualCount === 1) {
-                firstConnectionsCount++;
-              } else {
-                firstConnectionsCount++;
-                repeatConnectionsCount += (mutualCount - 1);
+              // For each mutual connection with this user:
+              // - The first connection overall is "first"
+              // - All subsequent connections are "repeat"
+              for (let i = 0; i < mutualCount; i++) {
+                if (firstConnectionsCount === 0) {
+                  // This is the first connection overall
+                  firstConnectionsCount++;
+                } else {
+                  // This is a repeat connection
+                  repeatConnectionsCount++;
+                }
               }
             }
           }
