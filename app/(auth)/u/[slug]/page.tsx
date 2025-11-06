@@ -1143,15 +1143,18 @@ export default function PublicProfilePage() {
                       {(() => {
                         if (loadingSW || totalSW === null) return null;
                         const currentLevel = getSWLevel(totalSW, swLevels);
-                        const colorMap: Record<string, string> = {
-                          'text-gray-400': 'border-gray-400/50 bg-gray-400/20 text-gray-300',
-                          'text-blue-400': 'border-blue-400/50 bg-blue-400/20 text-blue-300',
-                          'text-purple-400': 'border-purple-400/50 bg-purple-400/20 text-purple-300',
-                          'text-yellow-400': 'border-yellow-400/50 bg-yellow-400/20 text-yellow-300',
-                          'text-orange-400': 'border-orange-400/50 bg-orange-400/20 text-orange-300',
-                          'text-pink-400': 'border-pink-400/50 bg-pink-400/20 text-pink-300',
+                        const colorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                        // Use theme-aware colors for better readability in light theme
+                        const textColorMap: Record<string, string> = {
+                          'text-gray-400': isLight ? 'text-gray-700' : 'text-gray-300',
+                          'text-blue-400': isLight ? 'text-blue-700' : 'text-blue-300',
+                          'text-purple-400': isLight ? 'text-purple-700' : 'text-purple-300',
+                          'text-yellow-400': isLight ? 'text-yellow-700' : 'text-yellow-300',
+                          'text-orange-400': isLight ? 'text-orange-700' : 'text-orange-300',
+                          'text-pink-400': isLight ? 'text-pink-700' : 'text-pink-300',
                         };
-                        const badgeClass = colorMap[currentLevel.color] || 'border-white/20 bg-white/10 text-white/80';
+                        const textColor = textColorMap[currentLevel.color] || (isLight ? 'text-gray-700' : 'text-white/80');
+                        const badgeClass = `${colorScheme.badgeBorder} ${colorScheme.badgeBg} ${textColor}`;
                         return (
                           <div className={`px-2 py-0.5 rounded-full border text-xs font-medium ${badgeClass}`}>
                             {currentLevel.name}
@@ -1174,15 +1177,26 @@ export default function PublicProfilePage() {
                       <div className="h-full w-20 skeleton rounded-full"></div>
                     </div>
                   ) : totalSW !== null ? (
-                    <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                      <div 
-                        className="h-full" 
-                        style={{ 
-                          width: `${Math.min(100, (totalSW / 1000) * 100)}%`,
-                          background: 'linear-gradient(90deg,#00ffc8,#7affc0)' 
-                        }}
-                      ></div>
-                    </div>
+                    (() => {
+                      const currentLevel = getSWLevel(totalSW, swLevels);
+                      const nextLevel = getNextLevel(totalSW, swLevels);
+                      const progressToNext = nextLevel 
+                        ? ((totalSW - currentLevel.minSW) / (nextLevel.minSW - currentLevel.minSW)) * 100
+                        : 100;
+                      const clampedProgress = Math.max(0, Math.min(100, progressToNext));
+                      const colorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                      return (
+                        <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                          <div 
+                            className="h-full transition-all duration-500" 
+                            style={{ 
+                              width: `${clampedProgress}%`,
+                              backgroundColor: colorScheme.hex
+                            }}
+                          ></div>
+                        </div>
+                      );
+                    })()
                   ) : (
                     <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                       <div className="h-full w-0"></div>
