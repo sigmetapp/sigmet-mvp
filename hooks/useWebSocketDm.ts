@@ -237,13 +237,17 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               const pending = pendingMessagesRef.current.get(normalizedMessage.client_msg_id);
               if (pending) {
                 setMessages((prev) => {
-                  const filtered = prev.filter((m) => (m as any).client_msg_id !== normalizedMessage.client_msg_id);
+                  // Remove both optimistic message (by client_msg_id) and any duplicate by server ID
+                  const filtered = prev.filter((m) => 
+                    (m as any).client_msg_id !== normalizedMessage.client_msg_id && m.id !== serverMsgId
+                  );
                   return sortMessagesChronologically([...filtered, normalizedMessage]);
                 });
                 pendingMessagesRef.current.delete(normalizedMessage.client_msg_id);
               } else {
                 setMessages((prev) => {
-                  if (prev.some((m) => m.id === serverMsgId)) {
+                  // Check for duplicates by both ID and client_msg_id
+                  if (prev.some((m) => m.id === serverMsgId || (m as any).client_msg_id === normalizedMessage.client_msg_id)) {
                     return prev;
                   }
                   return sortMessagesChronologically([...prev, normalizedMessage]);
@@ -251,6 +255,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               }
             } else {
               setMessages((prev) => {
+                // Check for duplicates by ID
                 if (prev.some((m) => m.id === serverMsgId)) {
                   return prev;
                 }
@@ -354,10 +359,10 @@ export function useWebSocketDm(threadId: ThreadId | null) {
         unsubError();
         wsClient.unsubscribe(normalizedThreadId);
       };
-    }
-
-    // Supabase fallback (Realtime + presence)
-    const setupFallback = async () => {
+    } else {
+      // Only set up Supabase fallback if WebSocket is not being used
+      // Supabase fallback (Realtime + presence)
+      const setupFallback = async () => {
       try {
         const unsubscribe = await subscribeToThread(normalizedThreadId, {
           onMessage: (change) => {
@@ -394,13 +399,27 @@ export function useWebSocketDm(threadId: ThreadId | null) {
                 return prev.filter((m) => m.id !== serverMsgId);
               }
 
-                const byId = new Map<number, Message>();
-                for (const msg of prev) {
-                  byId.set(msg.id, msg);
+                // Remove any optimistic messages with the same client_msg_id
+                if (row.client_msg_id) {
+                  const filtered = prev.filter((m) => (m as any).client_msg_id !== row.client_msg_id);
+                  const byId = new Map<number, Message>();
+                  for (const msg of filtered) {
+                    byId.set(msg.id, msg);
+                  }
+                  byId.set(serverMsgId, normalizedMessage);
+                  return sortMessagesChronologically(Array.from(byId.values()));
+                } else {
+                  // Check for duplicates by ID
+                  if (prev.some((m) => m.id === serverMsgId)) {
+                    return prev;
+                  }
+                  const byId = new Map<number, Message>();
+                  for (const msg of prev) {
+                    byId.set(msg.id, msg);
+                  }
+                  byId.set(serverMsgId, normalizedMessage);
+                  return sortMessagesChronologically(Array.from(byId.values()));
                 }
-                byId.set(serverMsgId, normalizedMessage);
-
-                return sortMessagesChronologically(Array.from(byId.values()));
             });
 
             setLastServerMsgId(serverMsgId);
@@ -428,6 +447,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
         fallbackThreadUnsubscribeRef.current = null;
       }
     };
+    }
   }, [threadId, transport]);
 
   // Presence fallback subscription (Supabase realtime presence channels)
