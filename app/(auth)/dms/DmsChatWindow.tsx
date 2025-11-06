@@ -18,13 +18,30 @@ type Props = {
   partnerId: string;
 };
 
+function compareMessages(a: Message, b: Message): number {
+  const seqA = a.sequence_number ?? null;
+  const seqB = b.sequence_number ?? null;
+
+  if (seqA !== null && seqB !== null && seqA !== seqB) {
+    return seqA - seqB;
+  }
+
+  if (seqA !== null && seqB === null) {
+    return -1;
+  }
+
+  if (seqA === null && seqB !== null) {
+    return 1;
+  }
+
+  const timeA = new Date(a.created_at).getTime();
+  const timeB = new Date(b.created_at).getTime();
+  if (timeA !== timeB) return timeA - timeB;
+  return a.id - b.id;
+}
+
 function sortMessagesChronologically(rawMessages: Message[]): Message[] {
-  return [...rawMessages].sort((a, b) => {
-    const timeA = new Date(a.created_at).getTime();
-    const timeB = new Date(b.created_at).getTime();
-    if (timeA !== timeB) return timeA - timeB;
-    return a.id - b.id;
-  });
+  return [...rawMessages].sort(compareMessages);
 }
 
 function mergeMessages(existing: Message[], additions: Message[]): Message[] {
@@ -84,7 +101,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [messageReceipts, setMessageReceipts] = useState<Map<number, 'delivered' | 'read'>>(new Map());
+  const [messageReceipts, setMessageReceipts] = useState<Map<number, 'sent' | 'delivered' | 'read'>>(new Map());
   
   // Theme
   const { theme } = useTheme();
@@ -326,19 +343,19 @@ export default function DmsChatWindow({ partnerId }: Props) {
       }
     };
 
-    const handleMessage = (event: any) => {
-      if (event.type === 'message' && event.thread_id === thread.id) {
-        const message = event.message as any;
-        // If this is our message, mark as delivered
-        if (message.sender_id === currentUserId) {
-          setMessageReceipts((prev) => {
-            const updated = new Map(prev);
-            updated.set(event.server_msg_id, 'delivered');
-            return updated;
-          });
+      const handleMessage = (event: any) => {
+        if (event.type === 'message' && event.thread_id === thread.id) {
+          const message = event.message as any;
+          // If this is our message, mark it as sent on server confirmation
+          if (message.sender_id === currentUserId) {
+            setMessageReceipts((prev) => {
+              const updated = new Map(prev);
+              updated.set(event.server_msg_id, 'sent');
+              return updated;
+            });
+          }
         }
-      }
-    };
+      };
 
     const unsubAck = wsClient.on('ack', handleAck);
     const unsubMessage = wsClient.on('message', handleMessage);
@@ -413,13 +430,14 @@ export default function DmsChatWindow({ partnerId }: Props) {
               .in('message_id', messageIds)
               .eq('user_id', currentUserId);
             
-            if (receipts) {
-              const receiptsMap = new Map<number, 'delivered' | 'read'>();
-              for (const receipt of receipts) {
-                receiptsMap.set(receipt.message_id, receipt.status as 'delivered' | 'read');
+              if (receipts) {
+                const receiptsMap = new Map<number, 'sent' | 'delivered' | 'read'>();
+                for (const receipt of receipts) {
+                  const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
+                  receiptsMap.set(receipt.message_id, status);
+                }
+                setMessageReceipts(receiptsMap);
               }
-              setMessageReceipts(receiptsMap);
-            }
           } catch (err) {
             console.error('Error loading message receipts:', err);
           }

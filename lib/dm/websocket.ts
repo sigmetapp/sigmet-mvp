@@ -14,6 +14,8 @@
 import { assertThreadId, type ThreadId } from './threadId';
 import type { Message } from '@/lib/dms';
 
+type DeliveryStatus = 'sent' | 'delivered' | 'read';
+
 // WebSocket message types
 export type WSMessage =
   | { type: 'ping' }
@@ -23,14 +25,14 @@ export type WSMessage =
   | { type: 'unsubscribe'; thread_id: ThreadId }
   | { type: 'send_message'; thread_id: ThreadId; body: string | null; attachments: unknown[]; client_msg_id: string }
   | { type: 'typing'; thread_id: ThreadId; typing: boolean }
-  | { type: 'ack'; message_id: number; thread_id: ThreadId }
+  | { type: 'ack'; message_id: number; thread_id: ThreadId; status?: DeliveryStatus; client_msg_id?: string | null }
   | { type: 'sync'; thread_id: ThreadId; last_server_msg_id: number | null };
 
 export type WSEvent =
-  | { type: 'message'; thread_id: ThreadId; message: any; server_msg_id: number }
+  | { type: 'message'; thread_id: ThreadId; message: any; server_msg_id: number; sequence_number: number | null }
   | { type: 'typing'; thread_id: ThreadId; user_id: string; typing: boolean }
   | { type: 'presence'; thread_id: ThreadId; user_id: string; online: boolean }
-  | { type: 'ack'; message_id: number; thread_id: ThreadId; status: 'delivered' | 'read' }
+  | { type: 'ack'; message_id: number; thread_id: ThreadId; user_id: string; status: DeliveryStatus; client_msg_id?: string | null }
   | { type: 'error'; error: string; code?: string }
   | { type: 'connected' }
   | { type: 'pong' }
@@ -53,6 +55,7 @@ interface MessageAck {
   server_msg_id: number | null;
   acknowledged: boolean;
   timestamp: number;
+  status: DeliveryStatus;
 }
 
 export class WebSocketClient {
@@ -202,46 +205,45 @@ export class WebSocketClient {
     try {
       const event: WSEvent = JSON.parse(data);
 
-      if (event.type === 'connected') {
-        this.state = 'authenticated';
-        this.reconnectAttempts = 0;
-        
-        // Resubscribe to threads
-        for (const threadId of this.subscribedThreads) {
-          this.send({ type: 'subscribe', thread_id: threadId });
-        }
-        
-        // Sync all subscribed threads
-        for (const threadId of this.subscribedThreads) {
-          const lastId = this.lastServerMsgIds.get(threadId) ?? null;
-          this.send({ type: 'sync', thread_id: threadId, last_server_msg_id: lastId });
-        }
-        
-        // Send pending messages
-        this.flushPendingMessages();
-      } else if (event.type === 'pong') {
-        // Handle pong response
-        return;
-      } else if (event.type === 'error' && event.code === 'AUTH_FAILED') {
-        this.state = 'disconnected';
-        this.disconnect();
-      } else if (event.type === 'sync_response') {
-        // Update last server message ID
-        this.lastServerMsgIds.set(event.thread_id, event.last_server_msg_id);
-      } else if (event.type === 'message') {
-        // Update last server message ID
-        this.lastServerMsgIds.set(event.thread_id, event.server_msg_id);
-        
-        // Check if this is an acknowledgment of a pending message
-        const message = event.message as any;
-        if (message.client_msg_id) {
-          const ack = this.messageAcks.get(message.client_msg_id);
-          if (ack) {
-            ack.server_msg_id = event.server_msg_id;
-            ack.acknowledged = true;
+        if (event.type === 'connected') {
+          this.state = 'authenticated';
+          this.reconnectAttempts = 0;
+
+          // Resubscribe to threads
+          for (const threadId of this.subscribedThreads) {
+            this.send({ type: 'subscribe', thread_id: threadId });
           }
+
+          // Sync all subscribed threads
+          for (const threadId of this.subscribedThreads) {
+            const lastId = this.lastServerMsgIds.get(threadId) ?? null;
+            this.send({ type: 'sync', thread_id: threadId, last_server_msg_id: lastId });
+          }
+
+          // Send pending messages
+          this.flushPendingMessages();
+        } else if (event.type === 'pong') {
+          // Handle pong response
+          return;
+        } else if (event.type === 'error' && event.code === 'AUTH_FAILED') {
+          this.state = 'disconnected';
+          this.disconnect();
+        } else if (event.type === 'sync_response') {
+          // Update last server message ID
+          this.lastServerMsgIds.set(event.thread_id, event.last_server_msg_id);
+        } else if (event.type === 'message') {
+          // Update last server message ID
+          this.lastServerMsgIds.set(event.thread_id, event.server_msg_id);
+
+          const message = event.message as any;
+          if (event.sequence_number !== undefined) {
+            message.sequence_number = event.sequence_number;
+          }
+
+          this.updateAckStatus(event.server_msg_id, 'sent', message?.client_msg_id ?? null);
+        } else if (event.type === 'ack') {
+          this.updateAckStatus(event.message_id, event.status, event.client_msg_id ?? null);
         }
-      }
 
       this.emit(event.type, event);
     } catch (error) {
@@ -302,13 +304,14 @@ export class WebSocketClient {
       retries: 0,
     };
 
-    // Track acknowledgment
-    this.messageAcks.set(msgId, {
-      client_msg_id: msgId,
-      server_msg_id: null,
-      acknowledged: false,
-      timestamp: Date.now(),
-    });
+      // Track acknowledgment
+      this.messageAcks.set(msgId, {
+        client_msg_id: msgId,
+        server_msg_id: null,
+        acknowledged: false,
+        timestamp: Date.now(),
+        status: 'sent',
+      });
 
     // Send immediately if connected
     if (this.state === 'authenticated') {
@@ -336,10 +339,10 @@ export class WebSocketClient {
   }
 
   // Acknowledge message
-  acknowledgeMessage(messageId: number, threadId: ThreadId): void {
+  acknowledgeMessage(messageId: number, threadId: ThreadId, status: DeliveryStatus = 'delivered'): void {
     if (this.state === 'authenticated') {
       const normalizedThreadId = assertThreadId(threadId, 'Invalid thread ID');
-      this.send({ type: 'ack', message_id: messageId, thread_id: normalizedThreadId });
+      this.send({ type: 'ack', message_id: messageId, thread_id: normalizedThreadId, status });
     }
   }
 
@@ -428,6 +431,34 @@ export class WebSocketClient {
     }
   }
 
+  private updateAckStatus(messageId: number, status: DeliveryStatus, clientMsgId?: string | null): void {
+    let targetClientId = clientMsgId ?? null;
+
+    if (!targetClientId) {
+      for (const [id, ack] of this.messageAcks.entries()) {
+        if (ack.server_msg_id === messageId) {
+          targetClientId = id;
+          break;
+        }
+      }
+    }
+
+    if (!targetClientId) {
+      return;
+    }
+
+    const ack = this.messageAcks.get(targetClientId);
+    if (!ack) {
+      return;
+    }
+
+    ack.server_msg_id = messageId;
+    ack.status = status;
+    ack.acknowledged = true;
+    ack.timestamp = Date.now();
+    this.messageAcks.set(targetClientId, ack);
+  }
+
   // Get connection state
   getState(): ConnectionState {
     return this.state;
@@ -447,6 +478,10 @@ export class WebSocketClient {
   // Get server message ID for client message ID
   getServerMsgId(clientMsgId: string): number | null {
     return this.messageAcks.get(clientMsgId)?.server_msg_id ?? null;
+  }
+
+  getMessageStatus(clientMsgId: string): DeliveryStatus | undefined {
+    return this.messageAcks.get(clientMsgId)?.status;
   }
 }
 

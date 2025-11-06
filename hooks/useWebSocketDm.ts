@@ -20,6 +20,32 @@ import { assertThreadId, type ThreadId } from '@/lib/dm/threadId';
 import { subscribeToThread, sendTypingIndicator } from '@/lib/dm/realtime';
 import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 
+function compareMessages(a: Message, b: Message): number {
+  const seqA = a.sequence_number ?? null;
+  const seqB = b.sequence_number ?? null;
+
+  if (seqA !== null && seqB !== null && seqA !== seqB) {
+    return seqA - seqB;
+  }
+
+  if (seqA !== null && seqB === null) {
+    return -1;
+  }
+
+  if (seqA === null && seqB !== null) {
+    return 1;
+  }
+
+  const timeA = new Date(a.created_at).getTime();
+  const timeB = new Date(b.created_at).getTime();
+  if (timeA !== timeB) return timeA - timeB;
+  return a.id - b.id;
+}
+
+function sortMessagesChronologically(messages: Message[]): Message[] {
+  return [...messages].sort(compareMessages);
+}
+
 export function useWebSocketDm(threadId: ThreadId | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -188,100 +214,53 @@ export function useWebSocketDm(threadId: ThreadId | null) {
     if (transport === 'websocket') {
       wsClient.subscribe(normalizedThreadId);
 
-      const handleMessage = (event: WSEvent) => {
-        if (event.type === 'message' && event.thread_id === normalizedThreadId) {
-          const message = event.message as any;
-          const serverMsgId = event.server_msg_id;
-
-          if (message.client_msg_id) {
-            const pending = pendingMessagesRef.current.get(message.client_msg_id);
-            if (pending) {
-              setMessages((prev) => {
-                const filtered = prev.filter((m) => (m as any).client_msg_id !== message.client_msg_id);
-
-                const newMessage: Message = {
-                  id: serverMsgId,
-                  thread_id: normalizedThreadId,
-                  sender_id: message.sender_id,
-                  kind: message.kind || 'text',
-                  body: message.body,
-                  attachments: message.attachments || [],
-                  created_at: message.created_at,
-                  edited_at: message.edited_at || null,
-                  deleted_at: message.deleted_at || null,
-                };
-
-                const sorted = [...filtered, newMessage].sort((a, b) => {
-                  const timeA = new Date(a.created_at).getTime();
-                  const timeB = new Date(b.created_at).getTime();
-                  if (timeA !== timeB) return timeA - timeB;
-                  return a.id - b.id;
-                });
-
-                return sorted;
-              });
-
-              pendingMessagesRef.current.delete(message.client_msg_id);
-            } else {
-              const newMessage: Message = {
-                id: serverMsgId,
-                thread_id: normalizedThreadId,
-                sender_id: message.sender_id,
-                kind: message.kind || 'text',
-                body: message.body,
-                attachments: message.attachments || [],
-                created_at: message.created_at,
-                edited_at: message.edited_at || null,
-                deleted_at: message.deleted_at || null,
-              };
-
-              setMessages((prev) => {
-                if (prev.some((m) => m.id === serverMsgId)) {
-                  return prev;
-                }
-
-                const sorted = [...prev, newMessage].sort((a, b) => {
-                  const timeA = new Date(a.created_at).getTime();
-                  const timeB = new Date(b.created_at).getTime();
-                  if (timeA !== timeB) return timeA - timeB;
-                  return a.id - b.id;
-                });
-
-                return sorted;
-              });
-            }
-          } else {
-            const newMessage: Message = {
+        const handleMessage = (event: WSEvent) => {
+          if (event.type === 'message' && event.thread_id === normalizedThreadId) {
+            const message = event.message as any;
+            const serverMsgId = event.server_msg_id;
+            const sequenceNumber = event.sequence_number ?? message.sequence_number ?? null;
+            const normalizedMessage: Message = {
               id: serverMsgId,
               thread_id: normalizedThreadId,
               sender_id: message.sender_id,
               kind: message.kind || 'text',
               body: message.body,
-              attachments: message.attachments || [],
+              attachments: Array.isArray(message.attachments) ? message.attachments : [],
               created_at: message.created_at,
               edited_at: message.edited_at || null,
               deleted_at: message.deleted_at || null,
+              sequence_number: typeof sequenceNumber === 'number' ? sequenceNumber : null,
+              client_msg_id: message.client_msg_id ?? null,
             };
 
-            setMessages((prev) => {
-              if (prev.some((m) => m.id === serverMsgId)) {
-                return prev;
+            if (normalizedMessage.client_msg_id) {
+              const pending = pendingMessagesRef.current.get(normalizedMessage.client_msg_id);
+              if (pending) {
+                setMessages((prev) => {
+                  const filtered = prev.filter((m) => (m as any).client_msg_id !== normalizedMessage.client_msg_id);
+                  return sortMessagesChronologically([...filtered, normalizedMessage]);
+                });
+                pendingMessagesRef.current.delete(normalizedMessage.client_msg_id);
+              } else {
+                setMessages((prev) => {
+                  if (prev.some((m) => m.id === serverMsgId)) {
+                    return prev;
+                  }
+                  return sortMessagesChronologically([...prev, normalizedMessage]);
+                });
               }
-
-              const sorted = [...prev, newMessage].sort((a, b) => {
-                const timeA = new Date(a.created_at).getTime();
-                const timeB = new Date(b.created_at).getTime();
-                if (timeA !== timeB) return timeA - timeB;
-                return a.id - b.id;
+            } else {
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === serverMsgId)) {
+                  return prev;
+                }
+                return sortMessagesChronologically([...prev, normalizedMessage]);
               });
+            }
 
-              return sorted;
-            });
+            setLastServerMsgId(serverMsgId);
           }
-
-          setLastServerMsgId(serverMsgId);
-        }
-      };
+        };
 
       const handleTyping = (event: WSEvent) => {
         if (event.type === 'typing' && event.thread_id === normalizedThreadId) {
@@ -303,17 +282,24 @@ export function useWebSocketDm(threadId: ThreadId | null) {
         if (event.type === 'sync_response' && event.thread_id === normalizedThreadId) {
           const syncMessages = (event.messages || []) as any[];
 
-          const formattedMessages: Message[] = syncMessages.map((msg) => ({
-            id: typeof msg.id === 'string' ? parseInt(msg.id, 10) : Number(msg.id),
-            thread_id: normalizedThreadId,
-            sender_id: msg.sender_id,
-            kind: msg.kind || 'text',
-            body: msg.body,
-            attachments: msg.attachments || [],
-            created_at: msg.created_at,
-            edited_at: msg.edited_at || null,
-            deleted_at: msg.deleted_at || null,
-          }));
+            const formattedMessages: Message[] = syncMessages.map((msg) => ({
+              id: typeof msg.id === 'string' ? parseInt(msg.id, 10) : Number(msg.id),
+              thread_id: normalizedThreadId,
+              sender_id: msg.sender_id,
+              kind: msg.kind || 'text',
+              body: msg.body,
+              attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
+              created_at: msg.created_at,
+              edited_at: msg.edited_at || null,
+              deleted_at: msg.deleted_at || null,
+              sequence_number:
+                msg.sequence_number === null || msg.sequence_number === undefined
+                  ? null
+                  : typeof msg.sequence_number === 'string'
+                    ? parseInt(msg.sequence_number, 10)
+                    : Number(msg.sequence_number),
+              client_msg_id: msg.client_msg_id ?? null,
+            }));
 
           setMessages((prev) => {
             const byId = new Map<number, Message>();
@@ -324,12 +310,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               byId.set(msg.id, msg);
             }
 
-            return Array.from(byId.values()).sort((a, b) => {
-              const timeA = new Date(a.created_at).getTime();
-              const timeB = new Date(b.created_at).getTime();
-              if (timeA !== timeB) return timeA - timeB;
-              return a.id - b.id;
-            });
+              return sortMessagesChronologically(Array.from(byId.values()));
           });
 
           if (event.last_server_msg_id !== null) {
@@ -391,10 +372,17 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               sender_id: row.sender_id,
               kind: row.kind || 'text',
               body: row.body,
-              attachments: row.attachments || [],
+                attachments: Array.isArray(row.attachments) ? row.attachments : [],
               created_at: row.created_at,
               edited_at: row.edited_at || null,
               deleted_at: row.deleted_at || null,
+                sequence_number:
+                  row.sequence_number === null || row.sequence_number === undefined
+                    ? null
+                    : typeof row.sequence_number === 'string'
+                      ? parseInt(row.sequence_number, 10)
+                      : Number(row.sequence_number),
+                client_msg_id: row.client_msg_id ?? null,
             };
 
             if (row.client_msg_id) {
@@ -406,18 +394,13 @@ export function useWebSocketDm(threadId: ThreadId | null) {
                 return prev.filter((m) => m.id !== serverMsgId);
               }
 
-              const byId = new Map<number, Message>();
-              for (const msg of prev) {
-                byId.set(msg.id, msg);
-              }
-              byId.set(serverMsgId, normalizedMessage);
+                const byId = new Map<number, Message>();
+                for (const msg of prev) {
+                  byId.set(msg.id, msg);
+                }
+                byId.set(serverMsgId, normalizedMessage);
 
-              return Array.from(byId.values()).sort((a, b) => {
-                const timeA = new Date(a.created_at).getTime();
-                const timeB = new Date(b.created_at).getTime();
-                if (timeA !== timeB) return timeA - timeB;
-                return a.id - b.id;
-              });
+                return sortMessagesChronologically(Array.from(byId.values()));
             });
 
             setLastServerMsgId(serverMsgId);
