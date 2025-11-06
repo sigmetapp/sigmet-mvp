@@ -239,13 +239,20 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               // Always check for duplicates by server ID first
               if (prev.some((m) => m.id === serverMsgId)) {
                 // Message already exists, don't add again
+                // But if this is our message and we have an optimistic one, remove it
+                if (isOurMessage && normalizedMessage.client_msg_id) {
+                  const hasOptimistic = prev.some((m) => (m as any).client_msg_id === normalizedMessage.client_msg_id && m.id !== serverMsgId);
+                  if (hasOptimistic) {
+                    return prev.filter((m) => (m as any).client_msg_id !== normalizedMessage.client_msg_id || m.id === serverMsgId);
+                  }
+                }
                 return prev;
               }
 
               // If this is our own message, also check by client_msg_id to replace optimistic message
               if (isOurMessage && normalizedMessage.client_msg_id) {
-                const hasOptimistic = prev.some((m) => (m as any).client_msg_id === normalizedMessage.client_msg_id);
-                if (hasOptimistic) {
+                const optimisticIndex = prev.findIndex((m) => (m as any).client_msg_id === normalizedMessage.client_msg_id);
+                if (optimisticIndex !== -1) {
                   // Replace optimistic message with server message
                   const filtered = prev.filter((m) => (m as any).client_msg_id !== normalizedMessage.client_msg_id);
                   return sortMessagesChronologically([...filtered, normalizedMessage]);
@@ -407,13 +414,20 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               // Always check for duplicates by server ID first
               if (prev.some((m) => m.id === serverMsgId)) {
                 // Message already exists, don't add again
+                // But if this is our message and we have an optimistic one, remove it
+                if (isOurMessage && row.client_msg_id) {
+                  const hasOptimistic = prev.some((m) => (m as any).client_msg_id === row.client_msg_id && m.id !== serverMsgId);
+                  if (hasOptimistic) {
+                    return prev.filter((m) => (m as any).client_msg_id !== row.client_msg_id || m.id === serverMsgId);
+                  }
+                }
                 return prev;
               }
 
               // If this is our own message, also check by client_msg_id to replace optimistic message
               if (isOurMessage && row.client_msg_id) {
-                const hasOptimistic = prev.some((m) => (m as any).client_msg_id === row.client_msg_id);
-                if (hasOptimistic) {
+                const optimisticIndex = prev.findIndex((m) => (m as any).client_msg_id === row.client_msg_id);
+                if (optimisticIndex !== -1) {
                   // Replace optimistic message with server message
                   const filtered = prev.filter((m) => (m as any).client_msg_id !== row.client_msg_id);
                   return sortMessagesChronologically([...filtered, normalizedMessage]);
@@ -564,6 +578,13 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       const savedMessage = await sendMessageHttp(normalizedThreadId, body || null, attachments);
 
       setMessages((prev) => {
+        // First, check if message already exists by server ID (may have arrived via realtime)
+        if (prev.some((m) => m.id === savedMessage.id)) {
+          // Message already exists, just remove optimistic message if present
+          return prev.filter((m) => (m as any).client_msg_id !== clientMsgId);
+        }
+
+        // Remove optimistic message and add server message
         const filtered = prev.filter((m) => (m as any).client_msg_id !== clientMsgId);
         const sorted = [...filtered, savedMessage].sort((a, b) => {
           const timeA = new Date(a.created_at).getTime();
