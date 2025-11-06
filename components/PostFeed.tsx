@@ -1461,7 +1461,7 @@ export default function PostFeed({
                         e.stopPropagation();
                         setReportModalOpen(p.id);
                       }}
-                      className={`absolute bottom-2 right-2 p-2 rounded-full transition z-30 ${
+                      className={`absolute -bottom-2 -right-2 p-1 rounded-full transition z-30 ${
                         isLight
                           ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
                           : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
@@ -1469,7 +1469,7 @@ export default function PostFeed({
                       title="Report post"
                       data-prevent-card-navigation="true"
                     >
-                      <Flag className="h-4 w-4" />
+                      <Flag className="h-2 w-2" />
                     </button>
                   )}
                 </div>
