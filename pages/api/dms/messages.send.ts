@@ -68,70 +68,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       body = '\u200B'; // Zero-width space character - invisible but non-empty
     }
 
-    // Ensure membership first (use maybeSingle to be robust in tests)
-    // Use authedClient for membership check (needs RLS access)
-    const { data: membership, error: membershipErr } = await authedClient
-      .from('dms_thread_participants')
-      .select('thread_id')
-      .eq('thread_id', threadId)
-      .eq('user_id', user.id)
-      .maybeSingle();
+    // Ensure membership and load participants in parallel
+    const [membershipResult, participantsResult] = await Promise.all([
+      authedClient
+        .from('dms_thread_participants')
+        .select('thread_id')
+        .eq('thread_id', threadId)
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      authedClient
+        .from('dms_thread_participants')
+        .select('user_id')
+        .eq('thread_id', threadId)
+    ]);
+
+    const { data: membership, error: membershipErr } = membershipResult;
     if (membershipErr) return res.status(400).json({ ok: false, error: membershipErr.message });
     if (!membership) return res.status(403).json({ ok: false, error: 'Forbidden' });
 
-    // Attempt to load other participant ids (best-effort; tests may return undefined)
-    let otherIds: string[] = [];
-    try {
-      const { data: parts } = await authedClient
-        .from('dms_thread_participants')
-        .select('user_id')
-        .eq('thread_id', threadId);
-      otherIds = (parts || []).map((p: any) => p.user_id).filter((uid: string) => uid !== user.id);
-    } catch {
-      otherIds = [];
-    }
+    // Extract other participant ids
+    const otherIds = ((participantsResult.data || []) as any[])
+      .map((p: any) => p.user_id)
+      .filter((uid: string) => uid !== user.id);
 
-    // Validate blocks with precise filters when participants are known; otherwise use a broad fallback for test doubles
-    // Use authedClient for checks (has RLS access), service role client only for insert
+    // Validate blocks in parallel (if participants exist)
     if (otherIds.length > 0) {
-      // Sender blocked recipient(s)
-      const q2 = authedClient
-        .from('dms_blocks')
-        .select('blocker, blocked')
-        .eq('blocker', user.id)
-        .in('blocked', otherIds)
-        .limit(1);
-      const { data: blocks2, error: b2err } = await execOrFetch(q2);
+      const [blocks2Result, blocks1Result] = await Promise.all([
+        execOrFetch(
+          authedClient
+            .from('dms_blocks')
+            .select('blocker, blocked')
+            .eq('blocker', user.id)
+            .in('blocked', otherIds)
+            .limit(1)
+        ),
+        execOrFetch(
+          authedClient
+            .from('dms_blocks')
+            .select('blocker, blocked')
+            .in('blocker', otherIds)
+            .eq('blocked', user.id)
+            .limit(1)
+        )
+      ]);
+
+      const { data: blocks2, error: b2err } = blocks2Result;
       if (b2err) return res.status(400).json({ ok: false, error: b2err.message });
       if (blocks2 && blocks2.length > 0) {
         return res.status(403).json({ ok: false, error: 'sender_blocked_recipient' });
       }
 
-      // Recipient blocked sender
-      const q1 = authedClient
-        .from('dms_blocks')
-        .select('blocker, blocked')
-        .in('blocker', otherIds)
-        .eq('blocked', user.id)
-        .limit(1);
-      const { data: blocks1, error: b1err } = await execOrFetch(q1);
+      const { data: blocks1, error: b1err } = blocks1Result;
       if (b1err) return res.status(400).json({ ok: false, error: b1err.message });
       if (blocks1 && blocks1.length > 0) {
         return res.status(403).json({ ok: false, error: 'blocked_by_recipient' });
-      }
-    } else {
-      const { data: anyBlocks, error: anyErr } = await execOrFetch(
-        authedClient.from('dms_blocks').select('blocker, blocked').limit(1)
-      );
-      if (anyErr) return res.status(400).json({ ok: false, error: anyErr.message });
-      if (anyBlocks && anyBlocks.length > 0) {
-        const row = anyBlocks[0];
-        if (row?.blocker === user.id) {
-          return res.status(403).json({ ok: false, error: 'sender_blocked_recipient' });
-        }
-        if (row?.blocked === user.id) {
-          return res.status(403).json({ ok: false, error: 'blocked_by_recipient' });
-        }
       }
     }
     // Use PostgreSQL function to insert message (bypasses RLS via SECURITY DEFINER)
@@ -186,94 +176,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (!finalMessage) return res.status(400).json({ ok: false, error: msgErr?.message || 'Failed to send' });
 
-    // Thread update is handled by the function, but try to update anyway if function failed
-    // Use service role client for update to bypass RLS
-    try {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      const updateClient = serviceRoleKey 
-        ? createClient(url, serviceRoleKey, {
-            auth: { persistSession: false, autoRefreshToken: false },
-          })
-        : authedClient;
-      
-      await updateClient
+    // Prepare service role client for parallel operations
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceClient = serviceRoleKey 
+      ? createClient(url, serviceRoleKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+      : authedClient;
+
+    // Run thread update, receipts creation, and broadcast in parallel (non-blocking)
+    const parallelOps: Promise<any>[] = [];
+
+    // Thread update (handled by function, but update anyway if function failed)
+    parallelOps.push(
+      serviceClient
         .from('dms_threads')
         .update({
           last_message_id: finalMessage.id,
           last_message_at: finalMessage.created_at,
         })
-        .eq('id', threadId);
-      } catch {}
+        .eq('id', threadId)
+        .catch(() => {}) // Ignore errors
+    );
 
     // Create receipts for all recipients (except sender)
-    // This allows tracking delivery/read status for the sender
     if (otherIds.length > 0) {
-      try {
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        const receiptClient = serviceRoleKey 
-          ? createClient(url, serviceRoleKey, {
-              auth: { persistSession: false, autoRefreshToken: false },
-            })
-          : authedClient;
-        
-        // Create receipts for all recipients with initial status 'sent'
-        // Status will be updated to 'delivered' when recipient receives the message
-        // and to 'read' when recipient reads the message
-        const receipts = otherIds.map((recipientId) => ({
-          message_id: finalMessage.id,
-          user_id: recipientId,
-          status: 'sent',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }));
-        
-        await receiptClient
+      const receipts = otherIds.map((recipientId) => ({
+        message_id: finalMessage.id,
+        user_id: recipientId,
+        status: 'sent',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+      
+      parallelOps.push(
+        serviceClient
           .from('dms_message_receipts')
           .upsert(receipts, {
             onConflict: 'message_id,user_id',
             ignoreDuplicates: false,
-          });
-      } catch (receiptErr) {
-        console.error('Error creating receipts:', receiptErr);
-        // Don't fail the request if receipts creation fails
-      }
+          })
+          .catch((receiptErr) => {
+            console.error('Error creating receipts:', receiptErr);
+          })
+      );
     }
 
-    // Attempt to fetch receipts created by trigger (best-effort)
-    let messageWithReceipts = finalMessage;
-    try {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      const fetchClient = serviceRoleKey 
-        ? createClient(url, serviceRoleKey, {
-            auth: { persistSession: false, autoRefreshToken: false },
-          })
-        : authedClient;
-      
-      const { data: enriched } = await fetchClient
-        .from('dms_messages')
-        .select('*, receipts:dms_message_receipts(user_id, status, updated_at)')
-        .eq('id', finalMessage.id)
-        .single();
-      if (enriched) messageWithReceipts = enriched as typeof message & { receipts?: any[] };
-    } catch {}
-
-      // Broadcast to realtime subscribers (WebSocket gateway via Redis broker or Supabase fallback)
-      try {
-        const payload = messageWithReceipts || finalMessage;
-        if (payload) {
-          const serverMsgId = typeof payload.id === 'string' ? parseInt(payload.id, 10) : Number(payload.id);
-          const sequenceNumber = payload.sequence_number ?? null;
-          
-          // Publish to WebSocket gateway via Redis broker (if available) and Supabase realtime fallback
-          // This ensures messages are delivered to both WebSocket and Supabase realtime clients
-          await publishMessageEvent(threadId, payload, serverMsgId, sequenceNumber);
+    // Broadcast to realtime subscribers (non-blocking)
+    parallelOps.push(
+      (async () => {
+        try {
+          const serverMsgId = typeof finalMessage.id === 'string' ? parseInt(finalMessage.id, 10) : Number(finalMessage.id);
+          const sequenceNumber = finalMessage.sequence_number ?? null;
+          await publishMessageEvent(threadId, finalMessage, serverMsgId, sequenceNumber);
+        } catch (broadcastErr) {
+          console.error('DM broadcast error:', broadcastErr);
         }
-      } catch (broadcastErr) {
-        console.error('DM broadcast error:', broadcastErr);
-      }
+      })()
+    );
+
+    // Don't wait for parallel operations - return immediately
+    Promise.all(parallelOps).catch(() => {});
 
     // Push notifications (when recipient tab is not active):
     // For each user in `otherIds`, call Edge Function `push` with
@@ -285,7 +249,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     //   body: JSON.stringify({ toUserId, title, body, url }),
     // });
 
-    return res.status(200).json({ ok: true, message: messageWithReceipts || finalMessage });
+    return res.status(200).json({ ok: true, message: finalMessage });
   } catch (e: any) {
     const status = e?.status || 500;
     return res.status(status).json({ ok: false, error: e?.message || 'Internal error' });
