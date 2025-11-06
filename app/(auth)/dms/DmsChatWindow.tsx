@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
-import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread } from '@/lib/dms';
-import { useDmRealtime } from '@/hooks/useDmRealtime';
+import { getOrCreateThread, listMessages, type Message, type Thread } from '@/lib/dms';
+import { useWebSocketDm } from '@/hooks/useWebSocketDm';
 import EmojiPicker from '@/components/EmojiPicker';
 import { uploadAttachment, type DmAttachment, getSignedUrlForAttachment } from '@/lib/dm/attachments';
-import { subscribeToThread, sendTypingIndicator } from '@/lib/dm/realtime';
 import { assertThreadId } from '@/lib/dm/threadId';
+import { useTheme } from '@/components/ThemeProvider';
 
 const INITIAL_MESSAGE_LIMIT = 20;
 const BACKFILL_BATCH_LIMIT = 50;
@@ -68,14 +68,26 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
-  const [initialMessages, setInitialMessages] = useState<Message[]>([]);
-  const [messages, setMessages] = useDmRealtime(thread?.id || null, initialMessages);
+  // Use WebSocket hook for real-time messaging
+  const {
+    messages,
+    isConnected: wsConnected,
+    isTyping: wsIsTyping,
+    partnerTyping,
+    partnerOnline: wsPartnerOnline,
+    sendMessage: wsSendMessage,
+    sendTyping: wsSendTyping,
+    acknowledgeMessage,
+  } = useWebSocketDm(thread?.id || null);
   
-  // New features state
-  const [isTyping, setIsTyping] = useState(false);
-  const [partnerTyping, setPartnerTyping] = useState(false);
+  // Local state
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [messageReceipts, setMessageReceipts] = useState<Map<number, 'delivered' | 'read'>>(new Map());
+  
+  // Theme
+  const { theme } = useTheme();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const presenceChannelRef = useRef<any>(null);
@@ -249,11 +261,22 @@ export default function DmsChatWindow({ partnerId }: Props) {
           });
         }
 
-        // Load Social Weight (default 75)
+        // Load Social Weight from sw_scores table
         try {
-          // For now, default value. Replace with actual query when SW table exists
-          setSocialWeight(75);
-        } catch {
+          const { data: swData } = await supabase
+            .from('sw_scores')
+            .select('total')
+            .eq('user_id', partnerId)
+            .maybeSingle();
+          
+          if (swData && swData.total !== null && swData.total !== undefined) {
+            setSocialWeight(Math.round(swData.total));
+          } else {
+            // Default to 75 if no SW data found
+            setSocialWeight(75);
+          }
+        } catch (swErr) {
+          console.error('Error loading Social Weight:', swErr);
           setSocialWeight(75);
         }
 
@@ -279,35 +302,52 @@ export default function DmsChatWindow({ partnerId }: Props) {
     })();
   }, [partnerId, currentUserId]);
 
-  // Subscribe to partner presence
+  // Use WebSocket presence (already handled by useWebSocketDm)
   useEffect(() => {
-    if (!partnerId) return;
+    if (wsPartnerOnline !== null) {
+      setIsOnline(wsPartnerOnline);
+    }
+  }, [wsPartnerOnline]);
 
-    const channel = supabase.channel(`presence:${partnerId}`, {
-      config: { presence: { key: partnerId } },
-    });
+  // Listen for message acknowledgments and update receipts
+  useEffect(() => {
+    if (!thread?.id || !currentUserId) return;
 
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const isPartnerOnline = !!state[partnerId]?.[0];
-        setIsOnline(isPartnerOnline);
-      })
-      .on('presence', { event: 'join' }, () => {
-        setIsOnline(true);
-      })
-      .on('presence', { event: 'leave' }, () => {
-        setIsOnline(false);
-      })
-      .subscribe();
+    const { getWebSocketClient } = require('@/lib/dm/websocket');
+    const wsClient = getWebSocketClient();
+    
+    const handleAck = (event: any) => {
+      if (event.type === 'ack' && event.thread_id === thread.id) {
+        setMessageReceipts((prev) => {
+          const updated = new Map(prev);
+          updated.set(event.message_id, event.status);
+          return updated;
+        });
+      }
+    };
 
-    presenceChannelRef.current = channel;
+    const handleMessage = (event: any) => {
+      if (event.type === 'message' && event.thread_id === thread.id) {
+        const message = event.message as any;
+        // If this is our message, mark as delivered
+        if (message.sender_id === currentUserId) {
+          setMessageReceipts((prev) => {
+            const updated = new Map(prev);
+            updated.set(event.server_msg_id, 'delivered');
+            return updated;
+          });
+        }
+      }
+    };
+
+    const unsubAck = wsClient.on('ack', handleAck);
+    const unsubMessage = wsClient.on('message', handleMessage);
 
     return () => {
-      channel.unsubscribe();
-      presenceChannelRef.current = null;
+      unsubAck();
+      unsubMessage();
     };
-  }, [partnerId]);
+  }, [thread?.id, currentUserId]);
 
   // Get or create thread and load messages
   useEffect(() => {
@@ -361,9 +401,29 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
         const sorted = sortMessagesChronologically(messagesData);
-        setInitialMessages(sorted);
-        setMessages(sorted);
         oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
+        
+        // Load message receipts for delivered/read status
+        if (sorted.length > 0 && currentUserId) {
+          try {
+            const messageIds = sorted.map(m => m.id);
+            const { data: receipts } = await supabase
+              .from('dms_message_receipts')
+              .select('message_id, status')
+              .in('message_id', messageIds)
+              .eq('user_id', currentUserId);
+            
+            if (receipts) {
+              const receiptsMap = new Map<number, 'delivered' | 'read'>();
+              for (const receipt of receipts) {
+                receiptsMap.set(receipt.message_id, receipt.status as 'delivered' | 'read');
+              }
+              setMessageReceipts(receiptsMap);
+            }
+          } catch (err) {
+            console.error('Error loading message receipts:', err);
+          }
+        }
         
         // Scroll to bottom after messages are loaded
         setTimeout(() => {
@@ -493,7 +553,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages.length]);
 
-  // Play sound on new messages (partner messages only)
+  // Play sound on new messages (partner messages only) and acknowledge them
   useEffect(() => {
     if (messages.length === 0 || !currentUserId || !partnerId) return;
 
@@ -513,36 +573,21 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
       if (isFromPartner) {
         playIncomingNotification();
+        // Acknowledge message as delivered when received
+        if (thread?.id) {
+          acknowledgeMessage(lastMessage.id, thread.id);
+          // Mark as delivered in local state
+          setMessageReceipts((prev) => {
+            const updated = new Map(prev);
+            updated.set(lastMessage.id, 'delivered');
+            return updated;
+          });
+        }
       }
     }
-  }, [messages, currentUserId, partnerId, playIncomingNotification]);
+  }, [messages, currentUserId, partnerId, playIncomingNotification, thread?.id, acknowledgeMessage]);
 
-  // Subscribe to typing indicators
-  useEffect(() => {
-    if (!thread?.id || !currentUserId || !partnerId) return;
-
-    const threadId = thread.id;
-
-    let unsubscribe: (() => void) | null = null;
-
-    (async () => {
-      try {
-        unsubscribe = await subscribeToThread(threadId, {
-          onTyping: (event) => {
-            if (event.userId === partnerId) {
-              setPartnerTyping(event.typing);
-            }
-          },
-        });
-      } catch (err) {
-        console.error('Error subscribing to typing indicators:', err);
-      }
-    })();
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [thread?.id, currentUserId, partnerId]);
+  // Typing indicators are handled by useWebSocketDm hook
 
   // Handle typing indicator
   const handleTyping = useCallback(() => {
@@ -551,7 +596,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     const threadId = thread.id;
 
     setIsTyping(true);
-    void sendTypingIndicator(threadId, currentUserId, true);
+    wsSendTyping(threadId, true);
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -559,11 +604,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      if (thread?.id && currentUserId) {
-        void sendTypingIndicator(thread.id, currentUserId, false);
+      if (thread?.id) {
+        wsSendTyping(thread.id, false);
       }
     }, 3000);
-  }, [thread?.id, currentUserId, isTyping]);
+  }, [thread?.id, currentUserId, isTyping, wsSendTyping]);
 
   // Handle message text change with typing indicator
   const handleMessageTextChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -638,8 +683,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
-    if (threadId && currentUserId) {
-      void sendTypingIndicator(threadId, currentUserId, false);
+    if (threadId) {
+      wsSendTyping(threadId, false);
     }
 
     let attachments: DmAttachment[] = [];
@@ -664,34 +709,13 @@ export default function DmsChatWindow({ partnerId }: Props) {
       setUploadingAttachments(false);
     }
 
-    // Optimistic update
-    const optimisticMessage: Message = {
-      id: Date.now(), // Temporary ID
-      thread_id: threadId,
-      sender_id: currentUserId!,
-      kind: 'text',
-      body: textToSend || null,
-      attachments: attachments as unknown[],
-      created_at: new Date().toISOString(),
-      edited_at: null,
-      deleted_at: null,
-    };
-
-    const previousMessages = messages;
-    // Add optimistic message sorted by time
-    const withOptimistic = sortMessagesChronologically([...messages, optimisticMessage]);
-    setMessages(withOptimistic);
-
     try {
-      // API endpoint will handle empty body with attachments automatically
-      // It uses zero-width space character which is invisible
+      // Send via WebSocket (handles optimistic updates internally)
       const messageBody = textToSend || null;
-      const sentMessage = await sendMessage(threadId, messageBody, attachments as unknown[]);
-      // Replace optimistic message with real one and ensure proper sorting
-      setMessages((prev) => {
-        const updated = prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m));
-        return sortMessagesChronologically(updated);
-      });
+      const result = await wsSendMessage(threadId, messageBody, attachments as unknown[]);
+      
+      // Mark message as delivered when server confirms
+      // The server message event will update the receipt status
       playSendConfirmation();
       
       // Scroll to bottom after sending
@@ -702,8 +726,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
       }, 100);
     } catch (err: any) {
       console.error('Error sending message:', err);
-      // Rollback on error
-      setMessages(previousMessages);
       setMessageText(textToSend);
       setError(err?.message || 'Failed to send message');
     } finally {
@@ -757,11 +779,14 @@ export default function DmsChatWindow({ partnerId }: Props) {
     );
   }
 
-  const partnerName =
-    partnerProfile?.full_name ||
-    partnerProfile?.username ||
+  // Get partner name - prioritize full_name, then username, then fallback
+  const partnerName = partnerProfile?.full_name || 
+    partnerProfile?.username || 
     partnerId.slice(0, 8);
   const partnerAvatar = partnerProfile?.avatar_url || AVATAR_FALLBACK;
+  
+  // Ensure isOnline is properly set (default to false if null)
+  const displayOnline = isOnline === true;
 
   return (
     <div className="card card-glow flex flex-col h-full overflow-hidden">
@@ -789,17 +814,17 @@ export default function DmsChatWindow({ partnerId }: Props) {
               {/* Online/Offline Badge */}
               <span
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-medium ${
-                  isOnline
+                  displayOnline
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                     : 'bg-white/10 text-white/60 border border-white/20'
                 }`}
               >
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${
-                    isOnline ? 'bg-emerald-400' : 'bg-white/40'
+                    displayOnline ? 'bg-emerald-400' : 'bg-white/40'
                   }`}
                 />
-                {isOnline ? 'online' : 'offline'}
+                {displayOnline ? 'online' : 'offline'}
               </span>
               
               {/* Social Weight Badge */}
@@ -824,7 +849,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
                   title="Days streak"
                 >
-                  <span className="text-xs leading-none" role="img" aria-hidden="true">
+                  <span className="text-xs leading-none" role="img" aria-label="fire">
                     {'\uD83D\uDD25'}
                   </span>
                   {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
@@ -948,6 +973,66 @@ export default function DmsChatWindow({ partnerId }: Props) {
                               <span className="text-[10px] text-white/50 italic">
                                 edited
                               </span>
+                            )}
+                            {/* Message status indicators (only for sent messages) */}
+                            {isMine && (
+                              <div className="flex items-center ml-1">
+                                {(() => {
+                                  const receiptStatus = messageReceipts.get(msg.id);
+                                  // Проверяем, что сообщение не является временным (оптимистичным)
+                                  // Временные ID обычно очень большие (Date.now())
+                                  const isRealMessage = msg.id < 1000000000;
+                                  
+                                  if (receiptStatus === 'read' && isRealMessage) {
+                                    // 2 галочки - прочитано (двойная галочка)
+                                    return (
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 16 15"
+                                        width="14"
+                                        height="14"
+                                        className="text-white"
+                                        fill="currentColor"
+                                        style={{ minWidth: '14px' }}
+                                      >
+                                        <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
+                                      </svg>
+                                    );
+                                  } else if ((receiptStatus === 'delivered' || (isRealMessage && receiptStatus !== 'read'))) {
+                                    // 1 галочка - доставлено (одинарная галочка)
+                                    return (
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 16 16"
+                                        width="14"
+                                        height="14"
+                                        className="text-white"
+                                        fill="currentColor"
+                                        style={{ minWidth: '14px' }}
+                                      >
+                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                                      </svg>
+                                    );
+                                  }
+                                  // Для оптимистичных сообщений показываем одну галочку (отправлено)
+                                  if (!isRealMessage) {
+                                    return (
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 16 16"
+                                        width="14"
+                                        height="14"
+                                        className="text-white opacity-70"
+                                        fill="currentColor"
+                                        style={{ minWidth: '14px' }}
+                                      >
+                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                                      </svg>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
                             )}
                           </div>
                         )}
