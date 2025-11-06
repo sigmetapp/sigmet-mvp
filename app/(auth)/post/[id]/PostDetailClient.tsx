@@ -22,6 +22,7 @@ type PostRecord = {
   video_url: string | null;
   category: string | null;
   created_at: string;
+  updated_at?: string | null;
   views: number;
   likes_count: number;
 };
@@ -480,13 +481,25 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     const value = editDraft.trim();
     setUpdatingPost(true);
     try {
+      const updatedAt = new Date().toISOString();
+      const updateData: any = { 
+        body: value || null,
+      };
+      
+      // Add updated_at if the field exists
+      updateData.updated_at = updatedAt;
+      
       const { data, error } = await supabase
         .from<PostRecord>('posts')
-        .update({ body: value || null })
+        .update(updateData)
         .eq('id', postId)
         .select('*')
         .maybeSingle();
-      if (error || !data) throw error;
+      if (error || !data) {
+        console.error('Failed to update post:', error);
+        throw error;
+      }
+      console.log('Post updated successfully:', data);
       setPost(data);
       setEditing(false);
     } catch (error: any) {
@@ -495,7 +508,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     } finally {
       setUpdatingPost(false);
     }
-  }, [editDraft, post.user_id, postId, uid]);
+  }, [editDraft, post.user_id, postId, uid, loadComments]);
 
   const deletePost = useCallback(async () => {
     if (!uid || uid !== post.user_id) return;
@@ -629,9 +642,11 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   );
 
   const formattedDate = useMemo(() => {
-    if (!post?.created_at) return '';
+    // Use updated_at if available, otherwise use created_at
+    const dateString = post?.updated_at || post?.created_at;
+    if (!dateString) return '';
     try {
-      const date = new Date(post.created_at);
+      const date = new Date(dateString);
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const yesterday = new Date(today);
@@ -661,9 +676,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         timeStyle: 'short',
       }).format(date);
     } catch (error) {
-      return new Date(post.created_at).toLocaleString('en-US');
+      return new Date(dateString).toLocaleString('en-US');
     }
-  }, [post?.created_at]);
+  }, [post?.created_at, post?.updated_at]);
 
   const commentCount = comments.length || initialPost.commentCount || 0;
   const avatar = authorProfile?.avatar_url || AVATAR_FALLBACK;
@@ -696,7 +711,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         id: String(post.id),
         author: username,
         content: post.body ?? '',
-        createdAt: post.created_at,
+        createdAt: post.updated_at || post.created_at,
         commentsCount: undefined, // Hide comment count in PostCard header
       }}
       disableNavigation
@@ -937,7 +952,39 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
               </div>
             </div>
           ) : (
-            postCard
+            <>
+              {postCard}
+              {post.updated_at && post.updated_at !== post.created_at && (
+                <div className={`rounded-xl border px-4 py-3 ${
+                  isLight 
+                    ? 'border-slate-200 bg-slate-50/50' 
+                    : 'border-slate-700 bg-slate-800/30'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <svg 
+                      className={`h-4 w-4 ${
+                        isLight ? 'text-slate-500' : 'text-slate-400'
+                      }`} 
+                      fill="none" 
+                      viewBox="0 0 24 24" 
+                      stroke="currentColor"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+                      />
+                    </svg>
+                    <span className={`text-sm ${
+                      isLight ? 'text-slate-600' : 'text-slate-300'
+                    }`}>
+                      Post updated on {formatDateWithTodayYesterday(post.updated_at)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </article>
       )}
