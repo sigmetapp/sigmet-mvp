@@ -53,6 +53,8 @@ function ProfileSettings() {
         show_online_status: true,
         educational_institution_id: null,
         relationship_status: null,
+        date_of_birth: null,
+        work_career_status: null,
       };
       
       // Load educational institution if exists
@@ -316,6 +318,34 @@ function ProfileSettings() {
                 )}
               </>
             )}
+          </div>
+        </div>
+
+        {/* Date of birth and Work & Career - grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="label text-xs">Date of birth</label>
+            <input
+              type="date"
+              className="input text-sm py-1.5"
+              value={profile.date_of_birth || ''}
+              onChange={e => setProfile({ ...profile, date_of_birth: e.target.value || null })}
+            />
+          </div>
+          <div>
+            <label className="label text-xs">Work & Career</label>
+            <select
+              className="input text-sm py-1.5"
+              value={profile.work_career_status || ''}
+              onChange={e => setProfile({ ...profile, work_career_status: e.target.value || null })}
+            >
+              <option value="">Not specified</option>
+              <option value="employed">Employed</option>
+              <option value="entrepreneur">Entrepreneur</option>
+              <option value="student">Student</option>
+              <option value="looking_for_opportunities">Looking for Opportunities</option>
+              <option value="unemployed">Unemployed</option>
+            </select>
           </div>
         </div>
 
