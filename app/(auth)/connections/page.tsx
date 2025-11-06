@@ -49,6 +49,10 @@ function ConnectionsInner() {
   const [trustFlowScores, setTrustFlowScores] = useState<Record<string, number>>({});
   const [followersProfiles, setFollowersProfiles] = useState<Record<string, SimpleProfile>>({});
   const [followingProfiles, setFollowingProfiles] = useState<Record<string, SimpleProfile>>({});
+  const [followersSWScores, setFollowersSWScores] = useState<Record<string, number>>({});
+  const [followersTrustFlowScores, setFollowersTrustFlowScores] = useState<Record<string, number>>({});
+  const [followingSWScores, setFollowingSWScores] = useState<Record<string, number>>({});
+  const [followingTrustFlowScores, setFollowingTrustFlowScores] = useState<Record<string, number>>({});
   const [updatingFollows, setUpdatingFollows] = useState<Record<string, boolean>>({});
   
   // Recommended people
@@ -352,6 +356,90 @@ function ConnectionsInner() {
 
             setFollowersProfiles(followersMap);
             setFollowingProfiles(followingMap);
+
+            // Load SW scores for followers and following
+            try {
+              const { data: swData } = await supabase
+                .from("sw_scores")
+                .select("user_id, total")
+                .in("user_id", allFollowUserIds);
+              const swMap: Record<string, number> = {};
+              if (swData) {
+                for (const row of swData as any[]) {
+                  swMap[row.user_id as string] = (row.total as number) || 0;
+                }
+              }
+              // Separate for followers and following
+              const followersSW: Record<string, number> = {};
+              const followingSW: Record<string, number> = {};
+              for (const userId of allFollowUserIds) {
+                const score = swMap[userId] || 0;
+                if (followersSet.has(userId)) {
+                  followersSW[userId] = score;
+                }
+                if (followingSet.has(userId)) {
+                  followingSW[userId] = score;
+                }
+              }
+              setFollowersSWScores(followersSW);
+              setFollowingSWScores(followingSW);
+            } catch {
+              setFollowersSWScores({});
+              setFollowingSWScores({});
+            }
+
+            // Load Trust Flow scores for followers and following
+            try {
+              const { data: trustData } = await supabase
+                .from("trust_feedback")
+                .select("target_user_id, value")
+                .in("target_user_id", allFollowUserIds);
+              const trustMap: Record<string, number> = {};
+              if (trustData) {
+                const trustSums: Record<string, number> = {};
+                for (const row of trustData as any[]) {
+                  const userId = row.target_user_id as string;
+                  trustSums[userId] = (trustSums[userId] || 0) + (Number(row.value) || 0);
+                }
+                for (const userId of allFollowUserIds) {
+                  const sum = trustSums[userId] || 0;
+                  trustMap[userId] = Math.max(0, Math.min(120, 80 + sum * 2));
+                }
+              } else {
+                // Set default 80 for all if no data
+                for (const userId of allFollowUserIds) {
+                  trustMap[userId] = 80;
+                }
+              }
+              // Separate for followers and following
+              const followersTrust: Record<string, number> = {};
+              const followingTrust: Record<string, number> = {};
+              for (const userId of allFollowUserIds) {
+                const score = trustMap[userId] ?? 80;
+                if (followersSet.has(userId)) {
+                  followersTrust[userId] = score;
+                }
+                if (followingSet.has(userId)) {
+                  followingTrust[userId] = score;
+                }
+              }
+              setFollowersTrustFlowScores(followersTrust);
+              setFollowingTrustFlowScores(followingTrust);
+            } catch {
+              // Trust Flow table may not exist, set defaults
+              const defaultFollowersTrust: Record<string, number> = {};
+              const defaultFollowingTrust: Record<string, number> = {};
+              for (const userId of allFollowUserIds) {
+                if (followersSet.has(userId)) {
+                  defaultFollowersTrust[userId] = 80;
+                }
+                if (followingSet.has(userId)) {
+                  defaultFollowingTrust[userId] = 80;
+                }
+              }
+              setFollowersTrustFlowScores(defaultFollowersTrust);
+              setFollowingTrustFlowScores(defaultFollowingTrust);
+            }
           }
         } catch {
           // follows table may not exist in some envs
@@ -359,6 +447,10 @@ function ConnectionsInner() {
           setMyFollowers(new Set());
           setFollowersProfiles({});
           setFollowingProfiles({});
+          setFollowersSWScores({});
+          setFollowersTrustFlowScores({});
+          setFollowingSWScores({});
+          setFollowingTrustFlowScores({});
         }
 
         // Calculate recommended people
@@ -607,6 +699,8 @@ function ConnectionsInner() {
                   const profileUrl = username ? `/u/${username}` : `/u/${uid}`;
                   const isFollowing = myFollowing.has(uid);
                   const isUpdating = updatingFollows[uid] || false;
+                  const swScore = followersSWScores[uid] || 0;
+                  const trustFlow = followersTrustFlowScores[uid] ?? 80;
 
                   return (
                     <div key={uid} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
@@ -620,6 +714,16 @@ function ConnectionsInner() {
                       <Link href={profileUrl} className="min-w-0 flex-1 hover:underline">
                         <div className="text-white font-medium truncate">{displayName}</div>
                         <div className="text-white/60 text-sm truncate">@{username}</div>
+                        <div className="flex items-center gap-3 text-xs mt-1">
+                          {swScore > 0 && (
+                            <div className="text-white/60">
+                              SW: {swScore}
+                            </div>
+                          )}
+                          <div className="text-white/60">
+                            TF: {trustFlow}
+                          </div>
+                        </div>
                       </Link>
                       {meId !== uid && (
                         <Button
@@ -654,6 +758,8 @@ function ConnectionsInner() {
                   const profileUrl = username ? `/u/${username}` : `/u/${uid}`;
                   const isFollowing = true; // Always true in this list
                   const isUpdating = updatingFollows[uid] || false;
+                  const swScore = followingSWScores[uid] || 0;
+                  const trustFlow = followingTrustFlowScores[uid] ?? 80;
 
                   return (
                     <div key={uid} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
@@ -667,6 +773,16 @@ function ConnectionsInner() {
                       <Link href={profileUrl} className="min-w-0 flex-1 hover:underline">
                         <div className="text-white font-medium truncate">{displayName}</div>
                         <div className="text-white/60 text-sm truncate">@{username}</div>
+                        <div className="flex items-center gap-3 text-xs mt-1">
+                          {swScore > 0 && (
+                            <div className="text-white/60">
+                              SW: {swScore}
+                            </div>
+                          )}
+                          <div className="text-white/60">
+                            TF: {trustFlow}
+                          </div>
+                        </div>
                       </Link>
                       {meId !== uid && (
                         <Button
