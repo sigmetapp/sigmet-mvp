@@ -195,7 +195,7 @@ export default async function handler(
 
         if (!postsError && todayPosts && todayPosts.length > 0) {
           // Count posts that mention other users (contain @username or /u/username patterns)
-          const mentionPattern = /@\w+|/u\/[\w-]+/i;
+          const mentionPattern = /@\w+|\/u\/[\w-]+/i;
           for (const post of todayPosts) {
             const body = (post as any).body || (post as any).text || '';
             if (mentionPattern.test(body)) {
