@@ -232,6 +232,7 @@ export default function SWPage() {
     commentsCount: number;
     reactionsCount: number;
     invitesCount: number;
+    totalAcceptedInvites?: number;
     followersCount: number;
     connectionsCount: number;
   } | null>(null);
@@ -719,10 +720,15 @@ export default function SWPage() {
                     Each published post adds points to your SW.
                   </div>
                 </div>
-                <div className="ml-4 flex items-center">
+                <div className="ml-4 flex flex-col items-end">
                   <span className="text-white/70 text-sm font-medium">
                     {recentActivity ? `${recentActivity.postsCount} today` : '...'}
                   </span>
+                  {recentActivity && (
+                    <span className="text-blue-400 text-sm font-medium mt-1 underline">
+                      We recommend 5
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -734,10 +740,15 @@ export default function SWPage() {
                     Actively commenting on other users' posts increases your SW.
                   </div>
                 </div>
-                <div className="ml-4 flex items-center">
+                <div className="ml-4 flex flex-col items-end">
                   <span className="text-white/70 text-sm font-medium">
                     {recentActivity ? `${recentActivity.commentsCount} today` : '...'}
                   </span>
+                  {recentActivity && (
+                    <span className="text-blue-400 text-sm font-medium mt-1 underline">
+                      We recommend 10
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -779,10 +790,15 @@ export default function SWPage() {
                     Reactions on your posts increase your SW.
                   </div>
                 </div>
-                <div className="ml-4 flex items-center">
+                <div className="ml-4 flex flex-col items-end">
                   <span className="text-white/70 text-sm font-medium">
                     {recentActivity ? `${recentActivity.reactionsCount} today` : '...'}
                   </span>
+                  {recentActivity && (
+                    <span className="text-blue-400 text-sm font-medium mt-1 underline">
+                      We recommend 10
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -796,7 +812,9 @@ export default function SWPage() {
                 </div>
                 <div className="ml-4 flex items-center">
                   <span className="text-white/70 text-sm font-medium">
-                    {recentActivity ? `${recentActivity.invitesCount} today` : '...'}
+                    {recentActivity && recentActivity.totalAcceptedInvites !== undefined
+                      ? `Invite ${Math.max(0, 5 - recentActivity.totalAcceptedInvites)}/5`
+                      : '...'}
                   </span>
                 </div>
               </div>

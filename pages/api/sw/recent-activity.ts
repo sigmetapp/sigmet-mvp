@@ -147,6 +147,22 @@ export default async function handler(
       console.warn('Error fetching recent invites:', err);
     }
 
+    // Get total accepted invites count (for remaining invites calculation)
+    let totalAcceptedInvites = 0;
+    try {
+      const { count, error } = await supabase
+        .from('invites')
+        .select('id', { count: 'exact', head: true })
+        .eq('inviter_user_id', userId)
+        .eq('status', 'accepted');
+      
+      if (!error && count !== null) {
+        totalAcceptedInvites = count;
+      }
+    } catch (err) {
+      console.warn('Error fetching total accepted invites:', err);
+    }
+
     // Get followers count in last 24 hours (new followers today)
     let followersCount = 0;
     try {
@@ -236,6 +252,7 @@ export default async function handler(
       commentsCount,
       reactionsCount,
       invitesCount,
+      totalAcceptedInvites,
       followersCount,
       connectionsCount,
     });
