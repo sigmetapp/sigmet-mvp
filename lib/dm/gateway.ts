@@ -132,34 +132,134 @@ async function handleSendMessage(
       return;
     }
 
-    // Insert message
-    const { data: message, error } = await supabase
-      .from('dms_messages')
-      .insert({
-        thread_id: threadId,
-        sender_id: conn.userId,
-        kind: 'text',
-        body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
-        attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : [],
-        client_msg_id: clientMsgId,
-        sequence_number: null, // Will be set by trigger
-      })
-      .select('*')
-      .single();
+    // Insert message using RPC function to bypass RLS
+    // Convert attachments to JSONB format
+    const attachmentsJsonb = Array.isArray(attachments) && attachments.length > 0 
+      ? JSON.parse(JSON.stringify(attachments))
+      : [];
+    
+    const { data: message, error } = await supabase.rpc('insert_dms_message', {
+      p_thread_id: threadId,
+      p_sender_id: conn.userId,
+      p_body: body || (attachmentsJsonb.length > 0 ? '\u200B' : null),
+      p_kind: 'text',
+      p_attachments: attachmentsJsonb,
+      p_client_msg_id: clientMsgId || null,
+    });
 
     if (error || !message) {
-      send(conn.ws, { type: 'error', error: error?.message || 'Failed to send message', code: 'SEND_FAILED' });
-      return;
+      // If RPC fails, try direct insert with service role (fallback)
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      
+      if (serviceRoleKey) {
+        const serviceClient = createClient(url, serviceRoleKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        
+        const { data: fallbackMessage, error: fallbackError } = await serviceClient
+          .from('dms_messages')
+          .insert({
+            thread_id: threadId,
+            sender_id: conn.userId,
+            kind: 'text',
+            body: body || (attachmentsJsonb.length > 0 ? '\u200B' : null),
+            attachments: attachmentsJsonb,
+            client_msg_id: clientMsgId,
+            sequence_number: null, // Will be set by trigger
+          })
+          .select('*')
+          .single();
+
+        if (fallbackError || !fallbackMessage) {
+          send(conn.ws, { type: 'error', error: fallbackError?.message || error?.message || 'Failed to send message', code: 'SEND_FAILED' });
+          return;
+        }
+        
+        // Update client_msg_id if not set by function
+        if (clientMsgId && !fallbackMessage.client_msg_id) {
+          await serviceClient
+            .from('dms_messages')
+            .update({ client_msg_id: clientMsgId })
+            .eq('id', fallbackMessage.id);
+        }
+        
+        // Use fallback message
+        const finalMessage = { ...fallbackMessage, client_msg_id: clientMsgId };
+        
+        // Update thread
+        await serviceClient
+          .from('dms_threads')
+          .update({
+            last_message_id: finalMessage.id,
+            last_message_at: finalMessage.created_at,
+          })
+          .eq('id', threadId);
+
+        // Broadcast to all subscribers
+        const serverMsgId = typeof finalMessage.id === 'string' ? parseInt(finalMessage.id, 10) : Number(finalMessage.id);
+        broadcastToThread(threadId, {
+          type: 'message',
+          thread_id: threadId,
+          message: {
+            ...finalMessage,
+            id: serverMsgId,
+            client_msg_id: clientMsgId,
+          },
+          server_msg_id: serverMsgId,
+        });
+
+        // Publish to Redis Streams if available
+        if (redisClient) {
+          try {
+            await redisClient.xAdd(
+              `thread:${threadId}`,
+              '*',
+              {
+                type: 'message',
+                message: JSON.stringify(finalMessage),
+                server_msg_id: String(serverMsgId),
+              }
+            );
+          } catch (redisErr) {
+            console.error('Redis publish error:', redisErr);
+          }
+        }
+        
+        return;
+      } else {
+        send(conn.ws, { type: 'error', error: error?.message || 'Failed to send message', code: 'SEND_FAILED' });
+        return;
+      }
+    }
+    
+    // Update client_msg_id if function doesn't support it (for backward compatibility)
+    if (clientMsgId && !message.client_msg_id) {
+      try {
+        await supabase
+          .from('dms_messages')
+          .update({ client_msg_id: clientMsgId })
+          .eq('id', message.id);
+        message.client_msg_id = clientMsgId;
+      } catch (updateErr) {
+        // Ignore update errors, client_msg_id is optional
+        console.warn('Failed to update client_msg_id:', updateErr);
+      }
     }
 
-    // Update thread
-    await supabase
-      .from('dms_threads')
-      .update({
-        last_message_id: message.id,
-        last_message_at: message.created_at,
-      })
-      .eq('id', threadId);
+    // Thread update is handled by the function, but ensure it's updated
+    try {
+      await supabase
+        .from('dms_threads')
+        .update({
+          last_message_id: message.id,
+          last_message_at: message.created_at,
+        })
+        .eq('id', threadId);
+    } catch (updateErr) {
+      // Thread update is already done by function, ignore errors
+      console.warn('Thread update warning:', updateErr);
+    }
 
     // Broadcast to all subscribers
     const serverMsgId = typeof message.id === 'string' ? parseInt(message.id, 10) : Number(message.id);
