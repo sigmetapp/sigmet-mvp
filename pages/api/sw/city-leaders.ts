@@ -33,51 +33,69 @@ export default async function handler(
   }
 
   try {
-    // Get user's city from profile
+    // Helper function to parse city and country from combined string
+    // Format: "city, country" or just "country"
+    function parseCityCountry(value?: string | null): { city?: string; country?: string } {
+      if (!value) return {};
+      const parts = value.split(',').map((p) => p.trim()).filter(Boolean);
+      if (parts.length === 0) return {};
+      if (parts.length === 1) return { country: parts[0] };
+      return { city: parts.slice(0, -1).join(', '), country: parts[parts.length - 1] };
+    }
+
+    // Get user's city and country from profile
     const { data: userProfile, error: profileError } = await supabase
       .from('profiles')
-      .select('country, city')
+      .select('country')
       .eq('user_id', userId)
       .single();
 
-    if (profileError || !userProfile) {
+    if (profileError || !userProfile || !userProfile.country) {
       return res.status(200).json({ leaders: [] });
     }
 
-    const userCity = userProfile.city;
-    const userCountry = userProfile.country;
+    const { city: userCity, country: userCountry } = parseCityCountry(userProfile.country);
 
     if (!userCity && !userCountry) {
       return res.status(200).json({ leaders: [] });
     }
 
-    // First, get profiles by city/country
-    let profilesQuery = supabase
+    // Get all profiles with country field
+    const { data: allProfiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('user_id, username, full_name, avatar_url, city, country')
+      .select('user_id, username, full_name, avatar_url, country')
+      .not('country', 'is', null)
       .limit(100);
 
-    // Filter by city if available, otherwise by country
-    if (userCity) {
-      profilesQuery = profilesQuery.eq('city', userCity);
-    } else if (userCountry) {
-      profilesQuery = profilesQuery.eq('country', userCountry);
-    }
-
-    const { data: profilesData, error: profilesError } = await profilesQuery;
-
-    if (profilesError || !profilesData || profilesData.length === 0) {
+    if (profilesError || !allProfiles || allProfiles.length === 0) {
       return res.status(200).json({ leaders: [] });
     }
 
-    // Filter out current user and get user IDs
-    const userIds = profilesData
-      .filter((p: any) => p.user_id !== userId)
-      .map((p: any) => p.user_id);
+    // Filter profiles by matching city and country
+    // If user has city, match by city and country
+    // If user only has country, match by country
+    const matchingProfiles = allProfiles
+      .filter((p: any) => {
+        if (p.user_id === userId) return false; // Exclude current user
+        
+        const { city: profileCity, country: profileCountry } = parseCityCountry(p.country);
+        
+        if (userCity && userCountry) {
+          // Match by both city and country
+          return profileCity === userCity && profileCountry === userCountry;
+        } else if (userCountry) {
+          // Match by country only
+          return profileCountry === userCountry;
+        }
+        return false;
+      });
 
-    if (userIds.length === 0) {
+    if (matchingProfiles.length === 0) {
       return res.status(200).json({ leaders: [] });
     }
+
+    // Get user IDs
+    const userIds = matchingProfiles.map((p: any) => p.user_id);
 
     // Get SW scores for these users
     const { data: swScoresData, error: swScoresError } = await supabase
@@ -93,7 +111,7 @@ export default async function handler(
 
     // Create a map of profiles by user_id
     const profilesMap = new Map();
-    profilesData.forEach((p: any) => {
+    matchingProfiles.forEach((p: any) => {
       profilesMap.set(p.user_id, p);
     });
 
@@ -102,14 +120,15 @@ export default async function handler(
       .slice(0, 5) // Limit to 5 leaders
       .map((item: any) => {
         const profile = profilesMap.get(item.user_id);
+        const { city, country } = parseCityCountry(profile?.country);
         return {
           userId: item.user_id,
           sw: item.total || 0,
           username: profile?.username || null,
           fullName: profile?.full_name || null,
           avatarUrl: profile?.avatar_url || null,
-          city: profile?.city || null,
-          country: profile?.country || null,
+          city: city || null,
+          country: country || null,
         };
       });
 
