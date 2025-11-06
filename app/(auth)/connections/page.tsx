@@ -46,12 +46,10 @@ function ConnectionsInner() {
   const [myFollowing, setMyFollowing] = useState<Set<string>>(new Set());
   const [myFollowers, setMyFollowers] = useState<Set<string>>(new Set());
   const [swScores, setSwScores] = useState<Record<string, number>>({});
+  const [trustFlowScores, setTrustFlowScores] = useState<Record<string, number>>({});
   const [followersProfiles, setFollowersProfiles] = useState<Record<string, SimpleProfile>>({});
   const [followingProfiles, setFollowingProfiles] = useState<Record<string, SimpleProfile>>({});
-  
-  // My own metrics
-  const [mySW, setMySW] = useState<number | null>(null);
-  const [myTrustFlow, setMyTrustFlow] = useState<number | null>(null);
+  const [updatingFollows, setUpdatingFollows] = useState<Record<string, boolean>>({});
   
   // Recommended people
   const [recommendedPeople, setRecommendedPeople] = useState<Array<{
@@ -273,9 +271,43 @@ function ConnectionsInner() {
             // SW scores table may not exist
             setSwScores({});
           }
+
+          // Load Trust Flow scores for connections
+          try {
+            const { data: trustData } = await supabase
+              .from("trust_feedback")
+              .select("target_user_id, value")
+              .in("target_user_id", ids);
+            const trustMap: Record<string, number> = {};
+            if (trustData) {
+              const trustSums: Record<string, number> = {};
+              for (const row of trustData as any[]) {
+                const userId = row.target_user_id as string;
+                trustSums[userId] = (trustSums[userId] || 0) + (Number(row.value) || 0);
+              }
+              for (const userId of ids) {
+                const sum = trustSums[userId] || 0;
+                trustMap[userId] = Math.max(0, Math.min(120, 80 + sum * 2));
+              }
+            } else {
+              // Set default 80 for all if no data
+              for (const userId of ids) {
+                trustMap[userId] = 80;
+              }
+            }
+            setTrustFlowScores(trustMap);
+          } catch {
+            // Trust Flow table may not exist, set defaults
+            const defaultTrust: Record<string, number> = {};
+            for (const userId of ids) {
+              defaultTrust[userId] = 80;
+            }
+            setTrustFlowScores(defaultTrust);
+          }
         } else {
           setProfiles({});
           setSwScores({});
+          setTrustFlowScores({});
         }
 
         // Load follows (followers and following for me)
@@ -327,31 +359,6 @@ function ConnectionsInner() {
           setMyFollowers(new Set());
           setFollowersProfiles({});
           setFollowingProfiles({});
-        }
-
-        // Load my own SW score
-        try {
-          const { data: mySWData } = await supabase
-            .from("sw_scores")
-            .select("total")
-            .eq("user_id", meId)
-            .maybeSingle();
-          setMySW(mySWData ? (mySWData as any).total || 0 : 0);
-        } catch {
-          setMySW(0);
-        }
-
-        // Load my own Trust Flow
-        try {
-          const { data: trustData } = await supabase
-            .from("trust_feedback")
-            .select("value")
-            .eq("target_user_id", meId);
-          const sum = ((trustData as any[]) || []).reduce((acc, r) => acc + (Number(r.value) || 0), 0);
-          const rating = Math.max(0, Math.min(120, 80 + sum * 2));
-          setMyTrustFlow(rating);
-        } catch {
-          setMyTrustFlow(80);
         }
 
         // Calculate recommended people
@@ -481,36 +488,41 @@ function ConnectionsInner() {
     })();
   }, [meId, meUsername]);
 
+  const toggleFollow = async (userId: string, isFollowing: boolean) => {
+    if (!meId || !userId || meId === userId) return;
+    
+    setUpdatingFollows(prev => ({ ...prev, [userId]: true }));
+    try {
+      if (!isFollowing) {
+        const { error } = await supabase.from('follows').insert({ follower_id: meId, followee_id: userId });
+        if (!error) {
+          setMyFollowing(prev => new Set([...prev, userId]));
+        }
+      } else {
+        const { error } = await supabase
+          .from('follows')
+          .delete()
+          .eq('follower_id', meId)
+          .eq('followee_id', userId);
+        if (!error) {
+          setMyFollowing(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(userId);
+            return newSet;
+          });
+        }
+      }
+    } finally {
+      setUpdatingFollows(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 md:p-6 space-y-6">
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">{title}</h1>
           <p className="text-white/70 text-sm">People you've tagged and who tagged you in posts. Connections are based on mutual mentions.</p>
-        </div>
-      </div>
-
-      {/* Social Weight and Trust Flow Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="card p-4 md:p-6 space-y-3">
-          <div className="text-white/80 font-medium text-lg">Social Weight</div>
-          {loading ? (
-            <div className="text-white/70 text-sm">Loading…</div>
-          ) : mySW !== null ? (
-            <div className="text-3xl font-bold text-white">{mySW}</div>
-          ) : (
-            <div className="text-white/60 text-sm">No data available</div>
-          )}
-        </div>
-        <div className="card p-4 md:p-6 space-y-3">
-          <div className="text-white/80 font-medium text-lg">Trust Flow</div>
-          {loading ? (
-            <div className="text-white/70 text-sm">Loading…</div>
-          ) : myTrustFlow !== null ? (
-            <div className="text-3xl font-bold text-white">{myTrustFlow}</div>
-          ) : (
-            <div className="text-white/60 text-sm">No data available</div>
-          )}
         </div>
       </div>
 
@@ -530,6 +542,7 @@ function ConnectionsInner() {
               const avatar = p?.avatar_url || AVATAR_FALLBACK;
               const connectionsCount = c.connectionsCount;
               const swScore = swScores[c.userId] || 0;
+              const trustFlow = trustFlowScores[c.userId] ?? 80;
               const profileUrl = username ? `/u/${username}` : `/u/${c.userId}`;
               const dmUrl = `/dms?partnerId=${encodeURIComponent(c.userId)}`;
 
@@ -549,15 +562,20 @@ function ConnectionsInner() {
                     </Link>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="text-right">
+                    <div className="text-right space-y-1">
                       <div className="text-white/80 text-sm font-medium">
                         {connectionsCount} {connectionsCount === 1 ? 'connection' : 'connections'}
                       </div>
-                      {swScore > 0 && (
-                        <div className="text-white/60 text-xs">
-                          {swScore} SW
+                      <div className="flex items-center gap-3 text-xs">
+                        {swScore > 0 && (
+                          <div className="text-white/60">
+                            SW: {swScore}
+                          </div>
+                        )}
+                        <div className="text-white/60">
+                          TF: {trustFlow}
                         </div>
-                      )}
+                      </div>
                     </div>
                     <Link href={dmUrl}>
                       <Button variant="primary" size="sm">
@@ -587,23 +605,36 @@ function ConnectionsInner() {
                   const username = p?.username || uid.slice(0, 8);
                   const avatar = p?.avatar_url || AVATAR_FALLBACK;
                   const profileUrl = username ? `/u/${username}` : `/u/${uid}`;
+                  const isFollowing = myFollowing.has(uid);
+                  const isUpdating = updatingFollows[uid] || false;
 
                   return (
-                    <Link
-                      key={uid}
-                      href={profileUrl}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors"
-                    >
-                      <img
-                        src={avatar}
-                        alt={displayName}
-                        className="h-10 w-10 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
-                      />
-                      <div className="min-w-0 flex-1">
+                    <div key={uid} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <Link href={profileUrl} className="flex-shrink-0">
+                        <img
+                          src={avatar}
+                          alt={displayName}
+                          className="h-10 w-10 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
+                        />
+                      </Link>
+                      <Link href={profileUrl} className="min-w-0 flex-1 hover:underline">
                         <div className="text-white font-medium truncate">{displayName}</div>
                         <div className="text-white/60 text-sm truncate">@{username}</div>
-                      </div>
-                    </Link>
+                      </Link>
+                      {meId !== uid && (
+                        <Button
+                          variant={isFollowing ? 'secondary' : 'primary'}
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleFollow(uid, isFollowing);
+                          }}
+                          disabled={isUpdating}
+                        >
+                          {isFollowing ? 'Unfollow' : 'Follow'}
+                        </Button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -621,23 +652,36 @@ function ConnectionsInner() {
                   const username = p?.username || uid.slice(0, 8);
                   const avatar = p?.avatar_url || AVATAR_FALLBACK;
                   const profileUrl = username ? `/u/${username}` : `/u/${uid}`;
+                  const isFollowing = true; // Always true in this list
+                  const isUpdating = updatingFollows[uid] || false;
 
                   return (
-                    <Link
-                      key={uid}
-                      href={profileUrl}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors"
-                    >
-                      <img
-                        src={avatar}
-                        alt={displayName}
-                        className="h-10 w-10 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
-                      />
-                      <div className="min-w-0 flex-1">
+                    <div key={uid} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <Link href={profileUrl} className="flex-shrink-0">
+                        <img
+                          src={avatar}
+                          alt={displayName}
+                          className="h-10 w-10 rounded-full object-cover border border-white/10 hover:border-telegram-blue/50 transition-colors"
+                        />
+                      </Link>
+                      <Link href={profileUrl} className="min-w-0 flex-1 hover:underline">
                         <div className="text-white font-medium truncate">{displayName}</div>
                         <div className="text-white/60 text-sm truncate">@{username}</div>
-                      </div>
-                    </Link>
+                      </Link>
+                      {meId !== uid && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleFollow(uid, isFollowing);
+                          }}
+                          disabled={isUpdating}
+                        >
+                          Unfollow
+                        </Button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
