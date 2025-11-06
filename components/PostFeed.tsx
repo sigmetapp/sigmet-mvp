@@ -20,7 +20,7 @@ import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
 import { Image as ImageIcon, Paperclip, X as CloseIcon } from "lucide-react";
-import { formatTextWithMentions } from "@/lib/formatText";
+import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
 
 function formatPostDate(dateString: string): string {
@@ -1012,6 +1012,9 @@ export default function PostFeed({
           const fullName = profile?.full_name || null;
           const commentCount = commentCounts[p.id] ?? 0;
           
+          // Check if post has mentions
+          const postHasMentions = hasMentions(p.body);
+          
           // Check if post has category that matches available directions
           const hasCategory = p.category && p.category.trim() !== '';
           const categoryDirection = hasCategory && availableDirections.find((dir) => {
@@ -1061,7 +1064,7 @@ export default function PostFeed({
                           >
                             {username}
                           </a>
-                          {(fullName || p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                          {(fullName || p.category || postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
                             <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                               |
                             </span>
@@ -1071,7 +1074,7 @@ export default function PostFeed({
                               <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                                 {fullName}
                               </span>
-                              {(p.category || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                              {(p.category || postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
                                 <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
                                   |
                                 </span>
@@ -1090,6 +1093,22 @@ export default function PostFeed({
                                   : 'text-telegram-text-secondary bg-white/5'
                               }`}>
                                 {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                              </div>
+                              {(postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                  |
+                                </span>
+                              )}
+                            </>
+                          )}
+                          {postHasMentions && (
+                            <>
+                              <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                isLight
+                                  ? 'bg-green-500/20 text-green-600 border border-green-500/30 shadow-sm'
+                                  : 'bg-green-500/25 text-green-400 border border-green-500/40 shadow-sm'
+                              }`}>
+                                Connections
                               </div>
                               {(growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0) && (
                                 <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
