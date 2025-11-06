@@ -197,6 +197,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           last_message_at: finalMessage.created_at,
         })
         .eq('id', threadId)
+        .then(() => {})
         .catch(() => {}) // Ignore errors
     );
 
@@ -217,6 +218,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             onConflict: 'message_id,user_id',
             ignoreDuplicates: false,
           })
+          .then(() => {})
           .catch((receiptErr) => {
             console.error('Error creating receipts:', receiptErr);
           })
