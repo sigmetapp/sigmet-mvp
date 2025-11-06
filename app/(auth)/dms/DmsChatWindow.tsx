@@ -135,8 +135,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
     
     return Array.from(merged.values()).sort((a, b) => {
-      const timeA = new Date(a.created_at).getTime();
-      const timeB = new Date(b.created_at).getTime();
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
       if (timeA !== timeB) return timeA - timeB;
       return (a.id || 0) - (b.id || 0);
     });

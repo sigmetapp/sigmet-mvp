@@ -15,7 +15,9 @@ export function makeMessageReconciler() {
     
     // Keep list sorted by created_at desc then id desc
     list.sort((a, b) => {
-      const timeCompare = b.created_at.localeCompare(a.created_at);
+      const aTime = a.created_at || '';
+      const bTime = b.created_at || '';
+      const timeCompare = bTime.localeCompare(aTime);
       if (timeCompare !== 0) return timeCompare;
       
       const aId = a.id ?? 0;
