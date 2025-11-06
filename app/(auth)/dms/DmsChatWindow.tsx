@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
-import { getOrCreateThread, listMessages, sendMessage, type Message, type Thread } from '@/lib/dms';
-import { useDmRealtime } from '@/hooks/useDmRealtime';
+import { getOrCreateThread, listMessages, type Message, type Thread } from '@/lib/dms';
+import { useWebSocketDm } from '@/hooks/useWebSocketDm';
 import EmojiPicker from '@/components/EmojiPicker';
 import { uploadAttachment, type DmAttachment, getSignedUrlForAttachment } from '@/lib/dm/attachments';
-import { subscribeToThread, sendTypingIndicator } from '@/lib/dm/realtime';
 import { assertThreadId } from '@/lib/dm/threadId';
 
 const INITIAL_MESSAGE_LIMIT = 20;
@@ -68,14 +67,21 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
-  const [initialMessages, setInitialMessages] = useState<Message[]>([]);
-  const [messages, setMessages] = useDmRealtime(thread?.id || null, initialMessages);
+  // Use WebSocket hook for real-time messaging
+  const {
+    messages,
+    isConnected: wsConnected,
+    isTyping: wsIsTyping,
+    partnerTyping,
+    partnerOnline: wsPartnerOnline,
+    sendMessage: wsSendMessage,
+    sendTyping: wsSendTyping,
+  } = useWebSocketDm(thread?.id || null);
   
-  // New features state
-  const [isTyping, setIsTyping] = useState(false);
-  const [partnerTyping, setPartnerTyping] = useState(false);
+  // Local state
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const presenceChannelRef = useRef<any>(null);
@@ -279,35 +285,12 @@ export default function DmsChatWindow({ partnerId }: Props) {
     })();
   }, [partnerId, currentUserId]);
 
-  // Subscribe to partner presence
+  // Use WebSocket presence (already handled by useWebSocketDm)
   useEffect(() => {
-    if (!partnerId) return;
-
-    const channel = supabase.channel(`presence:${partnerId}`, {
-      config: { presence: { key: partnerId } },
-    });
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const isPartnerOnline = !!state[partnerId]?.[0];
-        setIsOnline(isPartnerOnline);
-      })
-      .on('presence', { event: 'join' }, () => {
-        setIsOnline(true);
-      })
-      .on('presence', { event: 'leave' }, () => {
-        setIsOnline(false);
-      })
-      .subscribe();
-
-    presenceChannelRef.current = channel;
-
-    return () => {
-      channel.unsubscribe();
-      presenceChannelRef.current = null;
-    };
-  }, [partnerId]);
+    if (wsPartnerOnline !== null) {
+      setIsOnline(wsPartnerOnline);
+    }
+  }, [wsPartnerOnline]);
 
   // Get or create thread and load messages
   useEffect(() => {
@@ -361,8 +344,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
         const sorted = sortMessagesChronologically(messagesData);
-        setInitialMessages(sorted);
-        setMessages(sorted);
         oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
         
         // Scroll to bottom after messages are loaded
@@ -517,32 +498,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, [messages, currentUserId, partnerId, playIncomingNotification]);
 
-  // Subscribe to typing indicators
-  useEffect(() => {
-    if (!thread?.id || !currentUserId || !partnerId) return;
-
-    const threadId = thread.id;
-
-    let unsubscribe: (() => void) | null = null;
-
-    (async () => {
-      try {
-        unsubscribe = await subscribeToThread(threadId, {
-          onTyping: (event) => {
-            if (event.userId === partnerId) {
-              setPartnerTyping(event.typing);
-            }
-          },
-        });
-      } catch (err) {
-        console.error('Error subscribing to typing indicators:', err);
-      }
-    })();
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [thread?.id, currentUserId, partnerId]);
+  // Typing indicators are handled by useWebSocketDm hook
 
   // Handle typing indicator
   const handleTyping = useCallback(() => {
@@ -551,7 +507,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     const threadId = thread.id;
 
     setIsTyping(true);
-    void sendTypingIndicator(threadId, currentUserId, true);
+    wsSendTyping(threadId, true);
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -559,11 +515,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      if (thread?.id && currentUserId) {
-        void sendTypingIndicator(thread.id, currentUserId, false);
+      if (thread?.id) {
+        wsSendTyping(thread.id, false);
       }
     }, 3000);
-  }, [thread?.id, currentUserId, isTyping]);
+  }, [thread?.id, currentUserId, isTyping, wsSendTyping]);
 
   // Handle message text change with typing indicator
   const handleMessageTextChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -638,8 +594,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
-    if (threadId && currentUserId) {
-      void sendTypingIndicator(threadId, currentUserId, false);
+    if (threadId) {
+      wsSendTyping(threadId, false);
     }
 
     let attachments: DmAttachment[] = [];
@@ -664,34 +620,10 @@ export default function DmsChatWindow({ partnerId }: Props) {
       setUploadingAttachments(false);
     }
 
-    // Optimistic update
-    const optimisticMessage: Message = {
-      id: Date.now(), // Temporary ID
-      thread_id: threadId,
-      sender_id: currentUserId!,
-      kind: 'text',
-      body: textToSend || null,
-      attachments: attachments as unknown[],
-      created_at: new Date().toISOString(),
-      edited_at: null,
-      deleted_at: null,
-    };
-
-    const previousMessages = messages;
-    // Add optimistic message sorted by time
-    const withOptimistic = sortMessagesChronologically([...messages, optimisticMessage]);
-    setMessages(withOptimistic);
-
     try {
-      // API endpoint will handle empty body with attachments automatically
-      // It uses zero-width space character which is invisible
+      // Send via WebSocket (handles optimistic updates internally)
       const messageBody = textToSend || null;
-      const sentMessage = await sendMessage(threadId, messageBody, attachments as unknown[]);
-      // Replace optimistic message with real one and ensure proper sorting
-      setMessages((prev) => {
-        const updated = prev.map((m) => (m.id === optimisticMessage.id ? sentMessage : m));
-        return sortMessagesChronologically(updated);
-      });
+      await wsSendMessage(threadId, messageBody, attachments as unknown[]);
       playSendConfirmation();
       
       // Scroll to bottom after sending
@@ -702,8 +634,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
       }, 100);
     } catch (err: any) {
       console.error('Error sending message:', err);
-      // Rollback on error
-      setMessages(previousMessages);
       setMessageText(textToSend);
       setError(err?.message || 'Failed to send message');
     } finally {
