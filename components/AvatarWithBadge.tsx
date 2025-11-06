@@ -15,9 +15,9 @@ type AvatarWithBadgeProps = {
 };
 
 const sizeClasses = {
-  sm: 'h-10 w-10',
-  md: 'h-12 w-12',
-  lg: 'h-16 w-16',
+  sm: 'h-[50px] w-[50px]', // 40px (h-10) * 1.25 = 50px
+  md: 'h-[60px] w-[60px]', // 48px (h-12) * 1.25 = 60px
+  lg: 'h-[80px] w-[80px]', // 64px (h-16) * 1.25 = 80px
 };
 
 export default function AvatarWithBadge({
@@ -48,6 +48,7 @@ export default function AvatarWithBadge({
           showBadge && colorScheme
             ? {
                 borderColor: colorScheme.hex,
+                boxShadow: `0 0 8px ${colorScheme.hex}40, 0 0 12px ${colorScheme.hex}30`,
               }
             : undefined
         }
