@@ -115,6 +115,35 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
 
+  // Initialize AudioContext early to avoid delay on first sound
+  useEffect(() => {
+    const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext) as
+      | typeof AudioContext
+      | undefined;
+    if (!AudioContextCtor) return;
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContextCtor();
+      // Pre-resume AudioContext on user interaction to avoid delay
+      const handleUserInteraction = async () => {
+        if (audioContextRef.current?.state === 'suspended') {
+          try {
+            await audioContextRef.current.resume();
+          } catch (err) {
+            console.error('Error resuming audio context:', err);
+          }
+        }
+        // Remove listeners after first interaction
+        document.removeEventListener('click', handleUserInteraction);
+        document.removeEventListener('keydown', handleUserInteraction);
+        document.removeEventListener('touchstart', handleUserInteraction);
+      };
+      document.addEventListener('click', handleUserInteraction, { once: true });
+      document.addEventListener('keydown', handleUserInteraction, { once: true });
+      document.addEventListener('touchstart', handleUserInteraction, { once: true });
+    }
+  }, []);
+
   const playBeep = useCallback(
     async (frequency = 720, duration = 0.25) => {
       try {
@@ -130,13 +159,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
         const ctx = audioContextRef.current;
         if (!ctx) return;
 
+        // Resume if suspended (non-blocking - don't await to avoid delay)
         if (ctx.state === 'suspended') {
-          try {
-            await ctx.resume();
-          } catch (resumeErr) {
+          ctx.resume().catch((resumeErr) => {
             console.error('Error resuming audio context:', resumeErr);
-            return;
-          }
+          });
         }
 
         const oscillator = ctx.createOscillator();
@@ -727,6 +754,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
       setUploadingAttachments(false);
     }
 
+    // Play sound immediately (optimistic) - don't wait for server response
+    playSendConfirmation();
+
     try {
       // Send via WebSocket (handles optimistic updates internally)
       const messageBody = textToSend || null;
@@ -734,7 +764,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
       
       // Mark message as delivered when server confirms
       // The server message event will update the receipt status
-      playSendConfirmation();
       
       // Scroll to bottom after sending
       setTimeout(() => {

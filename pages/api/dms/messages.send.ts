@@ -4,6 +4,7 @@ import { getAuthedClient } from '@/lib/dm/supabaseServer';
 import { assertThreadId } from '@/lib/dm/threadId';
 import { inferMessageKind } from '@/lib/dm/messageKind';
 import { broadcastDmMessage } from '@/lib/dm/realtimeServer';
+import { publishMessageEvent } from '@/lib/dm/brokerClient';
 
 // Simple in-memory rate limiter for development only.
 // For production, use a centralized store like Redis (INCR + EXPIRE)
@@ -224,14 +225,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (enriched) messageWithReceipts = enriched as typeof message & { receipts?: any[] };
     } catch {}
 
-      // Broadcast to realtime subscribers (Supabase fallback for Vercel and similar environments)
+      // Broadcast to realtime subscribers (WebSocket gateway via Redis broker or Supabase fallback)
       try {
         const payload = messageWithReceipts || finalMessage;
         if (payload) {
-          await broadcastDmMessage(threadId, {
-            ...payload,
-            thread_id: threadId,
-          });
+          const serverMsgId = typeof payload.id === 'string' ? parseInt(payload.id, 10) : Number(payload.id);
+          const sequenceNumber = payload.sequence_number ?? null;
+          
+          // Publish to WebSocket gateway via Redis broker (if available) and Supabase realtime fallback
+          // This ensures messages are delivered to both WebSocket and Supabase realtime clients
+          await publishMessageEvent(threadId, payload, serverMsgId, sequenceNumber);
         }
       } catch (broadcastErr) {
         console.error('DM broadcast error:', broadcastErr);
