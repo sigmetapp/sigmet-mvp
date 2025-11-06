@@ -9,10 +9,13 @@
  * - Reconnect and offline support
  */
 
+import { randomUUID } from 'crypto';
 import { Server as HTTPServer } from 'http';
 import { Server as WebSocketServer, WebSocket } from 'ws';
 import { createClient } from '@supabase/supabase-js';
 import { assertThreadId, type ThreadId } from './threadId';
+import type { DeliveryStatus, GatewayBroker, GatewayBrokerEvent } from './broker';
+import { inferMessageKind } from './messageKind';
 
 // Connection state
 interface Connection {
@@ -23,6 +26,16 @@ interface Connection {
   subscribedThreads: Set<ThreadId>;
 }
 
+type GatewayOptions = {
+  broker?: GatewayBroker | null;
+  logger?: Pick<Console, 'log' | 'error' | 'warn'>;
+};
+
+const gatewayInstanceId = randomUUID();
+let activeBroker: GatewayBroker | null = null;
+let brokerUnsubscribe: (() => void) | null = null;
+let gatewayLogger: Pick<Console, 'log' | 'error' | 'warn'> = console;
+
 // Message types
 export type GatewayMessage =
   | { type: 'ping' }
@@ -32,14 +45,14 @@ export type GatewayMessage =
   | { type: 'unsubscribe'; thread_id: ThreadId }
   | { type: 'send_message'; thread_id: ThreadId; body: string | null; attachments: unknown[]; client_msg_id: string }
   | { type: 'typing'; thread_id: ThreadId; typing: boolean }
-  | { type: 'ack'; message_id: number; thread_id: ThreadId }
+  | { type: 'ack'; message_id: number; thread_id: ThreadId; status?: DeliveryStatus; client_msg_id?: string | null }
   | { type: 'sync'; thread_id: ThreadId; last_server_msg_id: number | null };
 
 export type GatewayEvent =
-  | { type: 'message'; thread_id: ThreadId; message: any; server_msg_id: number }
+  | { type: 'message'; thread_id: ThreadId; message: any; server_msg_id: number; sequence_number: number | null }
   | { type: 'typing'; thread_id: ThreadId; user_id: string; typing: boolean }
   | { type: 'presence'; thread_id: ThreadId; user_id: string; online: boolean }
-  | { type: 'ack'; message_id: number; thread_id: ThreadId; status: 'delivered' | 'read' }
+  | { type: 'ack'; message_id: number; thread_id: ThreadId; user_id: string; status: DeliveryStatus; client_msg_id?: string | null }
   | { type: 'error'; error: string; code?: string }
   | { type: 'connected' }
   | { type: 'sync_response'; thread_id: ThreadId; messages: any[]; last_server_msg_id: number | null };
@@ -65,18 +78,177 @@ const connections = new Map<WebSocket, Connection>();
 const userConnections = new Map<string, Set<WebSocket>>();
 const threadSubscribers = new Map<ThreadId, Set<WebSocket>>();
 
-// Redis client (optional - can use Redis Streams for horizontal scaling)
-let redisClient: any = null;
-
-export function initRedis(redis: any) {
-  redisClient = redis;
-}
-
 // Send message to WebSocket
 function send(ws: WebSocket, event: GatewayEvent) {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(event));
   }
+}
+
+function normalizeMessageRow(raw: any): any {
+  if (!raw || typeof raw !== 'object') {
+    return raw;
+  }
+
+  const normalized = { ...raw };
+
+  if ('id' in normalized) {
+    normalized.id = typeof normalized.id === 'string' ? parseInt(normalized.id, 10) : Number(normalized.id);
+  }
+
+  if ('sequence_number' in normalized && normalized.sequence_number !== null && normalized.sequence_number !== undefined) {
+    normalized.sequence_number = typeof normalized.sequence_number === 'string'
+      ? parseInt(normalized.sequence_number, 10)
+      : Number(normalized.sequence_number);
+  }
+
+  if (!Array.isArray(normalized.attachments)) {
+    normalized.attachments = [];
+  }
+
+  return normalized;
+}
+
+async function publishBrokerEvent(event: Omit<GatewayBrokerEvent, 'origin'>): Promise<void> {
+  if (!activeBroker) {
+    return;
+  }
+
+  try {
+    const payload = { ...event, origin: gatewayInstanceId } as GatewayBrokerEvent;
+    await activeBroker.publish(payload);
+  } catch (error) {
+    gatewayLogger.error('Gateway broker publish error:', error);
+  }
+}
+
+async function handleBrokerEvent(event: GatewayBrokerEvent): Promise<void> {
+  if (event.origin === gatewayInstanceId) {
+    return;
+  }
+
+  switch (event.kind) {
+    case 'message': {
+      const normalized = normalizeMessageRow(event.message);
+      const serverMsgId = Number(event.server_msg_id);
+      broadcastToThread(event.thread_id, {
+        type: 'message',
+        thread_id: event.thread_id,
+        message: normalized,
+        server_msg_id: serverMsgId,
+        sequence_number: event.sequence_number ?? (normalized?.sequence_number ?? null),
+      });
+      break;
+    }
+    case 'ack': {
+      broadcastToThread(event.thread_id, {
+        type: 'ack',
+        message_id: event.message_id,
+        thread_id: event.thread_id,
+        user_id: event.user_id,
+        status: event.status,
+        client_msg_id: event.client_msg_id ?? null,
+      });
+      break;
+    }
+    case 'typing': {
+      broadcastToThread(event.thread_id, {
+        type: 'typing',
+        thread_id: event.thread_id,
+        user_id: event.user_id,
+        typing: event.typing,
+      });
+      break;
+    }
+    case 'presence': {
+      broadcastToThread(event.thread_id, {
+        type: 'presence',
+        thread_id: event.thread_id,
+        user_id: event.user_id,
+        online: event.online,
+      });
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function attachBroker(broker: GatewayBroker) {
+  if (brokerUnsubscribe) {
+    brokerUnsubscribe();
+    brokerUnsubscribe = null;
+  }
+
+  activeBroker = broker;
+
+  void (async () => {
+    try {
+      brokerUnsubscribe = await broker.subscribe(handleBrokerEvent);
+    } catch (error) {
+      gatewayLogger.error('Gateway broker subscribe error:', error);
+    }
+  })();
+}
+
+function emitSentAck(conn: Connection, threadId: ThreadId, serverMsgId: number, clientMsgId: string | null) {
+  if (!clientMsgId) {
+    return;
+  }
+
+  const ackEvent: GatewayEvent = {
+    type: 'ack',
+    message_id: serverMsgId,
+    thread_id: threadId,
+    user_id: conn.userId,
+    status: 'sent',
+    client_msg_id: clientMsgId,
+  };
+
+  const sockets = userConnections.get(conn.userId);
+  if (sockets) {
+    for (const ws of sockets) {
+      send(ws, ackEvent);
+    }
+  } else {
+    send(conn.ws, ackEvent);
+  }
+}
+
+function deliverMessageToThread(
+  conn: Connection,
+  threadId: ThreadId,
+  rawMessage: any,
+  clientMsgId: string | null
+): { serverMsgId: number; normalized: any } {
+  const messageWithClientId = {
+    ...rawMessage,
+    client_msg_id: rawMessage?.client_msg_id ?? clientMsgId ?? null,
+  };
+
+  const normalized = normalizeMessageRow(messageWithClientId);
+  const serverMsgId = typeof normalized.id === 'string' ? parseInt(normalized.id, 10) : Number(normalized.id);
+  const sequenceNumber = normalized.sequence_number ?? null;
+
+  broadcastToThread(threadId, {
+    type: 'message',
+    thread_id: threadId,
+    message: normalized,
+    server_msg_id: serverMsgId,
+    sequence_number: sequenceNumber,
+  });
+
+  emitSentAck(conn, threadId, serverMsgId, normalized.client_msg_id ?? clientMsgId ?? null);
+
+  void publishBrokerEvent({
+    kind: 'message',
+    thread_id: threadId,
+    server_msg_id: serverMsgId,
+    sequence_number: sequenceNumber,
+    message: normalized,
+  });
+
+  return { serverMsgId, normalized };
 }
 
 // Broadcast to thread subscribers
@@ -145,16 +317,17 @@ async function handleSendMessage(
 
     // Insert message using RPC function to bypass RLS
     // Convert attachments to JSONB format
-    const attachmentsJsonb = Array.isArray(attachments) && attachments.length > 0 
-      ? JSON.parse(JSON.stringify(attachments))
-      : [];
+      const attachmentsJsonb = Array.isArray(attachments) && attachments.length > 0 
+        ? JSON.parse(JSON.stringify(attachments))
+        : [];
+      const messageKind = inferMessageKind(attachmentsJsonb);
     
     // Call RPC function with service role client
     const { data: message, error } = await serviceClient.rpc('insert_dms_message', {
       p_thread_id: threadId,
       p_sender_id: conn.userId,
       p_body: body || (attachmentsJsonb.length > 0 ? '\u200B' : null),
-      p_kind: 'text',
+        p_kind: messageKind,
       p_attachments: attachmentsJsonb,
       p_client_msg_id: clientMsgId || null,
     });
@@ -163,15 +336,15 @@ async function handleSendMessage(
       // If RPC fails, try direct insert with service role (fallback)
       const { data: fallbackMessage, error: fallbackError } = await serviceClient
         .from('dms_messages')
-        .insert({
-          thread_id: threadId,
-          sender_id: conn.userId,
-          kind: 'text',
-          body: body || (attachmentsJsonb.length > 0 ? '\u200B' : null),
-          attachments: attachmentsJsonb,
-          client_msg_id: clientMsgId,
-          sequence_number: null, // Will be set by trigger
-        })
+          .insert({
+            thread_id: threadId,
+            sender_id: conn.userId,
+            kind: messageKind,
+            body: body || (attachmentsJsonb.length > 0 ? '\u200B' : null),
+            attachments: attachmentsJsonb,
+            client_msg_id: clientMsgId,
+            sequence_number: null, // Will be set by trigger
+          })
         .select('*')
         .single();
 
@@ -200,36 +373,8 @@ async function handleSendMessage(
         })
         .eq('id', threadId);
 
-      // Broadcast to all subscribers
-      const serverMsgId = typeof finalMessage.id === 'string' ? parseInt(finalMessage.id, 10) : Number(finalMessage.id);
-      broadcastToThread(threadId, {
-        type: 'message',
-        thread_id: threadId,
-        message: {
-          ...finalMessage,
-          id: serverMsgId,
-          client_msg_id: clientMsgId,
-        },
-        server_msg_id: serverMsgId,
-      });
+        deliverMessageToThread(conn, threadId, finalMessage, clientMsgId);
 
-      // Publish to Redis Streams if available
-      if (redisClient) {
-        try {
-          await redisClient.xAdd(
-            `thread:${threadId}`,
-            '*',
-            {
-              type: 'message',
-              message: JSON.stringify(finalMessage),
-              server_msg_id: String(serverMsgId),
-            }
-          );
-        } catch (redisErr) {
-          console.error('Redis publish error:', redisErr);
-        }
-      }
-      
       return;
     }
     
@@ -262,35 +407,7 @@ async function handleSendMessage(
       console.warn('Thread update warning:', updateErr);
     }
 
-    // Broadcast to all subscribers
-    const serverMsgId = typeof message.id === 'string' ? parseInt(message.id, 10) : Number(message.id);
-    broadcastToThread(threadId, {
-      type: 'message',
-      thread_id: threadId,
-      message: {
-        ...message,
-        id: serverMsgId,
-        client_msg_id: clientMsgId,
-      },
-      server_msg_id: serverMsgId,
-    });
-
-    // Publish to Redis Streams if available
-    if (redisClient) {
-      try {
-        await redisClient.xAdd(
-          `thread:${threadId}`,
-          '*',
-          {
-            type: 'message',
-            message: JSON.stringify(message),
-            server_msg_id: String(serverMsgId),
-          }
-        );
-      } catch (redisErr) {
-        console.error('Redis publish error:', redisErr);
-      }
-    }
+      deliverMessageToThread(conn, threadId, message, clientMsgId);
   } catch (err: any) {
     send(conn.ws, { type: 'error', error: err?.message || 'Internal error', code: 'INTERNAL_ERROR' });
   }
@@ -362,10 +479,23 @@ async function handleTyping(conn: Connection, threadId: ThreadId, typing: boolea
     },
     conn.ws
   );
+
+  void publishBrokerEvent({
+    kind: 'typing',
+    thread_id: threadId,
+    user_id: conn.userId,
+    typing,
+  });
 }
 
 // Handle message acknowledgment
-async function handleAck(conn: Connection, messageId: number, threadId: ThreadId) {
+async function handleAck(
+  conn: Connection,
+  messageId: number,
+  threadId: ThreadId,
+  status: DeliveryStatus = 'delivered',
+  clientMsgId: string | null = null
+) {
   try {
     const supabase = getSupabaseService();
     
@@ -375,18 +505,44 @@ async function handleAck(conn: Connection, messageId: number, threadId: ThreadId
       .upsert({
         message_id: messageId,
         user_id: conn.userId,
-        status: 'delivered',
+        status,
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'message_id,user_id',
       });
+
+    if (status === 'read') {
+      try {
+        await supabase
+          .from('dms_thread_participants')
+          .update({
+            last_read_message_id: messageId,
+            last_read_at: new Date().toISOString(),
+          })
+          .eq('thread_id', threadId)
+          .eq('user_id', conn.userId);
+      } catch (updateErr) {
+        gatewayLogger.warn('Ack read update warning:', updateErr);
+      }
+    }
 
     // Broadcast acknowledgment
     broadcastToThread(threadId, {
       type: 'ack',
       message_id: messageId,
       thread_id: threadId,
-      status: 'delivered',
+      user_id: conn.userId,
+      status,
+      client_msg_id: clientMsgId,
+    });
+
+    void publishBrokerEvent({
+      kind: 'ack',
+      thread_id: threadId,
+      message_id: messageId,
+      user_id: conn.userId,
+      status,
+      client_msg_id: clientMsgId,
     });
   } catch (err: any) {
     console.error('Ack error:', err);
@@ -485,7 +641,12 @@ async function handleMessage(conn: Connection, data: string) {
           send(conn.ws, { type: 'error', error: 'Not authenticated', code: 'NOT_AUTHENTICATED' });
           break;
         }
-        await handleAck(conn, msg.message_id, msg.thread_id);
+      {
+        const rawStatus = msg.status;
+        const status: DeliveryStatus = rawStatus === 'read' ? 'read' : 'delivered';
+        const clientMsgId = msg.client_msg_id ?? null;
+        await handleAck(conn, msg.message_id, msg.thread_id, status, clientMsgId);
+      }
         break;
 
       case 'sync':
@@ -529,7 +690,13 @@ function cleanupConnection(ws: WebSocket) {
 }
 
 // Initialize WebSocket server
-export function initGateway(server: HTTPServer) {
+export function initGateway(server: HTTPServer, options: GatewayOptions = {}) {
+  gatewayLogger = options.logger ?? console;
+
+  if (options.broker) {
+    attachBroker(options.broker);
+  }
+
   const wss = new WebSocketServer({ server, path: '/api/ws' });
 
   wss.on('connection', (ws: WebSocket) => {
@@ -578,7 +745,7 @@ export function initGateway(server: HTTPServer) {
     }, 30000); // Ping every 30 seconds
   });
 
-  console.log('WebSocket gateway initialized on /api/ws');
+  gatewayLogger.log('WebSocket gateway initialized on /api/ws', { id: gatewayInstanceId });
   return wss;
 }
 
@@ -586,6 +753,13 @@ export function initGateway(server: HTTPServer) {
 export function broadcastPresence(threadId: ThreadId, userId: string, online: boolean) {
   broadcastToThread(threadId, {
     type: 'presence',
+    thread_id: threadId,
+    user_id: userId,
+    online,
+  });
+
+  void publishBrokerEvent({
+    kind: 'presence',
     thread_id: threadId,
     user_id: userId,
     online,

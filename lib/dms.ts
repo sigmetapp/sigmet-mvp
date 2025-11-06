@@ -37,6 +37,8 @@ export type Message = {
   created_at: string;
   edited_at: string | null;
   deleted_at: string | null;
+  sequence_number?: number | null;
+  client_msg_id?: string | null;
 };
 
 /**
@@ -291,6 +293,14 @@ export async function listMessages(
     ...msg,
     id: typeof msg.id === 'string' ? parseInt(msg.id, 10) : Number(msg.id),
     thread_id: assertThreadId(msg.thread_id, 'Invalid thread_id in message'),
+    sequence_number:
+      msg.sequence_number === null || msg.sequence_number === undefined
+        ? null
+        : typeof msg.sequence_number === 'string'
+          ? parseInt(msg.sequence_number, 10)
+          : Number(msg.sequence_number),
+    client_msg_id: msg.client_msg_id ?? null,
+    attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
   }));
 
   return messagesWithNormalizedIds as Message[];
@@ -354,5 +364,13 @@ export async function sendMessage(
     ...message,
     id: typeof message.id === 'string' ? parseInt(message.id, 10) : Number(message.id),
     thread_id: assertThreadId(message.thread_id, 'Invalid thread_id in message'),
+    sequence_number:
+      message.sequence_number === null || message.sequence_number === undefined
+        ? null
+        : typeof message.sequence_number === 'string'
+          ? parseInt(message.sequence_number, 10)
+          : Number(message.sequence_number),
+    client_msg_id: message.client_msg_id ?? null,
+    attachments: Array.isArray(message.attachments) ? message.attachments : [],
   } as Message;
 }

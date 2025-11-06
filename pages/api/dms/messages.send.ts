@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
 import { assertThreadId } from '@/lib/dm/threadId';
+import { inferMessageKind } from '@/lib/dm/messageKind';
 
 // Simple in-memory rate limiter for development only.
 // For production, use a centralized store like Redis (INCR + EXPIRE)
@@ -48,8 +49,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return null;
       }
     })();
-    let body = (req.body?.body as string | undefined) ?? null;
-    const attachments = (req.body?.attachments as unknown) ?? [];
+  let body = (req.body?.body as string | undefined) ?? null;
+  const attachments = (req.body?.attachments as unknown) ?? [];
+  const attachmentsArray = Array.isArray(attachments) ? attachments : [];
+  const messageKind = inferMessageKind(attachmentsArray);
 
     if (!threadId) {
       return res.status(400).json({ ok: false, error: 'Invalid thread_id' });
@@ -58,7 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // If body is null but we have attachments, use a placeholder to avoid RLS issues
     // RLS policies might require non-empty body, so we use a non-empty string
     // This will be hidden in UI if it's just whitespace or placeholder
-    if (!body && Array.isArray(attachments) && attachments.length > 0) {
+    if (!body && attachmentsArray.length > 0) {
       // Use a placeholder that will be filtered in UI
       body = '\u200B'; // Zero-width space character - invisible but non-empty
     }
@@ -139,9 +142,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const rpcResult = await (authedClient as any).rpc('insert_dms_message', {
         p_thread_id: threadId,
         p_sender_id: user.id,
-        p_body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
-        p_kind: 'text',
-        p_attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : [],
+        p_body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
+        p_kind: messageKind,
+        p_attachments: attachmentsArray,
       });
 
       message = rpcResult?.data ?? null;
@@ -166,9 +169,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .insert({ 
           thread_id: threadId, 
           sender_id: user.id, 
-          kind: 'text', 
-          body: body || (Array.isArray(attachments) && attachments.length > 0 ? '\u200B' : null),
-          attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : []
+            kind: messageKind, 
+            body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
+            attachments: attachmentsArray
         })
         .select('*')
         .single();

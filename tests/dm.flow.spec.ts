@@ -169,7 +169,7 @@ describe('DM flow: send -> delivered -> read', () => {
       const update = state.receiptsUpdates.at(-1);
       expect(update).toBeTruthy();
       expect(update!.user_id).toBe('userB');
-      expect(update!.status).toBe('delivered');
+      expect(update!.status).toBe('read');
       expect(update!.message_ids).toContain(lastId);
     }
   });
