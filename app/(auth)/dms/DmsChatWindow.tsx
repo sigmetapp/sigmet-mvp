@@ -11,7 +11,6 @@ import { assertThreadId } from '@/lib/dm/threadId';
 import { useTheme } from '@/components/ThemeProvider';
 import { makeMessageReconciler } from '@/lib/messages/store';
 import { useChatChannel } from '@/hooks/useChatChannel';
-import { sendMessage as sendMessageOptimistic } from '@/lib/messages/send';
 
 const INITIAL_MESSAGE_LIMIT = 20;
 const BACKFILL_BATCH_LIMIT = 50;
@@ -959,26 +958,49 @@ export default function DmsChatWindow({ partnerId }: Props) {
         throw new Error('Not authenticated');
       }
 
-      // Use optimistic send flow for instant UI update
-      const result = await sendMessageOptimistic(
-        threadId,
-        textToSend || null,
-        currentUserId,
-        upsertLocal,
-        sendBroadcast,
-        attachments as unknown[]
-      );
+      // Generate client_msg_id for optimistic UI
+      const client_msg_id = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      if (!result.ok) {
-        throw new Error(result.error?.message || 'Failed to send message');
-      }
+      // Optimistic local update
+      upsertLocal({
+        client_msg_id,
+        thread_id: threadId,
+        sender_id: currentUserId,
+        body: textToSend || null,
+        attachments: attachments.length > 0 ? attachments : undefined,
+        created_at: new Date().toISOString(),
+        status: 'sending',
+      });
 
-      // Also send via WebSocket as fallback (for compatibility)
+      // Instant broadcast for recipients
+      sendBroadcast({ client_msg_id, body: textToSend || null, sender_id: currentUserId });
+
+      // Use existing WebSocket method which already works
       try {
-        await wsSendMessage(threadId, textToSend || null, attachments as unknown[]);
-      } catch (wsErr) {
-        // Ignore WebSocket errors, optimistic flow already handled it
-        console.warn('WebSocket send failed (using optimistic flow):', wsErr);
+        const result = await wsSendMessage(threadId, textToSend || null, attachments as unknown[]);
+        
+        // Update optimistic message with server response
+        // Use the client_msg_id from result if available, otherwise use our generated one
+        const finalClientMsgId = result.client_msg_id || client_msg_id;
+        
+        if (result.server_msg_id) {
+          upsertLocal({
+            client_msg_id: finalClientMsgId,
+            id: result.server_msg_id,
+            status: 'sent',
+          });
+        } else {
+          // If no server_msg_id, mark as sent anyway (WebSocket will update via realtime)
+          upsertLocal({
+            client_msg_id: finalClientMsgId,
+            status: 'sent',
+          });
+        }
+      } catch (wsErr: any) {
+        console.error('WebSocket send error:', wsErr);
+        // Mark as failed
+        upsertLocal({ client_msg_id, status: 'failed' });
+        throw wsErr;
       }
       
       // Scroll to bottom after sending
