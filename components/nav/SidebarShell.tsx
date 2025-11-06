@@ -15,14 +15,14 @@ export default function SidebarShell({ user, children }: { user: User; children:
       isLight ? "bg-telegram-gradient text-telegram-text" : "bg-sigmet text-telegram-text"
     }`}>
       {/* Mobile top bar */}
-      <div className={`sticky top-0 z-30 flex items-center gap-3 border-b backdrop-blur-md px-3 py-2 lg:hidden transition-colors pointer-events-none ${
+      <div className={`sticky top-0 z-30 flex items-center gap-3 border-b backdrop-blur-md px-3 py-2 lg:hidden transition-colors ${
         isLight
           ? "border-telegram-blue/15 bg-white/80"
           : "border-telegram-blue/20 bg-[rgba(15,22,35,0.8)]"
       }`}>
         <button
           aria-label="Open menu"
-          className={`rounded-lg border px-3 py-1.5 text-sm transition relative z-10 pointer-events-auto ${
+          className={`rounded-lg border px-3 py-1.5 text-sm transition relative z-10 ${
             isLight
               ? "border-telegram-blue/20 text-telegram-blue hover:bg-telegram-blue/10"
               : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"

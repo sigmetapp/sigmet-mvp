@@ -70,6 +70,13 @@ export default function Header() {
           <span className={`${isLight ? "text-telegram-text" : "text-telegram-text"} font-semibold tracking-tight hidden sm:inline`}>
             {site_name || "SIGMET"}
           </span>
+          <span className={`px-2 py-0.5 rounded-md text-xs font-normal tracking-wide hidden sm:inline-flex items-center ${
+            isLight
+              ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-[0_2px_6px_rgba(249,115,22,0.3)]"
+              : "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-[0_2px_6px_rgba(249,115,22,0.4)]"
+          }`}>
+            Pre-Alpha
+          </span>
         </Link>
 
         {/* SEARCH INPUT - CENTERED */}
