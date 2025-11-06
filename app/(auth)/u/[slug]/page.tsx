@@ -1262,7 +1262,7 @@ export default function PublicProfilePage() {
 
       {/* Info, Additional Info, and Stats blocks side by side */}
       {!loadingProfile && profile && (
-        <div className="grid gap-6 md:grid-cols-[2fr_1fr_1fr]">
+        <div className="grid gap-6 md:grid-cols-[1.6fr_1.2fr_1.2fr]">
           {/* Info block - Bio, Location, Website, Joined */}
           <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-5">
             <div className="space-y-4">
@@ -1353,8 +1353,8 @@ export default function PublicProfilePage() {
                         className="hover:underline inline-flex items-center gap-1 break-all"
                       >
                         <span className="truncate">
-                          {profile.website_url && profile.website_url.length > 10 
-                            ? profile.website_url.substring(0, 10) + '...' 
+                          {profile.website_url && profile.website_url.length > 20 
+                            ? profile.website_url.substring(0, 20) + '...' 
                             : profile.website_url}
                         </span>
                         <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
