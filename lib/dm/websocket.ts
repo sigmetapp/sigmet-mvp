@@ -8,7 +8,7 @@
  * - Message synchronization
  * - Typing indicators
  * - Presence events
- * - Optimistic updates with acknowledgments
+ * - Message acknowledgments
  */
 
 import { assertThreadId, type ThreadId } from './threadId';

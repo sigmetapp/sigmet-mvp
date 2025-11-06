@@ -4,7 +4,6 @@
  * Provides:
  * - WebSocket connection management
  * - Message synchronization
- * - Optimistic updates with acknowledgments
  * - Typing indicators
  * - Presence events
  * - Automatic reconnection
@@ -58,7 +57,6 @@ export function useWebSocketDm(threadId: ThreadId | null) {
   
   const wsClientRef = useRef(getWebSocketClient());
   const authTokenRef = useRef<string | null>(null);
-  const pendingMessagesRef = useRef<Map<string, Message>>(new Map());
   const currentUserIdRef = useRef<string | null>(null);
   const partnerIdRef = useRef<string | null>(null);
   const fallbackThreadUnsubscribeRef = useRef<(() => void | Promise<void>) | null>(null);
@@ -233,30 +231,10 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               client_msg_id: message.client_msg_id ?? null,
             };
 
-            const isOurMessage = normalizedMessage.sender_id === currentUserIdRef.current;
-
             setMessages((prev) => {
               // Always check for duplicates by server ID first
               if (prev.some((m) => m.id === serverMsgId)) {
-                // Message already exists, don't add again
-                // But if this is our message and we have an optimistic one, remove it
-                if (isOurMessage && normalizedMessage.client_msg_id) {
-                  const hasOptimistic = prev.some((m) => (m as any).client_msg_id === normalizedMessage.client_msg_id && m.id !== serverMsgId);
-                  if (hasOptimistic) {
-                    return prev.filter((m) => (m as any).client_msg_id !== normalizedMessage.client_msg_id || m.id === serverMsgId);
-                  }
-                }
                 return prev;
-              }
-
-              // If this is our own message, also check by client_msg_id to replace optimistic message
-              if (isOurMessage && normalizedMessage.client_msg_id) {
-                const optimisticIndex = prev.findIndex((m) => (m as any).client_msg_id === normalizedMessage.client_msg_id);
-                if (optimisticIndex !== -1) {
-                  // Replace optimistic message with server message
-                  const filtered = prev.filter((m) => (m as any).client_msg_id !== normalizedMessage.client_msg_id);
-                  return sortMessagesChronologically([...filtered, normalizedMessage]);
-                }
               }
 
               // For other messages, check by client_msg_id to avoid duplicates
@@ -267,11 +245,6 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               // Add new message
               return sortMessagesChronologically([...prev, normalizedMessage]);
             });
-
-            // Clean up pending message if it exists
-            if (normalizedMessage.client_msg_id) {
-              pendingMessagesRef.current.delete(normalizedMessage.client_msg_id);
-            }
 
             setLastServerMsgId(serverMsgId);
           }
@@ -400,12 +373,6 @@ export function useWebSocketDm(threadId: ThreadId | null) {
                 client_msg_id: row.client_msg_id ?? null,
             };
 
-            if (row.client_msg_id) {
-              pendingMessagesRef.current.delete(row.client_msg_id);
-            }
-
-            const isOurMessage = normalizedMessage.sender_id === currentUserIdRef.current;
-
             setMessages((prev) => {
               if (change.type === 'DELETE') {
                 return prev.filter((m) => m.id !== serverMsgId);
@@ -413,25 +380,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
 
               // Always check for duplicates by server ID first
               if (prev.some((m) => m.id === serverMsgId)) {
-                // Message already exists, don't add again
-                // But if this is our message and we have an optimistic one, remove it
-                if (isOurMessage && row.client_msg_id) {
-                  const hasOptimistic = prev.some((m) => (m as any).client_msg_id === row.client_msg_id && m.id !== serverMsgId);
-                  if (hasOptimistic) {
-                    return prev.filter((m) => (m as any).client_msg_id !== row.client_msg_id || m.id === serverMsgId);
-                  }
-                }
                 return prev;
-              }
-
-              // If this is our own message, also check by client_msg_id to replace optimistic message
-              if (isOurMessage && row.client_msg_id) {
-                const optimisticIndex = prev.findIndex((m) => (m as any).client_msg_id === row.client_msg_id);
-                if (optimisticIndex !== -1) {
-                  // Replace optimistic message with server message
-                  const filtered = prev.filter((m) => (m as any).client_msg_id !== row.client_msg_id);
-                  return sortMessagesChronologically([...filtered, normalizedMessage]);
-                }
               }
 
               // For other messages, check by client_msg_id to avoid duplicates
@@ -517,7 +466,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
     };
   }, [partnerId, transport]);
 
-  // Send message with optimistic update
+  // Send message (no optimistic updates - wait for server response)
   const sendMessage = useCallback(async (
     threadId: ThreadId,
     body: string | null,
@@ -531,34 +480,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       throw new Error('Not authenticated');
     }
 
-    // Create optimistic message
     const clientMsgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const optimisticMessage: Message & { client_msg_id: string } = {
-      id: Date.now(), // Temporary ID
-      thread_id: normalizedThreadId,
-      sender_id: currentUserId,
-      kind: 'text',
-      body: body || null,
-      attachments: attachments as unknown[],
-      created_at: new Date().toISOString(),
-      edited_at: null,
-      deleted_at: null,
-      client_msg_id: clientMsgId,
-    };
-
-    // Add optimistic message
-    setMessages((prev) => {
-      const sorted = [...prev, optimisticMessage].sort((a, b) => {
-        const timeA = new Date(a.created_at).getTime();
-        const timeB = new Date(b.created_at).getTime();
-        if (timeA !== timeB) return timeA - timeB;
-        return a.id - b.id;
-      });
-      return sorted;
-    });
-
-    // Store pending message
-    pendingMessagesRef.current.set(clientMsgId, optimisticMessage);
 
     const canUseWebSocket = transport === 'websocket' && wsClient.getState() === 'authenticated';
 
@@ -577,31 +499,10 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       const { sendMessage: sendMessageHttp } = await import('@/lib/dms');
       const savedMessage = await sendMessageHttp(normalizedThreadId, body || null, attachments);
 
-      setMessages((prev) => {
-        // First, check if message already exists by server ID (may have arrived via realtime)
-        if (prev.some((m) => m.id === savedMessage.id)) {
-          // Message already exists, just remove optimistic message if present
-          return prev.filter((m) => (m as any).client_msg_id !== clientMsgId);
-        }
-
-        // Remove optimistic message and add server message
-        const filtered = prev.filter((m) => (m as any).client_msg_id !== clientMsgId);
-        const sorted = [...filtered, savedMessage].sort((a, b) => {
-          const timeA = new Date(a.created_at).getTime();
-          const timeB = new Date(b.created_at).getTime();
-          if (timeA !== timeB) return timeA - timeB;
-          return a.id - b.id;
-        });
-        return sorted;
-      });
-
-      pendingMessagesRef.current.delete(clientMsgId);
       setLastServerMsgId(savedMessage.id);
 
       return { client_msg_id: clientMsgId, server_msg_id: savedMessage.id };
     } catch (error) {
-      setMessages((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
-      pendingMessagesRef.current.delete(clientMsgId);
       throw error;
     }
   }, [transport]);

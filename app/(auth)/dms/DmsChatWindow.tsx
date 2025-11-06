@@ -781,7 +781,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
-  // Handle send message with optimistic update
+  // Handle send message
   async function handleSend() {
     if (!thread || !thread.id || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
 
@@ -828,11 +828,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
       setUploadingAttachments(false);
     }
 
-    // Play sound immediately (optimistic) - don't wait for server response
+    // Play sound immediately
     playSendConfirmation();
 
     try {
-      // Send via WebSocket (handles optimistic updates internally)
+      // Send via WebSocket
       const messageBody = textToSend || null;
       const result = await wsSendMessage(threadId, messageBody, attachments as unknown[]);
       
@@ -1100,11 +1100,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
                               <div className="flex items-center ml-1">
                                 {(() => {
                                   const receiptStatus = messageReceipts.get(msg.id);
-                                  // Проверяем, что сообщение не является временным (оптимистичным)
-                                  // Временные ID обычно очень большие (Date.now())
-                                  const isRealMessage = msg.id < 1000000000;
                                   
-                                  if (receiptStatus === 'read' && isRealMessage) {
+                                  if (receiptStatus === 'read') {
                                     // 2 галочки - прочитано (двойная галочка) - синие
                                     return (
                                       <svg
@@ -1119,7 +1116,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                         <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
                                       </svg>
                                     );
-                                  } else if (receiptStatus === 'delivered' && isRealMessage) {
+                                  } else if (receiptStatus === 'delivered') {
                                     // 1 галочка - доставлено (одинарная галочка) - серая
                                     return (
                                       <svg
@@ -1134,7 +1131,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                         <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
                                       </svg>
                                     );
-                                  } else if (receiptStatus === 'sent' && isRealMessage) {
+                                  } else {
                                     // 1 галочка - отправлено (одинарная галочка) - более прозрачная
                                     return (
                                       <svg
@@ -1150,39 +1147,6 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                       </svg>
                                     );
                                   }
-                                  // Для оптимистичных сообщений показываем одну галочку (отправлено)
-                                  if (!isRealMessage) {
-                                    return (
-                                      <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 16 16"
-                                        width="14"
-                                        height="14"
-                                        className="text-white/50"
-                                        fill="currentColor"
-                                        style={{ minWidth: '14px' }}
-                                      >
-                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                                      </svg>
-                                    );
-                                  }
-                                  // Если нет статуса, но это реальное сообщение, показываем одну галочку (отправлено)
-                                  if (isRealMessage) {
-                                    return (
-                                      <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 16 16"
-                                        width="14"
-                                        height="14"
-                                        className="text-white/50"
-                                        fill="currentColor"
-                                        style={{ minWidth: '14px' }}
-                                      >
-                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                                      </svg>
-                                    );
-                                  }
-                                  return null;
                                 })()}
                               </div>
                             )}
