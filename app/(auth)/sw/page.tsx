@@ -619,9 +619,9 @@ export default function SWPage() {
           )}
 
           {/* City Leaders */}
-          {cityLeaders.length > 0 && (
-            <div className="card p-4">
-              <h3 className="text-lg font-semibold text-white mb-4">🏆 City Leaders</h3>
+          <div className="card p-4">
+            <h3 className="text-lg font-semibold text-white mb-4">🏆 City Leaders</h3>
+            {cityLeaders.length > 0 ? (
               <div className="space-y-3">
                 {cityLeaders.map((leader, index) => {
                   const displayName = leader.fullName || leader.username || leader.userId.slice(0, 8);
@@ -660,8 +660,12 @@ export default function SWPage() {
                   );
                 })}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="text-white/60 text-sm py-4">
+                No city leaders found. Complete your profile with city information to see local leaders.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
