@@ -16,11 +16,28 @@ drop policy if exists "Participants can view messages" on public.dms_messages;
 drop policy if exists "Participants can insert messages" on public.dms_messages;
 
 -- Ensure insert_dms_message function has proper permissions
-grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb, text) to authenticated;
-grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb, text) to service_role;
-
--- Also grant on the old signature if it exists
-grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb) to authenticated;
-grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb) to service_role;
+-- Grant on new signature (6 parameters with client_msg_id) if it exists
+do $$
+begin
+  -- Try to grant on new signature (6 parameters)
+  begin
+    grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb, text) to authenticated;
+    grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb, text) to service_role;
+  exception
+    when undefined_function then
+      -- Function doesn't exist yet, will be created by migration 119
+      null;
+  end;
+  
+  -- Try to grant on old signature (5 parameters) if it exists
+  begin
+    grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb) to authenticated;
+    grant execute on function public.insert_dms_message(bigint, uuid, text, text, jsonb) to service_role;
+  exception
+    when undefined_function then
+      -- Old function doesn't exist, that's fine
+      null;
+  end;
+end $$;
 
 commit;
