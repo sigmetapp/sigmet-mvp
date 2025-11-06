@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useTheme } from "./ThemeProvider";
 
 type EducationalInstitution = {
   id?: number;
@@ -25,6 +26,8 @@ export default function EducationalInstitutionSelect({
   onQueryChange,
   type,
 }: EducationalInstitutionSelectProps) {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const [query, setQuery] = useState<string>("");
   const [open, setOpen] = useState(false);
   const [institutions, setInstitutions] = useState<EducationalInstitution[]>([]);
@@ -178,16 +181,22 @@ export default function EducationalInstitutionSelect({
           <button
             type="button"
             onClick={clear}
-            className="px-3 py-2 text-sm text-white/60 hover:text-white"
+            className={`px-3 py-2 text-sm ${
+              isLight ? "text-gray-500 hover:text-gray-700" : "text-white/60 hover:text-white"
+            }`}
           >
             ✕
           </button>
         )}
       </div>
       {open && query.trim().length >= 2 && (
-        <div className="absolute z-10 mt-1 w-full max-h-72 overflow-auto rounded-md bg-[#0b0b0b] border border-white/10 shadow-lg">
+        <div className={`absolute z-10 mt-1 w-full max-h-72 overflow-auto rounded-md border shadow-lg ${
+          isLight 
+            ? "bg-white border-gray-200" 
+            : "bg-[#0b0b0b] border-white/10"
+        }`}>
           {loading ? (
-            <div className="px-3 py-2 text-sm text-white/60">Searching...</div>
+            <div className={`px-3 py-2 text-sm ${isLight ? "text-gray-500" : "text-white/60"}`}>Searching...</div>
           ) : (
             <>
               {institutions.length > 0 && (
@@ -196,11 +205,17 @@ export default function EducationalInstitutionSelect({
                     <button
                       key={inst.id || `external-${idx}`}
                       type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-white/5"
+                      className={`w-full text-left px-3 py-2 text-sm ${
+                        isLight 
+                          ? "text-gray-900 hover:bg-gray-100" 
+                          : "text-white hover:bg-white/5"
+                      }`}
                       onClick={() => select(inst)}
                     >
                       <div className="font-medium">{inst.name}</div>
-                      <div className="text-xs text-white/60 capitalize">
+                      <div className={`text-xs capitalize ${
+                        isLight ? "text-gray-600" : "text-white/60"
+                      }`}>
                         {inst.type}
                         {inst.city && ` • ${inst.city}`}
                         {inst.country && ` • ${inst.country}`}
@@ -210,13 +225,17 @@ export default function EducationalInstitutionSelect({
                       </div>
                     </button>
                   ))}
-                  <div className="border-t border-white/10 my-1"></div>
+                  <div className={`border-t my-1 ${
+                    isLight ? "border-gray-200" : "border-white/10"
+                  }`}></div>
                 </>
               )}
               {/* Always show option to use custom name */}
               <button
                 type="button"
-                className="w-full text-left px-3 py-2 text-sm hover:bg-white/5 text-telegram-blue font-medium"
+                className={`w-full text-left px-3 py-2 text-sm text-telegram-blue font-medium ${
+                  isLight ? "hover:bg-gray-100" : "hover:bg-white/5"
+                }`}
                 onClick={() => select(null)}
               >
                 Use "{query}" as custom institution name

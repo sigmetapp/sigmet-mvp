@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Country, City } from "country-state-city";
+import { useTheme } from "./ThemeProvider";
 
 type Suggestion = { city: string; countryCode: string; country: string };
 
@@ -24,6 +25,8 @@ export default function CountryCitySelect({
   value: string;
   onChange: (combined: string) => void;
 }) {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const initial = useMemo(() => parseCombined(value), [value]);
   const initialQuery = useMemo(() => combine(initial.city, initial.country), [initial]);
   const [query, setQuery] = useState<string>(initialQuery);
@@ -58,9 +61,8 @@ export default function CountryCitySelect({
     // 1. Dropdown is open
     // 2. Cities haven't been loaded yet
     // 3. Not currently loading
-    // 4. User has actually typed something (query differs from initial)
-    // 5. Query has at least 1 character
-    if (!open || allCities || loadingCities || !hasUserTyped.current || query.trim().length === 0) return;
+    // 4. User has typed something (query has at least 1 character)
+    if (!open || allCities || loadingCities || query.trim().length === 0) return;
     
     // Load cities asynchronously to prevent UI freeze
     setLoadingCities(true);
@@ -170,24 +172,32 @@ export default function CountryCitySelect({
           placeholder="Type your city…"
         />
         {open && (
-          <div className="absolute z-10 mt-1 w-full max-h-72 overflow-auto rounded-md bg-[#0b0b0b] border border-white/10 shadow-lg">
+          <div className={`absolute z-10 mt-1 w-full max-h-72 overflow-auto rounded-md border shadow-lg ${
+            isLight 
+              ? "bg-white border-gray-200" 
+              : "bg-[#0b0b0b] border-white/10"
+          }`}>
             {query.trim().length === 0 ? (
-              <div className="px-3 py-2 text-sm text-white/60">Start typing to search cities…</div>
+              <div className={`px-3 py-2 text-sm ${isLight ? "text-gray-500" : "text-white/60"}`}>Start typing to search cities…</div>
             ) : !hasUserTyped.current && query === initialQuery ? (
-              <div className="px-3 py-2 text-sm text-white/60">Start typing to search cities…</div>
+              <div className={`px-3 py-2 text-sm ${isLight ? "text-gray-500" : "text-white/60"}`}>Start typing to search cities…</div>
             ) : loadingCities || !allCities ? (
-              <div className="px-3 py-2 text-sm text-white/60">Loading cities…</div>
+              <div className={`px-3 py-2 text-sm ${isLight ? "text-gray-500" : "text-white/60"}`}>Loading cities…</div>
             ) : filtered.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-white/60">No results</div>
+              <div className={`px-3 py-2 text-sm ${isLight ? "text-gray-500" : "text-white/60"}`}>No results</div>
             ) : (
               filtered.map((s, idx) => (
                 <button
                   key={`${s.city}-${s.countryCode}-${idx}`}
                   type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-white/5"
+                  className={`w-full text-left px-3 py-2 text-sm ${
+                    isLight 
+                      ? "text-gray-900 hover:bg-gray-100" 
+                      : "text-white hover:bg-white/5"
+                  }`}
                   onClick={() => select(s)}
                 >
-                  {s.city}, <span className="text-white/80">{s.country}</span>
+                  {s.city}, <span className={isLight ? "text-gray-600" : "text-white/80"}>{s.country}</span>
                 </button>
               ))
             )}
