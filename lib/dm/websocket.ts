@@ -88,19 +88,47 @@ export class WebSocketClient {
     return new Promise((resolve, reject) => {
       try {
         const ws = new WebSocket(this.wsUrl);
-        
+        let settled = false;
+        let hasOpened = false;
+
+        const settle = (fn: () => void, err?: Error) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          clearTimeout(timeoutId);
+          fn();
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        };
+
+        const timeoutId = setTimeout(() => {
+          settle(() => {
+            try {
+              ws.close();
+            } catch {
+              // ignore close errors
+            }
+            this.state = 'disconnected';
+          }, new Error('WebSocket connection timeout'));
+        }, 7000);
+
         ws.onopen = () => {
-          this.ws = ws;
-          this.state = 'authenticating';
-          this.reconnectAttempts = 0;
-          
-          // Authenticate
-          this.send({ type: 'auth', token });
-          
-          // Start ping interval
-          this.startPingInterval();
-          
-          resolve();
+          hasOpened = true;
+          settle(() => {
+            this.ws = ws;
+            this.state = 'authenticating';
+            this.reconnectAttempts = 0;
+
+            // Authenticate
+            this.send({ type: 'auth', token });
+
+            // Start ping interval
+            this.startPingInterval();
+          });
         };
 
         ws.onmessage = (event) => {
@@ -110,21 +138,36 @@ export class WebSocketClient {
         ws.onerror = (error) => {
           console.error('WebSocket error:', error);
           this.emit('error', { type: 'error', error: 'Connection error', code: 'CONNECTION_ERROR' });
+
+          if (!hasOpened) {
+            settle(() => {
+              this.state = 'disconnected';
+            }, new Error('WebSocket connection error'));
+          }
         };
 
         ws.onclose = () => {
           this.ws = null;
           this.state = 'disconnected';
           this.stopPingInterval();
-          
+
+          if (!hasOpened) {
+            settle(() => {
+              // state already set to disconnected above
+            }, new Error('WebSocket connection closed before open'));
+            return;
+          }
+
           // Attempt reconnection
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000);
-            
+
             setTimeout(() => {
               if (this.authToken) {
-                this.connect(this.authToken).catch(console.error);
+                this.connect(this.authToken).catch((err) => {
+                  console.error('WebSocket reconnection failed:', err);
+                });
               }
             }, delay);
           }
