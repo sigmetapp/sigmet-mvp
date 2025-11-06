@@ -10,9 +10,10 @@ export type NavItemProps = {
   href: string;
   icon?: React.ReactNode;
   badgeCount?: number;
+  highlighted?: boolean;
 };
 
-export default function NavItem({ label, href, icon, badgeCount }: NavItemProps) {
+export default function NavItem({ label, href, icon, badgeCount, highlighted }: NavItemProps) {
   const pathname = usePathname() || '/';
   const isActive = pathname === href || pathname.startsWith(href + '/');
   const { theme } = useTheme();
@@ -28,6 +29,10 @@ export default function NavItem({ label, href, icon, badgeCount }: NavItemProps)
             ? isLight
               ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
               : "bg-telegram-blue/20 text-telegram-blue-light"
+            : highlighted
+            ? isLight
+              ? "bg-yellow-500/10 text-yellow-600 font-semibold hover:bg-yellow-500/20 hover:text-yellow-700"
+              : "bg-yellow-500/15 text-yellow-400 font-semibold hover:bg-yellow-500/25 hover:text-yellow-300"
             : isLight
             ? "text-telegram-text-secondary hover:bg-telegram-blue/10 hover:text-telegram-blue"
             : "text-telegram-text-secondary hover:bg-telegram-blue/15 hover:text-telegram-blue-light"

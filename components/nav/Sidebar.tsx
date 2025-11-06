@@ -10,11 +10,8 @@ export type SidebarProps = {
 
 const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
 
-const leaderboardMenu = [
-  { label: 'SW', href: '/sw', icon: '🏆' },
-];
-
 const menu = [
+  { label: 'SW', href: '/sw', icon: '🏆', highlighted: true },
   { label: 'Feeds', href: '/feed', icon: '📜' },
   { label: 'Page', href: '/page', icon: '👤' },
   { label: 'Connections/Follow', href: '/connections', icon: '🔗' },
@@ -48,26 +45,7 @@ export default function Sidebar({ user }: SidebarProps) {
         : "border-telegram-blue/20 bg-[rgba(15,22,35,0.9)] text-telegram-text"
     }`}>
       <div className="px-3 py-3">
-        <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-          Лидербоард
-        </div>
-      </div>
-      <nav className="px-2 mb-2">
-        <ul className="space-y-1">
-          {leaderboardMenu.map((item) => (
-            <NavItem
-              key={item.href}
-              label={item.label}
-              href={item.href}
-              icon={item.icon}
-            />
-          ))}
-        </ul>
-      </nav>
-      <div className={`px-2 py-2 border-t ${isLight ? "border-telegram-blue/15" : "border-telegram-blue/20"}`}>
-        <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-          Menu
-        </div>
+        <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Menu</div>
       </div>
       <nav className="px-2">
         <ul className="space-y-1">
@@ -78,6 +56,7 @@ export default function Sidebar({ user }: SidebarProps) {
               href={item.href}
               icon={item.icon}
               badgeCount={item.badgeKey === 'unreadDM' ? unreadDM : undefined}
+              highlighted={item.highlighted}
             />
           ))}
         </ul>
