@@ -502,49 +502,6 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       console.log('Post updated successfully:', data);
       setPost(data);
       setEditing(false);
-      
-      // Create system comment about post update
-      const formattedDate = formatDateWithTodayYesterday(updatedAt);
-      const systemCommentBody = `Post updated on ${formattedDate}`;
-      
-      // Try both user_id and author_id in case the schema uses different field names
-      const commentData: any = {
-        post_id: postId,
-        body: systemCommentBody,
-      };
-      
-      // Check which field name is used in comments table
-      // First try user_id (as used in the code)
-      commentData.user_id = uid;
-      
-      const { error: commentError, data: commentDataResult } = await supabase
-        .from('comments')
-        .insert(commentData)
-        .select()
-        .single();
-        
-      if (commentError) {
-        // If user_id failed, try author_id
-        console.log('Failed with user_id, trying author_id:', commentError);
-        const commentDataWithAuthorId: any = {
-          post_id: postId,
-          body: systemCommentBody,
-          author_id: uid,
-        };
-        const { error: commentError2 } = await supabase
-          .from('comments')
-          .insert(commentDataWithAuthorId);
-        if (commentError2) {
-          console.error('Failed to create system comment with both user_id and author_id:', commentError2);
-          // Don't throw - post update was successful
-        } else {
-          // Reload comments to show the new system comment
-          await loadComments();
-        }
-      } else {
-        // Reload comments to show the new system comment
-        await loadComments();
-      }
     } catch (error: any) {
       console.error('Failed to update post', error);
       alert(error?.message || 'Unable to update post.');
@@ -995,7 +952,39 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
               </div>
             </div>
           ) : (
-            postCard
+            <>
+              {postCard}
+              {post.updated_at && post.updated_at !== post.created_at && (
+                <div className={`rounded-xl border px-4 py-3 ${
+                  isLight 
+                    ? 'border-slate-200 bg-slate-50/50' 
+                    : 'border-slate-700 bg-slate-800/30'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <svg 
+                      className={`h-4 w-4 ${
+                        isLight ? 'text-slate-500' : 'text-slate-400'
+                      }`} 
+                      fill="none" 
+                      viewBox="0 0 24 24" 
+                      stroke="currentColor"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+                      />
+                    </svg>
+                    <span className={`text-sm ${
+                      isLight ? 'text-slate-600' : 'text-slate-300'
+                    }`}>
+                      Post updated on {formatDateWithTodayYesterday(post.updated_at)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </article>
       )}
