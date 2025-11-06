@@ -788,10 +788,10 @@ export default function DmsChatWindow({ partnerId }: Props) {
     const threadId = thread.id;
 
     const textToSend = messageText.trim();
-    setMessageText('');
+    const filesToSend = [...selectedFiles];
     setReplyingTo(null);
     setSending(true);
-    const hasAttachments = selectedFiles.length > 0;
+    const hasAttachments = filesToSend.length > 0;
     if (hasAttachments) {
       setUploadingAttachments(true);
     }
@@ -807,19 +807,20 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
 
     let attachments: DmAttachment[] = [];
+    let sendError: any = null;
 
     // Upload files if any
     if (hasAttachments) {
       try {
         attachments = await Promise.all(
-          selectedFiles.map((file) => uploadAttachment(file))
+          filesToSend.map((file) => uploadAttachment(file))
         );
-        setSelectedFiles([]);
       } catch (err: any) {
         console.error('Error uploading attachments:', err);
         setError(err?.message || 'Failed to upload attachments');
         setSending(false);
         setUploadingAttachments(false);
+        // Don't clear message text if upload fails
         return;
       }
     }
@@ -836,6 +837,10 @@ export default function DmsChatWindow({ partnerId }: Props) {
       const messageBody = textToSend || null;
       const result = await wsSendMessage(threadId, messageBody, attachments as unknown[]);
       
+      // Clear message text and files only after successful send
+      setMessageText('');
+      setSelectedFiles([]);
+      
       // Mark message as delivered when server confirms
       // The server message event will update the receipt status
       
@@ -847,10 +852,13 @@ export default function DmsChatWindow({ partnerId }: Props) {
       }, 100);
     } catch (err: any) {
       console.error('Error sending message:', err);
-      setMessageText(textToSend);
+      sendError = err;
       setError(err?.message || 'Failed to send message');
+      // Restore message text only if send failed (not if upload failed)
+      setMessageText(textToSend);
     } finally {
       setSending(false);
+      setUploadingAttachments(false);
     }
   }
 
