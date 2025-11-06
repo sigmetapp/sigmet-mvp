@@ -327,11 +327,18 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
             swMap[row.user_id] = row.total || 0;
           }
           setCommenterSWScores(swMap);
+        } else {
+          // If no SW data, set empty map
+          setCommenterSWScores({});
         }
-      } catch {
+      } catch (error) {
         // SW scores table may not exist
+        console.error('Error loading SW scores for commenters:', error);
         setCommenterSWScores({});
       }
+    } else {
+      // If no userIds, set empty map
+      setCommenterSWScores({});
     }
 
     setCommentsLoading(false);
@@ -522,7 +529,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         const profile = comment.user_id ? commenterProfiles[comment.user_id] : undefined;
         const username = profile?.username || (comment.user_id ? comment.user_id.slice(0, 8) : 'Anon');
         const avatar = profile?.avatar_url || AVATAR_FALLBACK;
-        const swScore = comment.user_id ? (commenterSWScores[comment.user_id] || 0) : 0;
+        const swScore = comment.user_id ? (commenterSWScores[comment.user_id] ?? 0) : 0;
         const profileUrl = comment.user_id ? (profile?.username ? `/u/${profile.username}` : `/u/${comment.user_id}`) : undefined;
 
         return (
@@ -618,7 +625,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         );
       });
     },
-    [commenterProfiles, isLight, replyInput, replyOpen, replySubmitting, submitComment, toggleReply, commentsByParent]
+    [commenterProfiles, commenterSWScores, isLight, replyInput, replyOpen, replySubmitting, submitComment, toggleReply, commentsByParent]
   );
 
   const formattedDate = useMemo(() => {
