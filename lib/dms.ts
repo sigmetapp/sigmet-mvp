@@ -314,7 +314,8 @@ export async function listMessages(
 export async function sendMessage(
   threadId: ThreadId,
   body: string | null,
-  attachments: unknown[] = []
+  attachments: unknown[] = [],
+  clientMsgId?: string | null
 ): Promise<Message> {
   const normalizedThreadId = assertThreadId(threadId, 'Invalid thread_id');
 
@@ -345,6 +346,7 @@ export async function sendMessage(
       thread_id: normalizedThreadId,
       body: body || null, // API endpoint will handle empty body with attachments (uses zero-width space)
       attachments: attachments.length > 0 ? attachments : [],
+      client_msg_id: clientMsgId ?? null,
     }),
   });
 
@@ -370,7 +372,7 @@ export async function sendMessage(
         : typeof message.sequence_number === 'string'
           ? parseInt(message.sequence_number, 10)
           : Number(message.sequence_number),
-    client_msg_id: message.client_msg_id ?? null,
+    client_msg_id: (message.client_msg_id ?? clientMsgId ?? null) as string | null,
     attachments: Array.isArray(message.attachments) ? message.attachments : [],
   } as Message;
 }
