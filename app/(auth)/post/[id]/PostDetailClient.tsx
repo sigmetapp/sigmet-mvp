@@ -22,6 +22,7 @@ type PostRecord = {
   video_url: string | null;
   category: string | null;
   created_at: string;
+  updated_at?: string | null;
   views: number;
   likes_count: number;
 };
@@ -480,22 +481,44 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     const value = editDraft.trim();
     setUpdatingPost(true);
     try {
+      const updatedAt = new Date().toISOString();
       const { data, error } = await supabase
         .from<PostRecord>('posts')
-        .update({ body: value || null })
+        .update({ 
+          body: value || null,
+          updated_at: updatedAt
+        })
         .eq('id', postId)
         .select('*')
         .maybeSingle();
       if (error || !data) throw error;
       setPost(data);
       setEditing(false);
+      
+      // Create system comment about post update
+      const formattedDate = formatDateWithTodayYesterday(updatedAt);
+      const systemCommentBody = `Post updated on ${formattedDate}`;
+      const { error: commentError } = await supabase
+        .from('comments')
+        .insert({
+          post_id: postId,
+          user_id: uid,
+          body: systemCommentBody,
+        });
+      if (commentError) {
+        console.error('Failed to create system comment', commentError);
+        // Don't throw - post update was successful
+      } else {
+        // Reload comments to show the new system comment
+        await loadComments();
+      }
     } catch (error: any) {
       console.error('Failed to update post', error);
       alert(error?.message || 'Unable to update post.');
     } finally {
       setUpdatingPost(false);
     }
-  }, [editDraft, post.user_id, postId, uid]);
+  }, [editDraft, post.user_id, postId, uid, loadComments]);
 
   const deletePost = useCallback(async () => {
     if (!uid || uid !== post.user_id) return;
