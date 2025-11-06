@@ -47,7 +47,7 @@ export async function subscribeToThread(
 ): Promise<() => void> {
   const normalizedThreadId = assertThreadId(threadId, 'Invalid thread ID for subscription');
   const channel = getThreadChannel(normalizedThreadId);
-  
+
   // Subscribe to message changes
   if (callbacks.onMessage) {
     channel.on(
@@ -65,6 +65,37 @@ export async function subscribeToThread(
         });
       }
     );
+
+    channel.on('broadcast', { event: 'message' }, (payload) => {
+      try {
+        const data = payload.payload as { type?: string; message?: any } | undefined;
+        if (!data || data.type !== 'message' || !data.message) {
+          return;
+        }
+
+        const message = data.message;
+        if (message.thread_id && message.thread_id !== normalizedThreadId) {
+          return;
+        }
+
+        const syntheticPayload: RealtimePostgresChangesPayload<any> = {
+          eventType: 'INSERT',
+          schema: 'public',
+          table: 'dms_messages',
+          commit_timestamp: new Date().toISOString(),
+          new: message,
+          old: null,
+          errors: [],
+        };
+
+        callbacks.onMessage?.({
+          type: 'INSERT',
+          payload: syntheticPayload,
+        });
+      } catch (error) {
+        console.error('Error handling broadcast DM message:', error);
+      }
+    });
   }
   
   // Subscribe to typing indicators via broadcast

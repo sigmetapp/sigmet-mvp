@@ -16,6 +16,7 @@ import { createClient } from '@supabase/supabase-js';
 import { assertThreadId, type ThreadId } from './threadId';
 import type { DeliveryStatus, GatewayBroker, GatewayBrokerEvent } from './broker';
 import { inferMessageKind } from './messageKind';
+import { broadcastDmMessage } from './realtimeServer';
 
 // Connection state
 interface Connection {
@@ -246,6 +247,10 @@ function deliverMessageToThread(
     server_msg_id: serverMsgId,
     sequence_number: sequenceNumber,
     message: normalized,
+  });
+
+  void broadcastDmMessage(threadId, normalized).catch((err) => {
+    gatewayLogger.warn('Broadcast message mirror failed:', err);
   });
 
   return { serverMsgId, normalized };
