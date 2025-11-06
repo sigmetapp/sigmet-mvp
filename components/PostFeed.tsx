@@ -15,11 +15,13 @@ import { useTheme } from "@/components/ThemeProvider";
 import PostReactions, { ReactionType } from "@/components/PostReactions";
 import PostActionMenu from "@/components/PostActionMenu";
 import PostCommentsBadge from "@/components/PostCommentsBadge";
+import PostReportModal from "@/components/PostReportModal";
+import Toast from "@/components/Toast";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
-import { Image as ImageIcon, Paperclip, X as CloseIcon } from "lucide-react";
+import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag } from "lucide-react";
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
 
@@ -148,6 +150,8 @@ export default function PostFeed({
   const [replyOpen, setReplyOpen] = useState<Record<number, boolean>>({});
   const [commentFile, setCommentFile] = useState<Record<number, File | null>>({});
   const [viewsChartOpen, setViewsChartOpen] = useState<number | null>(null);
+  const [reportModalOpen, setReportModalOpen] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
   const handleEmojiSelect = useCallback((emoji: string) => {
     setText((prev) => prev + emoji);
@@ -178,9 +182,9 @@ export default function PostFeed({
   const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
   const [myDirections, setMyDirections] = useState<string[]>([]);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'discuss' | 'direction'>( 'all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'connections' | 'discuss' | 'direction'>( 'all');
 
-  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'discuss' | 'direction', offset = 0, limit = 50) => {
+  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'connections' | 'discuss' | 'direction', offset = 0, limit = 50) => {
     if (offset === 0) {
       setLoading(true);
     } else {
@@ -197,7 +201,14 @@ export default function PostFeed({
     }
     
     // Apply filter based on filterType
-    if (filterType === 'discuss') {
+    if (filterType === 'connections') {
+      // Filter posts that contain mentions (@username pattern)
+      // body must not be null and not empty, and must contain @ followed by word characters
+      query = query
+        .not('body', 'is', null)
+        .not('body', 'eq', '')
+        .ilike('body', '%@%');
+    } else if (filterType === 'discuss') {
       // Filter posts that contain "?" in body (body must not be null and not empty)
       query = query
         .not('body', 'is', null)
@@ -275,7 +286,9 @@ export default function PostFeed({
       return;
     }
     
-    if (activeFilter === 'discuss') {
+    if (activeFilter === 'connections') {
+      loadFeed(null, 'connections', 0, limit);
+    } else if (activeFilter === 'discuss') {
       loadFeed(null, 'discuss', 0, limit);
     } else if (activeFilter === 'direction') {
       if (availableDirections.length > 0) {
@@ -296,7 +309,7 @@ export default function PostFeed({
         if (entries[0].isIntersecting && hasMore && !loadingMore) {
           const currentFilter = !showFilters ? 'all' : activeFilter;
           const currentDirection = activeFilter === 'direction' ? activeDirection : null;
-          loadFeed(currentDirection, currentFilter, posts.length, 10);
+          loadFeed(currentDirection, currentFilter as 'all' | 'connections' | 'discuss' | 'direction', posts.length, 10);
         }
       },
       { threshold: 0.1 }
@@ -913,6 +926,38 @@ export default function PostFeed({
     return `/post/${postId}`;
   }, [backToProfileUsername]);
 
+  // Handle post report submission
+  const handleReportSubmit = useCallback(async (postId: number, complaintType: 'harassment' | 'misinformation' | 'inappropriate_content', description: string) => {
+    if (!uid) {
+      setToast({ message: 'Sign in required', type: 'error' });
+      return;
+    }
+
+    const postUrl = getPostUrl(postId);
+    const fullPostUrl = typeof window !== 'undefined' ? `${window.location.origin}${postUrl}` : postUrl;
+
+    try {
+      const resp = await fetch('/api/tickets/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `Post Report - ${complaintType}`,
+          description: description,
+          post_url: fullPostUrl,
+          complaint_type: complaintType,
+        }),
+      });
+
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.error || 'Failed to submit report');
+      
+      setToast({ message: 'Your complaint has been submitted', type: 'success' });
+    } catch (error: any) {
+      setToast({ message: error?.message || 'Failed to submit complaint', type: 'error' });
+      throw error;
+    }
+  }, [uid, getPostUrl]);
+
   // Build filters JSX
   const filtersJSX = useMemo(() => {
     if (!showFilters) return null;
@@ -935,6 +980,23 @@ export default function PostFeed({
           }`}
         >
           All
+        </button>
+        <button
+          onClick={() => {
+            setActiveFilter('connections');
+            setActiveDirection(null);
+          }}
+          className={`px-3 py-1.5 rounded-full text-sm transition border ${
+            activeFilter === 'connections'
+              ? isLight
+                ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+              : isLight
+              ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
+              : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+          }`}
+        >
+          Connections
         </button>
         <button
           onClick={() => {
@@ -1026,6 +1088,8 @@ export default function PostFeed({
                    dirTitleLower.includes(categoryLower) ||
                    dirSlugLower.includes(categoryLower);
           });
+
+          const isMyPost = uid === p.user_id;
 
           return (
             <PostCard
@@ -1394,6 +1458,25 @@ export default function PostFeed({
                       </div>
                     </div>
                   )}
+                  
+                  {/* Report button - only for other users' posts, positioned at bottom right edge of post card */}
+                  {!isMyPost && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReportModalOpen(p.id);
+                      }}
+                      className={`absolute -bottom-2 -right-2 p-1 rounded-full transition z-30 ${
+                        isLight
+                          ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
+                          : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
+                      }`}
+                      title="Report post"
+                      data-prevent-card-navigation="true"
+                    >
+                      <Flag className="h-2 w-2" />
+                    </button>
+                  )}
                 </div>
               )}
             />
@@ -1579,6 +1662,28 @@ export default function PostFeed({
           postId={viewsChartOpen}
           isOpen={true}
           onClose={() => setViewsChartOpen(null)}
+        />
+      )}
+
+      {/* Report Modal */}
+      {reportModalOpen && (
+        <PostReportModal
+          postId={reportModalOpen}
+          postUrl={getPostUrl(reportModalOpen)}
+          isOpen={true}
+          onClose={() => setReportModalOpen(null)}
+          onSubmit={async (complaintType, description) => {
+            await handleReportSubmit(reportModalOpen, complaintType, description);
+          }}
+        />
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
         />
       )}
     </div>
