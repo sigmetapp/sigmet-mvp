@@ -31,6 +31,18 @@ export function useWebSocketDm(threadId: ThreadId | null) {
   const pendingMessagesRef = useRef<Map<string, Message>>(new Map());
   const currentUserIdRef = useRef<string | null>(null);
   const partnerIdRef = useRef<string | null>(null);
+  
+  // Store currentUserId in WebSocket client for auto-acknowledgment
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        currentUserIdRef.current = user.id;
+        // Store in WebSocket client for acknowledgment logic
+        (wsClientRef.current as any).currentUserId = user.id;
+      }
+    })();
+  }, []);
 
   // Get auth token
   useEffect(() => {
