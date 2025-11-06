@@ -654,11 +654,11 @@ export function useWebSocketDm(threadId: ThreadId | null) {
     if (canUseWebSocket) {
       try {
         const result = await wsClient.sendMessage(normalizedThreadId, body, attachments, clientMsgId);
-        
+
         // Status will be updated via message_ack and message_persisted events
         // The WebSocket client handles status updates internally
         // Filter will be cleared by handleMessagePersisted or after timeout
-        
+
         return result;
       } catch (error) {
         console.warn('WebSocket sendMessage failed, falling back to Supabase realtime:', error);
@@ -677,40 +677,40 @@ export function useWebSocketDm(threadId: ThreadId | null) {
 
     try {
       const { sendMessage: sendMessageHttp } = await import('@/lib/dms');
-      const savedMessage = await sendMessageHttp(normalizedThreadId, body || null, attachments);
+      const savedMessage = await sendMessageHttp(normalizedThreadId, body || null, attachments, clientMsgId);
 
       // Update local echo with real message (replace, don't add)
       setMessages((prev) => {
-        const hasLocalEcho = prev.some((m) => 
-          (m as any).client_msg_id === clientMsgId && m.id === -1
+        const hasLocalEcho = prev.some(
+          (m) => (m as any).client_msg_id === clientMsgId && m.id === -1
         );
-        
-                if (hasLocalEcho) {
-                  // Replace local-echo with real message
-                  const updated = sortMessagesChronologically(
-                    prev.map((msg) => {
-                      if ((msg as any).client_msg_id === clientMsgId && msg.id === -1) {
-                        return {
-                          ...savedMessage,
-                          client_msg_id: clientMsgId,
-                        };
-                      }
-                      return msg;
-                    })
-                  );
-                  
-                  // Keep filter active to prevent WebSocket echo
-                  // It will be cleared by handleMessagePersisted or timeout
-                  return updated;
-                }
-                
-                // If no local-echo, check if message already exists
-                if (prev.some((m) => m.id === savedMessage.id || (m as any).client_msg_id === clientMsgId)) {
-                  return prev;
-                }
-                
-                // Add message if it doesn't exist (shouldn't happen in normal flow)
-                return sortMessagesChronologically([...prev, { ...savedMessage, client_msg_id: clientMsgId }]);
+
+        if (hasLocalEcho) {
+          const updated = sortMessagesChronologically(
+            prev.map((msg) => {
+              if ((msg as any).client_msg_id === clientMsgId && msg.id === -1) {
+                return {
+                  ...savedMessage,
+                  client_msg_id: clientMsgId,
+                };
+              }
+              return msg;
+            })
+          );
+
+          // Keep filter active to prevent WebSocket echo
+          // It will be cleared by handleMessagePersisted or timeout
+          return updated;
+        }
+
+        if (prev.some((m) => m.id === savedMessage.id || (m as any).client_msg_id === clientMsgId)) {
+          return prev;
+        }
+
+        return sortMessagesChronologically([
+          ...prev,
+          { ...savedMessage, client_msg_id: clientMsgId },
+        ]);
       });
 
       setLastServerMsgId(savedMessage.id);

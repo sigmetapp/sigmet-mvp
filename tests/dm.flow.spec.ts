@@ -99,7 +99,9 @@ vi.mock('@/lib/dm/supabaseServer', () => {
         q.then = undefined;
         q.exec = async () => {
           const userId = q._filters.find((f: any) => f[1] === 'user_id')?.[2] as string;
-          const status = q._filters.find((f: any) => f[1] === 'status')?.[2] as string;
+          const status =
+            (q._update && typeof q._update === 'object' ? (q._update as any).status : undefined) ??
+            (q._filters.find((f: any) => f[1] === 'status')?.[2] as string);
           const ids = q._filters.find((f: any) => f[1] === 'message_id')?.[2] as number[];
           state.receiptsUpdates.push({ user_id: userId, status, message_ids: ids });
           return { data: [], error: null };
