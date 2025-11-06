@@ -39,13 +39,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { title, description, image_urls, video_urls } = req.body;
+    const { title, description, image_urls, video_urls, post_url, complaint_type } = req.body;
     if (!title || !description || typeof title !== 'string' || typeof description !== 'string') {
       return res.status(400).json({ error: 'Title and description are required' });
     }
 
     if (title.trim().length === 0 || description.trim().length === 0) {
       return res.status(400).json({ error: 'Title and description cannot be empty' });
+    }
+
+    // Validate complaint_type if provided
+    if (complaint_type && !['harassment', 'misinformation', 'inappropriate_content'].includes(complaint_type)) {
+      return res.status(400).json({ error: 'Invalid complaint_type' });
     }
 
     const { data, error } = await supabase
@@ -57,6 +62,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         status: 'open',
         image_urls: Array.isArray(image_urls) ? image_urls : [],
         video_urls: Array.isArray(video_urls) ? video_urls : [],
+        post_url: post_url && typeof post_url === 'string' ? post_url.trim() : null,
+        complaint_type: complaint_type && typeof complaint_type === 'string' ? complaint_type : null,
       })
       .select()
       .single();

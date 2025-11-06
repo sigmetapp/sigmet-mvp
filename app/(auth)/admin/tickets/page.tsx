@@ -28,6 +28,8 @@ type Ticket = {
   admin_notes: string | null;
   image_urls?: string[];
   video_urls?: string[];
+  post_url?: string | null;
+  complaint_type?: 'harassment' | 'misinformation' | 'inappropriate_content' | null;
 };
 
 function AdminTicketsInner() {
@@ -324,6 +326,11 @@ function AdminTicketsInner() {
                     <th className={`px-4 py-3 text-left text-sm font-medium ${
                       isLight ? 'text-black font-semibold' : 'text-white font-semibold'
                     }`}>
+                      Type
+                    </th>
+                    <th className={`px-4 py-3 text-left text-sm font-medium ${
+                      isLight ? 'text-black font-semibold' : 'text-white font-semibold'
+                    }`}>
                       Author
                     </th>
                     <th className={`px-4 py-3 text-left text-sm font-medium ${
@@ -356,6 +363,21 @@ function AdminTicketsInner() {
                       </td>
                       <td className={`px-4 py-3 text-sm font-medium ${isLight ? 'text-black' : 'text-white'}`}>
                         {ticket.title}
+                      </td>
+                      <td className={`px-4 py-3 text-sm ${isLight ? 'text-black/70' : 'text-white/70'}`}>
+                        {ticket.complaint_type ? (
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            isLight ? 'bg-red-100 text-red-800' : 'bg-red-500/20 text-red-300'
+                          }`}>
+                            {ticket.complaint_type === 'harassment' && 'Harassment'}
+                            {ticket.complaint_type === 'misinformation' && 'Misinformation'}
+                            {ticket.complaint_type === 'inappropriate_content' && 'Inappropriate Content'}
+                          </span>
+                        ) : (
+                          <span className={`text-xs ${isLight ? 'text-black/40' : 'text-white/40'}`}>
+                            -
+                          </span>
+                        )}
                       </td>
                       <td className={`px-4 py-3 text-sm ${isLight ? 'text-black/70' : 'text-white/70'}`}>
                         {ticket.user_username ? (
@@ -459,6 +481,47 @@ function AdminTicketsInner() {
                 {getStatusLabel(selectedTicket.status)}
               </span>
             </div>
+
+            {selectedTicket.post_url && (
+              <div>
+                <h3 className={`text-sm font-medium mb-2 ${isLight ? 'text-black/80' : 'text-white/80'}`}>
+                  Post URL
+                </h3>
+                <div className={`rounded-lg border p-4 ${
+                  isLight ? 'border-black/10 bg-black/5' : 'border-white/10 bg-white/5'
+                }`}>
+                  <a
+                    href={selectedTicket.post_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`text-sm break-all hover:underline ${
+                      isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'
+                    }`}
+                  >
+                    {selectedTicket.post_url}
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {selectedTicket.complaint_type && (
+              <div>
+                <h3 className={`text-sm font-medium mb-2 ${isLight ? 'text-black/80' : 'text-white/80'}`}>
+                  Complaint Type
+                </h3>
+                <div className={`rounded-lg border p-4 ${
+                  isLight ? 'border-black/10 bg-black/5' : 'border-white/10 bg-white/5'
+                }`}>
+                  <span className={`text-sm font-medium ${
+                    isLight ? 'text-black/90' : 'text-white/90'
+                  }`}>
+                    {selectedTicket.complaint_type === 'harassment' && 'Harassment'}
+                    {selectedTicket.complaint_type === 'misinformation' && 'Misinformation'}
+                    {selectedTicket.complaint_type === 'inappropriate_content' && 'Inappropriate Content'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div>
               <h3 className={`text-sm font-medium mb-2 ${isLight ? 'text-black/80' : 'text-white/80'}`}>

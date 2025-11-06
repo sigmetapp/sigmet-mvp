@@ -15,11 +15,12 @@ import { useTheme } from "@/components/ThemeProvider";
 import PostReactions, { ReactionType } from "@/components/PostReactions";
 import PostActionMenu from "@/components/PostActionMenu";
 import PostCommentsBadge from "@/components/PostCommentsBadge";
+import PostReportModal from "@/components/PostReportModal";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
-import { Image as ImageIcon, Paperclip, X as CloseIcon } from "lucide-react";
+import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag } from "lucide-react";
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
 
@@ -148,6 +149,7 @@ export default function PostFeed({
   const [replyOpen, setReplyOpen] = useState<Record<number, boolean>>({});
   const [commentFile, setCommentFile] = useState<Record<number, File | null>>({});
   const [viewsChartOpen, setViewsChartOpen] = useState<number | null>(null);
+  const [reportModalOpen, setReportModalOpen] = useState<number | null>(null);
   
   const handleEmojiSelect = useCallback((emoji: string) => {
     setText((prev) => prev + emoji);
@@ -922,6 +924,35 @@ export default function PostFeed({
     return `/post/${postId}`;
   }, [backToProfileUsername]);
 
+  // Handle post report submission
+  const handleReportSubmit = useCallback(async (postId: number, complaintType: 'harassment' | 'misinformation' | 'inappropriate_content', description: string) => {
+    if (!uid) {
+      alert('Sign in required');
+      return;
+    }
+
+    const postUrl = getPostUrl(postId);
+    const fullPostUrl = typeof window !== 'undefined' ? `${window.location.origin}${postUrl}` : postUrl;
+
+    try {
+      const resp = await fetch('/api/tickets/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `Post Report - ${complaintType}`,
+          description: description,
+          post_url: fullPostUrl,
+          complaint_type: complaintType,
+        }),
+      });
+
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.error || 'Failed to submit report');
+    } catch (error: any) {
+      throw error;
+    }
+  }, [uid, getPostUrl]);
+
   // Build filters JSX
   const filtersJSX = useMemo(() => {
     if (!showFilters) return null;
@@ -1053,6 +1084,8 @@ export default function PostFeed({
                    dirSlugLower.includes(categoryLower);
           });
 
+          const isMyPost = uid === p.user_id;
+
           return (
             <PostCard
               key={p.id}
@@ -1071,7 +1104,7 @@ export default function PostFeed({
               }`}
               onMouseEnter={() => addViewOnce(p.id)}
               renderContent={() => (
-                <div className="relative z-10 space-y-2">
+                <div className="relative z-10 space-y-2 min-h-[100px]">
                   {/* header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
@@ -1420,6 +1453,25 @@ export default function PostFeed({
                       </div>
                     </div>
                   )}
+                  
+                  {/* Report button - only for other users' posts, positioned in bottom right corner */}
+                  {!isMyPost && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReportModalOpen(p.id);
+                      }}
+                      className={`absolute bottom-3 right-3 p-2 rounded-full transition z-20 ${
+                        isLight
+                          ? 'bg-white/90 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/10 shadow-sm'
+                          : 'bg-black/50 hover:bg-black/70 text-telegram-text-secondary hover:text-red-400 border border-white/10 shadow-sm'
+                      }`}
+                      title="Report post"
+                      data-prevent-card-navigation="true"
+                    >
+                      <Flag className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               )}
             />
@@ -1605,6 +1657,19 @@ export default function PostFeed({
           postId={viewsChartOpen}
           isOpen={true}
           onClose={() => setViewsChartOpen(null)}
+        />
+      )}
+
+      {/* Report Modal */}
+      {reportModalOpen && (
+        <PostReportModal
+          postId={reportModalOpen}
+          postUrl={getPostUrl(reportModalOpen)}
+          isOpen={true}
+          onClose={() => setReportModalOpen(null)}
+          onSubmit={async (complaintType, description) => {
+            await handleReportSubmit(reportModalOpen, complaintType, description);
+          }}
         />
       )}
     </div>
