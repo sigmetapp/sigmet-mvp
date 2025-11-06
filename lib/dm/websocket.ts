@@ -33,6 +33,8 @@ export type WSEvent =
   | { type: 'typing'; thread_id: ThreadId; user_id: string; typing: boolean }
   | { type: 'presence'; thread_id: ThreadId; user_id: string; online: boolean }
   | { type: 'ack'; message_id: number; thread_id: ThreadId; user_id: string; status: DeliveryStatus; client_msg_id?: string | null }
+  | { type: 'message_ack'; conversation_id: string; client_msg_id: string; timestamp: number }
+  | { type: 'message_persisted'; conversation_id: string; client_msg_id: string; db_message_id: string; db_created_at: string }
   | { type: 'error'; error: string; code?: string }
   | { type: 'connected' }
   | { type: 'pong' }
@@ -55,7 +57,9 @@ interface MessageAck {
   server_msg_id: number | null;
   acknowledged: boolean;
   timestamp: number;
-  status: DeliveryStatus;
+  status: 'sending' | 'sent' | 'persisted' | DeliveryStatus;
+  db_message_id?: string | null;
+  db_created_at?: string | null;
 }
 
 export class WebSocketClient {
@@ -243,6 +247,17 @@ export class WebSocketClient {
           this.updateAckStatus(event.server_msg_id, 'sent', message?.client_msg_id ?? null);
         } else if (event.type === 'ack') {
           this.updateAckStatus(event.message_id, event.status, event.client_msg_id ?? null);
+        } else if (event.type === 'message_ack') {
+          // Update status to 'sent' when message_ack is received
+          this.updateAckStatusByClientId(event.client_msg_id, 'sent', null, event.timestamp);
+        } else if (event.type === 'message_persisted') {
+          // Update status to 'persisted' when message_persisted is received
+          this.updateAckStatusByClientId(
+            event.client_msg_id,
+            'persisted',
+            event.db_message_id,
+            new Date(event.db_created_at).getTime()
+          );
         }
 
       this.emit(event.type, event);
@@ -304,13 +319,13 @@ export class WebSocketClient {
       retries: 0,
     };
 
-      // Track acknowledgment
+      // Track acknowledgment with initial 'sending' status
       this.messageAcks.set(msgId, {
         client_msg_id: msgId,
         server_msg_id: null,
         acknowledged: false,
         timestamp: Date.now(),
-        status: 'sent',
+        status: 'sending',
       });
 
     // Send immediately if connected
@@ -447,16 +462,40 @@ export class WebSocketClient {
       return;
     }
 
-    const ack = this.messageAcks.get(targetClientId);
+    this.updateAckStatusByClientId(targetClientId, status as any, null, Date.now());
+  }
+
+  private updateAckStatusByClientId(
+    clientMsgId: string,
+    status: 'sending' | 'sent' | 'persisted' | DeliveryStatus,
+    dbMessageId?: string | null,
+    timestamp?: number
+  ): void {
+    const ack = this.messageAcks.get(clientMsgId);
     if (!ack) {
+      // Create new ack entry if it doesn't exist
+      this.messageAcks.set(clientMsgId, {
+        client_msg_id: clientMsgId,
+        server_msg_id: null,
+        acknowledged: status !== 'sending',
+        timestamp: timestamp ?? Date.now(),
+        status,
+        db_message_id: dbMessageId ?? null,
+        db_created_at: timestamp ? new Date(timestamp).toISOString() : null,
+      });
       return;
     }
 
-    ack.server_msg_id = messageId;
     ack.status = status;
-    ack.acknowledged = true;
-    ack.timestamp = Date.now();
-    this.messageAcks.set(targetClientId, ack);
+    ack.acknowledged = status !== 'sending';
+    ack.timestamp = timestamp ?? Date.now();
+    if (dbMessageId !== undefined && dbMessageId !== null) {
+      ack.db_message_id = dbMessageId;
+    }
+    if (timestamp) {
+      ack.db_created_at = new Date(timestamp).toISOString();
+    }
+    this.messageAcks.set(clientMsgId, ack);
   }
 
   // Get connection state
@@ -480,8 +519,12 @@ export class WebSocketClient {
     return this.messageAcks.get(clientMsgId)?.server_msg_id ?? null;
   }
 
-  getMessageStatus(clientMsgId: string): DeliveryStatus | undefined {
+  getMessageStatus(clientMsgId: string): 'sending' | 'sent' | 'persisted' | DeliveryStatus | undefined {
     return this.messageAcks.get(clientMsgId)?.status;
+  }
+
+  getMessageAck(clientMsgId: string): MessageAck | undefined {
+    return this.messageAcks.get(clientMsgId);
   }
 }
 

@@ -33,6 +33,21 @@ export type GatewayBrokerEvent =
       thread_id: ThreadId;
       user_id: string;
       online: boolean;
+    }
+  | {
+      kind: 'message_ack';
+      origin: string;
+      conversation_id: string;
+      client_msg_id: string;
+      timestamp: number;
+    }
+  | {
+      kind: 'message_persisted';
+      origin: string;
+      conversation_id: string;
+      client_msg_id: string;
+      db_message_id: string;
+      db_created_at: string;
     };
 
 export interface GatewayBroker {

@@ -17,6 +17,7 @@ import { assertThreadId, type ThreadId } from './threadId';
 import type { DeliveryStatus, GatewayBroker, GatewayBrokerEvent } from './broker';
 import { inferMessageKind } from './messageKind';
 import { broadcastDmMessage } from './realtimeServer';
+import { getMessageQueue } from './messageQueue';
 
 // Connection state
 interface Connection {
@@ -30,12 +31,31 @@ interface Connection {
 type GatewayOptions = {
   broker?: GatewayBroker | null;
   logger?: Pick<Console, 'log' | 'error' | 'warn'>;
+  redis?: { host?: string; port?: number; password?: string };
 };
 
 const gatewayInstanceId = randomUUID();
 let activeBroker: GatewayBroker | null = null;
 let brokerUnsubscribe: (() => void) | null = null;
 let gatewayLogger: Pick<Console, 'log' | 'error' | 'warn'> = console;
+let messageQueue: ReturnType<typeof getMessageQueue> | null = null;
+
+/**
+ * Convert thread_id to conversation_id (uuid format)
+ * Uses a deterministic approach to convert thread_id (bigint) to UUID
+ * In production, consider using UUID v5 with a namespace or a mapping table
+ */
+function threadIdToConversationId(threadId: ThreadId): string {
+  // Convert thread_id to a deterministic UUID
+  // For bigint thread_id, we'll create a UUID v5 namespace-like approach
+  // Using a simple approach: pad thread_id and create UUID-like string
+  const threadIdStr = String(threadId);
+  // Create a deterministic UUID from thread_id
+  // Pad to 32 hex characters (UUID length without dashes)
+  const padded = threadIdStr.padStart(32, '0').slice(0, 32);
+  // Format as UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  return `${padded.slice(0, 8)}-${padded.slice(8, 12)}-${padded.slice(12, 16)}-${padded.slice(16, 20)}-${padded.slice(20, 32)}`;
+}
 
 // Message types
 export type GatewayMessage =
@@ -54,6 +74,8 @@ export type GatewayEvent =
   | { type: 'typing'; thread_id: ThreadId; user_id: string; typing: boolean }
   | { type: 'presence'; thread_id: ThreadId; user_id: string; online: boolean }
   | { type: 'ack'; message_id: number; thread_id: ThreadId; user_id: string; status: DeliveryStatus; client_msg_id?: string | null }
+  | { type: 'message_ack'; conversation_id: string; client_msg_id: string; timestamp: number }
+  | { type: 'message_persisted'; conversation_id: string; client_msg_id: string; db_message_id: string; db_created_at: string }
   | { type: 'error'; error: string; code?: string }
   | { type: 'connected' }
   | { type: 'sync_response'; thread_id: ThreadId; messages: any[]; last_server_msg_id: number | null };
@@ -168,6 +190,45 @@ async function handleBrokerEvent(event: GatewayBrokerEvent): Promise<void> {
         user_id: event.user_id,
         online: event.online,
       });
+      break;
+    }
+    case 'message_ack': {
+      // Broadcast message_ack to all thread subscribers
+      // Find thread_id from conversation_id
+      const conversationId = event.conversation_id;
+      for (const [threadId, subscribers] of threadSubscribers.entries()) {
+        const threadConversationId = threadIdToConversationId(threadId);
+        if (threadConversationId === conversationId) {
+          const eventMessage: GatewayEvent = {
+            type: 'message_ack',
+            conversation_id: conversationId,
+            client_msg_id: event.client_msg_id,
+            timestamp: event.timestamp,
+          };
+          broadcastToThread(threadId, eventMessage);
+          break;
+        }
+      }
+      break;
+    }
+    case 'message_persisted': {
+      // Find thread_id from conversation_id (reverse mapping)
+      // Broadcast message_persisted event to all thread subscribers
+      const conversationId = event.conversation_id;
+      for (const [threadId, subscribers] of threadSubscribers.entries()) {
+        const threadConversationId = threadIdToConversationId(threadId);
+        if (threadConversationId === conversationId) {
+          const eventMessage: GatewayEvent = {
+            type: 'message_persisted',
+            conversation_id: conversationId,
+            client_msg_id: event.client_msg_id,
+            db_message_id: event.db_message_id,
+            db_created_at: event.db_created_at,
+          };
+          broadcastToThread(threadId, eventMessage);
+          break;
+        }
+      }
       break;
     }
     default:
@@ -285,7 +346,7 @@ async function authenticate(token: string): Promise<{ userId: string } | null> {
   }
 }
 
-// Handle message sending
+// Handle message sending (dual-channel architecture)
 async function handleSendMessage(
   conn: Connection,
   threadId: ThreadId,
@@ -294,7 +355,6 @@ async function handleSendMessage(
   clientMsgId: string
 ) {
   try {
-    // Use service role client for all operations to bypass RLS
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
@@ -307,113 +367,98 @@ async function handleSendMessage(
       auth: { persistSession: false, autoRefreshToken: false },
     });
     
-    // Verify membership (bypasses RLS with service role)
-    const { data: membership } = await serviceClient
-      .from('dms_thread_participants')
-      .select('thread_id')
-      .eq('thread_id', threadId)
-      .eq('user_id', conn.userId)
-      .maybeSingle();
+    // Verify membership and get recipient
+    const [membershipResult, participantsResult] = await Promise.all([
+      serviceClient
+        .from('dms_thread_participants')
+        .select('thread_id')
+        .eq('thread_id', threadId)
+        .eq('user_id', conn.userId)
+        .maybeSingle(),
+      serviceClient
+        .from('dms_thread_participants')
+        .select('user_id')
+        .eq('thread_id', threadId),
+    ]);
     
+    const { data: membership } = membershipResult;
     if (!membership) {
       send(conn.ws, { type: 'error', error: 'Forbidden', code: 'FORBIDDEN' });
       return;
     }
 
-    // Insert message using RPC function to bypass RLS
-    // Convert attachments to JSONB format
-      const attachmentsJsonb = Array.isArray(attachments) && attachments.length > 0 
-        ? JSON.parse(JSON.stringify(attachments))
-        : [];
-      const messageKind = inferMessageKind(attachmentsJsonb);
-    
-    // Call RPC function with service role client
-    const { data: message, error } = await serviceClient.rpc('insert_dms_message', {
-      p_thread_id: threadId,
-      p_sender_id: conn.userId,
-      p_body: body || (attachmentsJsonb.length > 0 ? '\u200B' : null),
-        p_kind: messageKind,
-      p_attachments: attachmentsJsonb,
-      p_client_msg_id: clientMsgId || null,
-    });
+    // Get recipient (other participant)
+    const participants = (participantsResult.data || []) as any[];
+    const recipientId = participants
+      .map((p: any) => p.user_id as string)
+      .find((uid: string) => uid && uid !== conn.userId);
 
-    if (error || !message) {
-      // If RPC fails, try direct insert with service role (fallback)
-      const { data: fallbackMessage, error: fallbackError } = await serviceClient
-        .from('dms_messages')
-          .insert({
-            thread_id: threadId,
-            sender_id: conn.userId,
-            kind: messageKind,
-            body: body || (attachmentsJsonb.length > 0 ? '\u200B' : null),
-            attachments: attachmentsJsonb,
-            client_msg_id: clientMsgId,
-            sequence_number: null, // Will be set by trigger
-          })
-        .select('*')
-        .single();
-
-      if (fallbackError || !fallbackMessage) {
-        send(conn.ws, { type: 'error', error: fallbackError?.message || error?.message || 'Failed to send message', code: 'SEND_FAILED' });
-        return;
-      }
-      
-      // Update client_msg_id if not set
-      if (clientMsgId && !fallbackMessage.client_msg_id) {
-        await serviceClient
-          .from('dms_messages')
-          .update({ client_msg_id: clientMsgId })
-          .eq('id', fallbackMessage.id);
-      }
-      
-      // Use fallback message
-      const finalMessage = { ...fallbackMessage, client_msg_id: clientMsgId };
-      
-      // Update thread
-      await serviceClient
-        .from('dms_threads')
-        .update({
-          last_message_id: finalMessage.id,
-          last_message_at: finalMessage.created_at,
-        })
-        .eq('id', threadId);
-
-        deliverMessageToThread(conn, threadId, finalMessage, clientMsgId);
-
+    if (!recipientId) {
+      send(conn.ws, { type: 'error', error: 'No recipient found', code: 'NO_RECIPIENT' });
       return;
     }
+
+    // Convert thread_id to conversation_id
+    const conversationId = threadIdToConversationId(threadId);
     
-    // Update client_msg_id if function doesn't support it (for backward compatibility)
-    if (clientMsgId && !message.client_msg_id) {
+    // Prepare message body
+    const attachmentsJsonb = Array.isArray(attachments) && attachments.length > 0 
+      ? JSON.parse(JSON.stringify(attachments))
+      : [];
+    const messageBody = body || (attachmentsJsonb.length > 0 ? '\u200B' : '');
+    
+    // STEP 1: Immediately broadcast message_ack to room (both clients)
+    // This happens before DB write for instant feedback
+    const ackEvent: GatewayEvent = {
+      type: 'message_ack',
+      conversation_id: conversationId,
+      client_msg_id: clientMsgId,
+      timestamp: Date.now(),
+    };
+    
+    // Broadcast to all subscribers of this thread
+    broadcastToThread(threadId, ackEvent);
+    
+    // Also publish via broker for multi-instance support
+    void publishBrokerEvent({
+      kind: 'message_ack',
+      origin: gatewayInstanceId,
+      conversation_id: conversationId,
+      client_msg_id: clientMsgId,
+      timestamp: Date.now(),
+    });
+
+    // STEP 2: Queue message for async persistence via BullMQ
+    if (!messageQueue) {
+      gatewayLogger.warn('Message queue not initialized, skipping async persistence');
+      // Continue without queue - message_ack already sent
+      // In production, you might want to fail here or use a fallback
+    } else {
       try {
-        await serviceClient
-          .from('dms_messages')
-          .update({ client_msg_id: clientMsgId })
-          .eq('id', message.id);
-        message.client_msg_id = clientMsgId;
-      } catch (updateErr) {
-        // Ignore update errors, client_msg_id is optional
-        console.warn('Failed to update client_msg_id:', updateErr);
+        await messageQueue.add('persist', {
+          conversationId,
+          senderId: conn.userId,
+          recipientId,
+          clientMsgId,
+          body: messageBody,
+          meta: {
+            attachments: attachmentsJsonb,
+            thread_id: String(threadId),
+          },
+        });
+      } catch (queueError) {
+        gatewayLogger.error('Failed to queue message for persistence:', queueError);
+        // Don't fail the request - message_ack already sent
       }
     }
 
-    // Thread update is handled by the function, but ensure it's updated
-    // (Function already updates thread, but we ensure it's done)
-    try {
-      await serviceClient
-        .from('dms_threads')
-        .update({
-          last_message_id: message.id,
-          last_message_at: message.created_at,
-        })
-        .eq('id', threadId);
-    } catch (updateErr) {
-      // Thread update is already done by function, ignore errors
-      console.warn('Thread update warning:', updateErr);
-    }
+    // NOTE: Legacy dms_messages system is disabled for dual-channel architecture
+    // Messages are only persisted via BullMQ worker to the new 'messages' table
+    // Legacy broadcast is skipped to prevent duplication
+    // If you need backward compatibility, enable this section but ensure proper deduplication
 
-      deliverMessageToThread(conn, threadId, message, clientMsgId);
   } catch (err: any) {
+    gatewayLogger.error('Send message error:', err);
     send(conn.ws, { type: 'error', error: err?.message || 'Internal error', code: 'INTERNAL_ERROR' });
   }
 }
@@ -697,6 +742,12 @@ function cleanupConnection(ws: WebSocket) {
 // Initialize WebSocket server
 export function initGateway(server: HTTPServer, options: GatewayOptions = {}) {
   gatewayLogger = options.logger ?? console;
+
+  // Initialize message queue if Redis config provided
+  if (options.redis) {
+    messageQueue = getMessageQueue(options.redis);
+    gatewayLogger.log('Message queue initialized');
+  }
 
   if (options.broker) {
     attachBroker(options.broker);
