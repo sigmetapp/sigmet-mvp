@@ -764,7 +764,23 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
           {/* Stats and actions */}
           <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-            <span>{post.views ?? 0} views</span>
+            <div className="flex items-center gap-1">
+              <svg viewBox="0 0 24 24" className="h-5 w-5">
+                <path
+                  d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+              </svg>
+              <span>{post.views ?? 0}</span>
+            </div>
             <span>{totalReactions} likes</span>
             <span>{commentCount} comments</span>
           </div>
