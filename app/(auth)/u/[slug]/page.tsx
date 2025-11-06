@@ -1262,7 +1262,7 @@ export default function PublicProfilePage() {
 
       {/* Info, Additional Info, and Stats blocks side by side */}
       {!loadingProfile && profile && (
-        <div className="grid gap-6 md:grid-cols-[2fr_1fr_1fr]">
+        <div className="grid gap-6 md:grid-cols-[1.6fr_1.2fr_1.2fr]">
           {/* Info block - Bio, Location, Website, Joined */}
           <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-5">
             <div className="space-y-4">
