@@ -281,7 +281,9 @@ export async function listMessages(
     query = query.lt('id', beforeId);
   }
 
+  // Keyset pagination: order by created_at desc then id desc for stable ordering
   const { data: messages, error: messagesError } = await query
+    .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(Math.min(50, Math.max(1, limit)));
 

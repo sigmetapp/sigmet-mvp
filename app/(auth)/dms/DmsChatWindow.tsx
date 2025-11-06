@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, type Message, type Thread } from '@/lib/dms';
@@ -9,6 +9,9 @@ import EmojiPicker from '@/components/EmojiPicker';
 import { uploadAttachment, type DmAttachment, getSignedUrlForAttachment } from '@/lib/dm/attachments';
 import { assertThreadId } from '@/lib/dm/threadId';
 import { useTheme } from '@/components/ThemeProvider';
+import { makeMessageReconciler } from '@/lib/messages/store';
+import { useChatChannel } from '@/hooks/useChatChannel';
+import { sendMessage as sendMessageOptimistic } from '@/lib/messages/send';
 
 const INITIAL_MESSAGE_LIMIT = 20;
 const BACKFILL_BATCH_LIMIT = 50;
@@ -85,9 +88,20 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
-  // Use WebSocket hook for real-time messaging
+  // Message reconciler for optimistic UI
+  const reconciler = useMemo(() => makeMessageReconciler(), []);
+  const { upsertLocal, addIncoming, hasLocal, list: optimisticMessages } = reconciler;
+
+  // Realtime channel for instant broadcast
+  const { sendBroadcast } = useChatChannel(thread?.id || null, {
+    upsertLocal,
+    addIncoming,
+    hasLocal,
+  });
+
+  // Use WebSocket hook for real-time messaging (fallback/receiving)
   const {
-    messages,
+    messages: wsMessages,
     isConnected: wsConnected,
     isTyping: wsIsTyping,
     partnerTyping,
@@ -96,6 +110,38 @@ export default function DmsChatWindow({ partnerId }: Props) {
     sendTyping: wsSendTyping,
     acknowledgeMessage,
   } = useWebSocketDm(thread?.id || null);
+
+  // Merge WebSocket messages with optimistic messages
+  const messages = useMemo(() => {
+    const merged = new Map<string | number, Message>();
+    
+    // Add optimistic messages (by client_msg_id or id)
+    for (const msg of optimisticMessages) {
+      const key = msg.client_msg_id || msg.id?.toString() || '';
+      if (key) merged.set(key, msg);
+    }
+    
+    // Add WebSocket messages (by id)
+    for (const msg of wsMessages) {
+      const key = msg.id?.toString() || '';
+      if (key) {
+        // If we have an optimistic version, merge it
+        const existing = merged.get(key);
+        if (existing && existing.status === 'sending') {
+          merged.set(key, { ...existing, ...msg, status: 'sent' });
+        } else {
+          merged.set(key, msg);
+        }
+      }
+    }
+    
+    return Array.from(merged.values()).sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.id || 0) - (b.id || 0);
+    });
+  }, [optimisticMessages, wsMessages]);
   
   // Local state
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -145,7 +191,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   }, []);
 
   const playBeep = useCallback(
-    async (frequency = 720, duration = 0.25) => {
+    async (frequency = 400, duration = 0.1) => {
       try {
         const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext) as
           | typeof AudioContext
@@ -174,8 +220,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
         oscillator.connect(gainNode);
         gainNode.connect(ctx.destination);
 
-        gainNode.gain.setValueAtTime(0.25, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+        // Lower volume and faster fade for muffled, shorter sound
+        gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
 
         oscillator.start(ctx.currentTime);
         oscillator.stop(ctx.currentTime + duration);
@@ -187,11 +234,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
   );
 
   const playSendConfirmation = useCallback(() => {
-    void playBeep(860, 0.2);
+    void playBeep(450, 0.08);
   }, [playBeep]);
 
   const playIncomingNotification = useCallback(() => {
-    void playBeep(640, 0.28);
+    void playBeep(380, 0.12);
   }, [playBeep]);
 
   function getAttachmentIcon(type?: DmAttachment['type']) {
@@ -513,6 +560,44 @@ export default function DmsChatWindow({ partnerId }: Props) {
         const sorted = sortMessagesChronologically(messagesData);
         oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
         
+        // Load initial messages into reconciler
+        if (!cancelled) {
+          for (const msg of sorted) {
+            if (msg.client_msg_id) {
+              upsertLocal({
+                client_msg_id: msg.client_msg_id,
+                id: msg.id,
+                thread_id: msg.thread_id,
+                sender_id: msg.sender_id,
+                body: msg.body,
+                attachments: msg.attachments,
+                created_at: msg.created_at,
+                status: 'sent',
+                kind: msg.kind,
+                edited_at: msg.edited_at,
+                deleted_at: msg.deleted_at,
+                sequence_number: msg.sequence_number,
+              });
+            } else {
+              // For messages without client_msg_id, add them as incoming
+              addIncoming({
+                id: msg.id,
+                thread_id: msg.thread_id,
+                sender_id: msg.sender_id,
+                client_msg_id: `legacy_${msg.id}`,
+                body: msg.body,
+                attachments: msg.attachments,
+                created_at: msg.created_at,
+                status: 'sent',
+                kind: msg.kind,
+                edited_at: msg.edited_at,
+                deleted_at: msg.deleted_at,
+                sequence_number: msg.sequence_number,
+              });
+            }
+          }
+        }
+        
         // Load message receipts for messages sent by current user (to show partner's read status)
         if (sorted.length > 0 && currentUserId && partnerId) {
           try {
@@ -579,7 +664,40 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
                   const orderedOlder = sortMessagesChronologically(olderMessages);
 
-                  setMessages((prev) => mergeMessages(prev, orderedOlder));
+                  // Add older messages to reconciler
+                  for (const msg of orderedOlder) {
+                    if (msg.client_msg_id) {
+                      upsertLocal({
+                        client_msg_id: msg.client_msg_id,
+                        id: msg.id,
+                        thread_id: msg.thread_id,
+                        sender_id: msg.sender_id,
+                        body: msg.body,
+                        attachments: msg.attachments,
+                        created_at: msg.created_at,
+                        status: 'sent',
+                        kind: msg.kind,
+                        edited_at: msg.edited_at,
+                        deleted_at: msg.deleted_at,
+                        sequence_number: msg.sequence_number,
+                      });
+                    } else {
+                      addIncoming({
+                        id: msg.id,
+                        thread_id: msg.thread_id,
+                        sender_id: msg.sender_id,
+                        client_msg_id: `legacy_${msg.id}`,
+                        body: msg.body,
+                        attachments: msg.attachments,
+                        created_at: msg.created_at,
+                        status: 'sent',
+                        kind: msg.kind,
+                        edited_at: msg.edited_at,
+                        deleted_at: msg.deleted_at,
+                        sequence_number: msg.sequence_number,
+                      });
+                    }
+                  }
 
                   beforeId = orderedOlder[0]?.id ?? null;
                   oldestMessageIdRef.current = beforeId;
@@ -659,7 +777,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [currentUserId, partnerId]);
+  }, [currentUserId, partnerId, upsertLocal, addIncoming]);
 
   // Initialize last message ID
   useEffect(() => {
@@ -832,17 +950,36 @@ export default function DmsChatWindow({ partnerId }: Props) {
     // Play sound immediately
     playSendConfirmation();
 
+    // Clear message text and files immediately for optimistic UI
+    setMessageText('');
+    setSelectedFiles([]);
+
     try {
-      // Send via WebSocket
-      const messageBody = textToSend || null;
-      const result = await wsSendMessage(threadId, messageBody, attachments as unknown[]);
-      
-      // Clear message text and files only after successful send
-      setMessageText('');
-      setSelectedFiles([]);
-      
-      // Mark message as delivered when server confirms
-      // The server message event will update the receipt status
+      if (!currentUserId) {
+        throw new Error('Not authenticated');
+      }
+
+      // Use optimistic send flow for instant UI update
+      const result = await sendMessageOptimistic(
+        threadId,
+        textToSend || null,
+        currentUserId,
+        upsertLocal,
+        sendBroadcast,
+        attachments as unknown[]
+      );
+
+      if (!result.ok) {
+        throw new Error(result.error?.message || 'Failed to send message');
+      }
+
+      // Also send via WebSocket as fallback (for compatibility)
+      try {
+        await wsSendMessage(threadId, textToSend || null, attachments as unknown[]);
+      } catch (wsErr) {
+        // Ignore WebSocket errors, optimistic flow already handled it
+        console.warn('WebSocket send failed (using optimistic flow):', wsErr);
+      }
       
       // Scroll to bottom after sending
       setTimeout(() => {
@@ -856,6 +993,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       setError(err?.message || 'Failed to send message');
       // Restore message text only if send failed (not if upload failed)
       setMessageText(textToSend);
+      setSelectedFiles(filesToSend);
     } finally {
       setSending(false);
       setUploadingAttachments(false);
@@ -1113,9 +1251,51 @@ export default function DmsChatWindow({ partnerId }: Props) {
                             {isMine && (
                               <div className="flex items-center ml-1">
                                 {(() => {
-                                  const receiptStatus = messageReceipts.get(msg.id);
+                                  // Check optimistic status first
+                                  const optimisticStatus = (msg as any).status;
+                                  const receiptStatus = msg.id ? messageReceipts.get(msg.id) : undefined;
                                   
-                                  if (receiptStatus === 'read') {
+                                  if (optimisticStatus === 'sending') {
+                                    // Sending: one gray tick
+                                    return (
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 16 16"
+                                        width="14"
+                                        height="14"
+                                        className="text-white/40"
+                                        fill="currentColor"
+                                        style={{ minWidth: '14px' }}
+                                      >
+                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                                      </svg>
+                                    );
+                                  } else if (optimisticStatus === 'failed') {
+                                    // Failed: retry button
+                                    return (
+                                      <button
+                                        onClick={() => {
+                                          if (msg.body) {
+                                            setMessageText(msg.body);
+                                            void handleSend();
+                                          }
+                                        }}
+                                        className="text-red-400 hover:text-red-300"
+                                        title="Retry"
+                                      >
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 16 16"
+                                          width="14"
+                                          height="14"
+                                          fill="currentColor"
+                                        >
+                                          <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z" />
+                                          <path fillRule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z" />
+                                        </svg>
+                                      </button>
+                                    );
+                                  } else if (receiptStatus === 'read') {
                                     // 2 галочки - прочитано (двойная галочка) - синие
                                     return (
                                       <svg
