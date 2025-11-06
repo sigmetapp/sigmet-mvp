@@ -25,7 +25,7 @@ export default function NavItem({ label, href, icon, badgeCount, bordered }: Nav
         href={href}
         aria-current={isActive ? 'page' : undefined}
         className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors outline-none
-          ${bordered ? 'border-2' : ''}
+          ${bordered ? 'border' : ''}
           ${isActive
             ? isLight
               ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
