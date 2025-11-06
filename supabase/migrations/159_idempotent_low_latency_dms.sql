@@ -74,21 +74,23 @@ create or replace function public.mark_read(
   p_before timestamptz
 )
 returns void
-language sql
+language plpgsql
 security definer
 set search_path = public
 as $$
-  update public.dms_messages
+begin
+  update public.dms_messages m
   set read_at = now()
-  where thread_id = p_thread_id
-    and read_at is null
-    and created_at <= p_before
-    and sender_id != auth.uid()
+  where m.thread_id = p_thread_id
+    and m.read_at is null
+    and m.created_at <= p_before
+    and m.sender_id != auth.uid()
     and exists (
       select 1 from public.dms_thread_participants cm
-      where cm.thread_id = public.dms_messages.thread_id 
+      where cm.thread_id = m.thread_id
         and cm.user_id = auth.uid()
     );
+end;
 $$;
 
 -- Grant execute permission
