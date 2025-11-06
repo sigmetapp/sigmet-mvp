@@ -25,7 +25,6 @@ export default function NavItem({ label, href, icon, badgeCount, bordered }: Nav
         href={href}
         aria-current={isActive ? 'page' : undefined}
         className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors outline-none
-          ${bordered ? 'border' : ''}
           ${isActive
             ? isLight
               ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
@@ -33,11 +32,12 @@ export default function NavItem({ label, href, icon, badgeCount, bordered }: Nav
             : isLight
             ? "text-telegram-text-secondary hover:bg-telegram-blue/10 hover:text-telegram-blue"
             : "text-telegram-text-secondary hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
-          }`}
-        style={bordered ? { borderColor: 'rgb(0, 255, 200)' } : undefined}
+          }
+          ${bordered && isActive ? (isLight ? "border-b-2 border-telegram-blue" : "border-b-2 border-telegram-blue-light") : ""}
+        `}
       >
         {/* left accent for active item */}
-        {isActive && (
+        {isActive && !bordered && (
           <span className={`pointer-events-none absolute left-0 top-1.5 bottom-1.5 w-1 ${
             isLight ? "bg-telegram-blue" : "bg-telegram-blue-light"
           }`} />
