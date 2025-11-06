@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Country, City } from "country-state-city";
 import { useTheme } from "./ThemeProvider";
 
 type Suggestion = { city: string; countryCode: string; country: string };
@@ -34,13 +33,6 @@ export default function CountryCitySelect({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hasUserTyped = useRef(false); // Track if user has actually typed (not just clicked)
 
-  const countries = useMemo(() => Country.getAllCountries(), []);
-  const countryNameByIso = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const c of countries) map.set(c.isoCode, c.name);
-    return map;
-  }, [countries]);
-
   // Update query when value prop changes externally
   useEffect(() => {
     const newInitial = parseCombined(value);
@@ -51,68 +43,60 @@ export default function CountryCitySelect({
     }
   }, [value, initialQuery]);
 
-  // Build a lazy cache of all cities once (acceptable size for MVP)
-  // Only load when user actually starts typing (not just clicking on filled field)
-  const [allCities, setAllCities] = useState<Suggestion[] | null>(null);
+  // Search cities via API
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
   
   useEffect(() => {
-    // Only load cities when:
+    // Only search when:
     // 1. Dropdown is open
-    // 2. Cities haven't been loaded yet
-    // 3. Not currently loading
-    // 4. User has typed something (query has at least 1 character)
-    if (!open || allCities || loadingCities || query.trim().length === 0) return;
+    // 2. User has typed something (query has at least 1 character)
+    if (!open || query.trim().length === 0) {
+      setSuggestions([]);
+      setLoadingCities(false);
+      return;
+    }
     
-    // Load cities asynchronously to prevent UI freeze
+    // Debounce search requests
+    let cancelled = false;
     setLoadingCities(true);
     
-    // Use setTimeout to defer to next event loop tick, preventing UI freeze
-    const timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(async () => {
       try {
-        // Use requestIdleCallback if available for better performance
-        const loadCities = () => {
-          try {
-            const list = City.getAllCities() || [];
-            // Use Set for O(1) duplicate checking instead of O(n) findIndex
-            const seen = new Set<string>();
-            const suggestions: Suggestion[] = [];
-            
-            for (const c of list) {
-              const key = `${c.name}-${c.countryCode}`;
-              if (!seen.has(key)) {
-                seen.add(key);
-                suggestions.push({
-                  city: c.name,
-                  countryCode: c.countryCode,
-                  country: countryNameByIso.get(c.countryCode) || c.countryCode,
-                });
-              }
-            }
-            
-            setAllCities(suggestions);
-          } catch (error) {
-            console.error('Error loading cities:', error);
-            setAllCities([]);
-          } finally {
-            setLoadingCities(false);
-          }
-        };
-
-        // Use requestIdleCallback if available, otherwise use setTimeout
-        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-          (window as any).requestIdleCallback(loadCities, { timeout: 2000 });
+        const searchParams = new URLSearchParams({
+          query: query.trim(),
+        });
+        
+        const response = await fetch(`/api/cities/search?${searchParams}`);
+        if (cancelled) return;
+        
+        if (response.ok) {
+          const { results } = await response.json();
+          if (cancelled) return;
+          setSuggestions(results || []);
         } else {
-          setTimeout(loadCities, 0);
+          console.error('Error searching cities:', response.statusText);
+          if (!cancelled) {
+            setSuggestions([]);
+          }
         }
       } catch (error) {
-        console.error('Error setting up city loading:', error);
-        setLoadingCities(false);
+        console.error('Error searching cities:', error);
+        if (!cancelled) {
+          setSuggestions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingCities(false);
+        }
       }
-    }, 0);
+    }, 300); // 300ms debounce
     
-    return () => clearTimeout(timeoutId);
-  }, [open, allCities, countryNameByIso, loadingCities, query]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [open, query]);
 
   // Close on outside click
   useEffect(() => {
@@ -123,21 +107,6 @@ export default function CountryCitySelect({
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, []);
-
-  const filtered: Suggestion[] = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!allCities || q.length === 0) return [];
-    const results = allCities.filter(
-      (s) => s.city.toLowerCase().includes(q) || s.country.toLowerCase().includes(q)
-    );
-    results.sort((a, b) => {
-      const aStarts = a.city.toLowerCase().startsWith(q) ? 0 : 1;
-      const bStarts = b.city.toLowerCase().startsWith(q) ? 0 : 1;
-      if (aStarts !== bStarts) return aStarts - bStarts;
-      return a.city.localeCompare(b.city);
-    });
-    return results.slice(0, 30);
-  }, [allCities, query]);
 
   function select(s: Suggestion) {
     const combined = combine(s.city, s.country);
@@ -181,12 +150,12 @@ export default function CountryCitySelect({
               <div className={`px-3 py-2 text-sm ${isLight ? "text-gray-500" : "text-white/60"}`}>Start typing to search cities…</div>
             ) : !hasUserTyped.current && query === initialQuery ? (
               <div className={`px-3 py-2 text-sm ${isLight ? "text-gray-500" : "text-white/60"}`}>Start typing to search cities…</div>
-            ) : loadingCities || !allCities ? (
-              <div className={`px-3 py-2 text-sm ${isLight ? "text-gray-500" : "text-white/60"}`}>Loading cities…</div>
-            ) : filtered.length === 0 ? (
+            ) : loadingCities ? (
+              <div className={`px-3 py-2 text-sm ${isLight ? "text-gray-500" : "text-white/60"}`}>Searching cities…</div>
+            ) : suggestions.length === 0 ? (
               <div className={`px-3 py-2 text-sm ${isLight ? "text-gray-500" : "text-white/60"}`}>No results</div>
             ) : (
-              filtered.map((s, idx) => (
+              suggestions.map((s, idx) => (
                 <button
                   key={`${s.city}-${s.countryCode}-${idx}`}
                   type="button"
