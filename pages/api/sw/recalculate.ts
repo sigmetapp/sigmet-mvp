@@ -318,11 +318,14 @@ export default async function handler(
             }
           }
 
-          // Calculate mutual connections
-          // A connection is when: user A tagged me in their post AND I tagged user A in my post
-          // Count connections as the minimum of both mentions
+          // Calculate connections (same logic as connections page)
+          // A connection is created when: user A tags me OR I tag user A
+          // Each tag counts as 1 connection
+          // If they tagged me 2 times, that's 2 connections
+          // If I tagged them 1 time, that's 1 connection
+          // Total connections = sum of all tags (their tags + my tags)
           // First connection overall gets more points, repeat connections get less
-          // Check all users who mentioned me OR whom I mentioned to find mutual connections
+          // Check all users who mentioned me OR whom I mentioned
           const allConnectedUsers = new Set<string>();
           Object.keys(theyMentionedMe).forEach(uid => allConnectedUsers.add(uid));
           Object.keys(iMentionedThem).forEach(uid => allConnectedUsers.add(uid));
@@ -331,16 +334,18 @@ export default async function handler(
             const theirPosts = theyMentionedMe[userId_conn] || new Set();
             const myPosts = iMentionedThem[userId_conn] || new Set();
 
-            // Only count mutual connections (both sides must have mentioned each other)
-            if (theirPosts.size > 0 && myPosts.size > 0) {
-              // Count as the minimum of both - represents actual mutual connections
-              const mutualCount = Math.min(theirPosts.size, myPosts.size);
-              connectionsCount += mutualCount;
+            // Count connections: sum of all tags
+            // Each post where they mentioned me = 1 connection
+            // Each post where I mentioned them = 1 connection
+            const userConnectionsCount = theirPosts.size + myPosts.size;
+            
+            if (userConnectionsCount > 0) {
+              connectionsCount += userConnectionsCount;
               
-              // For each mutual connection with this user:
+              // For each connection with this user:
               // - The first connection overall is "first"
               // - All subsequent connections are "repeat"
-              for (let i = 0; i < mutualCount; i++) {
+              for (let i = 0; i < userConnectionsCount; i++) {
                 if (firstConnectionsCount === 0) {
                   // This is the first connection overall
                   firstConnectionsCount++;
