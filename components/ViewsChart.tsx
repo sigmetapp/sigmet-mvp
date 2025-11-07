@@ -141,10 +141,10 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
-            className="fixed z-[9991] top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md"
+            className="fixed inset-0 z-[9991] flex items-center justify-center p-3 sm:p-4"
           >
             <div
-              className={`rounded-xl border shadow-xl p-6 ${
+              className={`w-full max-w-md rounded-xl border shadow-xl p-4 sm:p-6 ${
                 isLight
                   ? 'bg-white border-white/10'
                   : 'bg-zinc-900 border-white/10'
