@@ -1546,20 +1546,25 @@ export default function PostFeed({
 
       {/* Feed with Create Post button on the right (if inline) */}
       {buttonPosition === 'inline' && showComposer ? (
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col-reverse lg:flex-row gap-4 lg:gap-6 items-stretch lg:items-start">
           {/* Posts */}
-          <div className="flex-1 space-y-3 min-w-0 max-w-3xl">
+          <div className="flex-1 space-y-3 min-w-0 lg:max-w-3xl">
             {renderPostsList()}
           </div>
 
-          {/* Create Post button - inline on the right */}
-          <div ref={buttonColumnRef} className="relative flex-shrink-0 self-start">
+          {/* Create Post button - inline on the right for large screens */}
+          <div ref={buttonColumnRef} className="relative hidden lg:block flex-shrink-0 self-start">
             <div
               ref={inlineButtonRef}
               style={{ visibility: fixedButtonStyle ? 'hidden' : 'visible' }}
             >
               {renderCreatePostButton()}
             </div>
+          </div>
+
+          {/* Floating action button for mobile/tablet */}
+          <div className="lg:hidden fixed z-40 right-4 bottom-20">
+            {renderCreatePostButton()}
           </div>
         </div>
       ) : (
