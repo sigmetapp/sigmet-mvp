@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import DmsChatWindow from './DmsChatWindow';
 import Toast from '@/components/Toast';
+import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 
 export default function DmsPage() {
   return (
@@ -191,7 +192,14 @@ function deriveMessagePreview(partner: PartnerListItem, currentUserId: string | 
 
 type PresenceStatus = 'online' | 'recent' | 'offline';
 
-function getPresenceStatus(partner: PartnerListItem): PresenceStatus {
+function getPresenceStatus(
+  partner: PartnerListItem,
+  presenceOnlineMap: Record<string, boolean>
+): PresenceStatus {
+  if (presenceOnlineMap[partner.user_id]) {
+    return 'online';
+  }
+
   const reference =
     partner.last_read_at ??
     partner.last_message_at ??
@@ -209,9 +217,6 @@ function getPresenceStatus(partner: PartnerListItem): PresenceStatus {
   }
 
   const diffMs = Date.now() - referenceDate.getTime();
-  if (diffMs <= 5 * 60 * 1000) {
-    return 'online';
-  }
   if (diffMs <= 60 * 60 * 1000) {
     return 'recent';
   }
@@ -232,6 +237,7 @@ function DmsInner() {
   const [toast, setToast] = useState<{ message: string; type?: 'success' | 'error' | 'info' } | null>(
     null
   );
+  const [presenceOnlineMap, setPresenceOnlineMap] = useState<Record<string, boolean>>({});
 
   const paginationRef = useRef({ offset: 0, hasMore: true });
   const partnersRef = useRef<PartnerListItem[]>([]);
@@ -551,6 +557,78 @@ function DmsInner() {
     };
   }, [fetchPartners]);
 
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe: (() => void | Promise<void>) | null = null;
+
+    if (presenceWatchList.length === 0) {
+      setPresenceOnlineMap({});
+      return () => {
+        cancelled = true;
+        if (unsubscribe) {
+          const result = unsubscribe();
+          if (result instanceof Promise) void result;
+        }
+      };
+    }
+
+    const subscribe = async () => {
+      try {
+        unsubscribe = await subscribeToPresence(presenceWatchList, (userId, online) => {
+          setPresenceOnlineMap((prev) => {
+            if (prev[userId] === online) {
+              return prev;
+            }
+            return { ...prev, [userId]: online };
+          });
+        });
+
+        await Promise.all(
+          presenceWatchList.map(async (userId) => {
+            try {
+              const presenceState = await getPresenceMap(userId);
+              const online = !!presenceState?.[userId]?.[0];
+              if (!cancelled) {
+                setPresenceOnlineMap((prev) => {
+                  if (prev[userId] === online) {
+                    return prev;
+                  }
+                  return { ...prev, [userId]: online };
+                });
+              }
+            } catch (err) {
+              console.error('Failed to fetch presence map for user', userId, err);
+            }
+          })
+        );
+      } catch (err) {
+        console.error('Failed to subscribe to presence updates', err);
+      }
+    };
+
+    void subscribe();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribe) {
+        const result = unsubscribe();
+        if (result instanceof Promise) void result;
+      }
+    };
+  }, [presenceWatchList]);
+
+  useEffect(() => {
+    if (presenceWatchList.length === 0) {
+      setPresenceOnlineMap({});
+      return;
+    }
+    setPresenceOnlineMap((prev) => {
+      const allowed = new Set(presenceWatchList);
+      const entries = Object.entries(prev).filter(([userId]) => allowed.has(userId));
+      return Object.fromEntries(entries);
+    });
+  }, [presenceWatchList]);
+
   const filteredPartners = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) {
@@ -646,6 +724,17 @@ function DmsInner() {
     () => partnerSections.flatMap((section) => section.items),
     [partnerSections]
   );
+
+  const presenceWatchList = useMemo(() => {
+    const unique = new Set<string>();
+    for (const partner of flatPartners) {
+      unique.add(partner.user_id);
+      if (unique.size >= 30) {
+        break;
+      }
+    }
+    return Array.from(unique);
+  }, [flatPartners]);
 
   const isSearching = searchTerm.trim().length > 0;
   const hasResults = flatPartners.length > 0;
@@ -1010,7 +1099,7 @@ function DmsInner() {
                           const timestampLabel = formatRelativeTime(
                             partner.last_message_at ?? partner.created_at
                           );
-                          const presenceStatus = getPresenceStatus(partner);
+                          const presenceStatus = getPresenceStatus(partner, presenceOnlineMap);
                           const presenceClasses =
                             presenceStatus === 'online'
                               ? 'bg-emerald-400'
