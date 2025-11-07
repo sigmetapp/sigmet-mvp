@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, type Message, type Thread } from '@/lib/dms';
@@ -131,6 +131,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const historySentinelRef = useRef<HTMLDivElement | null>(null);
   const historyObserverRef = useRef<IntersectionObserver | null>(null);
   const historyAutoLoadReadyRef = useRef(false);
+  const initialScrollDoneRef = useRef(false);
   const presenceUnsubscribeRef = useRef<(() => void | Promise<void>) | null>(null);
   const lastActivityRef = useRef<string | null>(null);
   const presenceOnlineRef = useRef<boolean>(false);
@@ -735,6 +736,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     (async () => {
       oldestMessageIdRef.current = null;
         historyAutoLoadReadyRef.current = false;
+        initialScrollDoneRef.current = false;
       setLoading(true);
       setError(null);
       setHasMoreHistory(true);
@@ -1054,41 +1056,37 @@ export default function DmsChatWindow({ partnerId }: Props) {
   }, [hasMoreHistory, loadingOlderMessages, loadOlderMessages, thread?.id]);
 
   // Scroll to bottom on new messages and when messages are initially loaded
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (messages.length === 0) {
       return;
     }
+
     const container = scrollRef.current;
     if (!container) {
       return;
     }
-    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-    const shouldStickToBottom = distanceFromBottom <= 200;
-    if (!shouldStickToBottom && historyAutoLoadReadyRef.current) {
+
+    if (!initialScrollDoneRef.current) {
+      container.scrollTop = container.scrollHeight;
+      historyAutoLoadReadyRef.current = true;
+      initialScrollDoneRef.current = true;
       return;
     }
-    // Use setTimeout to ensure DOM is updated
-    setTimeout(() => {
-      if (!scrollRef.current) {
-        return;
-      }
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      historyAutoLoadReadyRef.current = true;
-    }, 100);
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    const shouldStickToBottom = distanceFromBottom <= 200;
+
+    if (shouldStickToBottom && historyAutoLoadReadyRef.current) {
+      container.scrollTop = container.scrollHeight;
+    }
   }, [messages.length]);
 
-  // Scroll to bottom when thread changes (new conversation opened)
+  // Reset scroll trackers when thread changes
   useEffect(() => {
-    if (thread?.id && messages.length > 0 && scrollRef.current) {
-      // Delay to ensure messages are rendered
-      setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          historyAutoLoadReadyRef.current = true;
-        }
-      }, 200);
-    }
-  }, [thread?.id, messages.length > 0]);
+    initialScrollDoneRef.current = false;
+    historyAutoLoadReadyRef.current = false;
+  }, [thread?.id]);
 
   // Handle emoji selection
   const handleEmojiSelect = useCallback((emoji: string) => {
