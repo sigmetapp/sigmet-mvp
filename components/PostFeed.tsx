@@ -215,9 +215,13 @@ export default function PostFeed({
   const [myDirections, setMyDirections] = useState<string[]>([]);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'connections' | 'discuss' | 'direction'>( 'all');
+  const directionsLoadedRef = useRef(false); // Track if directions have been loaded to prevent unnecessary reloads
+  const initialLoadDoneRef = useRef(false); // Track if initial load has been done
 
-  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'connections' | 'discuss' | 'direction', offset = 0, limit = 50) => {
+  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'connections' | 'discuss' | 'direction', offset = 0, limit = 50, directionsOverride?: Array<{ id: string; slug: string; title: string; emoji: string }>) => {
     try {
+      // Use directionsOverride if provided, otherwise use state
+      const directionsToUse = directionsOverride || availableDirections;
       if (offset === 0) {
         setLoading(true);
       } else {
@@ -247,8 +251,8 @@ export default function PostFeed({
           .not('body', 'is', null)
           .not('body', 'eq', '')
           .ilike('body', '%?%');
-      } else if (filterType === 'direction' && directionId && availableDirections.length > 0) {
-        const direction = availableDirections.find((dir) => dir.id === directionId);
+      } else if (filterType === 'direction' && directionId && directionsToUse.length > 0) {
+        const direction = directionsToUse.find((dir) => dir.id === directionId);
         if (direction) {
           // Filter posts where category matches direction title or slug
           query = query.or(`category.ilike.%${direction.title}%,category.ilike.%${direction.slug}%`);
@@ -379,19 +383,41 @@ export default function PostFeed({
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [availableDirections, filterUserId]);
+  }, [filterUserId, availableDirections]); // Keep availableDirections but use directionsOverride parameter
 
   // page mount
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
     // Initial load - load all posts without filter
-    const initialLimit = enableLazyLoad ? 10 : 50;
-    loadFeed(null, 'all', 0, initialLimit);
+    if (!initialLoadDoneRef.current) {
+      const initialLimit = enableLazyLoad ? 10 : 50;
+      loadFeed(null, 'all', 0, initialLimit);
+      initialLoadDoneRef.current = true;
+    }
   }, [loadFeed, enableLazyLoad]);
 
   // Reload feed when active filter or direction changes
   useEffect(() => {
+    // Skip if initial load hasn't been done yet
+    if (!initialLoadDoneRef.current) {
+      return;
+    }
+    
     const limit = enableLazyLoad ? 10 : 50;
+    
+    // Skip reload if this is the first time directions are loaded and filter is not 'direction'
+    // This prevents unnecessary reload when directions finish loading
+    if (!directionsLoadedRef.current && availableDirections.length > 0 && activeFilter !== 'direction') {
+      directionsLoadedRef.current = true;
+      // Don't reload feed on initial directions load if filter is not 'direction'
+      return;
+    }
+    
+    // Mark that we've processed directions
+    if (availableDirections.length > 0 && !directionsLoadedRef.current) {
+      directionsLoadedRef.current = true;
+    }
+    
     if (!showFilters) {
       // If filters are hidden, just load all posts (or filtered by user_id)
       loadFeed(null, 'all', 0, limit);
@@ -404,7 +430,7 @@ export default function PostFeed({
       loadFeed(null, 'discuss', 0, limit);
     } else if (activeFilter === 'direction') {
       if (availableDirections.length > 0) {
-        loadFeed(activeDirection, 'direction', 0, limit);
+        loadFeed(activeDirection, 'direction', 0, limit, availableDirections);
       }
     } else {
       // activeFilter === 'all'
@@ -472,6 +498,7 @@ export default function PostFeed({
               title: dir.title,
               emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
             }));
+          
           setAvailableDirections(mapped);
 
           // Use primary directions IDs directly (no need to check profile)
