@@ -1198,6 +1198,8 @@ export default function PostFeed({
           const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
           const fullName = profile?.full_name || null;
           const commentCount = commentCounts[p.id] ?? 0;
+          const swScore = p.user_id ? (swScoresByUserId[p.user_id] || 0) : 0;
+          const growthStatuses = growthStatusesByPostId[p.id] || [];
           
           // Check if post has mentions
           const postHasMentions = hasMentions(p.body);
@@ -1218,7 +1220,7 @@ export default function PostFeed({
 
           return (
             <PostCard
-              key={p.id}
+              key={`post-${p.id}-${profile?.username || p.user_id}-${swScore}-${growthStatuses.length}`}
               post={{
                 id: String(p.id),
                 author: username,
@@ -1240,7 +1242,7 @@ export default function PostFeed({
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <AvatarWithBadge
                         avatarUrl={avatar}
-                        swScore={p.user_id ? (swScoresByUserId[p.user_id] || 0) : 0}
+                        swScore={swScore}
                         size="sm"
                         alt="avatar"
                         href={`/u/${encodeURIComponent(profile?.username || p.user_id || '')}`}
@@ -1257,7 +1259,7 @@ export default function PostFeed({
                           >
                             {username}
                           </a>
-                          {(fullName || p.category || postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                          {(fullName || p.category || postHasMentions || growthStatuses.length > 0) && (
                             <span className="text-sm text-slate-500 dark:text-slate-400">
                               |
                             </span>
@@ -1267,7 +1269,7 @@ export default function PostFeed({
                               <span className="text-sm text-slate-500 dark:text-slate-400">
                                 {fullName}
                               </span>
-                              {(p.category || postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                              {(p.category || postHasMentions || growthStatuses.length > 0) && (
                                 <span className="text-sm text-slate-500 dark:text-slate-400">
                                   |
                                 </span>
@@ -1287,7 +1289,7 @@ export default function PostFeed({
                               }`}>
                                 {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
                               </div>
-                              {(postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
+                              {(postHasMentions || growthStatuses.length > 0) && (
                                 <span className="text-sm text-slate-500 dark:text-slate-400">
                                   |
                                 </span>
@@ -1303,14 +1305,14 @@ export default function PostFeed({
                               }`}>
                                 Connections
                               </div>
-                              {(growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0) && (
+                              {growthStatuses.length > 0 && (
                                 <span className="text-sm text-slate-500 dark:text-slate-400">
                                   |
                                 </span>
                               )}
                             </>
                           )}
-                          {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
+                          {growthStatuses.length > 0 && growthStatuses.map((status) => {
                             const statusConfig = {
                               proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
                               grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
