@@ -1341,8 +1341,36 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
     try {
       const messageBody = textToSend || null;
-      const attachmentsWithVersions = annotateDocumentVersions(attachments, messages);
-      await wsSendMessage(threadId, messageBody, attachmentsWithVersions as unknown[]);
+      if (isOffline) {
+        setOutbox((prev) => [...prev, { body: messageBody, attachments }]);
+        setMessageText('');
+        setSelectedFiles((prev) => {
+          prev.forEach((entry) => {
+            if (entry.previewUrl) {
+              URL.revokeObjectURL(entry.previewUrl);
+            }
+          });
+          return [];
+        });
+        playSendConfirmation();
+        return;
+      }
+      await (async () => {
+        const maxAttempts = 3;
+        let attempt = 0;
+        const delays = [300, 900, 2000];
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          try {
+            await wsSendMessage(threadId, messageBody, annotateDocumentVersions(attachments, messages) as unknown[]);
+            break;
+          } catch (err) {
+            attempt += 1;
+            if (attempt >= maxAttempts) throw err;
+            await new Promise((r) => setTimeout(r, delays[Math.min(attempt - 1, delays.length - 1)]));
+          }
+        }
+      })();
 
       setMessageText('');
       setSelectedFiles((prev) => {
@@ -1359,6 +1387,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
       }, 100);
+      playSendConfirmation();
     } catch (err: any) {
       console.error('Error sending message:', err);
       setError(err?.message || 'Failed to send message');
@@ -1663,10 +1692,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
         </div>
       )}
 
-      {/* Offline banner */}
-      {isOffline && (
-        <div className="px-4 py-2 bg-amber-500/15 text-amber-200 text-sm border-b border-amber-500/30">
-          You are offline. Messages will be sent when connection is restored.
+      {/* Offline banner / Outbox */}
+      {(isOffline || outbox.length > 0) && (
+        <div className="px-4 py-2 bg-amber-500/15 text-amber-200 text-sm border-b border-amber-500/30 flex items-center justify-between">
+          <div>
+            {isOffline ? 'You are offline.' : 'Back online.'} Messages {isOffline ? 'will be queued' : 'in queue will be sent'} automatically.
+          </div>
+          {outbox.length > 0 && (
+            <div className="text-[11px] text-amber-200/80">Queue: {outbox.length}</div>
+          )}
         </div>
       )}
 
