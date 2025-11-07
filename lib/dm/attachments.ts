@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
-import { inferAttachmentType, type AttachmentType, DM_ATTACHMENTS_BUCKET } from '@/lib/dm/attachmentUtils';
+import { inferAttachmentType, type AttachmentType } from '@/lib/dm/attachmentUtils';
+import { isHttpUrl, normalizeStoragePointer } from '@/lib/dm/storagePath';
 
 export type DmAttachment = {
   type: AttachmentType;
@@ -202,62 +203,12 @@ async function uploadAttachmentResumable(file: File, options: UploadOptions): Pr
   };
 }
 
-function isHttpUrl(value: string | null | undefined): value is string {
-  return typeof value === 'string' && /^https?:\/\//i.test(value.trim());
-}
-
-function stripQuery(value: string): string {
-  const [withoutQuery] = value.split('?');
-  return withoutQuery;
-}
-
-function normalizeStorageTarget(rawPath: string, bucketHint?: string | null) {
-  let cleaned = stripQuery(rawPath.trim());
-  if (cleaned.startsWith('storage://')) {
-    cleaned = cleaned.slice('storage://'.length);
-  }
-  cleaned = cleaned.replace(/^\/+/, '');
-
-  let bucket = bucketHint?.trim() || null;
-
-  const doubleColonIndex = cleaned.indexOf('::');
-  if (!bucket && doubleColonIndex > 0) {
-    bucket = cleaned.slice(0, doubleColonIndex);
-    cleaned = cleaned.slice(doubleColonIndex + 2);
-  }
-
-  const SLASH = cleaned.indexOf('/');
-  if (!bucket && SLASH > 0) {
-    const prefix = cleaned.slice(0, SLASH);
-    if (prefix === DM_ATTACHMENTS_BUCKET || prefix === 'assets') {
-      bucket = prefix;
-      cleaned = cleaned.slice(SLASH + 1);
-    }
-  }
-
-  const bucketCandidates: string[] = [];
-  if (bucket) {
-    bucketCandidates.push(bucket);
-  }
-  if (!bucketCandidates.includes(DM_ATTACHMENTS_BUCKET)) {
-    bucketCandidates.push(DM_ATTACHMENTS_BUCKET);
-  }
-  if (!bucketCandidates.includes('assets')) {
-    bucketCandidates.push('assets');
-  }
-
-  return {
-    bucketCandidates,
-    objectPath: cleaned,
-  };
-}
-
 export async function getSignedUrlForPath(path: string, expiresInSeconds = 60, bucketHint?: string | null): Promise<string> {
   if (isHttpUrl(path)) {
     return path;
   }
 
-  const { bucketCandidates, objectPath } = normalizeStorageTarget(path, bucketHint);
+  const { bucketCandidates, objectPath } = normalizeStoragePointer(path, bucketHint);
   const attempted = new Set<string>();
 
   for (const bucket of bucketCandidates) {
@@ -320,10 +271,60 @@ export async function resolveAttachmentUrl(
     return null;
   }
 
-  try {
-    return await getSignedUrlForPath(path, expiresInSeconds, attachment.bucket ?? null);
-  } catch (error) {
-    console.error('Failed to resolve attachment URL:', error);
-    return null;
+  const bucketHint =
+    attachment.bucket ??
+    (attachment as any)?.storageBucket ??
+    (attachment as any)?.storage_bucket ??
+    null;
+
+  const candidatePaths = Array.from(
+    new Set(
+      [
+        path,
+        (attachment as any)?.storage_path,
+        (attachment as any)?.storagePath,
+        (attachment as any)?.path,
+      ]
+        .map((candidate) => (typeof candidate === 'string' ? candidate.trim() : ''))
+        .filter((candidate) => candidate.length > 0)
+    )
+  );
+
+  for (const candidate of candidatePaths) {
+    try {
+      const signed = await getSignedUrlForPath(candidate, expiresInSeconds, bucketHint);
+      if (signed) {
+        return signed;
+      }
+    } catch (error) {
+      // Continue to next strategy
+      console.warn('Primary signed URL resolution failed, falling back to API route:', error);
+    }
   }
+
+  for (const candidate of candidatePaths) {
+    try {
+      const params = new URLSearchParams({
+        path: candidate,
+        expiresIn: String(expiresInSeconds),
+      });
+      if (bucketHint) {
+        params.set('bucket', bucketHint);
+      }
+
+      const response = await fetch(`/api/dms/attachments.url?${params.toString()}`);
+      if (response.ok) {
+        const payload = await response.json().catch(() => null);
+        if (payload?.url) {
+          return payload.url as string;
+        }
+      } else {
+        console.warn('Attachments URL API responded with error status:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to resolve attachment URL via API route:', error);
+    }
+  }
+
+  return null;
 }
