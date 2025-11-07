@@ -157,6 +157,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
           <div
             className={`fixed inset-0 z-[101] ${isLight ? "bg-white" : "bg-[rgba(15,22,35,0.98)] backdrop-blur-md"}`}
             onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 p-4 border-b border-telegram-blue/20">
               <Search
@@ -424,7 +425,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
       )}
 
       {/* Regular search input */}
-      <div ref={containerRef} className={`relative w-[313px] ${className}`}>
+      <div ref={containerRef} className={`relative w-[313px] md:w-[313px] ${className}`}>
         <div className="relative">
           <Search
             className={`absolute left-3 top-1/2 -translate-y-1/2 ${
@@ -440,6 +441,12 @@ export default function SearchInput({ className = "" }: { className?: string }) 
             onFocus={handleFocus}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
+            onClick={(e) => {
+              // On mobile, clicking should also trigger focus to show fullscreen
+              if (isMobile && !isFullScreen) {
+                e.currentTarget.focus();
+              }
+            }}
             placeholder="Search people, posts, cities..."
             className={`w-full pl-10 pr-10 py-2 rounded-lg text-sm border transition ${
               isLight
