@@ -18,6 +18,9 @@ alter table public.dms_thread_participants
 alter table public.dms_thread_participants
   add column if not exists notifications_muted boolean;
 
+alter table public.dms_threads
+  add column if not exists last_message_id bigint;
+
 update public.dms_thread_participants
   set notifications_muted = coalesce(notifications_muted, false)
   where notifications_muted is null;
