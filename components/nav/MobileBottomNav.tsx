@@ -29,7 +29,7 @@ export default function MobileBottomNav({ user }: BottomNavProps) {
   // Admin UI handled by Footer
 
   return (
-    <div>
+    <div className="lg:hidden">
       {/* Bottom fixed bar */}
       <nav
         className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-md px-2 py-2 safe-bottom ${
@@ -39,14 +39,14 @@ export default function MobileBottomNav({ user }: BottomNavProps) {
         }`}
       >
         <div className="mx-auto max-w-7xl">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <div className="grid grid-cols-7 gap-2">
           {menu.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`h-10 w-10 grid place-items-center rounded-lg border flex-shrink-0 transition ${
+                className={`h-10 w-full grid place-items-center rounded-lg border transition ${
                   active
                     ? isLight
                       ? 'bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-telegram-blue'

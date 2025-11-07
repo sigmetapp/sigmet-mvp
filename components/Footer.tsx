@@ -50,6 +50,18 @@ export default function Footer() {
             <p className={`${isLight ? "text-black/50" : "text-white/50"} max-w-xs`}>
               Build your social weight with meaningful progress and transparent reputation.
             </p>
+            {isAdmin && (
+              <button
+                onClick={() => setAdminOpen(true)}
+                className={`mt-3 px-3 py-1.5 rounded-full text-xs border transition ${
+                  isLight
+                    ? 'text-telegram-blue border-telegram-blue/25 hover:bg-telegram-blue/10'
+                    : 'text-telegram-blue-light border-telegram-blue/30 hover:bg-telegram-blue/15'
+                }`}
+              >
+                Admin
+              </button>
+            )}
           </div>
 
           <div>
@@ -78,18 +90,6 @@ export default function Footer() {
 
         <div className={`mt-8 pt-4 flex items-center justify-between gap-3 text-xs md:text-sm ${isLight ? "border-t border-black/10" : "border-t border-white/10"}`}>
           <span>© {year} {site_name || "SIGMET"}. All rights reserved.</span>
-          {isAdmin && (
-            <button
-              onClick={() => setAdminOpen(true)}
-              className={`ml-auto px-3 py-1.5 rounded-full text-xs border transition ${
-                isLight
-                  ? 'text-telegram-blue border-telegram-blue/25 hover:bg-telegram-blue/10'
-                  : 'text-telegram-blue-light border-telegram-blue/30 hover:bg-telegram-blue/15'
-              }`}
-            >
-              Admin
-            </button>
-          )}
         </div>
       </div>
 
