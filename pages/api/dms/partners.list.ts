@@ -10,11 +10,11 @@ import { getAuthedClient } from '@/lib/dm/supabaseServer';
     username: string | null;
     full_name: string | null;
     avatar_url: string | null;
-    thread_id: number | null;
+  thread_id: string | null;
     messages24h: number | null;
     last_message_at: string | null;
     created_at: string | null;
-    last_message_id: number | null;
+  last_message_id: string | null;
     last_message_body: string | null;
     last_message_kind: string | null;
     last_message_sender_id: string | null;
@@ -23,7 +23,7 @@ import { getAuthedClient } from '@/lib/dm/supabaseServer';
     pinned_at: string | null;
     notifications_muted: boolean;
     mute_until: string | null;
-    last_read_message_id: number | null;
+  last_read_message_id: string | null;
     last_read_at: string | null;
     source: 'thread' | 'mutual';
   };
@@ -62,37 +62,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const partners: PartnerResponse[] = trimmedRows
         .map((row) => {
-          const rawThreadId = row.thread_id;
-          const threadId =
-            typeof rawThreadId === 'number'
-              ? rawThreadId
-              : typeof rawThreadId === 'string'
-                ? Number(rawThreadId)
-                : null;
+          const partnerId = row.partner_id as string | null;
+          const threadId = typeof row.thread_id === 'string' ? row.thread_id : row.thread_id?.toString() ?? null;
 
-          const rawLastMessageId = row.last_message_id;
-          let lastMessageId: number | null = null;
-          if (typeof rawLastMessageId === 'number') {
-            lastMessageId = rawLastMessageId;
-          } else if (typeof rawLastMessageId === 'string') {
-            const parsed = Number(rawLastMessageId);
-            if (Number.isFinite(parsed)) {
-              lastMessageId = parsed;
-            }
+          if (!partnerId) {
+            return null;
           }
 
-          const rawLastReadId = row.last_read_message_id;
-          const lastReadId =
-            typeof rawLastReadId === 'number'
-              ? rawLastReadId
-              : typeof rawLastReadId === 'string'
-                ? Number(rawLastReadId)
-                : null;
-
-          const partnerId = row.partner_id as string | null;
-
           return {
-            user_id: partnerId ?? '',
+            user_id: partnerId,
             username: row.partner_username ?? null,
             full_name: row.partner_full_name ?? null,
             avatar_url: row.partner_avatar_url ?? null,
@@ -100,7 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             messages24h: typeof row.messages24h === 'number' ? row.messages24h : Number(row.messages24h ?? 0),
             last_message_at: row.last_message_at ?? null,
             created_at: row.thread_created_at ?? null,
-            last_message_id: lastMessageId,
+            last_message_id: row.last_message_id ? String(row.last_message_id) : null,
             last_message_body: row.last_message_body ?? null,
             last_message_kind: row.last_message_kind ?? null,
             last_message_sender_id: row.last_message_sender_id ?? null,
@@ -109,12 +87,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             pinned_at: row.pinned_at ?? null,
             notifications_muted: Boolean(row.notifications_muted),
             mute_until: row.mute_until ?? null,
-            last_read_message_id: lastReadId,
+            last_read_message_id: row.last_read_message_id ? String(row.last_read_message_id) : null,
             last_read_at: row.last_read_at ?? null,
             source: 'thread',
           };
         })
-        .filter((partner) => partner.user_id);
+        .filter((partner): partner is PartnerResponse => Boolean(partner));
 
       const partnerIds = new Set(partners.map((p) => p.user_id));
 

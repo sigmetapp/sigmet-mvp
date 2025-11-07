@@ -19,7 +19,7 @@ type PartnerListItem = {
   username: string | null;
   full_name: string | null;
   avatar_url: string | null;
-  thread_id: number | null;
+  thread_id: string | null;
   messages24h: number;
   last_message_at: string | null;
   created_at: string | null;

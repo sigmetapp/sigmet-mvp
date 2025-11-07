@@ -39,7 +39,7 @@ create function public.dms_list_partners(
   p_offset integer default 0
 )
   returns table (
-    thread_id bigint,
+  thread_id text,
     partner_id uuid,
     partner_username text,
     partner_full_name text,
@@ -55,7 +55,7 @@ create function public.dms_list_partners(
     pinned_at timestamptz,
     notifications_muted boolean,
     mute_until timestamptz,
-    last_read_message_id bigint,
+  last_read_message_id text,
     last_read_at timestamptz,
     thread_created_at timestamptz
   )
@@ -166,7 +166,7 @@ unread as (
   group by m.thread_id
 )
 select
-  lt.thread_id,
+  lt.thread_id::text as thread_id,
   p.partner_id,
   prof.username,
   prof.full_name,
@@ -182,7 +182,7 @@ select
   lt.pinned_at,
   lt.notifications_muted,
   lt.mute_until,
-  lt.last_read_message_id,
+  lt.last_read_message_id::text as last_read_message_id,
   lt.last_read_at,
   lt.created_at as thread_created_at
 from limited_threads lt
