@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { supabase } from "@/lib/supabaseClient";
 import { useTheme } from "@/components/ThemeProvider";
-import { Sun, Moon, Menu, X } from "lucide-react";
+import { Sun, Moon, Home, Rss, UserPlus } from "lucide-react";
 import SearchInput from "@/components/SearchInput";
 
 const navLinks = [
@@ -17,7 +17,7 @@ export default function Header() {
   const { logo_url, site_name } = useSiteSettings();
   const [user, setUser] = useState<any>(null);
   const [pathname, setPathname] = useState<string>("");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Mobile menu removed in favor of inline icons
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -47,8 +47,8 @@ export default function Header() {
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 h-14 relative">
-        {/* LOGO + TITLE */}
-        <Link href="/" className="absolute left-4 flex items-center gap-2 group flex-shrink-0 h-14">
+        {/* LOGO + TITLE (DESKTOP) */}
+        <Link href="/" className="hidden md:flex absolute left-4 items-center gap-2 group flex-shrink-0 h-14">
           {logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -79,7 +79,7 @@ export default function Header() {
           </span>
         </Link>
 
-        {/* SEARCH INPUT - CENTERED */}
+        {/* SEARCH INPUT - CENTERED (DESKTOP) */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:block">
           <SearchInput />
         </div>
@@ -171,126 +171,87 @@ export default function Header() {
           )}
         </nav>
 
-        {/* MOBILE MENU BUTTON */}
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle menu"
-          className={`ml-auto md:hidden h-9 w-9 grid place-items-center rounded-lg border transition ${
-            isLight
-              ? "border-telegram-blue/20 text-telegram-blue hover:bg-telegram-blue/10"
-              : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/20"
-          }`}
-        >
-          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </div>
+        {/* MOBILE SINGLE ROW LAYOUT */}
+        <div className="md:hidden h-14 flex items-center gap-2">
+          {/* Mobile logo + brand */}
+          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+            {logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logo_url}
+                alt="Logo"
+                width={28}
+                height={28}
+                className="rounded-md"
+              />
+            ) : (
+              <div className={`h-7 w-7 rounded-md grid place-items-center border ${
+                isLight 
+                  ? "bg-telegram-blue/10 border-telegram-blue/20 text-telegram-blue" 
+                  : "bg-telegram-blue/20 border-telegram-blue/30 text-telegram-blue-light"
+              }`}>
+                S
+              </div>
+            )}
+            <span className={`${isLight ? "text-telegram-text" : "text-telegram-text"} font-semibold tracking-tight text-sm`}>{site_name || "SIGMET"}</span>
+          </Link>
 
-      {/* MOBILE SEARCH */}
-      <div className="md:hidden px-4 pb-3">
-        <SearchInput />
-      </div>
+          {/* Search inline and flexible */}
+          <SearchInput className="flex-1 min-w-0 w-auto" />
 
-      {/* MOBILE MENU */}
-      {mobileMenuOpen && (
-        <div className={`md:hidden border-t transition-colors ${
-          isLight 
-            ? "border-telegram-blue/15 bg-white/95" 
-            : "border-telegram-blue/20 bg-[rgba(15,22,35,0.95)]"
-        }`}>
-          <nav className="px-4 py-3 flex flex-col gap-2">
-            {navLinks.map((l) => {
-              const active = pathname === l.href;
-              const isExternal = l.href.startsWith("http");
-              const className = `px-3 py-2 rounded-lg text-sm font-medium transition ${
-                active
-                  ? isLight
-                    ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                    : "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                  : isLight
-                  ? "text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
-                  : "text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
-              }`;
-              return isExternal ? (
-                <a
-                  key={l.href}
-                  href={l.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={className}
-                >
-                  {l.label}
-                </a>
-              ) : (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={className}
-                >
-                  {l.label}
-                </Link>
-              );
-            })}
+          {/* Icon nav for Home / Feed / Invite */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Link
+              href="/"
+              aria-label="Home"
+              className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
+                isLight
+                  ? "border-telegram-blue/20 text-telegram-text-secondary hover:bg-telegram-blue/10 hover:text-telegram-blue"
+                  : "border-telegram-blue/30 text-telegram-text-secondary hover:bg-telegram-blue/20 hover:text-telegram-blue-light"
+              }`}
+            >
+              <Home size={18} />
+            </Link>
+            <Link
+              href="/feed"
+              aria-label="Feed"
+              className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
+                isLight
+                  ? "border-telegram-blue/20 text-telegram-text-secondary hover:bg-telegram-blue/10 hover:text-telegram-blue"
+                  : "border-telegram-blue/30 text-telegram-text-secondary hover:bg-telegram-blue/20 hover:text-telegram-blue-light"
+              }`}
+            >
+              <Rss size={18} />
+            </Link>
+            <Link
+              href="/invite"
+              aria-label="Invite"
+              className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
+                isLight
+                  ? "border-telegram-blue/20 text-telegram-text-secondary hover:bg-telegram-blue/10 hover:text-telegram-blue"
+                  : "border-telegram-blue/30 text-telegram-text-secondary hover:bg-telegram-blue/20 hover:text-telegram-blue-light"
+              }`}
+            >
+              <UserPlus size={18} />
+            </Link>
 
-            <div className="flex items-center gap-2 pt-2 border-t border-telegram-blue/10">
-              <button
-                onClick={toggleTheme}
-                aria-label="Toggle theme"
-                className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
-                  isLight
-                    ? "border-telegram-blue/20 text-telegram-blue hover:bg-telegram-blue/10"
-                    : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/20"
-                }`}
-                title={isLight ? "Switch to dark" : "Switch to light"}
-              >
-                {isLight ? <Moon size={16} /> : <Sun size={16} />}
-              </button>
-
-              {!user ? (
-                <>
-                  <Link
-                    href="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-sm font-medium border-2 text-center transition ${
-                      isLight
-                        ? "border-telegram-blue text-telegram-blue hover:bg-telegram-blue/10"
-                        : "border-telegram-blue text-telegram-blue-light hover:bg-telegram-blue/15"
-                    }`}
-                  >
-                    Log in
-                  </Link>
-                  <Link
-                    href="/signup"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-sm font-medium text-center transition ${
-                      isLight
-                        ? "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                        : "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
-                    }`}
-                  >
-                    Sign up
-                  </Link>
-                </>
-              ) : (
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`flex-1 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition ${
-                    isLight
-                      ? "border-telegram-blue/30 text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
-                      : "border-telegram-blue/30 text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
-                  }`}
-                >
-                  Logout
-                </button>
-              )}
-            </div>
-          </nav>
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+              className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
+                isLight
+                  ? "border-telegram-blue/20 text-telegram-blue hover:bg-telegram-blue/10"
+                  : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/20"
+              }`}
+              title={isLight ? "Switch to dark" : "Switch to light"}
+            >
+              {isLight ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
+          </div>
         </div>
-      )}
+      </div>
+
     </header>
   );
 }

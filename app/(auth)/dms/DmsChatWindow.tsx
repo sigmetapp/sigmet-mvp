@@ -1621,7 +1621,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   }
 
   return (
-    <div className="card card-glow flex flex-col h-full overflow-hidden">
+    <div className="card card-glow flex flex-col h-[80dvh] md:h-full overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-3">

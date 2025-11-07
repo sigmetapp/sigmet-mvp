@@ -1112,7 +1112,7 @@ function DmsInner() {
   }, []);
 
   return (
-    <div className="flex flex-col md:flex-row gap-2 md:gap-4 h-[100dvh] md:h-[calc(100vh-120px)]">
+    <div className="flex flex-col md:flex-row gap-2 md:gap-4 h-[100dvh] md:h-[calc(100vh-120px)] overflow-hidden">
       {toast && (
         <Toast
           message={toast.message}
@@ -1121,7 +1121,7 @@ function DmsInner() {
           duration={2500}
         />
       )}
-      <div className={["w-full md:w-80 flex-shrink-0", selectedPartnerId ? "hidden md:block" : "block"].join(" ") }>
+      <div className={["w-full md:w-80 flex-shrink-0 min-h-0", selectedPartnerId ? "hidden md:block" : "block"].join(" ") }>
           <div className="card card-glow h-full flex flex-col">
             <div className="px-4 py-4 border-b border-white/10 space-y-3">
               <div className="flex items-center justify-between gap-2">
@@ -1424,7 +1424,7 @@ function DmsInner() {
             </div>
           </div>
       </div>
-      <div className={["flex-1 min-w-0", !selectedPartnerId ? "hidden md:block" : "block"].join(" ") }>
+      <div className={["flex-1 min-w-0 min-h-0", !selectedPartnerId ? "hidden md:block" : "block"].join(" ") }>
         {selectedPartnerId ? (
           <DmsChatWindow partnerId={selectedPartnerId} onBack={() => setSelectedPartnerId(null)} />
         ) : (
