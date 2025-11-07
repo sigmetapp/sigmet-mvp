@@ -32,7 +32,7 @@ type Ripple = {
 const INTERACTIVE_SELECTOR =
   'a, button, [role="button"]:not([data-allow-card-click]), input, textarea, select, label, [data-interactive], [data-prevent-card-navigation="true"]';
 
-export default function PostCard({
+const PostCard = React.memo(function PostCard({
   post,
   onOpen,
   children,
@@ -291,4 +291,19 @@ export default function PostCard({
       )}
     </motion.div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Кастомная функция сравнения для оптимизации ре-рендеров
+  return (
+    prevProps.post.id === nextProps.post.id &&
+    prevProps.post.author === nextProps.post.author &&
+    prevProps.post.content === nextProps.post.content &&
+    prevProps.post.createdAt === nextProps.post.createdAt &&
+    prevProps.post.commentsCount === nextProps.post.commentsCount &&
+    prevProps.disableNavigation === nextProps.disableNavigation &&
+    prevProps.className === nextProps.className &&
+    // Сравниваем children по ссылке (если они не меняются, это нормально)
+    prevProps.children === nextProps.children
+  );
+});
+
+export default PostCard;

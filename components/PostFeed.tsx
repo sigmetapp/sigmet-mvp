@@ -8,6 +8,7 @@ import {
   useCallback,
 } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import Button from "@/components/Button";
 import PostCard from "@/components/PostCard";
@@ -15,16 +16,29 @@ import { useTheme } from "@/components/ThemeProvider";
 import PostReactions, { ReactionType } from "@/components/PostReactions";
 import PostActionMenu from "@/components/PostActionMenu";
 import PostCommentsBadge from "@/components/PostCommentsBadge";
-import PostReportModal from "@/components/PostReportModal";
 import Toast from "@/components/Toast";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
-import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
 import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag } from "lucide-react";
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
-import ViewsChart from "@/components/ViewsChart";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
+
+// Динамические импорты для тяжелых компонентов
+const EmojiPicker = dynamic(() => import("@/components/EmojiPicker"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-8 w-8 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
+  ),
+});
+
+const PostReportModal = dynamic(() => import("@/components/PostReportModal"), {
+  ssr: false,
+});
+
+const ViewsChart = dynamic(() => import("@/components/ViewsChart"), {
+  ssr: false,
+});
 
 function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
@@ -246,60 +260,89 @@ export default function PostFeed({
       .range(offset, offset + limit - 1);
       
     if (!error && data) {
+      const postsData = data as Post[];
+      
       if (offset === 0) {
-        setPosts(data as Post[]);
+        setPosts(postsData);
       } else {
-        setPosts((prev) => [...prev, ...(data as Post[])]);
+        setPosts((prev) => [...prev, ...postsData]);
       }
       
       // Check if there are more posts
-      const totalLoaded = offset + (data as Post[]).length;
-      setHasMore(count ? totalLoaded < count : (data as Post[]).length === limit);
+      const totalLoaded = offset + postsData.length;
+      setHasMore(count ? totalLoaded < count : postsData.length === limit);
       
-      // Preload comment counts for visible posts
-      preloadCommentCounts(data as Post[]);
-
-      // Preload author profiles (username, full_name, avatar)
+      // Extract user IDs for parallel loading
       const userIds = Array.from(
-        new Set((data as Post[]).map((p) => p.user_id).filter((x): x is string => Boolean(x)))
+        new Set(postsData.map((p) => p.user_id).filter((x): x is string => Boolean(x)))
       );
-      if (userIds.length > 0) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("user_id, username, full_name, avatar_url")
-          .in("user_id", userIds);
-        if (profs) {
-          setProfilesByUserId((prev) => {
-            const map = { ...prev };
-            for (const p of profs as any[]) {
-              map[p.user_id as string] = { 
-                username: p.username ?? null, 
-                full_name: p.full_name ?? null,
-                avatar_url: p.avatar_url ?? null 
-              };
-            }
-            return map;
-          });
-        }
-
-        // Load SW scores for authors
-        try {
-          const { data: swData } = await supabase
-            .from("sw_scores")
-            .select("user_id, total")
-            .in("user_id", userIds);
-          if (swData) {
-            setSwScoresByUserId((prev) => {
-              const map = { ...prev };
-              for (const row of swData as any[]) {
-                map[row.user_id as string] = (row.total as number) || 0;
-              }
-              return map;
-            });
+      
+      // Extract post IDs for comment counts
+      const postIds = postsData.map((p) => p.id);
+      
+      // Parallel loading: profiles, SW scores, and comment counts
+      const [profilesResult, swScoresResult, commentCountsResult] = await Promise.all([
+        // Load profiles
+        userIds.length > 0
+          ? supabase
+              .from("profiles")
+              .select("user_id, username, full_name, avatar_url")
+              .in("user_id", userIds)
+          : Promise.resolve({ data: null, error: null }),
+        
+        // Load SW scores
+        userIds.length > 0
+          ? supabase
+              .from("sw_scores")
+              .select("user_id, total")
+              .in("user_id", userIds)
+              .catch(() => ({ data: null, error: null })) // SW scores table may not exist
+          : Promise.resolve({ data: null, error: null }),
+        
+        // Load comment counts
+        postIds.length > 0
+          ? supabase
+              .from("comments")
+              .select("post_id")
+              .in("post_id", postIds)
+              .catch(() => ({ data: null, error: null }))
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+      
+      // Process profiles
+      if (profilesResult.data) {
+        setProfilesByUserId((prev) => {
+          const map = { ...prev };
+          for (const p of profilesResult.data as any[]) {
+            map[p.user_id as string] = { 
+              username: p.username ?? null, 
+              full_name: p.full_name ?? null,
+              avatar_url: p.avatar_url ?? null 
+            };
           }
-        } catch {
-          // SW scores table may not exist
+          return map;
+        });
+      }
+      
+      // Process SW scores
+      if (swScoresResult.data) {
+        setSwScoresByUserId((prev) => {
+          const map = { ...prev };
+          for (const row of swScoresResult.data as any[]) {
+            map[row.user_id as string] = (row.total as number) || 0;
+          }
+          return map;
+        });
+      }
+      
+      // Process comment counts
+      if (commentCountsResult.data) {
+        const counts: Record<number, number> = {};
+        for (const row of commentCountsResult.data as any[]) {
+          const pid = row.post_id as number;
+          counts[pid] = (counts[pid] || 0) + 1;
         }
+        setCommentCounts((prev) => ({ ...prev, ...counts }));
       }
     }
     setLoading(false);
@@ -801,24 +844,6 @@ export default function PostFeed({
   }
 
   // --- comments
-  async function preloadCommentCounts(list: Post[]) {
-    try {
-      const ids = list.map((p) => p.id);
-      const { data } = await supabase
-        .from("comments")
-        .select("post_id")
-        .in("post_id", ids);
-      const counts: Record<number, number> = {};
-      for (const row of (data as any[]) || []) {
-        const pid = row.post_id as number;
-        counts[pid] = (counts[pid] || 0) + 1;
-      }
-      setCommentCounts(counts);
-    } catch {
-      // fallback: leave zeroes
-    }
-  }
-
   async function loadComments(postId: number) {
     const { data, error, count } = await supabase
       .from("comments")
