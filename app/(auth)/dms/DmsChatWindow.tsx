@@ -137,6 +137,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const lastActivityRef = useRef<string | null>(null);
   const presenceOnlineRef = useRef<boolean>(false);
   const showOnlineStatusRef = useRef<boolean>(true);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -923,20 +925,22 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
       if (isFromPartner) {
         playIncomingNotification();
-        // Acknowledge message as read when received (user is viewing the chat)
+        // If user is at bottom, auto-read and keep stickiness. Otherwise, accumulate counter.
         if (thread?.id) {
-          // Send 'read' status since user is actively viewing the chat
-          acknowledgeMessage(lastMessage.id, thread.id, 'read');
-          // Mark as read in local state
-          setMessageReceipts((prev) => {
-            const updated = new Map(prev);
-            updated.set(lastMessage.id, 'read');
-            return updated;
-          });
+          if (isAtBottom) {
+            acknowledgeMessage(lastMessage.id, thread.id, 'read');
+            setMessageReceipts((prev) => {
+              const updated = new Map(prev);
+              updated.set(lastMessage.id, 'read');
+              return updated;
+            });
+          } else {
+            setNewMessagesCount((c) => c + 1);
+          }
         }
       }
     }
-  }, [messages, currentUserId, partnerId, playIncomingNotification, thread?.id, acknowledgeMessage]);
+  }, [messages, currentUserId, partnerId, playIncomingNotification, thread?.id, acknowledgeMessage, isAtBottom]);
 
   // Typing indicators are handled by useWebSocketDm hook
 
@@ -1082,6 +1086,35 @@ export default function DmsChatWindow({ partnerId }: Props) {
       container.scrollTop = container.scrollHeight;
     }
   }, [messages.length]);
+
+  // Track scroll position to toggle bottom stickiness and banner
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const onScroll = () => {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      const atBottom = distanceFromBottom <= 8; // treat as bottom if within 8px
+      setIsAtBottom(atBottom);
+      if (atBottom) {
+        // Clear new messages counter when user reaches bottom
+        setNewMessagesCount(0);
+      }
+    };
+
+    container.addEventListener('scroll', onScroll);
+    // Initialize once
+    onScroll();
+    return () => container.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const handleJumpToBottom = useCallback(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+    setNewMessagesCount(0);
+  }, []);
 
   // Reset scroll trackers when thread changes
   useEffect(() => {
@@ -1729,6 +1762,19 @@ export default function DmsChatWindow({ partnerId }: Props) {
           </div>
         )}
       </div>
+
+      {/* New messages banner */}
+      {newMessagesCount > 0 && !isAtBottom && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
+          <button
+            type="button"
+            onClick={handleJumpToBottom}
+            className="px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-200 text-xs font-medium shadow-md hover:bg-blue-500/25 transition"
+          >
+            {newMessagesCount} new message{newMessagesCount === 1 ? '' : 's'} — Jump to bottom
+          </button>
+        </div>
+      )}
 
 
       {/* Selected files preview */}
