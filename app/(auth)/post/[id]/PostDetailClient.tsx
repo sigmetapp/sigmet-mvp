@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Flag } from 'lucide-react';
 import Button from '@/components/Button';
 import PostReactions, { ReactionType } from '@/components/PostReactions';
 import { useTheme } from '@/components/ThemeProvider';
@@ -14,6 +14,7 @@ import EmojiPicker from '@/components/EmojiPicker';
 import { formatTextWithMentions, hasMentions } from '@/lib/formatText';
 import AvatarWithBadge from '@/components/AvatarWithBadge';
 import ViewsChart from '@/components/ViewsChart';
+import PostReportModal from '@/components/PostReportModal';
 
 type PostRecord = {
   id: number;
@@ -144,6 +145,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [editDraft, setEditDraft] = useState(post.body ?? '');
   const [updatingPost, setUpdatingPost] = useState(false);
   const [viewsChartOpen, setViewsChartOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
 
   // Directions for category matching
   const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
@@ -525,6 +527,38 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     }
   }, [post.user_id, postId, router, uid]);
 
+  const handleReportSubmit = useCallback(async (complaintType: 'harassment' | 'misinformation' | 'inappropriate_content', description: string) => {
+    if (!uid) {
+      alert('Sign in required');
+      return;
+    }
+
+    const postUrl = `/post/${postId}`;
+    const fullPostUrl = typeof window !== 'undefined' ? `${window.location.origin}${postUrl}` : postUrl;
+
+    try {
+      const resp = await fetch('/api/tickets/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `Post Report - ${complaintType}`,
+          description: description,
+          post_url: fullPostUrl,
+          complaint_type: complaintType,
+        }),
+      });
+
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.error || 'Failed to submit report');
+
+      alert('Your complaint has been submitted');
+      setReportModalOpen(false);
+    } catch (error: any) {
+      console.error('Failed to submit report:', error);
+      alert(error?.message || 'Failed to submit complaint');
+    }
+  }, [postId, uid]);
+
   const commentsByParent = useMemo(() => {
     const map: Record<number | 'root', CommentRecord[]> = { root: [] } as const;
     const result: Record<number | 'root', CommentRecord[]> = { root: [] };
@@ -827,7 +861,24 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 </div>
               </div>
             </div>
-            {/* Date moved to footer per design */}
+            {/* Report button - only for other users' posts, positioned at top right */}
+            {uid && uid !== post.user_id && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setReportModalOpen(true);
+                }}
+                className={`p-1.5 rounded-full transition z-30 shrink-0 ${
+                  isLight
+                    ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
+                    : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
+                }`}
+                title="Report post"
+                data-prevent-card-navigation="true"
+              >
+                <Flag className="h-3 w-3" />
+              </button>
+            )}
           </header>
 
           {/* Content */}
@@ -1075,6 +1126,19 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           postId={post.id}
           isOpen={viewsChartOpen}
           onClose={() => setViewsChartOpen(false)}
+        />
+      )}
+
+      {/* Report Modal */}
+      {reportModalOpen && (
+        <PostReportModal
+          postId={post.id}
+          postUrl={`/post/${post.id}`}
+          isOpen={reportModalOpen}
+          onClose={() => setReportModalOpen(false)}
+          onSubmit={async (complaintType, description) => {
+            await handleReportSubmit(complaintType, description);
+          }}
         />
       )}
     </div>

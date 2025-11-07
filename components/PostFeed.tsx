@@ -1241,7 +1241,24 @@ export default function PostFeed({
                         </div>
                       </div>
                     </div>
-                    {/* Right-side header tools moved to footer per design */}
+                    {/* Report button - only for other users' posts, positioned at top right */}
+                    {!isMyPost && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReportModalOpen(p.id);
+                        }}
+                        className={`p-1.5 rounded-full transition z-30 shrink-0 ${
+                          isLight
+                            ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
+                            : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
+                        }`}
+                        title="Report post"
+                        data-prevent-card-navigation="true"
+                      >
+                        <Flag className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
 
                   {/* content */}
@@ -1538,25 +1555,6 @@ export default function PostFeed({
                         </button>
                       </div>
                     </div>
-                  )}
-                  
-                  {/* Report button - only for other users' posts, positioned at bottom right edge of post card */}
-                  {!isMyPost && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setReportModalOpen(p.id);
-                      }}
-                      className={`absolute -bottom-2 -right-2 p-1 rounded-full transition z-30 ${
-                        isLight
-                          ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
-                          : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
-                      }`}
-                      title="Report post"
-                      data-prevent-card-navigation="true"
-                    >
-                      <Flag className="h-2 w-2" />
-                    </button>
                   )}
                 </div>
               )}
