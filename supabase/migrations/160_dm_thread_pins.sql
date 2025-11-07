@@ -144,8 +144,11 @@ unread as (
     and (
       lt.last_read_message_id is null
       or (
-        lt.last_read_message_id::text ~ '^[0-9]+$'
-        and m.id > (lt.last_read_message_id::text)::bigint
+        case
+          when lt.last_read_message_id::text ~ '^[0-9]+$'
+            then m.id > (lt.last_read_message_id::text)::bigint
+          else true
+        end
       )
     )
   group by m.thread_id
