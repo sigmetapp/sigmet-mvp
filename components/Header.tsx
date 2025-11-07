@@ -193,7 +193,6 @@ export default function Header() {
                 S
               </div>
             )}
-            <span className={`${isLight ? "text-telegram-text" : "text-telegram-text"} font-semibold tracking-tight text-sm`}>{site_name || "SIGMET"}</span>
           </Link>
 
           {/* Search inline and flexible */}

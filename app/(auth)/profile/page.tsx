@@ -160,7 +160,7 @@ function ProfileSettings() {
   if (loading) return <div className={`p-6 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Loading...</div>;
 
   return (
-    <main className="max-w-2xl mx-auto px-4 py-4 md:p-4">
+    <main className="max-w-2xl mx-auto px-0 md:px-4 py-4 md:p-4">
       <div className="telegram-card-glow p-4 md:p-5 space-y-3">
         <h1 className={`text-lg font-semibold ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Profile settings</h1>
 

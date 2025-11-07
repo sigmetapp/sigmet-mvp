@@ -2267,6 +2267,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             style={{
               height: 'auto',
               minHeight: '24px',
+              fontSize: '16px', // Prevent zoom on mobile
             }}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
