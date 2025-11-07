@@ -8,7 +8,7 @@ import { useTheme } from '@/components/ThemeProvider';
 
 type BottomNavProps = { user: User };
 
-const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
+// Admin controls moved to Footer; no admin UI here
 
 const menu = [
   { label: 'SW', href: '/sw' },
@@ -17,21 +17,12 @@ const menu = [
   { label: 'Dms', href: '/dms' },
 ];
 
-const adminMenu = [
-  { label: 'Settings', href: '/settings', icon: '⚙️' },
-  { label: 'Users', href: '/admin/users', icon: '👥' },
-  { label: 'Stats', href: '/admin/stats', icon: '📊' },
-  { label: 'Tickets', href: '/admin/tickets', icon: '🎫' },
-  { label: 'SW Weights', href: '/sw/weights', icon: '⚖️' },
-  { label: 'Performance', href: '/test', icon: '⚡' },
-];
 
 export default function MobileBottomNav({ user }: BottomNavProps) {
   const pathname = usePathname() || '/';
   const { theme } = useTheme();
   const isLight = theme === 'light';
-  const [adminOpen, setAdminOpen] = useState(false);
-  const isAdmin = !!user.email && ADMIN_EMAILS.has(user.email);
+  // Admin UI handled by Footer
 
   return (
     <div>
@@ -67,59 +58,11 @@ export default function MobileBottomNav({ user }: BottomNavProps) {
           })}
           </div>
 
-          {isAdmin && (
-            <button
-              aria-label="Admin menu"
-              onClick={() => setAdminOpen((v) => !v)}
-              className={`ml-2 px-4 py-2 rounded-full text-sm flex items-center justify-center transition ${
-                isLight
-                  ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
-                  : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
-              }`}
-            >
-              <span className="leading-none">Admin</span>
-            </button>
-          )}
+          {/* Admin button removed from fixed bar */}
         </div>
       </nav>
 
-      {/* Admin sheet */}
-      {isAdmin && adminOpen && (
-        <div className="fixed inset-0 z-50">
-          <div
-            className={`${isLight ? 'bg-black/40' : 'bg-black/60'} absolute inset-0`}
-            onClick={() => setAdminOpen(false)}
-          />
-          <div className="absolute bottom-0 left-0 right-0 p-3">
-            <div
-              className={`mx-auto max-w-7xl rounded-2xl border shadow-xl p-2 ${
-                isLight ? 'bg-white border-telegram-blue/15' : 'bg-[rgba(15,22,35,0.98)] border-telegram-blue/20'
-              }`}
-            >
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {adminMenu.map((it) => (
-                  <Link
-                    key={it.href}
-                    href={it.href}
-                    className={`px-4 py-3 rounded-xl text-sm text-center transition ${
-                      pathname.startsWith(it.href)
-                        ? isLight
-                          ? 'bg-telegram-blue text-white'
-                          : 'bg-telegram-blue/20 text-telegram-blue-light'
-                        : isLight
-                        ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
-                        : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
-                    }`}
-                    onClick={() => setAdminOpen(false)}
-                  >
-                    <span className="leading-none text-center">{it.label}</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Admin sheet removed from bottom bar */}
     </div>
   );
 }
