@@ -101,6 +101,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const hasUploadingAttachment = selectedFiles.some((item) => item.status === 'uploading');
   const [isOffline, setIsOffline] = useState<boolean>(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  const [outbox, setOutbox] = useState<Array<{ body: string | null; attachments: DmAttachment[] }>>([]);
 
   // Use WebSocket hook for real-time messaging
   const {
@@ -1489,6 +1490,32 @@ export default function DmsChatWindow({ partnerId }: Props) {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // Drain outbox when back online
+  useEffect(() => {
+    if (!thread?.id) return;
+    if (isOffline || outbox.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      // Work on a copy to avoid mutation issues during setState
+      const queue = [...outbox];
+      for (let i = 0; i < queue.length; i += 1) {
+        if (cancelled) return;
+        const item = queue[i];
+        try {
+          await wsSendMessage(thread.id, item.body, annotateDocumentVersions(item.attachments, messages) as unknown[]);
+          setOutbox((prev) => prev.slice(1));
+          await new Promise((r) => setTimeout(r, 150));
+        } catch (err) {
+          console.error('Outbox send failed, will retry later', err);
+          break;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOffline, outbox.length, thread?.id, messages, wsSendMessage]);
 
   // Global Ctrl/Cmd+F to open chat search
   useEffect(() => {
