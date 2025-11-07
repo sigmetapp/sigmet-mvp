@@ -217,136 +217,168 @@ export default function PostFeed({
   const [activeFilter, setActiveFilter] = useState<'all' | 'connections' | 'discuss' | 'direction'>( 'all');
 
   const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'connections' | 'discuss' | 'direction', offset = 0, limit = 50) => {
-    if (offset === 0) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-    
-    let query = supabase
-      .from("posts")
-      .select("*", { count: 'exact' });
-    
-    // Filter by user_id if provided (for profile page)
-    if (filterUserId) {
-      query = query.eq('user_id', filterUserId);
-    }
-    
-    // Apply filter based on filterType
-    if (filterType === 'connections') {
-      // Filter posts that contain mentions (@username pattern)
-      // body must not be null and not empty, and must contain @ followed by word characters
-      query = query
-        .not('body', 'is', null)
-        .not('body', 'eq', '')
-        .ilike('body', '%@%');
-    } else if (filterType === 'discuss') {
-      // Filter posts that contain "?" in body (body must not be null and not empty)
-      query = query
-        .not('body', 'is', null)
-        .not('body', 'eq', '')
-        .ilike('body', '%?%');
-    } else if (filterType === 'direction' && directionId && availableDirections.length > 0) {
-      const direction = availableDirections.find((dir) => dir.id === directionId);
-      if (direction) {
-        // Filter posts where category matches direction title or slug
-        query = query.or(`category.ilike.%${direction.title}%,category.ilike.%${direction.slug}%`);
-      }
-    }
-    // filterType === 'all' means no additional filtering
-    
-    const { data, error, count } = await query
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
-      
-    if (!error && data) {
-      const postsData = data as Post[];
-      
+    try {
       if (offset === 0) {
-        setPosts(postsData);
+        setLoading(true);
       } else {
-        setPosts((prev) => [...prev, ...postsData]);
+        setLoadingMore(true);
       }
       
-      // Check if there are more posts
-      const totalLoaded = offset + postsData.length;
-      setHasMore(count ? totalLoaded < count : postsData.length === limit);
+      let query = supabase
+        .from("posts")
+        .select("*", { count: 'exact' });
       
-      // Extract user IDs for parallel loading
-      const userIds = Array.from(
-        new Set(postsData.map((p) => p.user_id).filter((x): x is string => Boolean(x)))
-      );
-      
-      // Extract post IDs for comment counts
-      const postIds = postsData.map((p) => p.id);
-      
-      // Parallel loading: profiles, SW scores, and comment counts
-      const [profilesResult, swScoresResult, commentCountsResult] = await Promise.all([
-        // Load profiles
-        userIds.length > 0
-          ? supabase
-              .from("profiles")
-              .select("user_id, username, full_name, avatar_url")
-              .in("user_id", userIds)
-          : Promise.resolve({ data: null, error: null }),
-        
-        // Load SW scores
-        userIds.length > 0
-          ? supabase
-              .from("sw_scores")
-              .select("user_id, total")
-              .in("user_id", userIds)
-              .catch(() => ({ data: null, error: null })) // SW scores table may not exist
-          : Promise.resolve({ data: null, error: null }),
-        
-        // Load comment counts
-        postIds.length > 0
-          ? supabase
-              .from("comments")
-              .select("post_id")
-              .in("post_id", postIds)
-              .catch(() => ({ data: null, error: null }))
-          : Promise.resolve({ data: null, error: null }),
-      ]);
-      
-      // Process profiles
-      if (profilesResult.data) {
-        setProfilesByUserId((prev) => {
-          const map = { ...prev };
-          for (const p of profilesResult.data as any[]) {
-            map[p.user_id as string] = { 
-              username: p.username ?? null, 
-              full_name: p.full_name ?? null,
-              avatar_url: p.avatar_url ?? null 
-            };
-          }
-          return map;
-        });
+      // Filter by user_id if provided (for profile page)
+      if (filterUserId) {
+        query = query.eq('user_id', filterUserId);
       }
       
-      // Process SW scores
-      if (swScoresResult.data) {
-        setSwScoresByUserId((prev) => {
-          const map = { ...prev };
-          for (const row of swScoresResult.data as any[]) {
-            map[row.user_id as string] = (row.total as number) || 0;
-          }
-          return map;
-        });
-      }
-      
-      // Process comment counts
-      if (commentCountsResult.data) {
-        const counts: Record<number, number> = {};
-        for (const row of commentCountsResult.data as any[]) {
-          const pid = row.post_id as number;
-          counts[pid] = (counts[pid] || 0) + 1;
+      // Apply filter based on filterType
+      if (filterType === 'connections') {
+        // Filter posts that contain mentions (@username pattern)
+        // body must not be null and not empty, and must contain @ followed by word characters
+        query = query
+          .not('body', 'is', null)
+          .not('body', 'eq', '')
+          .ilike('body', '%@%');
+      } else if (filterType === 'discuss') {
+        // Filter posts that contain "?" in body (body must not be null and not empty)
+        query = query
+          .not('body', 'is', null)
+          .not('body', 'eq', '')
+          .ilike('body', '%?%');
+      } else if (filterType === 'direction' && directionId && availableDirections.length > 0) {
+        const direction = availableDirections.find((dir) => dir.id === directionId);
+        if (direction) {
+          // Filter posts where category matches direction title or slug
+          query = query.or(`category.ilike.%${direction.title}%,category.ilike.%${direction.slug}%`);
         }
-        setCommentCounts((prev) => ({ ...prev, ...counts }));
       }
+      // filterType === 'all' means no additional filtering
+      
+      const { data, error, count } = await query
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+        
+      if (error) {
+        console.error('Error loading posts:', error);
+        // Set empty posts on error
+        if (offset === 0) {
+          setPosts([]);
+        }
+        setHasMore(false);
+        return;
+      }
+      
+      if (data) {
+        const postsData = data as Post[];
+        
+        if (offset === 0) {
+          setPosts(postsData);
+        } else {
+          setPosts((prev) => [...prev, ...postsData]);
+        }
+        
+        // Check if there are more posts
+        const totalLoaded = offset + postsData.length;
+        setHasMore(count ? totalLoaded < count : postsData.length === limit);
+        
+        // Extract user IDs for parallel loading
+        const userIds = Array.from(
+          new Set(postsData.map((p) => p.user_id).filter((x): x is string => Boolean(x)))
+        );
+        
+        // Extract post IDs for comment counts
+        const postIds = postsData.map((p) => p.id);
+        
+        // Parallel loading: profiles, SW scores, and comment counts
+        try {
+          const [profilesResult, swScoresResult, commentCountsResult] = await Promise.all([
+            // Load profiles
+            userIds.length > 0
+              ? supabase
+                  .from("profiles")
+                  .select("user_id, username, full_name, avatar_url")
+                  .in("user_id", userIds)
+              : Promise.resolve({ data: null, error: null }),
+            
+            // Load SW scores
+            userIds.length > 0
+              ? supabase
+                  .from("sw_scores")
+                  .select("user_id, total")
+                  .in("user_id", userIds)
+                  .catch(() => ({ data: null, error: null })) // SW scores table may not exist
+              : Promise.resolve({ data: null, error: null }),
+            
+            // Load comment counts
+            postIds.length > 0
+              ? supabase
+                  .from("comments")
+                  .select("post_id")
+                  .in("post_id", postIds)
+                  .catch(() => ({ data: null, error: null }))
+              : Promise.resolve({ data: null, error: null }),
+          ]);
+          
+          // Process profiles
+          if (profilesResult.data) {
+            setProfilesByUserId((prev) => {
+              const map = { ...prev };
+              for (const p of profilesResult.data as any[]) {
+                map[p.user_id as string] = { 
+                  username: p.username ?? null, 
+                  full_name: p.full_name ?? null,
+                  avatar_url: p.avatar_url ?? null 
+                };
+              }
+              return map;
+            });
+          }
+          
+          // Process SW scores
+          if (swScoresResult.data) {
+            setSwScoresByUserId((prev) => {
+              const map = { ...prev };
+              for (const row of swScoresResult.data as any[]) {
+                map[row.user_id as string] = (row.total as number) || 0;
+              }
+              return map;
+            });
+          }
+          
+          // Process comment counts
+          if (commentCountsResult.data) {
+            const counts: Record<number, number> = {};
+            for (const row of commentCountsResult.data as any[]) {
+              const pid = row.post_id as number;
+              counts[pid] = (counts[pid] || 0) + 1;
+            }
+            setCommentCounts((prev) => ({ ...prev, ...counts }));
+          }
+        } catch (parallelError) {
+          console.error('Error loading parallel data:', parallelError);
+          // Continue even if parallel loading fails
+        }
+      } else {
+        // No data returned
+        if (offset === 0) {
+          setPosts([]);
+        }
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error('Error in loadFeed:', err);
+      // Set empty posts on error
+      if (offset === 0) {
+        setPosts([]);
+      }
+      setHasMore(false);
+    } finally {
+      // Always reset loading states
+      setLoading(false);
+      setLoadingMore(false);
     }
-    setLoading(false);
-    setLoadingMore(false);
   }, [availableDirections, filterUserId]);
 
   // page mount
@@ -1127,7 +1159,11 @@ export default function PostFeed({
   const renderPostsList = () => (
     <>
       {loading ? (
-        <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
+        <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading...</div>
+      ) : posts.length === 0 ? (
+        <div className={`text-center py-8 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+          No posts found
+        </div>
       ) : (
         posts.map((p) => {
           const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
