@@ -611,77 +611,7 @@ function DmsInner() {
     };
   }, [fetchPartners]);
 
-  useEffect(() => {
-    let cancelled = false;
-    let unsubscribe: (() => void | Promise<void>) | null = null;
-
-    if (presenceWatchList.length === 0) {
-      setPresenceOnlineMap({});
-      return () => {
-        cancelled = true;
-        if (unsubscribe) {
-          const result = unsubscribe();
-          if (result instanceof Promise) void result;
-        }
-      };
-    }
-
-    const subscribe = async () => {
-      try {
-        unsubscribe = await subscribeToPresence(presenceWatchList, (userId, online) => {
-          setPresenceOnlineMap((prev) => {
-            if (prev[userId] === online) {
-              return prev;
-            }
-            return { ...prev, [userId]: online };
-          });
-        });
-
-        await Promise.all(
-          presenceWatchList.map(async (userId) => {
-            try {
-              const presenceState = await getPresenceMap(userId);
-              const online = !!presenceState?.[userId]?.[0];
-              if (!cancelled) {
-                setPresenceOnlineMap((prev) => {
-                  if (prev[userId] === online) {
-                    return prev;
-                  }
-                  return { ...prev, [userId]: online };
-                });
-              }
-            } catch (err) {
-              console.error('Failed to fetch presence map for user', userId, err);
-            }
-          })
-        );
-      } catch (err) {
-        console.error('Failed to subscribe to presence updates', err);
-      }
-    };
-
-    void subscribe();
-
-    return () => {
-      cancelled = true;
-      if (unsubscribe) {
-        const result = unsubscribe();
-        if (result instanceof Promise) void result;
-      }
-    };
-  }, [presenceWatchList]);
-
-  useEffect(() => {
-    if (presenceWatchList.length === 0) {
-      setPresenceOnlineMap({});
-      return;
-    }
-    setPresenceOnlineMap((prev) => {
-      const allowed = new Set(presenceWatchList);
-      const entries = Object.entries(prev).filter(([userId]) => allowed.has(userId));
-      return Object.fromEntries(entries);
-    });
-  }, [presenceWatchList]);
+  // Presence effects moved below presenceWatchList declaration to avoid TDZ
 
   const filteredPartners = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -789,6 +719,80 @@ function DmsInner() {
     }
     return Array.from(unique);
   }, [flatPartners]);
+
+  // Subscribe to presence updates for users in the watch list
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe: (() => void | Promise<void>) | null = null;
+
+    if (presenceWatchList.length === 0) {
+      setPresenceOnlineMap({});
+      return () => {
+        cancelled = true;
+        if (unsubscribe) {
+          const result = unsubscribe();
+          if (result instanceof Promise) void result;
+        }
+      };
+    }
+
+    const subscribe = async () => {
+      try {
+        unsubscribe = await subscribeToPresence(presenceWatchList, (userId, online) => {
+          setPresenceOnlineMap((prev) => {
+            if (prev[userId] === online) {
+              return prev;
+            }
+            return { ...prev, [userId]: online };
+          });
+        });
+
+        await Promise.all(
+          presenceWatchList.map(async (userId) => {
+            try {
+              const presenceState = await getPresenceMap(userId);
+              const online = !!presenceState?.[userId]?.[0];
+              if (!cancelled) {
+                setPresenceOnlineMap((prev) => {
+                  if (prev[userId] === online) {
+                    return prev;
+                  }
+                  return { ...prev, [userId]: online };
+                });
+              }
+            } catch (err) {
+              console.error('Failed to fetch presence map for user', userId, err);
+            }
+          })
+        );
+      } catch (err) {
+        console.error('Failed to subscribe to presence updates', err);
+      }
+    };
+
+    void subscribe();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribe) {
+        const result = unsubscribe();
+        if (result instanceof Promise) void result;
+      }
+    };
+  }, [presenceWatchList]);
+
+  // Prune presence map when watch list changes
+  useEffect(() => {
+    if (presenceWatchList.length === 0) {
+      setPresenceOnlineMap({});
+      return;
+    }
+    setPresenceOnlineMap((prev) => {
+      const allowed = new Set(presenceWatchList);
+      const entries = Object.entries(prev).filter(([userId]) => allowed.has(userId));
+      return Object.fromEntries(entries);
+    });
+  }, [presenceWatchList]);
 
   const isSearching = searchTerm.trim().length > 0;
   const hasResults = flatPartners.length > 0;
