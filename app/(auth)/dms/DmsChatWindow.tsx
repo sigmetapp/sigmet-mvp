@@ -1351,8 +1351,32 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   if (loading) {
     return (
-      <div className="card card-glow h-full flex items-center justify-center">
-        <div className="text-white/70">Loading conversation...</div>
+      <div className="card card-glow h-full flex flex-col overflow-hidden">
+        {/* Header skeleton */}
+        <div className="px-4 py-3 border-b border-white/10">
+          <div className="flex items-center gap-3 animate-pulse">
+            <div className="h-10 w-10 rounded-full bg-white/10" />
+            <div className="flex-1 min-w-0">
+              <div className="h-3 w-40 bg-white/10 rounded mb-2" />
+              <div className="h-2.5 w-24 bg-white/10 rounded" />
+            </div>
+          </div>
+        </div>
+        {/* Messages skeleton */}
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'} animate-pulse`}>
+              <div className={`max-w-[70%] ${i % 2 === 0 ? '' : ''}`}>
+                <div className="h-5 w-48 bg-white/10 rounded-2xl mb-2" />
+                <div className="h-5 w-64 bg-white/10 rounded-2xl" />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Input skeleton */}
+        <div className="px-3 pb-3 pt-2 border-t border-white/10">
+          <div className="h-12 bg-white/5 border border-white/10 rounded-2xl animate-pulse" />
+        </div>
       </div>
     );
   }
