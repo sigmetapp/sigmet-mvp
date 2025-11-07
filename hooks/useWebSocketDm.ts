@@ -20,6 +20,9 @@ import { assertThreadId, type ThreadId } from '@/lib/dm/threadId';
 import { subscribeToThread, sendTypingIndicator } from '@/lib/dm/realtime';
 import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 
+const MESSAGE_CACHE_KEY_PREFIX = 'dm:messages:';
+const MESSAGE_CACHE_LIMIT = 200;
+
 function compareMessages(a: Message, b: Message): number {
   const seqA = a.sequence_number ?? null;
   const seqB = b.sequence_number ?? null;
@@ -47,7 +50,8 @@ function sortMessagesChronologically(messages: Message[]): Message[] {
 }
 
 export function useWebSocketDm(threadId: ThreadId | null) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessagesState] = useState<Message[]>([]);
+  const cacheKeyRef = useRef<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
@@ -67,6 +71,36 @@ export function useWebSocketDm(threadId: ThreadId | null) {
   const partnerIdRef = useRef<string | null>(null);
   const fallbackThreadUnsubscribeRef = useRef<(() => void | Promise<void>) | null>(null);
   const fallbackPresenceUnsubscribeRef = useRef<(() => void | Promise<void>) | null>(null);
+  const isHydratedFromCacheRef = useRef(false);
+
+  const applyMessagesUpdate = useCallback(
+    (updater: Message[] | ((prev: Message[]) => Message[])) => {
+      if (typeof updater === 'function') {
+        setMessagesState((prev) => sortMessagesChronologically((updater as any)(prev)));
+      } else {
+        setMessagesState(sortMessagesChronologically(updater ?? []));
+      }
+    },
+    []
+  );
+
+  const mergeMessagesExternal = useCallback((incoming: Message[]) => {
+    if (!incoming || incoming.length === 0) return;
+    setMessagesState((prev) => {
+      const map = new Map<number, Message>();
+      for (const msg of prev) {
+        map.set(msg.id, msg);
+      }
+      for (const msg of incoming) {
+        map.set(msg.id, msg);
+      }
+      return sortMessagesChronologically(Array.from(map.values()));
+    });
+  }, []);
+
+  const replaceMessagesExternal = useCallback((next: Message[]) => {
+    setMessagesState(sortMessagesChronologically(next ?? []));
+  }, []);
   
   // Store currentUserId in WebSocket client for auto-acknowledgment
   useEffect(() => {
@@ -149,8 +183,11 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       fallbackThreadUnsubscribeRef.current = null;
     }
 
+    isHydratedFromCacheRef.current = false;
+
     if (!threadId) {
-      setMessages([]);
+      setMessagesState([]);
+      cacheKeyRef.current = null;
       setLastServerMsgId(null);
       setPartnerTyping(false);
       setPartnerOnline(null);
@@ -178,13 +215,13 @@ export function useWebSocketDm(threadId: ThreadId | null) {
                 return a.id - b.id;
               });
 
-            setMessages(sorted);
+            setMessagesState(sorted);
             const lastMsg = sorted[sorted.length - 1];
             if (lastMsg) {
               setLastServerMsgId(lastMsg.id);
             }
           } else {
-            setMessages([]);
+            setMessagesState([]);
             setLastServerMsgId(null);
           }
         }
@@ -229,7 +266,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
             // This prevents duplicate from WebSocket echo
             if (clientMsgId && sentClientMsgIdsRef.current.has(clientMsgId)) {
               // If we have a local-echo, replace it with real message
-              setMessages((prev) => {
+              setMessagesState((prev) => {
                 const hasLocalEcho = prev.some((m) => 
                   (m as any).client_msg_id === clientMsgId && m.id === -1
                 );
@@ -281,7 +318,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               client_msg_id: clientMsgId,
             };
 
-            setMessages((prev) => {
+            setMessagesState((prev) => {
               // Always check for duplicates by server ID first
               if (prev.some((m) => m.id === serverMsgId)) {
                 return prev;
@@ -334,7 +371,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
             // Update message status to 'persisted' and update metadata
             // Note: db_message_id is UUID (string), not a number
             // We keep the original message ID but update created_at and mark as persisted
-            setMessages((prev) => {
+            setMessagesState((prev) => {
               const updated = prev.map((msg) => {
                 if ((msg as any).client_msg_id === event.client_msg_id) {
                   // Update message with persisted status and DB timestamp
@@ -406,7 +443,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
               client_msg_id: msg.client_msg_id ?? null,
             }));
 
-          setMessages((prev) => {
+          setMessagesState((prev) => {
             const byId = new Map<number, Message>();
             for (const msg of prev) {
               byId.set(msg.id, msg);
@@ -494,7 +531,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
                 client_msg_id: row.client_msg_id ?? null,
             };
 
-            setMessages((prev) => {
+            setMessagesState((prev) => {
               if (change.type === 'DELETE') {
                 return prev.filter((m) => m.id !== serverMsgId);
               }
@@ -540,6 +577,56 @@ export function useWebSocketDm(threadId: ThreadId | null) {
     };
     }
   }, [threadId, transport]);
+
+  useEffect(() => {
+    if (!threadId || typeof window === 'undefined') {
+      return;
+    }
+
+    const cacheKey = `${MESSAGE_CACHE_KEY_PREFIX}${threadId}`;
+    cacheKeyRef.current = cacheKey;
+
+    if (messages.length > 0 || isHydratedFromCacheRef.current) {
+      return;
+    }
+
+    try {
+      const cached = window.sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached) as Message[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          isHydratedFromCacheRef.current = true;
+          setMessagesState(sortMessagesChronologically(parsed));
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to hydrate DM messages cache', error);
+    }
+  }, [threadId, messages.length]);
+
+  useEffect(() => {
+    if (!threadId || typeof window === 'undefined') {
+      return;
+    }
+    const cacheKey = cacheKeyRef.current;
+    if (!cacheKey) {
+      return;
+    }
+
+    if (messages.length === 0 && !isHydratedFromCacheRef.current) {
+      return;
+    }
+
+    try {
+      const trimmed =
+        messages.length > MESSAGE_CACHE_LIMIT
+          ? messages.slice(-MESSAGE_CACHE_LIMIT)
+          : messages;
+      window.sessionStorage.setItem(cacheKey, JSON.stringify(trimmed));
+    } catch (error) {
+      console.warn('Failed to persist DM messages cache', error);
+    }
+  }, [messages, threadId]);
 
   // Presence fallback subscription (Supabase realtime presence channels)
   useEffect(() => {
@@ -637,7 +724,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
     };
 
     // Add local-echo message immediately (only if not already exists)
-    setMessages((prev) => {
+    setMessagesState((prev) => {
       // Check if already exists by client_msg_id
       if (prev.some((m) => (m as any).client_msg_id === clientMsgId)) {
         return prev;
@@ -664,7 +751,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
         console.warn('WebSocket sendMessage failed, falling back to Supabase realtime:', error);
         setTransport('supabase');
         // Remove local echo on error
-        setMessages((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
+        setMessagesState((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
         sentClientMsgIdsRef.current.delete(clientMsgId);
         const timeout = filterTimeoutsRef.current.get(clientMsgId);
         if (timeout) {
@@ -680,7 +767,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       const savedMessage = await sendMessageHttp(normalizedThreadId, body || null, attachments, clientMsgId);
 
       // Update local echo with real message (replace, don't add)
-      setMessages((prev) => {
+      setMessagesState((prev) => {
         const hasLocalEcho = prev.some(
           (m) => (m as any).client_msg_id === clientMsgId && m.id === -1
         );
@@ -720,7 +807,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       return { client_msg_id: clientMsgId, server_msg_id: savedMessage.id };
     } catch (error) {
       // Remove local echo on error
-      setMessages((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
+      setMessagesState((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
       sentClientMsgIdsRef.current.delete(clientMsgId);
       const timeout = filterTimeoutsRef.current.get(clientMsgId);
       if (timeout) {
@@ -789,6 +876,9 @@ export function useWebSocketDm(threadId: ThreadId | null) {
     partnerTyping,
     partnerOnline,
     lastServerMsgId,
+    setMessages: applyMessagesUpdate,
+    mergeMessages: mergeMessagesExternal,
+    replaceMessages: replaceMessagesExternal,
     sendMessage,
     sendTyping,
     acknowledgeMessage,

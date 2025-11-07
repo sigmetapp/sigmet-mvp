@@ -10,9 +10,17 @@ import { uploadAttachment, type DmAttachment, getSignedUrlForAttachment } from '
 import { assertThreadId } from '@/lib/dm/threadId';
 import { useTheme } from '@/components/ThemeProvider';
 
-const INITIAL_MESSAGE_LIMIT = 20;
-const BACKFILL_BATCH_LIMIT = 50;
-const MAX_BACKFILL_BATCHES = 3;
+const INITIAL_MESSAGE_LIMIT = 30;
+const HISTORY_PAGE_LIMIT = 30;
+
+type SelectedAttachment = {
+  id: string;
+  file: File;
+  previewUrl?: string;
+  progress: number;
+  status: 'idle' | 'uploading' | 'done' | 'error';
+  error?: string;
+};
 
 type Props = {
   partnerId: string;
@@ -78,12 +86,16 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastMessageIdRef = useRef<number | null>(null);
   const oldestMessageIdRef = useRef<number | null>(null);
-  const isPreloadingOlderRef = useRef(false);
 
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedAttachment[]>([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const hasUploadingAttachment = selectedFiles.some((item) => item.status === 'uploading');
 
   // Use WebSocket hook for real-time messaging
   const {
@@ -92,6 +104,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     isTyping: wsIsTyping,
     partnerTyping,
     partnerOnline: wsPartnerOnline,
+    mergeMessages,
     sendMessage: wsSendMessage,
     sendTyping: wsSendTyping,
     acknowledgeMessage,
@@ -111,6 +124,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const threadChannelRef = useRef<any>(null);
+  const historySentinelRef = useRef<HTMLDivElement | null>(null);
+  const historyObserverRef = useRef<IntersectionObserver | null>(null);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -142,6 +157,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       document.addEventListener('keydown', handleUserInteraction, { once: true });
       document.addEventListener('touchstart', handleUserInteraction, { once: true });
     }
+
   }, []);
 
   const playBeep = useCallback(
@@ -256,19 +272,64 @@ export default function DmsChatWindow({ partnerId }: Props) {
       );
     }
 
-    return (
-      <div className="px-3 py-2 bg-white/5 rounded-lg border border-white/10 flex items-center gap-2 max-w-[280px]">
-        <span className="text-xl" role="img" aria-hidden="true">
-          {getAttachmentIcon(attachment.type)}
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="text-xs text-white/90 truncate">File</div>
-          <div className="text-[10px] text-white/60">
-            {attachment.size ? `${(attachment.size / 1024).toFixed(1)} KB` : ''}
+      if (!url) {
+        return (
+          <div className="px-3 py-2 bg-white/5 rounded-lg border border-white/10 text-xs text-white/60 max-w-[320px]">
+            Unable to load document preview.
           </div>
+        );
+      }
+
+      const displayName = attachment.originalName ?? 'Document';
+      return (
+        <div className="px-3 py-3 bg-white/5 rounded-lg border border-white/10 max-w-[320px] text-sm text-white/80">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl leading-none" role="img" aria-hidden="true">
+              {getAttachmentIcon(attachment.type)}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="font-medium truncate">{displayName}</div>
+                {attachment.version && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-white/10 border border-white/20">
+                    v{attachment.version}
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-white/50">{formatFileSize(attachment.size)}</div>
+              <div className="mt-2 flex items-center gap-2">
+                <a
+                  href={url || '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/10 border border-white/20 hover:bg-white/15 transition text-xs"
+                >
+                  Download
+                </a>
+                {attachment.mime === 'application/pdf' && url && (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/10 border border-white/20 hover:bg-white/15 transition text-xs"
+                  >
+                    Open
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+          {attachment.mime === 'application/pdf' && url && (
+            <div className="mt-3 border border-white/10 rounded-md overflow-hidden">
+              <iframe
+                src={url}
+                title={displayName}
+                className="w-full h-48 bg-white"
+              />
+            </div>
+          )}
         </div>
-      </div>
-    );
+      );
   }
 
   // Get current user
@@ -470,9 +531,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
     (async () => {
       oldestMessageIdRef.current = null;
-      isPreloadingOlderRef.current = false;
       setLoading(true);
       setError(null);
+      setHasMoreHistory(true);
+      setHistoryError(null);
+      setLoadingOlderMessages(false);
 
       try {
         // Get or create thread
@@ -550,51 +613,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
           }
         }, 300);
 
-        const shouldPreloadOlder = sorted.length === INITIAL_MESSAGE_LIMIT;
-        if (shouldPreloadOlder && oldestMessageIdRef.current !== null) {
-          // Defer background loading to let the latest messages paint first
-          setTimeout(() => {
-            if (cancelled || isPreloadingOlderRef.current) return;
-            isPreloadingOlderRef.current = true;
-
-            void (async () => {
-              try {
-                let beforeId = oldestMessageIdRef.current;
-                let batchesFetched = 0;
-                while (!cancelled && beforeId !== null && batchesFetched < MAX_BACKFILL_BATCHES) {
-                  let olderMessages: Message[] = [];
-                  try {
-                    olderMessages = await listMessages(threadId, {
-                      limit: BACKFILL_BATCH_LIMIT,
-                      beforeId,
-                    });
-                  } catch (olderErr) {
-                    console.error('Error preloading older messages:', olderErr);
-                    break;
-                  }
-
-                  if (cancelled || olderMessages.length === 0) {
-                    break;
-                  }
-
-                  const orderedOlder = sortMessagesChronologically(olderMessages);
-
-                  setMessages((prev) => mergeMessages(prev, orderedOlder));
-
-                  beforeId = orderedOlder[0]?.id ?? null;
-                  oldestMessageIdRef.current = beforeId;
-                  batchesFetched += 1;
-
-                  if (olderMessages.length < BACKFILL_BATCH_LIMIT) {
-                    break;
-                  }
-                }
-              } finally {
-                isPreloadingOlderRef.current = false;
-              }
-            })();
-          }, 250);
-        }
+        setHasMoreHistory(sorted.length === INITIAL_MESSAGE_LIMIT);
         
         // Calculate days streak after thread is loaded
         try {
@@ -670,6 +689,12 @@ export default function DmsChatWindow({ partnerId }: Props) {
       }
     }
   }, [messages.length]);
+  
+  useEffect(() => {
+    if (messages.length === 0) {
+      setHasMoreHistory(false);
+    }
+  }, [messages.length]);
 
   // Play sound on new messages (partner messages only) and acknowledge them
   useEffect(() => {
@@ -734,6 +759,92 @@ export default function DmsChatWindow({ partnerId }: Props) {
     setMessageText(e.target.value);
     handleTyping();
   }, [handleTyping]);
+  
+  const loadOlderMessages = useCallback(async () => {
+    if (!thread?.id || loadingOlderMessages || !hasMoreHistory) {
+      return;
+    }
+
+    const currentOldest = oldestMessageIdRef.current ?? messages[0]?.id ?? null;
+    if (!currentOldest) {
+      setHasMoreHistory(false);
+      return;
+    }
+
+    setLoadingOlderMessages(true);
+    setHistoryError(null);
+
+    const scrollContainer = scrollRef.current;
+    const prevHeight = scrollContainer?.scrollHeight ?? 0;
+    const prevScrollTop = scrollContainer?.scrollTop ?? 0;
+
+    try {
+      const olderMessages = await listMessages(thread.id, {
+        limit: HISTORY_PAGE_LIMIT,
+        beforeId: currentOldest,
+      });
+
+      if (!olderMessages || olderMessages.length === 0) {
+        setHasMoreHistory(false);
+        return;
+      }
+
+      const orderedOlder = sortMessagesChronologically(olderMessages);
+      oldestMessageIdRef.current = orderedOlder[0]?.id ?? oldestMessageIdRef.current;
+
+      mergeMessages(orderedOlder);
+
+      requestAnimationFrame(() => {
+        if (!scrollContainer) return;
+        const newHeight = scrollContainer.scrollHeight;
+        const diff = newHeight - prevHeight;
+        scrollContainer.scrollTop = prevScrollTop + diff;
+      });
+
+      if (orderedOlder.length < HISTORY_PAGE_LIMIT) {
+        setHasMoreHistory(false);
+      }
+    } catch (err) {
+      console.error('Error loading older messages:', err);
+      setHistoryError('Failed to load earlier messages.');
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [thread?.id, loadingOlderMessages, hasMoreHistory, mergeMessages, messages]);
+
+  useEffect(() => {
+    const sentinel = historySentinelRef.current;
+    const scrollContainer = scrollRef.current;
+
+    if (!sentinel || !scrollContainer) {
+      return;
+    }
+
+    if (historyObserverRef.current) {
+      historyObserverRef.current.disconnect();
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting && hasMoreHistory && !loadingOlderMessages) {
+          void loadOlderMessages();
+        }
+      },
+      {
+        root: scrollContainer,
+        threshold: 0.05,
+      }
+    );
+
+    observer.observe(sentinel);
+    historyObserverRef.current = observer;
+
+    return () => {
+      observer.disconnect();
+      historyObserverRef.current = null;
+    };
+  }, [hasMoreHistory, loadingOlderMessages, loadOlderMessages, thread?.id]);
 
   // Scroll to bottom on new messages and when messages are initially loaded
   useEffect(() => {
@@ -764,39 +875,91 @@ export default function DmsChatWindow({ partnerId }: Props) {
     setMessageText((prev) => prev + emoji);
   }, []);
 
+  function handleAddFiles(fileList: FileList | File[]) {
+    const incoming = Array.from(fileList);
+    if (incoming.length === 0) return;
+
+    const additions: SelectedAttachment[] = incoming.map((file) => {
+      const previewUrl = file.type.startsWith('image/')
+        ? URL.createObjectURL(file)
+        : undefined;
+      return {
+        id: globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+        file,
+        previewUrl,
+        progress: 0,
+        status: 'idle',
+      };
+    });
+
+    setSelectedFiles((prev) => [...prev, ...additions]);
+  }
+
   // Handle file selection
   function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || []);
-    if (files.length > 0) {
-      setSelectedFiles((prev) => [...prev, ...files]);
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      handleAddFiles(files);
     }
-    // Reset input so same file can be selected again
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   }
 
   // Handle file removal
-  function handleRemoveFile(index: number) {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  function handleRemoveFile(id: string) {
+    setSelectedFiles((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((item) => item.id !== id);
+    });
   }
+
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.dataTransfer) return;
+    event.dataTransfer.dropEffect = 'copy';
+    setIsDragActive(true);
+  }, []);
+
+  const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.currentTarget === event.target) {
+      setIsDragActive(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+    if (event.dataTransfer?.files?.length) {
+      handleAddFiles(event.dataTransfer.files);
+    }
+  }, []);
 
   // Handle send message
   async function handleSend() {
-    if (!thread || !thread.id || (!messageText.trim() && selectedFiles.length === 0) || sending) return;
+    if (!thread || !thread.id || (!messageText.trim() && selectedFiles.length === 0) || sending) {
+      return;
+    }
 
     const threadId = thread.id;
-
     const textToSend = messageText.trim();
-    const filesToSend = [...selectedFiles];
+    const filesToSend = selectedFiles;
+
     setReplyingTo(null);
     setSending(true);
+
     const hasAttachments = filesToSend.length > 0;
     if (hasAttachments) {
       setUploadingAttachments(true);
     }
-    
-    // Clear typing indicator
+
     setIsTyping(false);
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -807,44 +970,84 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
 
     let attachments: DmAttachment[] = [];
-    let sendError: any = null;
 
-    // Upload files if any
     if (hasAttachments) {
       try {
         attachments = await Promise.all(
-          filesToSend.map((file) => uploadAttachment(file))
+          filesToSend.map(async (item) => {
+            setSelectedFiles((prev) =>
+              prev.map((entry) =>
+                entry.id === item.id
+                  ? { ...entry, status: 'uploading', progress: 0, error: undefined }
+                  : entry
+              )
+            );
+
+            const attachment = await uploadAttachment(item.file, {
+              onProgress: ({ uploadedBytes, totalBytes }) => {
+                setSelectedFiles((prev) =>
+                  prev.map((entry) =>
+                    entry.id === item.id
+                      ? {
+                          ...entry,
+                          progress: Math.min(100, Math.round((uploadedBytes / totalBytes) * 100)),
+                        }
+                      : entry
+                  )
+                );
+              },
+            });
+
+            setSelectedFiles((prev) =>
+              prev.map((entry) =>
+                entry.id === item.id ? { ...entry, status: 'done', progress: 100 } : entry
+              )
+            );
+
+            return attachment;
+          })
         );
       } catch (err: any) {
         console.error('Error uploading attachments:', err);
+        setSelectedFiles((prev) =>
+          prev.map((entry) => {
+            if (filesToSend.some((upload) => upload.id === entry.id)) {
+              const alreadyDone = entry.status === 'done';
+              return {
+                ...entry,
+                status: alreadyDone ? entry.status : 'error',
+                error: alreadyDone ? entry.error : err?.message || 'Failed to upload',
+              };
+            }
+            return entry;
+          })
+        );
         setError(err?.message || 'Failed to upload attachments');
         setSending(false);
         setUploadingAttachments(false);
-        // Don't clear message text if upload fails
         return;
+      } finally {
+        setUploadingAttachments(false);
       }
     }
 
-    if (hasAttachments) {
-      setUploadingAttachments(false);
-    }
-
-    // Play sound immediately
     playSendConfirmation();
 
     try {
-      // Send via WebSocket
       const messageBody = textToSend || null;
-      const result = await wsSendMessage(threadId, messageBody, attachments as unknown[]);
-      
-      // Clear message text and files only after successful send
+      const attachmentsWithVersions = annotateDocumentVersions(attachments, messages);
+      await wsSendMessage(threadId, messageBody, attachmentsWithVersions as unknown[]);
+
       setMessageText('');
-      setSelectedFiles([]);
-      
-      // Mark message as delivered when server confirms
-      // The server message event will update the receipt status
-      
-      // Scroll to bottom after sending
+      setSelectedFiles((prev) => {
+        prev.forEach((entry) => {
+          if (entry.previewUrl) {
+            URL.revokeObjectURL(entry.previewUrl);
+          }
+        });
+        return [];
+      });
+
       setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -852,9 +1055,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       }, 100);
     } catch (err: any) {
       console.error('Error sending message:', err);
-      sendError = err;
       setError(err?.message || 'Failed to send message');
-      // Restore message text only if send failed (not if upload failed)
       setMessageText(textToSend);
     } finally {
       setSending(false);
@@ -862,7 +1063,43 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }
 
-  function formatTime(date: string): string {
+    function annotateDocumentVersions(
+      uploads: DmAttachment[],
+      existingMessages: Message[]
+    ): DmAttachment[] {
+      if (uploads.length === 0) {
+        return uploads;
+      }
+
+      const versionMap = new Map<string, number>();
+
+      for (const message of existingMessages) {
+        const messageAttachments = Array.isArray(message.attachments)
+          ? (message.attachments as DmAttachment[])
+          : [];
+        for (const att of messageAttachments) {
+          if (att?.type === 'file' && att.originalName) {
+            const current = versionMap.get(att.originalName) ?? 0;
+            const attVersion = att.version ?? (current > 0 ? current : 1);
+            versionMap.set(att.originalName, Math.max(current, attVersion));
+          }
+        }
+      }
+
+      return uploads.map((att) => {
+        if (att.type !== 'file' || !att.originalName) {
+          return att;
+        }
+        const nextVersion = (versionMap.get(att.originalName) ?? 0) + 1;
+        versionMap.set(att.originalName, nextVersion);
+        return {
+          ...att,
+          version: nextVersion,
+        };
+      });
+    }
+
+    function formatTime(date: string): string {
     return new Date(date).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
@@ -879,6 +1116,19 @@ export default function DmsChatWindow({ partnerId }: Props) {
     if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
     return d.toLocaleDateString();
   }
+
+    function formatFileSize(bytes: number): string {
+      if (!Number.isFinite(bytes)) {
+        return '';
+      }
+      if (bytes >= 1024 * 1024) {
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      }
+      if (bytes >= 1024) {
+        return `${(bytes / 1024).toFixed(1)} KB`;
+      }
+      return `${bytes} B`;
+    }
 
   if (loading) {
     return (
@@ -1007,6 +1257,35 @@ export default function DmsChatWindow({ partnerId }: Props) {
         ref={scrollRef}
         className="flex-1 overflow-y-auto smooth-scroll px-3 py-4"
       >
+        <div ref={historySentinelRef} className="h-1 w-full" />
+        {loadingOlderMessages && (
+          <div className="flex justify-center mb-2">
+            <div className="text-xs text-white/60 animate-pulse">Loading earlier messages...</div>
+          </div>
+        )}
+        {historyError && (
+          <div className="flex flex-col items-center mb-3 gap-1">
+            <div className="text-xs text-red-300 text-center">{historyError}</div>
+            <button
+              type="button"
+              onClick={() => void loadOlderMessages()}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/25 transition"
+            >
+              Retry loading messages
+            </button>
+          </div>
+        )}
+        {hasMoreHistory && !loadingOlderMessages && !historyError && messages.length > 0 && (
+          <div className="flex justify-center mb-3">
+            <button
+              type="button"
+              onClick={() => void loadOlderMessages()}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 text-white/70 border border-white/20 hover:bg-white/15 transition"
+            >
+              Load earlier messages
+            </button>
+          </div>
+        )}
         {messages.length === 0 ? (
           <div className="text-center text-white/50 text-sm py-8">
             No messages yet. Start the conversation!
@@ -1196,54 +1475,80 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
 
       {/* Selected files preview */}
-      {selectedFiles.length > 0 && (
-        <div className="px-3 pt-2 pb-1 border-t border-white/10">
-          <div className="flex flex-wrap gap-2">
-            {selectedFiles.map((file, index) => {
-              const icon = file.type.startsWith('image/')
-                ? '\uD83D\uDDBC'
-                : file.type.startsWith('video/')
-                ? '\uD83C\uDFA5'
-                : file.type.startsWith('audio/')
-                ? '\uD83C\uDFB5'
-                : '\uD83D\uDCC4';
+        {selectedFiles.length > 0 && (
+          <div className="px-3 pt-2 pb-1 border-t border-white/10">
+            <div className="flex flex-col gap-2">
+              {selectedFiles.map((item) => {
+                const { file, status, progress, previewUrl } = item;
+                const icon = file.type.startsWith('image/')
+                  ? null
+                  : file.type.startsWith('video/')
+                  ? '\uD83C\uDFA5'
+                  : file.type.startsWith('audio/')
+                  ? '\uD83C\uDFB5'
+                  : '\uD83D\uDCC4';
 
-              return (
-                <div
-                  key={index}
-                  className="relative inline-flex items-center gap-2 px-2 py-1.5 bg-white/10 border border-white/20 rounded-lg text-sm"
-                >
-                  <span className="text-base" role="img" aria-hidden="true">
-                    {icon}
-                  </span>
-                  <span className="text-white/90 truncate max-w-[150px]">{file.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveFile(index)}
-                    className="text-white/60 hover:text-white/90 transition"
-                    title="Remove"
+                return (
+                  <div
+                    key={item.id}
+                    className="relative flex items-center gap-3 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
+                    <div className="h-10 w-10 flex-shrink-0 rounded-md overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center">
+                      {previewUrl ? (
+                        <img src={previewUrl} alt={file.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-base" role="img" aria-hidden="true">
+                          {icon}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-white/90 truncate">{file.name}</span>
+                        <span className="text-[11px] text-white/50 shrink-0">{formatFileSize(file.size)}</span>
+                      </div>
+                      {status === 'uploading' && (
+                        <div className="mt-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-cyan-400 transition-all"
+                            style={{ width: `${Math.min(100, Math.round(progress))}%` }}
+                          />
+                        </div>
+                      )}
+                      {status === 'error' && (
+                        <div className="mt-1 text-xs text-red-300">
+                          {item.error || 'Failed to upload'}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFile(item.id)}
+                      className="text-white/60 hover:text-white/90 transition disabled:opacity-40"
+                      title="Remove"
+                      disabled={status === 'uploading'}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              );
-            })}
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Reply preview */}
       {replyingTo && (
@@ -1276,7 +1581,14 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-white/10">
-        <div className="relative flex items-end gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-2">
+      <div
+        className={`relative flex items-end gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-2 transition ${
+          isDragActive ? 'ring-2 ring-cyan-400/50 border-cyan-400/50 bg-white/10' : ''
+        }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
@@ -1335,11 +1647,16 @@ export default function DmsChatWindow({ partnerId }: Props) {
           />
           <div className="flex items-center gap-1 flex-shrink-0">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} position="top" />
-            <button
-              className="btn btn-primary rounded-xl px-4 py-2 text-sm font-medium"
-              onClick={handleSend}
-              disabled={(!messageText.trim() && selectedFiles.length === 0) || sending || uploadingAttachments}
-            >
+              <button
+                className="btn btn-primary rounded-xl px-4 py-2 text-sm font-medium"
+                onClick={handleSend}
+                disabled={
+                  (!messageText.trim() && selectedFiles.length === 0) ||
+                  sending ||
+                  uploadingAttachments ||
+                  hasUploadingAttachment
+                }
+              >
               {uploadingAttachments ? (
                 <span className="flex items-center gap-1">
                   <span className="animate-spin">?</span>

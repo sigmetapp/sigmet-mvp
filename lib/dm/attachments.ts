@@ -8,6 +8,8 @@ export type DmAttachment = {
   mime: string; // e.g., image/png
   width?: number;
   height?: number;
+  originalName?: string;
+  version?: number;
 };
 
 async function getImageDimensions(file: File): Promise<{ width: number; height: number } | undefined> {
@@ -28,12 +30,24 @@ async function getImageDimensions(file: File): Promise<{ width: number; height: 
   });
 }
 
-export async function uploadAttachment(file: File): Promise<DmAttachment> {
+const RESUMABLE_UPLOAD_THRESHOLD = 25 * 1024 * 1024; // 25MB
+
+type UploadOptions = {
+  onProgress?: (progress: { uploadedBytes: number; totalBytes: number }) => void;
+};
+
+export async function uploadAttachment(file: File, options: UploadOptions = {}): Promise<DmAttachment> {
+  if (file.size > RESUMABLE_UPLOAD_THRESHOLD) {
+    return uploadAttachmentResumable(file, options);
+  }
+  return uploadAttachmentDirect(file, options);
+}
+
+async function uploadAttachmentDirect(file: File, options: UploadOptions): Promise<DmAttachment> {
   const mime = file.type || 'application/octet-stream';
   const size = file.size;
   const type = inferAttachmentType(mime);
 
-  // Request signed upload URL from server to avoid client-side RLS issues
   const signResponse = await fetch('/api/dms/attachments.sign', {
     method: 'POST',
     headers: {
@@ -69,12 +83,114 @@ export async function uploadAttachment(file: File): Promise<DmAttachment> {
   }
 
   const dims = await getImageDimensions(file);
+  options.onProgress?.({ uploadedBytes: size, totalBytes: size });
 
   return {
     type,
     path,
     size,
     mime,
+    originalName: file.name,
+    ...(dims ? { width: dims.width, height: dims.height } : {}),
+  };
+}
+
+async function uploadAttachmentResumable(file: File, options: UploadOptions): Promise<DmAttachment> {
+  const mime = file.type || 'application/octet-stream';
+  const totalSize = file.size;
+  const type = inferAttachmentType(mime);
+
+  const initResponse = await fetch('/api/dms/attachments.resumable?action=init', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType: mime,
+      fileSize: totalSize,
+    }),
+  });
+
+  if (!initResponse.ok) {
+    const errorBody = await initResponse.json().catch(() => ({}));
+    throw new Error(errorBody.error || 'Failed to initialise resumable upload.');
+  }
+
+  const initResult = (await initResponse.json()) as {
+    uploadId: string;
+    chunkSize: number;
+    bucket: string;
+    path: string;
+  };
+
+  const { uploadId, chunkSize, path } = initResult;
+  const totalChunks = Math.ceil(totalSize / chunkSize);
+
+  let uploadedBytes = 0;
+
+  const statusResponse = await fetch(`/api/dms/attachments.resumable?uploadId=${uploadId}`, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  const statusResult = statusResponse.ok
+    ? await statusResponse.json()
+    : { uploadedChunks: [] as number[] };
+
+  const uploadedChunks = new Set<number>(statusResult.uploadedChunks ?? []);
+
+  for (let index = 0; index < totalChunks; index += 1) {
+    const start = index * chunkSize;
+    const end = Math.min(totalSize, start + chunkSize);
+    const chunkBlob = file.slice(start, end);
+
+    if (uploadedChunks.has(index)) {
+      uploadedBytes += chunkBlob.size;
+      options.onProgress?.({ uploadedBytes, totalBytes: totalSize });
+      continue;
+    }
+
+    const chunkResponse = await fetch(
+      `/api/dms/attachments.resumable?action=chunk&uploadId=${uploadId}&index=${index}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+        },
+        body: chunkBlob,
+      }
+    );
+
+    if (!chunkResponse.ok) {
+      const errBody = await chunkResponse.json().catch(() => ({}));
+      throw new Error(errBody.error || `Failed to upload chunk ${index + 1}`);
+    }
+
+    uploadedBytes += chunkBlob.size;
+    options.onProgress?.({ uploadedBytes, totalBytes: totalSize });
+  }
+
+  const completeResponse = await fetch('/api/dms/attachments.resumable?action=complete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ uploadId }),
+  });
+
+  if (!completeResponse.ok) {
+    const errorBody = await completeResponse.json().catch(() => ({}));
+    throw new Error(errorBody.error || 'Failed to finalise resumable upload.');
+  }
+
+  const dims = await getImageDimensions(file);
+
+  return {
+    type,
+    path,
+    size: totalSize,
+    mime,
+    originalName: file.name,
     ...(dims ? { width: dims.width, height: dims.height } : {}),
   };
 }
