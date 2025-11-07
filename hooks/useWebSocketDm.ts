@@ -49,7 +49,12 @@ function sortMessagesChronologically(messages: Message[]): Message[] {
   return [...messages].sort(compareMessages);
 }
 
-export function useWebSocketDm(threadId: ThreadId | null) {
+export type UseWebSocketDmOptions = {
+  initialLimit?: number;
+};
+
+export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketDmOptions = {}) {
+  const { initialLimit = 50 } = options;
   const [messages, setMessagesState] = useState<Message[]>([]);
   const cacheKeyRef = useRef<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -72,6 +77,11 @@ export function useWebSocketDm(threadId: ThreadId | null) {
   const fallbackThreadUnsubscribeRef = useRef<(() => void | Promise<void>) | null>(null);
   const fallbackPresenceUnsubscribeRef = useRef<(() => void | Promise<void>) | null>(null);
   const isHydratedFromCacheRef = useRef(false);
+  const initialLimitRef = useRef(initialLimit);
+
+  useEffect(() => {
+    initialLimitRef.current = initialLimit;
+  }, [initialLimit]);
 
   const applyMessagesUpdate = useCallback(
     (updater: Message[] | ((prev: Message[]) => Message[])) => {
@@ -201,8 +211,10 @@ export function useWebSocketDm(threadId: ThreadId | null) {
 
     const loadInitialState = async () => {
       try {
-        const { listMessages } = await import('@/lib/dms');
-        const initialMessages = await listMessages(normalizedThreadId, { limit: 50 });
+          const { listMessages } = await import('@/lib/dms');
+          const initialMessages = await listMessages(normalizedThreadId, {
+            limit: initialLimitRef.current,
+          });
 
         if (!cancelled) {
           if (initialMessages && initialMessages.length > 0) {
@@ -576,7 +588,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
       }
     };
     }
-  }, [threadId, transport]);
+    }, [threadId, transport, initialLimit]);
 
   useEffect(() => {
     if (!threadId || typeof window === 'undefined') {
