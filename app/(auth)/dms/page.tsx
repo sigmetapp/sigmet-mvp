@@ -1304,7 +1304,7 @@ function DmsInner() {
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1.5 opacity-0 transition group-hover:opacity-100 flex-shrink-0">
+                              <div className="hidden sm:flex items-center gap-1.5 opacity-0 transition group-hover:opacity-100 flex-shrink-0 absolute right-2 top-2">
                                 <button
                                   type="button"
                                   aria-label={partner.is_pinned ? 'Unpin' : 'Pin'}
