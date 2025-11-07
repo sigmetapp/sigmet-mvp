@@ -293,6 +293,11 @@ const PostCard = React.memo(function PostCard({
   );
 }, (prevProps, nextProps) => {
   // Кастомная функция сравнения для оптимизации ре-рендеров
+  // Если есть renderContent, всегда обновляем (данные могут загружаться асинхронно)
+  if (prevProps.renderContent || nextProps.renderContent) {
+    return false; // Всегда обновлять если есть renderContent
+  }
+  
   return (
     prevProps.post.id === nextProps.post.id &&
     prevProps.post.author === nextProps.post.author &&
