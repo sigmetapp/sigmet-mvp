@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, type Message, type Thread } from '@/lib/dms';
 import { useWebSocketDm } from '@/hooks/useWebSocketDm';
 import EmojiPicker from '@/components/EmojiPicker';
-import { uploadAttachment, type DmAttachment, getSignedUrlForAttachment } from '@/lib/dm/attachments';
+import { uploadAttachment, type DmAttachment, resolveAttachmentUrl } from '@/lib/dm/attachments';
 import { assertThreadId } from '@/lib/dm/threadId';
 import { useTheme } from '@/components/ThemeProvider';
+import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 
 const INITIAL_MESSAGE_LIMIT = 30;
 const HISTORY_PAGE_LIMIT = 30;
@@ -74,9 +75,12 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [partnerProfile, setPartnerProfile] = useState<{
+    user_id: string;
     username: string | null;
     full_name: string | null;
     avatar_url: string | null;
+    show_online_status?: boolean | null;
+    last_activity_at?: string | null;
   } | null>(null);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [socialWeight, setSocialWeight] = useState<number>(75);
@@ -126,6 +130,10 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const threadChannelRef = useRef<any>(null);
   const historySentinelRef = useRef<HTMLDivElement | null>(null);
   const historyObserverRef = useRef<IntersectionObserver | null>(null);
+  const presenceUnsubscribeRef = useRef<(() => void | Promise<void>) | null>(null);
+  const lastActivityRef = useRef<string | null>(null);
+  const presenceOnlineRef = useRef<boolean>(false);
+  const showOnlineStatusRef = useRef<boolean>(true);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -160,8 +168,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   }, []);
 
-  const playBeep = useCallback(
-    async (frequency = 720, duration = 0.25) => {
+  const playKnock = useCallback(
+    async (volume = 0.35) => {
       try {
         const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext) as
           | typeof AudioContext
@@ -175,40 +183,101 @@ export default function DmsChatWindow({ partnerId }: Props) {
         const ctx = audioContextRef.current;
         if (!ctx) return;
 
-        // Resume if suspended (non-blocking - don't await to avoid delay)
         if (ctx.state === 'suspended') {
           ctx.resume().catch((resumeErr) => {
             console.error('Error resuming audio context:', resumeErr);
           });
         }
 
-        const oscillator = ctx.createOscillator();
-        const gainNode = ctx.createGain();
+        const now = ctx.currentTime;
+        const envelope = ctx.createGain();
+        envelope.gain.setValueAtTime(0.0001, now);
+        envelope.gain.linearRampToValueAtTime(volume, now + 0.015);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+        envelope.connect(ctx.destination);
 
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
-        oscillator.connect(gainNode);
-        gainNode.connect(ctx.destination);
+        const primary = ctx.createOscillator();
+        primary.type = 'sine';
+        primary.frequency.setValueAtTime(220, now);
+        primary.frequency.exponentialRampToValueAtTime(90, now + 0.18);
+        primary.connect(envelope);
 
-        gainNode.gain.setValueAtTime(0.25, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+        const secondary = ctx.createOscillator();
+        secondary.type = 'triangle';
+        secondary.frequency.setValueAtTime(360, now);
+        secondary.frequency.exponentialRampToValueAtTime(140, now + 0.12);
+        const secondaryGain = ctx.createGain();
+        secondaryGain.gain.setValueAtTime(volume * 0.6, now);
+        secondaryGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+        secondary.connect(secondaryGain);
+        secondaryGain.connect(envelope);
 
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + duration);
+        const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.2), ctx.sampleRate);
+        const noiseData = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < noiseData.length; i += 1) {
+          noiseData[i] = (Math.random() * 2 - 1) * (1 - i / noiseData.length);
+        }
+        const noiseSource = ctx.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.0001, now);
+        noiseGain.gain.linearRampToValueAtTime(volume * 0.28, now + 0.01);
+        noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+        noiseSource.connect(noiseGain);
+        noiseGain.connect(envelope);
+
+        primary.start(now);
+        secondary.start(now);
+        noiseSource.start(now);
+
+        primary.stop(now + 0.25);
+        secondary.stop(now + 0.22);
+        noiseSource.stop(now + 0.25);
       } catch (err) {
-        console.error('Error playing sound:', err);
+        console.error('Error playing knock sound:', err);
       }
     },
     []
   );
 
   const playSendConfirmation = useCallback(() => {
-    void playBeep(860, 0.2);
-  }, [playBeep]);
+    void playKnock(0.22);
+  }, [playKnock]);
 
   const playIncomingNotification = useCallback(() => {
-    void playBeep(640, 0.28);
-  }, [playBeep]);
+    void playKnock(0.35);
+  }, [playKnock]);
+
+  const isOnlineByActivity = useCallback((lastActivityAt?: string | null) => {
+    if (!lastActivityAt) {
+      return false;
+    }
+    const lastActivity = new Date(lastActivityAt);
+    const now = new Date();
+    const diffInMinutes = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
+    return diffInMinutes < 5;
+  }, []);
+
+  const applyOnlineStatus = useCallback(
+    (presenceOnline: boolean, activityAt?: string | null) => {
+      presenceOnlineRef.current = presenceOnline;
+      if (typeof activityAt !== 'undefined') {
+        lastActivityRef.current = activityAt ?? null;
+      }
+
+      if (!showOnlineStatusRef.current) {
+        setIsOnline(null);
+        return;
+      }
+
+      const effectiveActivity =
+        typeof activityAt !== 'undefined' ? activityAt : lastActivityRef.current;
+
+      const activityOnline = isOnlineByActivity(effectiveActivity);
+      setIsOnline(presenceOnline || activityOnline);
+    },
+    [isOnlineByActivity]
+  );
 
   function getAttachmentIcon(type?: DmAttachment['type']) {
     switch (type) {
@@ -228,19 +297,54 @@ export default function DmsChatWindow({ partnerId }: Props) {
     const [url, setUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-      if (attachment.path) {
-        getSignedUrlForAttachment(attachment, 3600)
-          .then((signedUrl) => {
-            setUrl(signedUrl);
-            setLoading(false);
-          })
-          .catch((err) => {
-            console.error('Error loading attachment:', err);
-            setLoading(false);
-          });
-      }
+    const attachmentKey = useMemo(() => {
+      if (!attachment) return 'null';
+      return [
+        attachment.path ?? '',
+        (attachment as any)?.storagePath ?? '',
+        (attachment as any)?.storage_path ?? '',
+        attachment.url ?? (attachment as any)?.url ?? '',
+        attachment.signedUrl ?? (attachment as any)?.signed_url ?? '',
+        attachment.publicUrl ?? (attachment as any)?.public_url ?? '',
+        attachment.bucket ?? (attachment as any)?.bucket ?? '',
+        attachment.version ?? '',
+      ].join('|');
     }, [attachment]);
+
+    const stableAttachment = useMemo(() => attachment, [attachmentKey]);
+
+    useEffect(() => {
+      if (!stableAttachment) {
+        setUrl(null);
+        setLoading(false);
+        return;
+      }
+
+      let cancelled = false;
+      setLoading(true);
+
+      (async () => {
+        try {
+          const resolved = await resolveAttachmentUrl(stableAttachment, 3600);
+          if (!cancelled) {
+            setUrl(resolved);
+          }
+        } catch (err) {
+          console.error('Error loading attachment:', err);
+          if (!cancelled) {
+            setUrl(null);
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [stableAttachment, attachmentKey]);
 
     if (loading) {
       return (
@@ -250,7 +354,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       );
     }
 
-    if (attachment.type === 'image' && url) {
+    if (stableAttachment.type === 'image' && url) {
       return (
         <img
           src={url}
@@ -260,7 +364,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       );
     }
 
-    if (attachment.type === 'video' && url) {
+    if (stableAttachment.type === 'video' && url) {
       return (
         <div className="relative max-w-[280px] max-h-[280px] rounded-lg overflow-hidden border border-white/10 bg-black/20">
           <video
@@ -272,64 +376,67 @@ export default function DmsChatWindow({ partnerId }: Props) {
       );
     }
 
-      if (!url) {
-        return (
-          <div className="px-3 py-2 bg-white/5 rounded-lg border border-white/10 text-xs text-white/60 max-w-[320px]">
-            Unable to load document preview.
-          </div>
-        );
-      }
-
-      const displayName = attachment.originalName ?? 'Document';
+    if (!url) {
       return (
-        <div className="px-3 py-3 bg-white/5 rounded-lg border border-white/10 max-w-[320px] text-sm text-white/80">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl leading-none" role="img" aria-hidden="true">
-              {getAttachmentIcon(attachment.type)}
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="font-medium truncate">{displayName}</div>
-                {attachment.version && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-white/10 border border-white/20">
-                    v{attachment.version}
-                  </span>
-                )}
-              </div>
-              <div className="text-[11px] text-white/50">{formatFileSize(attachment.size)}</div>
-              <div className="mt-2 flex items-center gap-2">
+        <div className="px-3 py-2 bg-white/5 rounded-lg border border-white/10 text-xs text-white/60 max-w-[320px]">
+          Unable to load document preview.
+        </div>
+      );
+    }
+
+    const displayName =
+      stableAttachment.originalName ?? (stableAttachment as any)?.original_name ?? 'Document';
+    return (
+      <div className="px-3 py-3 bg-white/5 rounded-lg border border-white/10 max-w-[320px] text-sm text-white/80">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl leading-none" role="img" aria-hidden="true">
+            {getAttachmentIcon(stableAttachment.type)}
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="font-medium truncate">{displayName}</div>
+              {stableAttachment.version && (
+                <span className="text-[11px] px-1.5 py-0.5 rounded bg-white/10 border border-white/20">
+                  v{stableAttachment.version}
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-white/50">
+              {formatFileSize(stableAttachment.size ?? (stableAttachment as any)?.size)}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <a
+                href={url || '#'}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/10 border border-white/20 hover:bg-white/15 transition text-xs"
+              >
+                Download
+              </a>
+              {stableAttachment.mime === 'application/pdf' && url && (
                 <a
-                  href={url || '#'}
+                  href={url}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/10 border border-white/20 hover:bg-white/15 transition text-xs"
                 >
-                  Download
+                  Open
                 </a>
-                {attachment.mime === 'application/pdf' && url && (
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/10 border border-white/20 hover:bg-white/15 transition text-xs"
-                  >
-                    Open
-                  </a>
-                )}
-              </div>
+              )}
             </div>
           </div>
-          {attachment.mime === 'application/pdf' && url && (
-            <div className="mt-3 border border-white/10 rounded-md overflow-hidden">
-              <iframe
-                src={url}
-                title={displayName}
-                className="w-full h-48 bg-white"
-              />
-            </div>
-          )}
         </div>
-      );
+        {stableAttachment.mime === 'application/pdf' && url && (
+          <div className="mt-3 border border-white/10 rounded-md overflow-hidden">
+            <iframe
+              src={url}
+              title={displayName}
+              className="w-full h-48 bg-white"
+            />
+          </div>
+        )}
+      </div>
+    );
   }
 
   // Get current user
@@ -349,7 +456,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       try {
         const { data, error: profError } = await supabase
           .from('profiles')
-          .select('user_id, username, full_name, avatar_url')
+          .select('user_id, username, full_name, avatar_url, show_online_status, last_activity_at')
           .eq('user_id', partnerId)
           .maybeSingle();
 
@@ -359,11 +466,24 @@ export default function DmsChatWindow({ partnerId }: Props) {
         }
 
         if (data) {
-          setPartnerProfile({
+          const profileData = {
+            user_id: data.user_id as string,
             username: data.username,
             full_name: data.full_name,
             avatar_url: data.avatar_url,
-          });
+            show_online_status: data.show_online_status,
+            last_activity_at: data.last_activity_at,
+          };
+
+          setPartnerProfile(profileData);
+          showOnlineStatusRef.current = profileData.show_online_status !== false;
+          lastActivityRef.current = profileData.last_activity_at ?? null;
+
+          if (showOnlineStatusRef.current) {
+            applyOnlineStatus(presenceOnlineRef.current, profileData.last_activity_at ?? null);
+          } else {
+            setIsOnline(null);
+          }
         }
 
         // Load Social Weight from sw_scores table
@@ -405,14 +525,96 @@ export default function DmsChatWindow({ partnerId }: Props) {
         console.error('Error loading profile:', err);
       }
     })();
-  }, [partnerId, currentUserId]);
+  }, [partnerId, currentUserId, applyOnlineStatus]);
 
   // Use WebSocket presence (already handled by useWebSocketDm)
   useEffect(() => {
     if (wsPartnerOnline !== null) {
-      setIsOnline(wsPartnerOnline);
+      applyOnlineStatus(wsPartnerOnline);
     }
-  }, [wsPartnerOnline]);
+  }, [wsPartnerOnline, applyOnlineStatus]);
+
+  useEffect(() => {
+    if (!partnerProfile?.user_id) {
+      presenceOnlineRef.current = false;
+      lastActivityRef.current = null;
+      if (presenceUnsubscribeRef.current) {
+        void presenceUnsubscribeRef.current();
+        presenceUnsubscribeRef.current = null;
+      }
+      return;
+    }
+
+    const userId = partnerProfile.user_id;
+    if (typeof partnerProfile.last_activity_at !== 'undefined') {
+      lastActivityRef.current = partnerProfile.last_activity_at ?? null;
+    }
+    const showStatus = partnerProfile.show_online_status !== false;
+    showOnlineStatusRef.current = showStatus;
+
+    if (!showStatus) {
+      setIsOnline(null);
+      presenceOnlineRef.current = false;
+      if (presenceUnsubscribeRef.current) {
+        void presenceUnsubscribeRef.current();
+        presenceUnsubscribeRef.current = null;
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const unsubscribe = await subscribeToPresence([userId], (uid, online) => {
+          if (!cancelled && uid === userId) {
+            applyOnlineStatus(online);
+          }
+        });
+        presenceUnsubscribeRef.current = unsubscribe;
+      } catch (error) {
+        console.error('Error subscribing to presence updates:', error);
+      }
+    })();
+
+    (async () => {
+      try {
+        const state = await getPresenceMap(userId);
+        if (!cancelled) {
+          const online = !!state?.[userId]?.[0];
+          applyOnlineStatus(online);
+        }
+      } catch (error) {
+        console.error('Error retrieving initial presence state:', error);
+      }
+    })();
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('last_activity_at')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (!cancelled && data) {
+          const activity = (data as any).last_activity_at ?? null;
+          applyOnlineStatus(presenceOnlineRef.current, activity);
+        }
+      } catch (error) {
+        console.error('Error polling partner activity:', error);
+      }
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      if (presenceUnsubscribeRef.current) {
+        void presenceUnsubscribeRef.current();
+        presenceUnsubscribeRef.current = null;
+      }
+      clearInterval(pollInterval);
+    };
+  }, [partnerProfile?.user_id, partnerProfile?.show_online_status, applyOnlineStatus]);
 
   // Listen for message acknowledgments and update receipts
   useEffect(() => {
@@ -1117,18 +1319,18 @@ export default function DmsChatWindow({ partnerId }: Props) {
     return d.toLocaleDateString();
   }
 
-    function formatFileSize(bytes: number): string {
-      if (!Number.isFinite(bytes)) {
-        return '';
-      }
-      if (bytes >= 1024 * 1024) {
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-      }
-      if (bytes >= 1024) {
-        return `${(bytes / 1024).toFixed(1)} KB`;
-      }
-      return `${bytes} B`;
+  function formatFileSize(bytes?: number | null): string {
+    if (typeof bytes !== 'number' || !Number.isFinite(bytes)) {
+      return '';
     }
+    if (bytes >= 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    if (bytes >= 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${bytes} B`;
+  }
 
   if (loading) {
     return (
@@ -1159,13 +1361,33 @@ export default function DmsChatWindow({ partnerId }: Props) {
   }
 
   // Get partner name - prioritize full_name, then username, then fallback
-  const partnerName = partnerProfile?.full_name || 
+  const partnerName = partnerProfile?.full_name ||
     partnerProfile?.username || 
     partnerId.slice(0, 8);
   const partnerAvatar = partnerProfile?.avatar_url || AVATAR_FALLBACK;
-  
-  // Ensure isOnline is properly set (default to false if null)
-  const displayOnline = isOnline === true;
+
+  const showStatusPreference = partnerProfile?.show_online_status !== false;
+  let statusLabel: string | null = null;
+  let statusClasses = '';
+  let statusDotClasses = '';
+
+  if (!showStatusPreference) {
+    statusLabel = 'Private online';
+    statusClasses = 'bg-purple-500/20 text-purple-200 border border-purple-500/30';
+    statusDotClasses = 'bg-purple-300';
+  } else if (isOnline === true) {
+    statusLabel = 'Online';
+    statusClasses = 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+    statusDotClasses = 'bg-emerald-400';
+  } else if (isOnline === false) {
+    statusLabel = 'Offline';
+    statusClasses = 'bg-white/10 text-white/60 border border-white/20';
+    statusDotClasses = 'bg-white/40';
+  } else {
+    statusLabel = null;
+    statusClasses = '';
+    statusDotClasses = '';
+  }
 
   return (
     <div className="card card-glow flex flex-col h-full overflow-hidden">
@@ -1189,58 +1411,52 @@ export default function DmsChatWindow({ partnerId }: Props) {
             ) : (
               <div className="text-white text-sm font-medium truncate">{partnerName}</div>
             )}
-            {/* Typing status */}
-            {partnerTyping && (
-              <div className="text-xs text-white/60 mt-0.5">
-                typing...
-              </div>
-            )}
-            <div className="flex items-center gap-1.5 flex-wrap mt-1">
-              {/* Online/Offline Badge */}
-              <span
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-medium ${
-                  displayOnline
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-white/10 text-white/60 border border-white/20'
-                }`}
-              >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    displayOnline ? 'bg-emerald-400' : 'bg-white/40'
-                  }`}
-                />
-                {displayOnline ? 'online' : 'offline'}
-              </span>
-              
-              {/* Social Weight Badge */}
-              <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30"
-                title="Social Weight"
-              >
-                SW: {socialWeight}/100
-              </span>
-              
-              {/* Trust Flow Badge */}
-              <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                title="Trust Flow"
-              >
-                TF: {trustFlow}%
-              </span>
-              
-              {/* Days Streak Badge */}
-              {daysStreak > 0 && (
-                <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
-                  title="Days streak"
-                >
-                  <span className="text-xs leading-none" role="img" aria-label="fire">
-                    {'\uD83D\uDD25'}
-                  </span>
-                  {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
-                </span>
+              {/* Typing status */}
+              {partnerTyping && (
+                <div className="text-xs text-white/60 mt-0.5">
+                  typing...
+                </div>
               )}
-            </div>
+              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                {/* Online/Offline Badge */}
+                {statusLabel && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-medium ${statusClasses}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${statusDotClasses}`} />
+                    {statusLabel}
+                  </span>
+                )}
+
+                {/* Social Weight Badge */}
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                  title="Social Weight"
+                >
+                  SW: {socialWeight}/100
+                </span>
+
+                {/* Trust Flow Badge */}
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                  title="Trust Flow"
+                >
+                  TF: {trustFlow}%
+                </span>
+
+                {/* Days Streak Badge */}
+                {daysStreak > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
+                    title="Days streak"
+                  >
+                    <span className="text-xs leading-none" role="img" aria-label="fire">
+                      {'\uD83D\uDD25'}
+                    </span>
+                    {daysStreak} {daysStreak === 1 ? 'day' : 'days'}
+                  </span>
+                )}
+              </div>
           </div>
         </div>
       </div>

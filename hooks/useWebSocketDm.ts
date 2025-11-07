@@ -628,17 +628,15 @@ export function useWebSocketDm(threadId: ThreadId | null) {
     }
   }, [messages, threadId]);
 
-  // Presence fallback subscription (Supabase realtime presence channels)
+  // Presence subscription (Supabase realtime presence channels)
   useEffect(() => {
     if (fallbackPresenceUnsubscribeRef.current) {
       void fallbackPresenceUnsubscribeRef.current();
       fallbackPresenceUnsubscribeRef.current = null;
     }
 
-    if (!partnerId || transport !== 'supabase') {
-      if (transport === 'supabase') {
-        setPartnerOnline(null);
-      }
+    if (!partnerId) {
+      setPartnerOnline(null);
       return;
     }
 
@@ -653,15 +651,18 @@ export function useWebSocketDm(threadId: ThreadId | null) {
         });
 
         fallbackPresenceUnsubscribeRef.current = unsubscribe;
+      } catch (error) {
+        console.error('Error subscribing to presence updates:', error);
+      }
 
-        // Fetch initial presence state
+      try {
         const presenceMap = await getPresenceMap(partnerId);
         if (!cancelled) {
           const isOnline = !!presenceMap[partnerId]?.[0];
           setPartnerOnline(isOnline);
         }
       } catch (error) {
-        console.error('Error subscribing to presence fallback:', error);
+        console.error('Error retrieving initial presence state:', error);
       }
     })();
 
@@ -672,7 +673,7 @@ export function useWebSocketDm(threadId: ThreadId | null) {
         fallbackPresenceUnsubscribeRef.current = null;
       }
     };
-  }, [partnerId, transport]);
+  }, [partnerId]);
 
   // Send message with local-echo support
   const sendMessage = useCallback(async (
