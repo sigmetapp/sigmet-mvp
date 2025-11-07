@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTheme } from '@/components/ThemeProvider';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
@@ -277,6 +278,7 @@ function getPresenceStatus(
 }
 
 function DmsInner() {
+  const { theme } = useTheme();
   const searchParams = useSearchParams();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [partners, setPartners] = useState<PartnerListItem[]>([]);
@@ -1301,10 +1303,20 @@ function DmsInner() {
                               {/* Meta (time + unread) */}
                               <div className="flex flex-col items-end gap-1">
                                 {timestampLabel && (
-                                  <div className="text-[11px] text-white/45">{timestampLabel}</div>
+                                  <div className={[
+                                    'text-[11px]',
+                                    theme === 'light' ? 'text-black/50' : 'text-white/45',
+                                  ].join(' ')}>{timestampLabel}</div>
                                 )}
                                 {partner.unread_count > 0 && (
-                                  <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-cyan-500/20 px-1.5 py-0.5 text-[11px] font-semibold text-cyan-200 border border-cyan-500/40">
+                                  <span
+                                    className={[
+                                      'inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold border',
+                                      theme === 'light'
+                                        ? 'bg-blue-600/10 text-blue-700 border-blue-600/30'
+                                        : 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40',
+                                    ].join(' ')}
+                                  >
                                     {partner.unread_count}
                                   </span>
                                 )}

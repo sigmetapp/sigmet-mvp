@@ -1845,10 +1845,10 @@ export default function DmsChatWindow({ partnerId }: Props) {
                             type="button"
                             onClick={() => setReplyingTo(msg)}
                             className={[
-                              'px-1.5 py-0.5 rounded border text-[11px] transition',
+                              'px-1.5 py-0.5 rounded border text-[11px] transition shadow-sm backdrop-blur-sm',
                               theme === 'light'
-                                ? 'bg-black/5 border-black/20 text-black/80 hover:bg-black/10'
-                                : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15',
+                                ? 'bg-white/80 border-black/10 text-black hover:bg-white'
+                                : 'bg-white/10 border-white/20 text-white/90 hover:bg-white/15',
                             ].join(' ')}
                             title="Reply"
                           >
