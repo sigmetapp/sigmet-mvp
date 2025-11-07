@@ -46,7 +46,7 @@ export default function Header() {
           : "border-b border-telegram-blue/20 bg-[rgba(15,22,35,0.8)] supports-[backdrop-filter]:bg-[rgba(15,22,35,0.7)]"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 h-14 relative">
+      <div className="max-w-[1088px] mx-auto px-4 h-14 relative">
         {/* LOGO + TITLE (DESKTOP) */}
         <Link href="/" className="hidden md:flex absolute left-4 items-center gap-2 group flex-shrink-0 h-14">
           {logo_url ? (

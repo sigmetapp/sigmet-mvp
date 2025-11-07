@@ -38,7 +38,7 @@ export default function MobileBottomNav({ user }: BottomNavProps) {
             : 'bg-[rgba(15,22,35,0.9)] border-telegram-blue/20'
         }`}
       >
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-[1088px]">
           <div className="grid grid-cols-7 gap-2">
           {menu.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + '/');

@@ -40,7 +40,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
 
   return (
-    <aside className={`flex h-full w-64 flex-col border-r backdrop-blur-md transition-colors ${
+    <aside className={`flex h-full w-[218px] flex-col border-r backdrop-blur-md transition-colors ${
       isLight
         ? "border-telegram-blue/15 bg-white/90 text-telegram-text"
         : "border-telegram-blue/20 bg-[rgba(15,22,35,0.9)] text-telegram-text"
