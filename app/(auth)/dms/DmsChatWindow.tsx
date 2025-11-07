@@ -1707,7 +1707,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto smooth-scroll px-3 py-4"
+        className="flex-1 overflow-y-auto overflow-x-hidden smooth-scroll px-3 py-4"
       >
         <div ref={historySentinelRef} className="h-1 w-full" />
         {loadingOlderMessages && (
@@ -1831,7 +1831,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                         }`}
                       >
                         {/* Hover actions */}
-                        <div className={`absolute ${isMine ? 'left-1' : 'right-1'} -top-3 flex gap-1 opacity-0 group-hover:opacity-100 transition`}
+                        <div className={`absolute top-1 ${isMine ? 'right-2' : 'left-2'} z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition`}
                           style={{ pointerEvents: 'auto' }}
                         >
                           <button
