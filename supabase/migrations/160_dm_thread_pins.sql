@@ -94,6 +94,23 @@ limited_threads as (
   where rn > coalesce(p_offset, 0)
     and rn <= coalesce(p_offset, 0) + coalesce(p_limit, 20)
 ),
+last_read as (
+  select
+    lt.thread_id,
+    lt.last_read_message_id,
+    lt.last_read_at,
+    lr.created_at as last_read_message_created_at
+  from limited_threads lt
+  left join lateral (
+    select
+      m.created_at
+    from public.dms_messages m
+    where m.thread_id = lt.thread_id
+      and m.id::text = lt.last_read_message_id::text
+    order by m.created_at desc
+    limit 1
+  ) lr on true
+),
 partners as (
   select
     tp.thread_id,
@@ -139,17 +156,12 @@ unread as (
     count(*) as unread_count
   from public.dms_messages m
   join limited_threads lt on lt.thread_id = m.thread_id
+  left join last_read lr on lr.thread_id = lt.thread_id
   where m.deleted_at is null
     and m.sender_id <> p_user_id
     and (
-      lt.last_read_message_id is null
-      or (
-        case
-          when lt.last_read_message_id::text ~ '^[0-9]+$'
-            then m.id > (lt.last_read_message_id::text)::bigint
-          else true
-        end
-      )
+      coalesce(lr.last_read_message_created_at, lt.last_read_at) is null
+      or m.created_at > coalesce(lr.last_read_message_created_at, lt.last_read_at)
     )
   group by m.thread_id
 )
