@@ -42,8 +42,10 @@ export default function SearchInput({ className = "" }: { className?: string }) 
   const [isLoading, setIsLoading] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const modalInputRef = useRef<HTMLInputElement>(null);
   const { theme } = useTheme();
   const router = useRouter();
   const isLight = theme === "light";
@@ -102,18 +104,22 @@ export default function SearchInput({ className = "" }: { className?: string }) 
     if (e.key === "Enter" && query.trim()) {
       router.push(`/search?q=${encodeURIComponent(query.trim())}`);
       setIsOpen(false);
-      setIsFullScreen(false);
+      setIsModalOpen(false);
       setQuery("");
     } else if (e.key === "Escape") {
       setIsOpen(false);
-      setIsFullScreen(false);
+      setIsModalOpen(false);
       inputRef.current?.blur();
     }
   }
 
   function handleFocus() {
-    if (isMobile) {
-      setIsFullScreen(true);
+    if (isMobile && !isModalOpen) {
+      // On mobile, open modal instead of fullscreen
+      setIsModalOpen(true);
+      setTimeout(() => {
+        modalInputRef.current?.focus();
+      }, 100);
     }
     if (query.length >= 2) {
       setIsOpen(true);
@@ -123,10 +129,25 @@ export default function SearchInput({ className = "" }: { className?: string }) 
   function handleBlur() {
     // Delay to allow click events on results
     setTimeout(() => {
-      if (isMobile) {
-        setIsFullScreen(false);
-      }
+      // Don't close modal on blur, only on explicit close
     }, 200);
+  }
+
+  function handleSearchClick() {
+    if (query.trim()) {
+      router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+      setIsModalOpen(false);
+      setIsOpen(false);
+      setQuery("");
+      inputRef.current?.blur();
+    }
+  }
+
+  function handleCloseModal() {
+    setIsModalOpen(false);
+    setQuery("");
+    setIsOpen(false);
+    inputRef.current?.blur();
   }
 
   function handleClear() {
@@ -145,72 +166,124 @@ export default function SearchInput({ className = "" }: { className?: string }) 
 
   return (
     <>
-      {/* Full screen overlay for mobile */}
-      {isFullScreen && isMobile && (
+      {/* Modal overlay for mobile */}
+      {isModalOpen && isMobile && (
         <div
-          className="fixed inset-0 z-[100] md:hidden"
-          onClick={() => {
-            setIsFullScreen(false);
-            inputRef.current?.blur();
+          className="fixed inset-0 z-[100] md:hidden flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseModal();
+            }
           }}
         >
+          {/* Backdrop */}
           <div
-            className={`fixed inset-0 z-[101] ${isLight ? "bg-white" : "bg-[rgba(15,22,35,0.98)] backdrop-blur-md"}`}
+            className={`fixed inset-0 ${isLight ? "bg-black/50" : "bg-black/70"} backdrop-blur-sm`}
+            onClick={handleCloseModal}
+          />
+          
+          {/* Modal content */}
+          <div
+            className={`relative z-[101] w-full max-w-md rounded-xl shadow-2xl ${
+              isLight
+                ? "bg-white border border-telegram-blue/20"
+                : "bg-[rgba(15,22,35,0.98)] border border-telegram-blue/30 backdrop-blur-md"
+            }`}
             onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 p-4 border-b border-telegram-blue/20">
-              <Search
-                className={`${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}
-                size={20}
-              />
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                placeholder="Search people, posts, cities..."
-                autoFocus
-                className={`flex-1 py-3 text-base border-0 outline-none bg-transparent ${
-                  isLight
-                    ? "text-telegram-text placeholder:text-telegram-text-secondary"
-                    : "text-telegram-text placeholder:text-telegram-text-secondary"
-                }`}
-                style={{ fontSize: '16px' }} // Prevent zoom on mobile
-              />
-              {query && (
-                <button
-                  onClick={handleClear}
-                  className={`p-2 rounded ${
-                    isLight
-                      ? "text-telegram-text-secondary hover:bg-telegram-blue/10"
-                      : "text-telegram-text-secondary hover:bg-white/10"
-                  }`}
-                  aria-label="Clear search"
-                >
-                  <X size={20} />
-                </button>
-              )}
+            {/* Modal header with close button */}
+            <div className="flex items-center justify-between p-4 border-b border-telegram-blue/20">
+              <h2 className={`text-lg font-semibold ${
+                isLight ? "text-telegram-text" : "text-telegram-text"
+              }`}>
+                Search
+              </h2>
               <button
-                onClick={() => {
-                  setIsFullScreen(false);
-                  inputRef.current?.blur();
-                }}
-                className={`px-3 py-2 text-sm font-medium ${
+                onClick={handleCloseModal}
+                className={`p-2 rounded-lg transition ${
                   isLight
-                    ? "text-telegram-blue"
-                    : "text-telegram-blue-light"
+                    ? "text-telegram-text-secondary hover:bg-telegram-blue/10"
+                    : "text-telegram-text-secondary hover:bg-white/10"
                 }`}
+                aria-label="Close search"
               >
-                Cancel
+                <X size={20} />
               </button>
             </div>
-            {/* Results in full screen */}
+
+            {/* Search form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSearchClick();
+              }}
+              className="p-4"
+            >
+              <div className="relative mb-4">
+                <Search
+                  className={`absolute left-3 top-1/2 -translate-y-1/2 ${
+                    isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                  }`}
+                  size={20}
+                />
+                <input
+                  ref={modalInputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && query.trim()) {
+                      e.preventDefault();
+                      handleSearchClick();
+                    } else if (e.key === "Escape") {
+                      handleCloseModal();
+                    }
+                  }}
+                  placeholder="Search people, posts, cities..."
+                  autoFocus
+                  className={`w-full pl-10 pr-10 py-3 text-base rounded-lg border transition ${
+                    isLight
+                      ? "bg-white border-telegram-blue/20 text-telegram-text placeholder:text-telegram-text-secondary focus:border-telegram-blue focus:outline-none focus:ring-2 focus:ring-telegram-blue/20"
+                      : "bg-[rgba(255,255,255,0.05)] border-telegram-blue/30 text-telegram-text placeholder:text-telegram-text-secondary focus:border-telegram-blue focus:outline-none focus:ring-2 focus:ring-telegram-blue/30"
+                  }`}
+                  style={{ fontSize: '16px' }} // Prevent zoom on mobile
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded ${
+                      isLight
+                        ? "text-telegram-text-secondary hover:bg-telegram-blue/10"
+                        : "text-telegram-text-secondary hover:bg-white/10"
+                    }`}
+                    aria-label="Clear search"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+
+              {/* Search button */}
+              <button
+                type="submit"
+                disabled={!query.trim()}
+                className={`w-full py-3 px-4 rounded-lg font-medium transition ${
+                  query.trim()
+                    ? isLight
+                      ? "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                      : "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                    : isLight
+                    ? "bg-telegram-blue/20 text-telegram-text-secondary cursor-not-allowed"
+                    : "bg-telegram-blue/20 text-telegram-text-secondary cursor-not-allowed"
+                }`}
+              >
+                Search
+              </button>
+            </form>
+            {/* Results in modal */}
             {isOpen && query.length >= 2 && (
-              <div className="overflow-y-auto h-[calc(100vh-73px)]">
+              <div className="max-h-[300px] overflow-y-auto border-t border-telegram-blue/20">
                 {isLoading ? (
                   <div className={`px-4 py-3 text-sm ${
                     isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
@@ -239,7 +312,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                             href={`/u/${person.username || person.user_id}`}
                             onClick={() => {
                               setIsOpen(false);
-                              setIsFullScreen(false);
+                              setIsModalOpen(false);
                               setQuery("");
                             }}
                             className={`flex items-center gap-3 px-4 py-3 hover:bg-opacity-50 transition ${
@@ -293,7 +366,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                             href={`/post/${post.id}`}
                             onClick={() => {
                               setIsOpen(false);
-                              setIsFullScreen(false);
+                              setIsModalOpen(false);
                               setQuery("");
                             }}
                             className={`block px-4 py-3 hover:bg-opacity-50 transition ${
@@ -330,7 +403,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                             href={`/search?q=${encodeURIComponent(item.city)}&type=city`}
                             onClick={() => {
                               setIsOpen(false);
-                              setIsFullScreen(false);
+                              setIsModalOpen(false);
                               setQuery("");
                             }}
                             className={`flex items-center gap-3 px-4 py-3 hover:bg-opacity-50 transition ${
@@ -370,7 +443,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                             href={`/search?q=${encodeURIComponent(item.country)}&type=country`}
                             onClick={() => {
                               setIsOpen(false);
-                              setIsFullScreen(false);
+                              setIsModalOpen(false);
                               setQuery("");
                             }}
                             className={`flex items-center gap-3 px-4 py-3 hover:bg-opacity-50 transition ${
@@ -404,7 +477,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                         href={`/search?q=${encodeURIComponent(query)}`}
                         onClick={() => {
                           setIsOpen(false);
-                          setIsFullScreen(false);
+                          setIsModalOpen(false);
                           setQuery("");
                         }}
                         className={`block px-4 py-3 text-base text-center font-medium transition ${
@@ -442,9 +515,13 @@ export default function SearchInput({ className = "" }: { className?: string }) 
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onClick={(e) => {
-              // On mobile, clicking should also trigger focus to show fullscreen
-              if (isMobile && !isFullScreen) {
-                e.currentTarget.focus();
+              // On mobile, clicking should open modal
+              if (isMobile && !isModalOpen) {
+                e.preventDefault();
+                setIsModalOpen(true);
+                setTimeout(() => {
+                  modalInputRef.current?.focus();
+                }, 100);
               }
             }}
             placeholder="Search people, posts, cities..."
