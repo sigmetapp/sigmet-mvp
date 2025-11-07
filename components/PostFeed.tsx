@@ -1241,23 +1241,7 @@ export default function PostFeed({
                         </div>
                       </div>
                     </div>
-                    <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                      {/* Compact date on small screens, full on >= sm */}
-                      <span className="sm:hidden whitespace-nowrap">{formatPostDateShort(p.created_at)}</span>
-                      <span className="hidden sm:inline whitespace-nowrap">{formatPostDate(p.created_at)}</span>
-                      {uid === p.user_id && editingId !== p.id && (
-                        <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
-                          <PostActionMenu
-                            onEdit={() => {
-                              setEditingId(p.id);
-                              setEditBody(p.body || "");
-                            }}
-                            onDelete={() => deletePost(p)}
-                            className="ml-2"
-                          />
-                        </div>
-                      )}
-                    </div>
+                    {/* Right-side header tools moved to footer per design */}
                   </div>
 
                   {/* content */}
@@ -1435,22 +1419,40 @@ export default function PostFeed({
                       />
                     </div>
 
-                    <PostCommentsBadge
-                      count={commentCount}
-                      size="md"
-                      onOpen={() => {
-                        const willOpen = !openComments[p.id];
-                        setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
-                      }}
-                      onFocusComposer={() => {
-                        const composer = document.getElementById(`comment-composer-${p.id}`);
-                        if (composer) {
-                          composer.focus();
-                          composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        }
-                      }}
-                      className="ml-auto"
-                    />
+                    {/* Right group: date, comments, menu */}
+                    <div className="ml-auto flex items-center gap-3">
+                      <span className="text-xs whitespace-nowrap">
+                        <span className="sm:hidden">{formatPostDateShort(p.created_at)}</span>
+                        <span className="hidden sm:inline">{formatPostDate(p.created_at)}</span>
+                      </span>
+                      <PostCommentsBadge
+                        count={commentCount}
+                        size="md"
+                        onOpen={() => {
+                          const willOpen = !openComments[p.id];
+                          setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
+                        }}
+                        onFocusComposer={() => {
+                          const composer = document.getElementById(`comment-composer-${p.id}`);
+                          if (composer) {
+                            composer.focus();
+                            composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                          }
+                        }}
+                      />
+                      {uid === p.user_id && editingId !== p.id && (
+                        <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
+                          <PostActionMenu
+                            onEdit={() => {
+                              setEditingId(p.id);
+                              setEditBody(p.body || "");
+                            }}
+                            onDelete={() => deletePost(p)}
+                            className="ml-1"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Quick comment form only - no history */}
