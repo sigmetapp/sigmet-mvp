@@ -1112,7 +1112,7 @@ function DmsInner() {
   }, []);
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 h-[calc(100vh-120px)]">
+    <div className="flex flex-col md:flex-row gap-2 md:gap-4 h-[100dvh] md:h-[calc(100vh-120px)]">
       {toast && (
         <Toast
           message={toast.message}
