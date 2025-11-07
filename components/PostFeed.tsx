@@ -64,6 +64,20 @@ function formatPostDate(dateString: string): string {
   return `${datePart}, ${timePart}`;
 }
 
+function formatPostDateShort(dateString: string): string {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (dateOnly.getTime() === today.getTime()) {
+    return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
+  }
+  // Show short month and day; omit year to save space
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+}
+
 type Post = {
   id: number;
   user_id: string | null;
@@ -1228,7 +1242,9 @@ export default function PostFeed({
                       </div>
                     </div>
                     <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                      <span className="whitespace-nowrap">{formatPostDate(p.created_at)}</span>
+                      {/* Compact date on small screens, full on >= sm */}
+                      <span className="sm:hidden whitespace-nowrap">{formatPostDateShort(p.created_at)}</span>
+                      <span className="hidden sm:inline whitespace-nowrap">{formatPostDate(p.created_at)}</span>
                       {uid === p.user_id && editingId !== p.id && (
                         <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
                           <PostActionMenu
