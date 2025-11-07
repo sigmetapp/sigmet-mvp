@@ -141,6 +141,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const showOnlineStatusRef = useRef<boolean>(true);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
+  const [showNewBanner, setShowNewBanner] = useState(false);
+  const bannerHideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // In-chat search
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1130,6 +1132,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       if (atBottom) {
         // Clear new messages counter when user reaches bottom
         setNewMessagesCount(0);
+        setShowNewBanner(false);
       }
     };
 
@@ -1144,7 +1147,31 @@ export default function DmsChatWindow({ partnerId }: Props) {
     if (!container) return;
     container.scrollTop = container.scrollHeight;
     setNewMessagesCount(0);
+    setShowNewBanner(false);
   }, []);
+
+  // Auto-show/auto-hide banner with smooth animations
+  useEffect(() => {
+    if (newMessagesCount > 0 && !isAtBottom) {
+      setShowNewBanner(true);
+      if (bannerHideTimeoutRef.current) clearTimeout(bannerHideTimeoutRef.current);
+      bannerHideTimeoutRef.current = setTimeout(() => {
+        setShowNewBanner(false);
+      }, 5000);
+    } else {
+      setShowNewBanner(false);
+      if (bannerHideTimeoutRef.current) {
+        clearTimeout(bannerHideTimeoutRef.current);
+        bannerHideTimeoutRef.current = null;
+      }
+    }
+    return () => {
+      if (bannerHideTimeoutRef.current) {
+        clearTimeout(bannerHideTimeoutRef.current);
+        bannerHideTimeoutRef.current = null;
+      }
+    };
+  }, [newMessagesCount, isAtBottom]);
 
   // Reset scroll trackers when thread changes
   useEffect(() => {
@@ -1956,17 +1983,35 @@ export default function DmsChatWindow({ partnerId }: Props) {
       </div>
 
       {/* New messages banner */}
-      {newMessagesCount > 0 && !isAtBottom && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
+      <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2">
+        <div
+          className={[
+            'transition-all duration-300 ease-out transform',
+            showNewBanner && newMessagesCount > 0 && !isAtBottom
+              ? 'opacity-100 translate-y-0'
+              : 'opacity-0 translate-y-2',
+          ].join(' ')}
+          onMouseEnter={() => {
+            if (bannerHideTimeoutRef.current) {
+              clearTimeout(bannerHideTimeoutRef.current);
+              bannerHideTimeoutRef.current = null;
+            }
+          }}
+          onMouseLeave={() => {
+            if (!isAtBottom && newMessagesCount > 0) {
+              bannerHideTimeoutRef.current = setTimeout(() => setShowNewBanner(false), 3000);
+            }
+          }}
+        >
           <button
             type="button"
             onClick={handleJumpToBottom}
-            className="px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-200 text-xs font-medium shadow-md hover:bg-blue-500/25 transition"
+            className="pointer-events-auto px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-200 text-xs font-medium shadow-md hover:bg-blue-500/25 active:scale-[0.98] transition"
           >
             {newMessagesCount} new message{newMessagesCount === 1 ? '' : 's'} — Jump to bottom
           </button>
         </div>
-      )}
+      </div>
 
 
       {/* In-chat search bar */}
