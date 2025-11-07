@@ -1304,37 +1304,86 @@ function DmsInner() {
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
+                              <div className="flex items-center gap-1.5 opacity-0 transition group-hover:opacity-100 flex-shrink-0">
                                 <button
                                   type="button"
+                                  aria-label={partner.is_pinned ? 'Unpin' : 'Pin'}
+                                  title={partner.is_pinned ? 'Unpin' : 'Pin'}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     void handleTogglePin(partner);
                                   }}
-                                  className="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/15"
+                                  className="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/15 inline-flex items-center gap-1"
                                 >
-                                  {partner.is_pinned ? 'Unpin' : 'Pin'}
+                                  {/* Pin icon */}
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
+                                    className="h-4 w-4"
+                                  >
+                                    <path d="M14.7 4.8l4.5 4.5c.3.3.3.8 0 1.1l-2.1 2.1c-.2.2-.3.5-.2.8l.5 2.3c.1.5-.4 1-.9.9l-2.3-.5c-.3-.1-.6 0-.8.2l-2.1 2.1c-.3.3-.8.3-1.1 0L5.8 14.7c-.3-.3-.3-.8 0-1.1l2.1-2.1c.2-.2.3-.5.2-.8l-.5-2.3c-.1-.5.4-1 .9-.9l2.3.5c.3.1.6 0 .8-.2l2.1-2.1c.3-.3.8-.3 1.1 0z" />
+                                  </svg>
+                                  <span className="hidden md:inline">
+                                    {partner.is_pinned ? 'Unpin' : 'Pin'}
+                                  </span>
                                 </button>
                                 <button
                                   type="button"
+                                  aria-label={partner.notifications_muted ? 'Unmute' : 'Mute'}
+                                  title={partner.notifications_muted ? 'Unmute' : 'Mute'}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     void handleToggleMute(partner);
                                   }}
-                                  className="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/15"
+                                  className="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/15 inline-flex items-center gap-1"
                                 >
-                                  {partner.notifications_muted ? 'Unmute' : 'Mute'}
+                                  {/* Bell/Mute icon */}
+                                  {partner.notifications_muted ? (
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 24 24"
+                                      fill="currentColor"
+                                      className="h-4 w-4"
+                                    >
+                                      <path d="M18 8a6 6 0 10-9.33 5H5l-.94.34a1 1 0 00.32 1.94H20a1 1 0 00.32-1.94L19 13h-1.67A5.98 5.98 0 0018 8zm-6 13a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                                      <path d="M4 4l16 16" stroke="currentColor" strokeWidth="2" />
+                                    </svg>
+                                  ) : (
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 24 24"
+                                      fill="currentColor"
+                                      className="h-4 w-4"
+                                    >
+                                      <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9zm-6 13a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                                    </svg>
+                                  )}
+                                  <span className="hidden md:inline">
+                                    {partner.notifications_muted ? 'Unmute' : 'Mute'}
+                                  </span>
                                 </button>
                                 {partner.unread_count > 0 && partner.last_message_id && (
                                   <button
                                     type="button"
+                                    aria-label="Mark read"
+                                    title="Mark read"
                                     onClick={(event) => {
                                       event.stopPropagation();
                                         void markPartnerAsRead(partner);
                                     }}
-                                    className="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/15"
+                                    className="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/15 inline-flex items-center gap-1"
                                   >
-                                    Mark read
+                                    {/* Check icon */}
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 24 24"
+                                      fill="currentColor"
+                                      className="h-4 w-4"
+                                    >
+                                      <path d="M9 16.2l-3.5-3.5L4 14.2 9 19l12-12-1.5-1.5z" />
+                                    </svg>
+                                    <span className="hidden md:inline">Mark read</span>
                                   </button>
                                 )}
                               </div>
