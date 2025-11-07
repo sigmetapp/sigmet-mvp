@@ -46,6 +46,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const modalInputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
   const router = useRouter();
   const isLight = theme === "light";
@@ -64,14 +65,24 @@ export default function SearchInput({ className = "" }: { className?: string }) 
   // Close on outside click
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
-      if (!containerRef.current) return;
-      if (!containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      
+      // Close regular dropdown if click is outside container
+      if (containerRef.current && !containerRef.current.contains(target)) {
         setIsOpen(false);
+      }
+      
+      // Close modal if click is outside modal (on mobile)
+      if (isModalOpen && isMobile && modalRef.current && !modalRef.current.contains(target)) {
+        setIsModalOpen(false);
+        setQuery("");
+        setIsOpen(false);
+        inputRef.current?.blur();
       }
     }
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
-  }, []);
+  }, [isModalOpen, isMobile]);
 
   // Search debounce
   useEffect(() => {
@@ -184,6 +195,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
           
           {/* Modal content */}
           <div
+            ref={modalRef}
             className={`relative z-[101] w-full max-w-md rounded-xl shadow-2xl ${
               isLight
                 ? "bg-white border border-telegram-blue/20"

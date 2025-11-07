@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import type { User } from '@supabase/supabase-js';
+import { Trophy, Rss, User, Users, MessageSquare, Sprout, Settings as SettingsIcon } from 'lucide-react';
 import NavItem from './NavItem';
 import { useTheme } from '@/components/ThemeProvider';
 
@@ -11,13 +12,13 @@ export type SidebarProps = {
 const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
 
 const menu = [
-  { label: 'SW', href: '/sw', icon: '🏆', bordered: true },
-  { label: 'Feeds', href: '/feed', icon: '📜' },
-  { label: 'Page', href: '/page', icon: '👤' },
-  { label: 'Connections/Follow', href: '/connections', icon: '🔗' },
-  { label: 'Messages', href: '/dms', icon: '✉️', badgeKey: 'unreadDM' as const },
-  { label: 'Growth 8', href: '/growth-directions', icon: '🌱' },
-  { label: 'Settings', href: '/profile', icon: '⚙️' },
+  { label: 'SW', href: '/sw', icon: <Trophy size={18} />, bordered: true },
+  { label: 'Feeds', href: '/feed', icon: <Rss size={18} /> },
+  { label: 'Page', href: '/page', icon: <User size={18} /> },
+  { label: 'Connections/Follow', href: '/connections', icon: <Users size={18} /> },
+  { label: 'Messages', href: '/dms', icon: <MessageSquare size={18} />, badgeKey: 'unreadDM' as const },
+  { label: 'Growth 8', href: '/growth-directions', icon: <Sprout size={18} /> },
+  { label: 'Settings', href: '/profile', icon: <SettingsIcon size={18} /> },
 ];
 
 const adminMenu = [
