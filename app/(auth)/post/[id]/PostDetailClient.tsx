@@ -715,7 +715,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         commentsCount: undefined, // Hide comment count in PostCard header
       }}
       disableNavigation
-      className={`select-text ${isLight ? '!bg-white !border-slate-200' : ''}`}
+      className={`select-text ${isLight ? '!bg-white !border-slate-200' : '!bg-slate-900 !border-slate-800'}`}
       renderContent={(postCardPost, defaultContent) => (
         <div className="relative z-10 flex flex-col gap-2">
           {/* Header with avatar and clickable nickname */}

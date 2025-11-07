@@ -1287,16 +1287,41 @@ export default function PostFeed({
                         </div>
                       )}
                       {p.video_url && (
-                        <div className="mt-3 flex justify-center w-full">
-                          <video 
-                            controls 
-                            preload="metadata"
-                            poster={p.image_url || undefined}
-                            className={`w-full max-w-full max-h-[500px] h-auto rounded-none border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
-                            style={{ objectFit: 'contain' }}
-                          >
-                            <source src={p.video_url} />
-                          </video>
+                        <div className="mt-3 flex justify-center w-full relative">
+                          <div className="relative w-full max-w-full" style={{ maxHeight: '500px' }}>
+                            <video 
+                              controls 
+                              preload="metadata"
+                              poster={p.image_url || undefined}
+                              className={`w-full max-w-full max-h-[500px] h-auto rounded-none border relative ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                              style={{ objectFit: 'contain' }}
+                              onLoadedMetadata={(e) => {
+                                // Once video metadata is loaded, hide the placeholder
+                                const target = e.currentTarget;
+                                const placeholder = target.parentElement?.querySelector('.video-placeholder');
+                                if (placeholder) {
+                                  (placeholder as HTMLElement).style.display = 'none';
+                                }
+                              }}
+                              onPlay={(e) => {
+                                // Hide placeholder when video starts playing
+                                const target = e.currentTarget;
+                                const placeholder = target.parentElement?.querySelector('.video-placeholder');
+                                if (placeholder) {
+                                  (placeholder as HTMLElement).style.display = 'none';
+                                }
+                              }}
+                            >
+                              <source src={p.video_url} />
+                            </video>
+                            {!p.image_url && (
+                              <div className={`video-placeholder absolute inset-0 flex items-center justify-center pointer-events-none z-10 ${isLight ? "bg-slate-100/80" : "bg-slate-900/80"}`}>
+                                <svg className={`w-16 h-16 ${isLight ? "text-slate-400" : "text-white/50"}`} fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z"/>
+                                </svg>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
