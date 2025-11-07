@@ -48,6 +48,7 @@ create function public.dms_list_partners(
     last_message_body text,
     last_message_kind text,
     last_message_sender_id uuid,
+  last_message_attachments jsonb,
     last_message_at timestamptz,
     messages24h integer,
     unread_count integer,
@@ -126,6 +127,7 @@ partners as (
       lm.body,
       lm.kind,
       lm.sender_id,
+      lm.attachments,
       lm.created_at
     from limited_threads lt
     left join lateral (
@@ -134,6 +136,7 @@ partners as (
         m.body,
         m.kind,
         m.sender_id,
+        m.attachments,
         m.created_at
       from public.dms_messages m
       where m.thread_id = lt.thread_id
@@ -175,6 +178,7 @@ select
     lm.body,
     lm.kind,
     lm.sender_id,
+  coalesce(lm.attachments, '[]'::jsonb) as last_message_attachments,
     coalesce(lm.created_at, lt.last_message_at) as last_message_at,
   coalesce(m24.cnt, 0) as messages24h,
   coalesce(u.unread_count, 0) as unread_count,

@@ -8,6 +8,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import DmsChatWindow from './DmsChatWindow';
 import Toast from '@/components/Toast';
 import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
+import type { DmAttachment } from '@/lib/dm/attachments';
 
 export default function DmsPage() {
   return (
@@ -31,6 +32,7 @@ type PartnerListItem = {
   last_message_body: string | null;
   last_message_kind: string | null;
   last_message_sender_id: string | null;
+  last_message_attachments: DmAttachment[];
   unread_count: number;
   is_pinned: boolean;
   pinned_at: string | null;
@@ -107,6 +109,11 @@ function normalizePartner(raw: PartnerLike): PartnerListItem {
       ? String(raw.last_read_message_id)
       : null;
 
+  const attachments =
+    Array.isArray(raw.last_message_attachments) && raw.last_message_attachments.length > 0
+      ? (raw.last_message_attachments as DmAttachment[])
+      : [];
+
   return {
     user_id: raw.user_id,
     username: raw.username ?? null,
@@ -126,6 +133,7 @@ function normalizePartner(raw: PartnerLike): PartnerListItem {
     last_message_body: raw.last_message_body ?? null,
     last_message_kind: raw.last_message_kind ?? null,
     last_message_sender_id: raw.last_message_sender_id ?? null,
+    last_message_attachments: attachments,
     unread_count:
       typeof raw.unread_count === 'number'
         ? raw.unread_count
@@ -168,26 +176,71 @@ function formatRelativeTime(value: string | null): string {
   return date.toLocaleDateString();
 }
 
-function deriveMessagePreview(partner: PartnerListItem, currentUserId: string | null): string {
+function truncatePreview(text: string, max = 64): string {
+  if (text.length <= max) {
+    return text;
+  }
+  return `${text.slice(0, max - 1)}…`;
+}
+
+function getAttachmentPreviewMeta(attachments: DmAttachment[]): { icon: string; text: string } {
+  const first = attachments[0];
+  if (!first) {
+    return { icon: '📎', text: 'Attachment' };
+  }
+  switch (first.type) {
+    case 'image':
+      return { icon: '🖼️', text: first.originalName ?? 'Photo' };
+    case 'video':
+      return { icon: '🎬', text: first.originalName ?? 'Video' };
+    case 'audio':
+      return { icon: '🎙️', text: first.originalName ?? 'Voice message' };
+    default:
+      return { icon: '📎', text: first.originalName ?? 'Attachment' };
+  }
+}
+
+type PreviewMeta = {
+  text: string;
+  icon?: string;
+};
+
+function deriveMessagePreview(partner: PartnerListItem, currentUserId: string | null): PreviewMeta {
+  const attachments = partner.last_message_attachments ?? [];
   const isSystem = partner.last_message_kind === 'system';
   let text = partner.last_message_body ?? '';
   text = text.replace(/\u200B/g, '').trim();
 
+  if (attachments.length > 0) {
+    const attachmentMeta = getAttachmentPreviewMeta(attachments);
+    let attachmentText = attachmentMeta.text;
+    if (partner.last_message_sender_id && partner.last_message_sender_id === currentUserId) {
+      attachmentText = `You: ${attachmentText}`;
+    }
+    return {
+      icon: attachmentMeta.icon,
+      text: truncatePreview(attachmentText),
+    };
+  }
+
   if (!text) {
     if (isSystem) {
       text = 'System message';
-    } else if (partner.last_message_id) {
-      text = 'Attachment';
+    } else if (partner.thread_id) {
+      text = 'No messages yet';
     } else {
-      text = partner.thread_id ? 'No messages yet' : 'Start a conversation';
+      text = 'Start a conversation';
     }
   }
 
   if (partner.last_message_sender_id && partner.last_message_sender_id === currentUserId) {
-    return `You: ${text}`;
+    text = `You: ${text}`;
   }
 
-  return text;
+  return {
+    icon: isSystem ? '⚙️' : undefined,
+    text: truncatePreview(text),
+  };
 }
 
 type PresenceStatus = 'online' | 'recent' | 'offline';
@@ -245,6 +298,7 @@ function DmsInner() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const listContainerRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map<string, HTMLDivElement>());
+  const markReadInFlightRef = useRef<Set<string>>(new Set());
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -852,6 +906,14 @@ function DmsInner() {
     [moveHighlight]
   );
 
+  useEffect(() => {
+    if (!selectedPartnerId) return;
+    const partner = flatPartners.find((item) => item.user_id === selectedPartnerId);
+    if (partner && partner.unread_count > 0) {
+      void markPartnerAsRead(partner, { silent: true });
+    }
+  }, [selectedPartnerId, flatPartners, markPartnerAsRead]);
+
   const handleRefresh = useCallback(() => {
     if (fetchInFlightRef.current) return;
     setError(null);
@@ -953,12 +1015,27 @@ function DmsInner() {
     [applyPartnerUpdate]
   );
 
-  const handleMarkAsRead = useCallback(
-    async (partner: PartnerListItem) => {
+  const markPartnerAsRead = useCallback(
+    async (partner: PartnerListItem, options: { silent?: boolean } = {}) => {
       if (!partner.thread_id || !partner.last_message_id) return;
+      if (partner.unread_count <= 0) {
+        if (!options.silent) {
+          setToast({
+            message: 'No unread messages remaining',
+            type: 'info',
+          });
+        }
+        return;
+      }
       const upToId = Number(partner.last_message_id);
       if (!Number.isFinite(upToId)) return;
-      setError(null);
+      if (markReadInFlightRef.current.has(partner.user_id)) {
+        return;
+      }
+      markReadInFlightRef.current.add(partner.user_id);
+      if (!options.silent) {
+        setError(null);
+      }
       try {
         const response = await fetch('/api/dms/messages.read', {
           method: 'POST',
@@ -984,17 +1061,23 @@ function DmsInner() {
           last_read_message_id: lastReadId,
           last_read_at: new Date().toISOString(),
         }));
-        setToast({
-          message: 'All messages marked as read',
-          type: 'success',
-        });
+        if (!options.silent) {
+          setToast({
+            message: 'All messages marked as read',
+            type: 'success',
+          });
+        }
       } catch (err: any) {
         console.error('Failed to mark conversation as read', err);
-        setError(err?.message || 'Failed to mark conversation as read');
-        setToast({
-          message: err?.message || 'Failed to mark conversation as read',
-          type: 'error',
-        });
+        if (!options.silent) {
+          setError(err?.message || 'Failed to mark conversation as read');
+          setToast({
+            message: err?.message || 'Failed to mark conversation as read',
+            type: 'error',
+          });
+        }
+      } finally {
+        markReadInFlightRef.current.delete(partner.user_id);
       }
     },
     [applyPartnerUpdate]
@@ -1095,7 +1178,7 @@ function DmsInner() {
                           const avatar = partner.avatar_url || AVATAR_FALLBACK;
                           const isSelected = selectedPartnerId === partner.user_id;
                           const isHighlighted = highlightedPartnerId === partner.user_id;
-                          const preview = deriveMessagePreview(partner, currentUserId);
+                          const previewMeta = deriveMessagePreview(partner, currentUserId);
                           const timestampLabel = formatRelativeTime(
                             partner.last_message_at ?? partner.created_at
                           );
@@ -1110,7 +1193,7 @@ function DmsInner() {
                             presenceStatus === 'online'
                               ? 'Online'
                               : presenceStatus === 'recent'
-                                ? 'Recently active'
+                                ? 'Active recently'
                                 : 'Offline';
 
                           return (
@@ -1172,10 +1255,21 @@ function DmsInner() {
                                           className={`h-2 w-2 rounded-full ${presenceClasses}`}
                                           aria-hidden="true"
                                         />
-                                        <span>{presenceStatus === 'online' ? 'Online' : presenceStatus === 'recent' ? 'Active' : 'Offline'}</span>
+                                          <span>
+                                            {presenceStatus === 'online'
+                                              ? 'Online'
+                                              : presenceStatus === 'recent'
+                                                ? 'Active recently'
+                                                : 'Offline'}
+                                          </span>
                                       </span>
                                     </div>
-                                    <div className="text-xs text-white/55 truncate">{preview}</div>
+                                      <div className="text-xs text-white/55 flex items-center gap-1 truncate">
+                                        {previewMeta.icon && (
+                                          <span aria-hidden="true">{previewMeta.icon}</span>
+                                        )}
+                                        <span className="truncate">{previewMeta.text}</span>
+                                      </div>
                                     <div className="mt-1 flex flex-wrap gap-2">
                                       {partner.unread_count > 0 && (
                                         <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-cyan-500/20 px-2 py-0.5 text-xs font-semibold text-cyan-200 border border-cyan-500/40">
@@ -1232,7 +1326,7 @@ function DmsInner() {
                                     type="button"
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      void handleMarkAsRead(partner);
+                                        void markPartnerAsRead(partner);
                                     }}
                                     className="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/15"
                                   >

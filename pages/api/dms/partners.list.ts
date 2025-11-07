@@ -18,6 +18,7 @@ import { getAuthedClient } from '@/lib/dm/supabaseServer';
     last_message_body: string | null;
     last_message_kind: string | null;
     last_message_sender_id: string | null;
+    last_message_attachments: unknown[] | null;
     unread_count: number;
     is_pinned: boolean;
     pinned_at: string | null;
@@ -82,6 +83,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             last_message_body: row.last_message_body ?? null,
             last_message_kind: row.last_message_kind ?? null,
             last_message_sender_id: row.last_message_sender_id ?? null,
+            last_message_attachments: Array.isArray(row.last_message_attachments)
+              ? row.last_message_attachments
+              : [],
             unread_count: typeof row.unread_count === 'number' ? row.unread_count : Number(row.unread_count ?? 0),
             is_pinned: Boolean(row.is_pinned),
             pinned_at: row.pinned_at ?? null,
@@ -159,6 +163,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 last_message_body: null,
                 last_message_kind: null,
                 last_message_sender_id: null,
+              last_message_attachments: [],
                 unread_count: 0,
                 is_pinned: false,
                 pinned_at: null,
