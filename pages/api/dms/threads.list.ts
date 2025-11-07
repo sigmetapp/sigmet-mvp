@@ -7,13 +7,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { client, user } = await getAuthedClient(req);
 
-    // Try to select with last_read_message_id; if the column doesn't exist in DB,
-    // fall back to a selection without it to remain compatible with older schemas.
-    let rows: any[] | null = null;
-    {
-      const { data, error } = await client
-        .from('dms_thread_participants')
-        .select(`
+      const selectVariants = [
+        `
+          thread_id,
+          role,
+          last_read_message_id,
+          last_read_at,
+          notifications_muted,
+          mute_until,
+          is_pinned,
+          pinned_at,
+          thread:dms_threads(
+            id, created_by, is_group, title, created_at, last_message_at
+          )
+        `,
+        `
+          thread_id,
+          role,
+          last_read_message_id,
+          last_read_at,
+          notifications_muted,
+          thread:dms_threads(
+            id, created_by, is_group, title, created_at, last_message_at
+          )
+        `,
+        `
           thread_id,
           role,
           last_read_message_id,
@@ -21,48 +39,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           thread:dms_threads(
             id, created_by, is_group, title, created_at, last_message_at
           )
-        `)
-        .eq('user_id', user.id);
+        `,
+        `
+          thread_id,
+          role,
+          notifications_muted,
+          thread:dms_threads(
+            id, created_by, is_group, title, created_at, last_message_at
+          )
+        `,
+        `
+          thread_id,
+          role,
+          thread:dms_threads(
+            id, created_by, is_group, title, created_at, last_message_at
+          )
+        `,
+      ];
 
-      if (!error) {
-        rows = data || [];
-      } else {
-        const msg = String(error.message || '').toLowerCase();
-        if (msg.includes('notifications_muted')) {
-          // Fallback: older schemas may not have notifications_muted
-          const { data: data2, error: err2 } = await client
-            .from('dms_thread_participants')
-            .select(`
-              thread_id,
-              role,
-              last_read_message_id,
-              thread:dms_threads(
-                id, created_by, is_group, title, created_at, last_message_at
-              )
-            `)
-            .eq('user_id', user.id);
-          if (err2) return res.status(400).json({ ok: false, error: err2.message });
-          rows = data2 || [];
-        } else if (msg.includes('last_read_message_id')) {
-          // Fallback: older schemas may not have last_read_message_id
-          const { data: data3, error: err3 } = await client
-            .from('dms_thread_participants')
-            .select(`
-              thread_id,
-              role,
-              notifications_muted,
-              thread:dms_threads(
-                id, created_by, is_group, title, created_at, last_message_at
-              )
-            `)
-            .eq('user_id', user.id);
-          if (err3) return res.status(400).json({ ok: false, error: err3.message });
-          rows = data3 || [];
-        } else {
-          return res.status(400).json({ ok: false, error: error.message });
+      let rows: any[] | null = null;
+      let lastError: any = null;
+
+      for (const selection of selectVariants) {
+        const { data, error } = await client
+          .from('dms_thread_participants')
+          .select(selection)
+          .eq('user_id', user.id);
+
+        if (!error) {
+          rows = data || [];
+          lastError = null;
+          break;
         }
-      }
+
+        lastError = error;
     }
+
+      if (!rows) {
+        return res.status(400).json({ ok: false, error: lastError?.message || 'Failed to load threads' });
+      }
 
     // Compute unread counts per thread. Prefer last_read_message_id when available;
     // otherwise fall back to counting 'delivered' receipts for this user in the thread.
@@ -70,7 +85,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     for (const r of rows || []) {
       const thread = r.thread;
       if (!thread) continue;
-      let unreadCount = 0;
+        let unreadCount = 0;
+        const notificationsMuted = r.notifications_muted ?? false;
+        const muteUntil = r.mute_until ?? null;
+        const isPinned = r.is_pinned ?? false;
+        const pinnedAt = r.pinned_at ?? null;
+        const lastReadAt = r.last_read_at ?? null;
+
       if (typeof r.last_read_message_id === 'number') {
         const lastReadId: number = r.last_read_message_id ?? 0;
         const { count } = await client
@@ -112,7 +133,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           thread_id: r.thread_id,
           role: r.role,
           last_read_message_id: r.last_read_message_id,
-          notifications_muted: r.notifications_muted ?? false,
+            last_read_at: lastReadAt,
+            notifications_muted: notificationsMuted,
+            mute_until: muteUntil,
+            is_pinned: Boolean(isPinned),
+            pinned_at: pinnedAt,
         },
         unread_count: unreadCount,
       });

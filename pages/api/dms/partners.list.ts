@@ -1,21 +1,32 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
 
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 50;
-const MUTUAL_SUGGESTION_LIMIT = 20;
+  const DEFAULT_LIMIT = 20;
+  const MAX_LIMIT = 50;
+  const MUTUAL_SUGGESTION_LIMIT = 20;
 
-type PartnerResponse = {
-  user_id: string;
-  username: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  thread_id: number | null;
-  messages24h: number | null;
-  last_message_at: string | null;
-  created_at: string | null;
-  source: 'thread' | 'mutual';
-};
+  type PartnerResponse = {
+    user_id: string;
+    username: string | null;
+    full_name: string | null;
+    avatar_url: string | null;
+    thread_id: number | null;
+    messages24h: number | null;
+    last_message_at: string | null;
+    created_at: string | null;
+    last_message_id: number | null;
+    last_message_body: string | null;
+    last_message_kind: string | null;
+    last_message_sender_id: string | null;
+    unread_count: number;
+    is_pinned: boolean;
+    pinned_at: string | null;
+    notifications_muted: boolean;
+    mute_until: string | null;
+    last_read_message_id: number | null;
+    last_read_at: string | null;
+    source: 'thread' | 'mutual';
+  };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -29,122 +40,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const offsetParam = Number.parseInt(String(req.query.offset ?? ''), 10);
     const includeMutualParam = String(req.query.include_mutual ?? 'true').toLowerCase() !== 'false';
 
-    const limit = Number.isFinite(limitParam)
-      ? Math.min(Math.max(limitParam, 1), MAX_LIMIT)
-      : DEFAULT_LIMIT;
-    const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
+      const limit = Number.isFinite(limitParam)
+        ? Math.min(Math.max(limitParam, 1), MAX_LIMIT)
+        : DEFAULT_LIMIT;
+      const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
 
-    // Fetch thread-based partners
-    const rangeStart = offset;
-    const rangeEnd = offset + limit;
+      const fetchLimit = limit + 1;
+      const { data: threadData, error: threadError } = await client.rpc('dms_list_partners', {
+        p_user_id: user.id,
+        p_limit: fetchLimit,
+        p_offset: offset,
+      });
 
-    const { data: threadRows, error: threadError } = await client
-      .from('dms_threads')
-      .select(
-        `
-          id,
-          created_at,
-          last_message_at,
-          participants:dms_thread_participants!inner (
-            user_id
-          )
-        `
-      )
-      .eq('is_group', false)
-      .eq('participants.user_id', user.id)
-      .order('last_message_at', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false })
-      .range(rangeStart, rangeEnd);
+      if (threadError) {
+        return res.status(400).json({ ok: false, error: threadError.message });
+      }
 
-    if (threadError) {
-      return res.status(400).json({ ok: false, error: threadError.message });
-    }
+      const rows = Array.isArray(threadData) ? threadData : [];
+      const hasMoreThreads = rows.length > limit;
+      const trimmedRows = rows.slice(0, limit);
 
-    const fetchedThreads = threadRows ?? [];
-    const threadPartners = fetchedThreads
-      .map((row) => {
-        const participants = Array.isArray(row.participants) ? row.participants : [];
-        const partner = participants
-          .map((p) => p?.user_id as string | null)
-          .find((pid) => pid && pid !== user.id);
-
-        if (!partner) {
-          return null;
-        }
-
-        const rawId = row.id;
-        const threadId = typeof rawId === 'number' ? rawId : Number(rawId);
-        if (!Number.isFinite(threadId)) {
-          return null;
-        }
+      const partners: PartnerResponse[] = trimmedRows.map((row) => {
+        const rawThreadId = row.thread_id;
+        const threadId = typeof rawThreadId === 'number' ? rawThreadId : rawThreadId ? Number(rawThreadId) : null;
+        const rawLastMessageId = row.last_message_id;
+        const lastMessageId =
+          typeof rawLastMessageId === 'number' ? rawLastMessageId : rawLastMessageId ? Number(rawLastMessageId) : null;
+        const rawLastReadId = row.last_read_message_id;
+        const lastReadId =
+          typeof rawLastReadId === 'number' ? rawLastReadId : rawLastReadId ? Number(rawLastReadId) : null;
+        const partnerId = row.partner_id as string | null;
 
         return {
-          threadId,
-          partnerId: partner,
-          created_at: row.created_at ?? null,
+          user_id: partnerId ?? '',
+          username: row.partner_username ?? null,
+          full_name: row.partner_full_name ?? null,
+          avatar_url: row.partner_avatar_url ?? null,
+          thread_id: threadId,
+          messages24h: typeof row.messages24h === 'number' ? row.messages24h : Number(row.messages24h ?? 0),
           last_message_at: row.last_message_at ?? null,
+          created_at: row.thread_created_at ?? null,
+          last_message_id: lastMessageId,
+          last_message_body: row.last_message_body ?? null,
+          last_message_kind: row.last_message_kind ?? null,
+          last_message_sender_id: row.last_message_sender_id ?? null,
+          unread_count: typeof row.unread_count === 'number' ? row.unread_count : Number(row.unread_count ?? 0),
+          is_pinned: Boolean(row.is_pinned),
+          pinned_at: row.pinned_at ?? null,
+          notifications_muted: Boolean(row.notifications_muted),
+          mute_until: row.mute_until ?? null,
+          last_read_message_id: lastReadId,
+          last_read_at: row.last_read_at ?? null,
+          source: 'thread',
         };
-      })
-      .filter((entry): entry is { threadId: number; partnerId: string; created_at: string | null; last_message_at: string | null } => !!entry);
+      }).filter((partner) => partner.user_id);
 
-    const hasMoreThreads = fetchedThreads.length > limit;
-    const trimmedThreadPartners = threadPartners.slice(0, limit);
-
-    const partnerIds = Array.from(new Set(trimmedThreadPartners.map((entry) => entry.partnerId)));
-    const { data: profileRows, error: profileError } = partnerIds.length
-      ? await client
-        .from('profiles')
-        .select('user_id, username, full_name, avatar_url')
-        .in('user_id', partnerIds)
-      : { data: [], error: null };
-
-    if (profileError) {
-      return res.status(400).json({ ok: false, error: profileError.message });
-    }
-
-    const profileMap = new Map<string, { username: string | null; full_name: string | null; avatar_url: string | null }>();
-    for (const profile of profileRows ?? []) {
-      profileMap.set(profile.user_id, {
-        username: profile.username ?? null,
-        full_name: profile.full_name ?? null,
-        avatar_url: profile.avatar_url ?? null,
-      });
-    }
-
-    const last24hIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const messageCountMap = new Map<number, number>();
-
-    await Promise.all(
-      trimmedThreadPartners.map(async ({ threadId }) => {
-        const { count, error } = await client
-          .from('dms_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('thread_id', threadId)
-          .is('deleted_at', null)
-          .gte('created_at', last24hIso);
-
-        if (!error) {
-          messageCountMap.set(threadId, count ?? 0);
-        } else {
-          messageCountMap.set(threadId, 0);
-        }
-      })
-    );
-
-    const partners: PartnerResponse[] = trimmedThreadPartners.map(({ threadId, partnerId, created_at, last_message_at }) => {
-      const profile = profileMap.get(partnerId) ?? { username: null, full_name: null, avatar_url: null };
-      return {
-        user_id: partnerId,
-        username: profile.username,
-        full_name: profile.full_name,
-        avatar_url: profile.avatar_url,
-        thread_id: threadId,
-        messages24h: messageCountMap.get(threadId) ?? 0,
-        last_message_at,
-        created_at,
-        source: 'thread',
-      };
-    });
+      const partnerIds = new Set(partners.map((p) => p.user_id));
 
     // Optional mutual follow suggestions (only for first page)
     if (includeMutualParam && offset === 0) {
@@ -189,26 +140,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        if (mutualIds.length > 0) {
-          const { data: mutualProfiles } = await client
-            .from('profiles')
-            .select('user_id, username, full_name, avatar_url')
-            .in('user_id', mutualIds);
+          if (mutualIds.length > 0) {
+            const { data: mutualProfiles } = await client
+              .from('profiles')
+              .select('user_id, username, full_name, avatar_url')
+              .in('user_id', mutualIds);
 
-          for (const profile of mutualProfiles ?? []) {
-            partners.push({
-              user_id: profile.user_id,
-              username: profile.username ?? null,
-              full_name: profile.full_name ?? null,
-              avatar_url: profile.avatar_url ?? null,
-              thread_id: null,
-              messages24h: null,
-              last_message_at: null,
-              created_at: null,
-              source: 'mutual',
-            });
+            for (const profile of mutualProfiles ?? []) {
+              partners.push({
+                user_id: profile.user_id,
+                username: profile.username ?? null,
+                full_name: profile.full_name ?? null,
+                avatar_url: profile.avatar_url ?? null,
+                thread_id: null,
+                messages24h: null,
+                last_message_at: null,
+                created_at: null,
+                last_message_id: null,
+                last_message_body: null,
+                last_message_kind: null,
+                last_message_sender_id: null,
+                unread_count: 0,
+                is_pinned: false,
+                pinned_at: null,
+                notifications_muted: false,
+                mute_until: null,
+                last_read_message_id: null,
+                last_read_at: null,
+                source: 'mutual',
+              });
+            }
           }
-        }
       } catch (err) {
         console.warn('Failed to load mutual follow suggestions:', err);
       }
@@ -219,7 +181,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       partners,
       pagination: {
         hasMore: hasMoreThreads,
-        nextOffset: offset + trimmedThreadPartners.length,
+        nextOffset: offset + trimmedRows.length,
       },
     });
   } catch (err: any) {
