@@ -108,7 +108,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
     isTyping: wsIsTyping,
     partnerTyping,
     partnerOnline: wsPartnerOnline,
-    mergeMessages,
+    // Avoid shadowing local helper name; alias merge function from hook
+    mergeMessages: mergeMessagesIntoState,
     sendMessage: wsSendMessage,
     sendTyping: wsSendTyping,
     acknowledgeMessage,
@@ -998,7 +999,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       const orderedOlder = sortMessagesChronologically(olderMessages);
       oldestMessageIdRef.current = orderedOlder[0]?.id ?? oldestMessageIdRef.current;
 
-      mergeMessages(orderedOlder);
+      mergeMessagesIntoState(orderedOlder);
 
       requestAnimationFrame(() => {
         if (!scrollContainer) return;
