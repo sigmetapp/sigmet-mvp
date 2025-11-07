@@ -13,6 +13,7 @@ import { resolveDirectionEmoji } from '@/lib/directions';
 import EmojiPicker from '@/components/EmojiPicker';
 import { formatTextWithMentions, hasMentions } from '@/lib/formatText';
 import AvatarWithBadge from '@/components/AvatarWithBadge';
+import ViewsChart from '@/components/ViewsChart';
 
 type PostRecord = {
   id: number;
@@ -142,6 +143,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState(post.body ?? '');
   const [updatingPost, setUpdatingPost] = useState(false);
+  const [viewsChartOpen, setViewsChartOpen] = useState(false);
 
   // Directions for category matching
   const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
@@ -584,8 +586,10 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                     <video
                       controls
                       preload="metadata"
+                      playsInline
                       className="w-full rounded-lg border border-slate-200 dark:border-slate-700"
                     >
+                      <source src={comment.media_url} type="video/mp4" />
                       <source src={comment.media_url} />
                     </video>
                   ) : (
@@ -843,7 +847,8 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 />
               )}
               {post.video_url && (
-                <video controls preload="metadata" className="w-full">
+                <video controls preload="metadata" playsInline className="w-full">
+                  <source src={post.video_url} type="video/mp4" />
                   <source src={post.video_url} />
                 </video>
               )}
@@ -851,8 +856,15 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           )}
 
           {/* Stats and actions */}
-          <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-3" data-prevent-card-navigation="true">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewsChartOpen(true);
+              }}
+              className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity text-xs text-slate-500 dark:text-slate-400"
+              title="View statistics"
+            >
               <svg viewBox="0 0 24 24" className="h-5 w-5">
                 <path
                   d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
@@ -868,12 +880,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 />
               </svg>
               <span>{post.views ?? 0}</span>
-            </div>
-            <span>{totalReactions} likes</span>
-            <span>{commentCount} comments</span>
-          </div>
-
-          <div className="flex items-center gap-3" data-prevent-card-navigation="true">
+            </button>
             <PostReactions
               postId={post.id}
               initialCounts={reactionCounts}
@@ -1060,6 +1067,15 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
             </div>
           </div>
         </div>
+      )}
+
+      {/* Views Chart Modal */}
+      {viewsChartOpen && (
+        <ViewsChart
+          postId={post.id}
+          isOpen={viewsChartOpen}
+          onClose={() => setViewsChartOpen(false)}
+        />
       )}
     </div>
   );
