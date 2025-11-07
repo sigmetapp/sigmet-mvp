@@ -25,6 +25,7 @@ type SelectedAttachment = {
 
 type Props = {
   partnerId: string;
+  onBack?: () => void;
 };
 
 function compareMessages(a: Message, b: Message): number {
@@ -69,7 +70,7 @@ function mergeMessages(existing: Message[], additions: Message[]): Message[] {
   return sortMessagesChronologically(Array.from(byId.values()));
 }
 
-export default function DmsChatWindow({ partnerId }: Props) {
+export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [thread, setThread] = useState<Thread | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,6 +101,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const hasUploadingAttachment = selectedFiles.some((item) => item.status === 'uploading');
+  const [isOffline, setIsOffline] = useState<boolean>(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  const [outbox, setOutbox] = useState<Array<{ body: string | null; attachments: DmAttachment[] }>>([]);
 
   // Use WebSocket hook for real-time messaging
   const {
@@ -110,10 +113,14 @@ export default function DmsChatWindow({ partnerId }: Props) {
     partnerOnline: wsPartnerOnline,
     // Avoid shadowing local helper name; alias merge function from hook
     mergeMessages: mergeMessagesIntoState,
-    sendMessage: wsSendMessage,
+    setMessages: setMessagesFromHook,
+    sendMessage: sendMessageHook,
     sendTyping: wsSendTyping,
     acknowledgeMessage,
   } = useWebSocketDm(thread?.id || null, { initialLimit: INITIAL_MESSAGE_LIMIT });
+
+  // Backward-compatible alias to avoid ReferenceError in older chunks
+  const wsSendMessage = sendMessageHook;
   
   // Local state
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -137,6 +144,16 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const lastActivityRef = useRef<string | null>(null);
   const presenceOnlineRef = useRef<boolean>(false);
   const showOnlineStatusRef = useRef<boolean>(true);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
+  const [showNewBanner, setShowNewBanner] = useState(false);
+  const bannerHideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // In-chat search
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchIndex, setSearchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const messageNodeMap = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -788,8 +805,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
           try {
             // Get message IDs of messages sent by current user
             const myMessageIds = sorted
-              .filter(m => m.sender_id === currentUserId)
-              .map(m => m.id);
+              .filter((m) => m.sender_id === currentUserId && Number.isFinite(Number(m.id)))
+              .map((m) => Number(m.id));
             
             if (myMessageIds.length > 0) {
               // Load receipts where partner is the recipient (user_id = partnerId)
@@ -923,20 +940,22 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
       if (isFromPartner) {
         playIncomingNotification();
-        // Acknowledge message as read when received (user is viewing the chat)
+        // If user is at bottom, auto-read and keep stickiness. Otherwise, accumulate counter.
         if (thread?.id) {
-          // Send 'read' status since user is actively viewing the chat
-          acknowledgeMessage(lastMessage.id, thread.id, 'read');
-          // Mark as read in local state
-          setMessageReceipts((prev) => {
-            const updated = new Map(prev);
-            updated.set(lastMessage.id, 'read');
-            return updated;
-          });
+          if (isAtBottom) {
+            acknowledgeMessage(lastMessage.id, thread.id, 'read');
+            setMessageReceipts((prev) => {
+              const updated = new Map(prev);
+              updated.set(lastMessage.id, 'read');
+              return updated;
+            });
+          } else {
+            setNewMessagesCount((c) => c + 1);
+          }
         }
       }
     }
-  }, [messages, currentUserId, partnerId, playIncomingNotification, thread?.id, acknowledgeMessage]);
+  }, [messages, currentUserId, partnerId, playIncomingNotification, thread?.id, acknowledgeMessage, isAtBottom]);
 
   // Typing indicators are handled by useWebSocketDm hook
 
@@ -966,6 +985,28 @@ export default function DmsChatWindow({ partnerId }: Props) {
     setMessageText(e.target.value);
     handleTyping();
   }, [handleTyping]);
+
+  // Persist per-thread draft
+  useEffect(() => {
+    if (!thread?.id) return;
+    const key = `dm:draft:${thread.id}`;
+    try {
+      localStorage.setItem(key, messageText);
+    } catch {}
+  }, [messageText, thread?.id]);
+
+  // Hydrate draft on thread change
+  useEffect(() => {
+    if (!thread?.id) return;
+    const key = `dm:draft:${thread.id}`;
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved && saved !== messageText) {
+        setMessageText(saved);
+        setTimeout(() => textareaRef.current?.focus(), 0);
+      }
+    } catch {}
+  }, [thread?.id]);
   
   const loadOlderMessages = useCallback(async () => {
     if (!thread?.id || loadingOlderMessages || !hasMoreHistory) {
@@ -1082,6 +1123,60 @@ export default function DmsChatWindow({ partnerId }: Props) {
       container.scrollTop = container.scrollHeight;
     }
   }, [messages.length]);
+
+  // Track scroll position to toggle bottom stickiness and banner
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const onScroll = () => {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      const atBottom = distanceFromBottom <= 8; // treat as bottom if within 8px
+      setIsAtBottom(atBottom);
+      if (atBottom) {
+        // Clear new messages counter when user reaches bottom
+        setNewMessagesCount(0);
+        setShowNewBanner(false);
+      }
+    };
+
+    container.addEventListener('scroll', onScroll);
+    // Initialize once
+    onScroll();
+    return () => container.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const handleJumpToBottom = useCallback(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+    setNewMessagesCount(0);
+    setShowNewBanner(false);
+  }, []);
+
+  // Auto-show/auto-hide banner with smooth animations
+  useEffect(() => {
+    if (newMessagesCount > 0 && !isAtBottom) {
+      setShowNewBanner(true);
+      if (bannerHideTimeoutRef.current) clearTimeout(bannerHideTimeoutRef.current);
+      bannerHideTimeoutRef.current = setTimeout(() => {
+        setShowNewBanner(false);
+      }, 5000);
+    } else {
+      setShowNewBanner(false);
+      if (bannerHideTimeoutRef.current) {
+        clearTimeout(bannerHideTimeoutRef.current);
+        bannerHideTimeoutRef.current = null;
+      }
+    }
+    return () => {
+      if (bannerHideTimeoutRef.current) {
+        clearTimeout(bannerHideTimeoutRef.current);
+        bannerHideTimeoutRef.current = null;
+      }
+    };
+  }, [newMessagesCount, isAtBottom]);
 
   // Reset scroll trackers when thread changes
   useEffect(() => {
@@ -1254,8 +1349,21 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
     try {
       const messageBody = textToSend || null;
-      const attachmentsWithVersions = annotateDocumentVersions(attachments, messages);
-      await wsSendMessage(threadId, messageBody, attachmentsWithVersions as unknown[]);
+      if (isOffline) {
+        setOutbox((prev) => [...prev, { body: messageBody, attachments }]);
+        setMessageText('');
+        setSelectedFiles((prev) => {
+          prev.forEach((entry) => {
+            if (entry.previewUrl) {
+              URL.revokeObjectURL(entry.previewUrl);
+            }
+          });
+          return [];
+        });
+        playSendConfirmation();
+        return;
+      }
+      await sendMessageHook(threadId, messageBody, annotateDocumentVersions(attachments, messages) as unknown[]);
 
       setMessageText('');
       setSelectedFiles((prev) => {
@@ -1272,6 +1380,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
       }, 100);
+      playSendConfirmation();
     } catch (err: any) {
       console.error('Error sending message:', err);
       setError(err?.message || 'Failed to send message');
@@ -1349,10 +1458,115 @@ export default function DmsChatWindow({ partnerId }: Props) {
     return `${bytes} B`;
   }
 
+  // Quick edit disabled (no editing in chat)
+  // Track online/offline state
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Drain outbox when back online
+  useEffect(() => {
+    if (!thread?.id) return;
+    if (isOffline || outbox.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      // Work on a copy to avoid mutation issues during setState
+      const queue = [...outbox];
+      for (let i = 0; i < queue.length; i += 1) {
+        if (cancelled) return;
+        const item = queue[i];
+        try {
+          await sendMessageHook(thread.id, item.body, annotateDocumentVersions(item.attachments, messages) as unknown[]);
+          setOutbox((prev) => prev.slice(1));
+          await new Promise((r) => setTimeout(r, 150));
+        } catch (err) {
+          console.error('Outbox send failed, will retry later', err);
+          break;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOffline, outbox.length, thread?.id, messages, wsSendMessage]);
+
+  // Global Ctrl/Cmd+F to open chat search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const meta = isMac ? e.metaKey : e.ctrlKey;
+      if (meta && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const matchedMessageIds = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [] as number[];
+    return messages
+      .filter((m) => (m.body || '').toLowerCase().includes(q))
+      .map((m) => m.id);
+  }, [messages, searchQuery]);
+
+  const scrollToMatch = useCallback((index: number) => {
+    const ids = matchedMessageIds;
+    if (ids.length === 0) return;
+    const normalized = ((index % ids.length) + ids.length) % ids.length;
+    const id = ids[normalized];
+    const node = messageNodeMap.current.get(id);
+    if (node && scrollRef.current) {
+      node.scrollIntoView({ block: 'center' });
+    }
+    setSearchIndex(normalized);
+  }, [matchedMessageIds]);
+
+  useEffect(() => {
+    setSearchIndex(0);
+    if (matchedMessageIds.length > 0) {
+      scrollToMatch(0);
+    }
+  }, [searchQuery, matchedMessageIds.length, scrollToMatch]);
+
   if (loading) {
     return (
-      <div className="card card-glow h-full flex items-center justify-center">
-        <div className="text-white/70">Loading conversation...</div>
+      <div className="card card-glow h-full flex flex-col overflow-hidden">
+        {/* Header skeleton */}
+        <div className="px-4 py-3 border-b border-white/10">
+          <div className="flex items-center gap-3 animate-pulse">
+            <div className="h-10 w-10 rounded-full bg-white/10" />
+            <div className="flex-1 min-w-0">
+              <div className="h-3 w-40 bg-white/10 rounded mb-2" />
+              <div className="h-2.5 w-24 bg-white/10 rounded" />
+            </div>
+          </div>
+        </div>
+        {/* Messages skeleton */}
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'} animate-pulse`}>
+              <div className={`max-w-[70%] ${i % 2 === 0 ? '' : ''}`}>
+                <div className="h-5 w-48 bg-white/10 rounded-2xl mb-2" />
+                <div className="h-5 w-64 bg-white/10 rounded-2xl" />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Input skeleton */}
+        <div className="px-3 pb-3 pt-2 border-t border-white/10">
+          <div className="h-12 bg-white/5 border border-white/10 rounded-2xl animate-pulse" />
+        </div>
       </div>
     );
   }
@@ -1411,6 +1625,17 @@ export default function DmsChatWindow({ partnerId }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-3">
+          {/* Mobile back */}
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="md:hidden mr-1 rounded-lg px-2 py-1 border text-sm transition bg-white/10 border-white/20 text-white/90 hover:bg-white/15"
+              aria-label="Back"
+            >
+              ←
+            </button>
+          )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={partnerAvatar}
@@ -1485,10 +1710,22 @@ export default function DmsChatWindow({ partnerId }: Props) {
         </div>
       )}
 
+      {/* Offline banner / Outbox */}
+      {(isOffline || outbox.length > 0) && (
+        <div className="px-4 py-2 bg-amber-500/15 text-amber-200 text-sm border-b border-amber-500/30 flex items-center justify-between">
+          <div>
+            {isOffline ? 'You are offline.' : 'Back online.'} Messages {isOffline ? 'will be queued' : 'in queue will be sent'} automatically.
+          </div>
+          {outbox.length > 0 && (
+            <div className="text-[11px] text-amber-200/80">Queue: {outbox.length}</div>
+          )}
+        </div>
+      )}
+
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto smooth-scroll px-3 py-4"
+        className="flex-1 overflow-y-auto overflow-x-hidden smooth-scroll px-3 py-4"
       >
         <div ref={historySentinelRef} className="h-1 w-full" />
         {loadingOlderMessages && (
@@ -1544,8 +1781,28 @@ export default function DmsChatWindow({ partnerId }: Props) {
                 new Date(prevMsg.created_at).getMinutes() !== new Date(msg.created_at).getMinutes() ||
                 formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
 
+              const isSearchMatch =
+                searchQuery.trim().length > 0 && (msg.body || '').toLowerCase().includes(searchQuery.trim().toLowerCase());
+              const highlightBody = (text: string) => {
+                const q = searchQuery.trim();
+                if (!q) return text;
+                const parts = text.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')})`, 'gi'));
+                return (
+                  <>
+                    {parts.map((part, i) => (
+                      <span key={i} className={part.toLowerCase() === q.toLowerCase() ? 'bg-yellow-500/30' : undefined}>
+                        {part}
+                      </span>
+                    ))}
+                  </>
+                );
+              };
+
               return (
-                <div key={msg.id}>
+                <div key={msg.id} ref={(el) => {
+                  if (el) messageNodeMap.current.set(msg.id, el);
+                  else messageNodeMap.current.delete(msg.id);
+                }}>
                   {showDate && (
                     <div className="text-center text-xs text-white/50 py-3">
                       <span className="bg-white/5 px-3 py-1 rounded-full border border-white/10">
@@ -1555,7 +1812,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   )}
 
                   <div
-                    className={`flex gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}
+                    className={`group flex gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       const msgToReply = messages.find((m) => m.id === msg.id);
@@ -1591,6 +1848,26 @@ export default function DmsChatWindow({ partnerId }: Props) {
                             : 'bg-white/10 text-white rounded-bl-sm border border-white/20 shadow-md'
                         }`}
                       >
+                        {/* Hover actions */}
+                        <div
+                          className={`absolute top-1 ${isMine ? 'right-2' : 'left-2'} z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition`}
+                          style={{ pointerEvents: 'auto' }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setReplyingTo(msg)}
+                            className={[
+                              'px-1.5 py-0.5 rounded border text-[11px] transition shadow-sm backdrop-blur-sm',
+                              theme === 'light'
+                                ? 'bg-white/80 border-black/10 text-black hover:bg-white'
+                                : 'bg-white/10 border-white/20 text-white/90 hover:bg-white/15',
+                            ].join(' ')}
+                            title="Reply"
+                          >
+                            Reply
+                          </button>
+                          {/* Edit/Delete disabled */}
+                        </div>
                         {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
                           <div className="mb-2 space-y-2">
                             {(msg.attachments as any[]).map((att: any, attIdx: number) => (
@@ -1605,7 +1882,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                           </div>
                         ) : msg.body && msg.body.trim() ? (
                           <div className="whitespace-pre-wrap leading-relaxed text-sm">
-                            {msg.body}
+                            {isSearchMatch ? highlightBody(msg.body) : msg.body}
                           </div>
                         ) : msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 ? (
                           null // Only show attachments if no text
@@ -1636,6 +1913,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                         width="14"
                                         height="14"
                                         className="text-white"
+                                        aria-label="Read"
+                                        title="Read"
                                         fill="currentColor"
                                         style={{ minWidth: '14px' }}
                                       >
@@ -1651,6 +1930,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                         width="14"
                                         height="14"
                                         className="text-white/70"
+                                        aria-label="Delivered"
+                                        title="Delivered"
                                         fill="currentColor"
                                         style={{ minWidth: '14px' }}
                                       >
@@ -1666,6 +1947,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                         width="14"
                                         height="14"
                                         className="text-white/50"
+                                        aria-label="Sent"
+                                        title="Sent"
                                         fill="currentColor"
                                         style={{ minWidth: '14px' }}
                                       >
@@ -1676,6 +1959,45 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                 })()}
                               </div>
                             )}
+                          </div>
+                        )}
+                        {/* Local echo controls: show for pending messages (id === -1) */}
+                        {isMine && msg.id === -1 && (
+                          <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                            <span className={theme === 'light' ? 'text-[11px] text-black/60' : 'text-[11px] text-white/70'}>Sending…</span>
+                            <button
+                              type="button"
+                              className={[
+                                'px-2 py-0.5 rounded border text-[11px] transition',
+                                theme === 'light'
+                                  ? 'bg-black/5 border-black/20 text-black/80 hover:bg-black/10'
+                                  : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15',
+                              ].join(' ')}
+                              onClick={() => {
+                                // Cancel: remove local echo
+                                setMessagesFromHook((prev: any[]) => prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id));
+                              }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              className={[
+                                'px-2 py-0.5 rounded border text-[11px] transition',
+                                theme === 'light'
+                                  ? 'bg-blue-600/10 border-blue-600/30 text-blue-700 hover:bg-blue-600/15'
+                                  : 'bg-blue-500/20 border-blue-500/30 text-blue-200 hover:bg-blue-500/25',
+                              ].join(' ')}
+                              onClick={() => {
+                                // Retry: remove echo and resend with fresh client id
+                                const echoBody = msg.body || null;
+                                const echoAttachments = Array.isArray(msg.attachments) ? (msg.attachments as any[]) : [];
+                                setMessagesFromHook((prev: any[]) => prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id));
+                                void sendMessageHook(thread!.id, echoBody, echoAttachments);
+                              }}
+                            >
+                              Retry
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1706,6 +2028,80 @@ export default function DmsChatWindow({ partnerId }: Props) {
         )}
       </div>
 
+      {/* New messages banner */}
+      <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2">
+        <div
+          className={[
+            'transition-all duration-300 ease-out transform',
+            showNewBanner && newMessagesCount > 0 && !isAtBottom
+              ? 'opacity-100 translate-y-0'
+              : 'opacity-0 translate-y-2',
+          ].join(' ')}
+          onMouseEnter={() => {
+            if (bannerHideTimeoutRef.current) {
+              clearTimeout(bannerHideTimeoutRef.current);
+              bannerHideTimeoutRef.current = null;
+            }
+          }}
+          onMouseLeave={() => {
+            if (!isAtBottom && newMessagesCount > 0) {
+              bannerHideTimeoutRef.current = setTimeout(() => setShowNewBanner(false), 3000);
+            }
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleJumpToBottom}
+            className="pointer-events-auto px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-200 text-xs font-medium shadow-md hover:bg-blue-500/25 active:scale-[0.98] transition"
+          >
+            {newMessagesCount} new message{newMessagesCount === 1 ? '' : 's'} — Jump to bottom
+          </button>
+        </div>
+      </div>
+
+
+      {/* In-chat search bar */}
+      {searchOpen && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10">
+          <div className="flex items-center gap-2 bg-white/10 border border-white/20 rounded-lg px-2 py-1 shadow-lg">
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search in conversation"
+              className="bg-transparent placeholder-white/40 text-sm text-white outline-none px-1 py-1 w-56"
+            />
+            <div className="text-[11px] text-white/60">
+              {matchedMessageIds.length > 0 ? `${searchIndex + 1}/${matchedMessageIds.length}` : '0/0'}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-xs"
+                onClick={() => scrollToMatch(searchIndex - 1)}
+                disabled={matchedMessageIds.length === 0}
+              >
+                Prev
+              </button>
+              <button
+                type="button"
+                className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-xs"
+                onClick={() => scrollToMatch(searchIndex + 1)}
+                disabled={matchedMessageIds.length === 0}
+              >
+                Next
+              </button>
+              <button
+                type="button"
+                className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-xs"
+                onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Selected files preview */}
         {selectedFiles.length > 0 && (
@@ -1813,7 +2209,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       )}
 
       {/* Input */}
-      <div className="px-3 pb-3 pt-2 border-t border-white/10">
+      <div className="px-3 pb-3 pt-2 border-t border-white/10 pb-[calc(env(safe-area-inset-bottom)+12px)]">
       <div
         className={`relative flex items-end gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-2 transition ${
           isDragActive ? 'ring-2 ring-cyan-400/50 border-cyan-400/50 bg-white/10' : ''
@@ -1866,7 +2262,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
               }
             }}
             placeholder={replyingTo ? "Reply to message..." : "Type a message..."}
-            disabled={uploadingAttachments}
+            disabled={uploadingAttachments || isOffline}
             rows={1}
             style={{
               height: 'auto',
@@ -1887,10 +2283,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   (!messageText.trim() && selectedFiles.length === 0) ||
                   sending ||
                   uploadingAttachments ||
-                  hasUploadingAttachment
+                  hasUploadingAttachment ||
+                  isOffline
                 }
               >
-              {uploadingAttachments ? (
+              {isOffline ? (
+                <span className="flex items-center gap-1">
+                  Offline
+                </span>
+              ) : uploadingAttachments ? (
                 <span className="flex items-center gap-1">
                   <span className="animate-spin">?</span>
                   Uploading...
