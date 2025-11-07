@@ -141,7 +141,13 @@ unread as (
   join limited_threads lt on lt.thread_id = m.thread_id
   where m.deleted_at is null
     and m.sender_id <> p_user_id
-    and (lt.last_read_message_id is null or m.id > lt.last_read_message_id)
+    and (
+      lt.last_read_message_id is null
+      or (
+        lt.last_read_message_id::text ~ '^[0-9]+$'
+        and m.id > (lt.last_read_message_id::text)::bigint
+      )
+    )
   group by m.thread_id
 )
 select
