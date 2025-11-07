@@ -1236,37 +1236,39 @@ export default function PostFeed({
               renderContent={() => (
                 <div className="relative z-10 space-y-2">
                   {/* header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <AvatarWithBadge
                         avatarUrl={avatar}
                         swScore={p.user_id ? (swScoresByUserId[p.user_id] || 0) : 0}
                         size="sm"
                         alt="avatar"
-                        href={`/u/${p.user_id}`}
+                        href={`/u/${encodeURIComponent(profile?.username || p.user_id || '')}`}
                       />
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <a 
-                            href={`/u/${p.user_id}`}
+                            href={`/u/${encodeURIComponent(profile?.username || p.user_id || '')}`}
                             onClick={(e) => e.stopPropagation()}
-                            className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
+                            className={`text-sm font-semibold truncate hover:underline ${
+                              isLight ? 'text-slate-900' : 'text-slate-100'
+                            }`}
                             data-prevent-card-navigation="true"
                           >
                             {username}
                           </a>
                           {(fullName || p.category || postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                            <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                            <span className="text-sm text-slate-500 dark:text-slate-400">
                               |
                             </span>
                           )}
                           {fullName && (
                             <>
-                              <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                              <span className="text-sm text-slate-500 dark:text-slate-400">
                                 {fullName}
                               </span>
                               {(p.category || postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                <span className="text-sm text-slate-500 dark:text-slate-400">
                                   |
                                 </span>
                               )}
@@ -1280,13 +1282,13 @@ export default function PostFeed({
                                     ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
                                     : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
                                   : isLight
-                                  ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
-                                  : 'text-telegram-text-secondary bg-white/5'
+                                  ? 'text-slate-500 bg-slate-100/50 border border-slate-200'
+                                  : 'text-slate-400 bg-white/5 border border-slate-700'
                               }`}>
                                 {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
                               </div>
                               {(postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                <span className="text-sm text-slate-500 dark:text-slate-400">
                                   |
                                 </span>
                               )}
@@ -1302,7 +1304,7 @@ export default function PostFeed({
                                 Connections
                               </div>
                               {(growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0) && (
-                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                <span className="text-sm text-slate-500 dark:text-slate-400">
                                   |
                                 </span>
                               )}
