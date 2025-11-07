@@ -64,6 +64,20 @@ function formatPostDate(dateString: string): string {
   return `${datePart}, ${timePart}`;
 }
 
+function formatPostDateShort(dateString: string): string {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (dateOnly.getTime() === today.getTime()) {
+    return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
+  }
+  // Show short month and day; omit year to save space
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+}
+
 type Post = {
   id: number;
   user_id: string | null;
@@ -1227,21 +1241,7 @@ export default function PostFeed({
                         </div>
                       </div>
                     </div>
-                    <div className={`relative flex items-center gap-2 text-xs shrink-0 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                      <span className="whitespace-nowrap">{formatPostDate(p.created_at)}</span>
-                      {uid === p.user_id && editingId !== p.id && (
-                        <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
-                          <PostActionMenu
-                            onEdit={() => {
-                              setEditingId(p.id);
-                              setEditBody(p.body || "");
-                            }}
-                            onDelete={() => deletePost(p)}
-                            className="ml-2"
-                          />
-                        </div>
-                      )}
-                    </div>
+                    {/* Right-side header tools moved to footer per design */}
                   </div>
 
                   {/* content */}
@@ -1419,22 +1419,40 @@ export default function PostFeed({
                       />
                     </div>
 
-                    <PostCommentsBadge
-                      count={commentCount}
-                      size="md"
-                      onOpen={() => {
-                        const willOpen = !openComments[p.id];
-                        setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
-                      }}
-                      onFocusComposer={() => {
-                        const composer = document.getElementById(`comment-composer-${p.id}`);
-                        if (composer) {
-                          composer.focus();
-                          composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        }
-                      }}
-                      className="ml-auto"
-                    />
+                    {/* Right group: date, comments, menu */}
+                    <div className="ml-auto flex items-center gap-3">
+                      <span className="text-xs whitespace-nowrap">
+                        <span className="sm:hidden">{formatPostDateShort(p.created_at)}</span>
+                        <span className="hidden sm:inline">{formatPostDate(p.created_at)}</span>
+                      </span>
+                      <PostCommentsBadge
+                        count={commentCount}
+                        size="md"
+                        onOpen={() => {
+                          const willOpen = !openComments[p.id];
+                          setOpenComments((prev) => ({ ...prev, [p.id]: willOpen }));
+                        }}
+                        onFocusComposer={() => {
+                          const composer = document.getElementById(`comment-composer-${p.id}`);
+                          if (composer) {
+                            composer.focus();
+                            composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                          }
+                        }}
+                      />
+                      {uid === p.user_id && editingId !== p.id && (
+                        <div onClick={(e) => e.stopPropagation()} data-prevent-card-navigation="true">
+                          <PostActionMenu
+                            onEdit={() => {
+                              setEditingId(p.id);
+                              setEditBody(p.body || "");
+                            }}
+                            onDelete={() => deletePost(p)}
+                            className="ml-1"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Quick comment form only - no history */}
@@ -1546,20 +1564,25 @@ export default function PostFeed({
 
       {/* Feed with Create Post button on the right (if inline) */}
       {buttonPosition === 'inline' && showComposer ? (
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col-reverse lg:flex-row gap-4 lg:gap-6 items-stretch lg:items-start">
           {/* Posts */}
-          <div className="flex-1 space-y-3 min-w-0 max-w-3xl">
+          <div className="flex-1 space-y-3 min-w-0 lg:max-w-3xl">
             {renderPostsList()}
           </div>
 
-          {/* Create Post button - inline on the right */}
-          <div ref={buttonColumnRef} className="relative flex-shrink-0 self-start">
+          {/* Create Post button - inline on the right for large screens */}
+          <div ref={buttonColumnRef} className="relative hidden lg:block flex-shrink-0 self-start">
             <div
               ref={inlineButtonRef}
               style={{ visibility: fixedButtonStyle ? 'hidden' : 'visible' }}
             >
               {renderCreatePostButton()}
             </div>
+          </div>
+
+          {/* Floating action button for mobile/tablet */}
+          <div className="lg:hidden fixed z-40 right-4 bottom-20">
+            {renderCreatePostButton()}
           </div>
         </div>
       ) : (

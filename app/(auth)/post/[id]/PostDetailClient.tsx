@@ -823,14 +823,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 </div>
               </div>
             </div>
-            {formattedDate && (
-              <time
-                dateTime={postCardPost.createdAt}
-                className="text-xs text-slate-500 dark:text-slate-400 shrink-0"
-              >
-                {formattedDate}
-              </time>
-            )}
+            {/* Date moved to footer per design */}
           </header>
 
           {/* Content */}
@@ -880,21 +873,31 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
             <span>{commentCount} comments</span>
           </div>
 
-          <div className="flex items-center justify-between gap-3" data-prevent-card-navigation="true">
+          <div className="flex items-center gap-3" data-prevent-card-navigation="true">
             <PostReactions
               postId={post.id}
               initialCounts={reactionCounts}
               initialSelected={selectedReaction}
               onReactionChange={handleReactionChange}
             />
-            {uid && uid === post.user_id && (
-              <PostActionMenu
-                onEdit={() => setEditing(true)}
-                onDelete={() => setDeleteConfirmOpen(true)}
-                className="shrink-0"
-                data-prevent-card-navigation="true"
-              />
-            )}
+            <div className="ml-auto flex items-center gap-3">
+              {formattedDate && (
+                <time
+                  dateTime={postCardPost.createdAt}
+                  className="text-xs text-slate-500 dark:text-slate-400 shrink-0"
+                >
+                  {formattedDate}
+                </time>
+              )}
+              {uid && uid === post.user_id && (
+                <PostActionMenu
+                  onEdit={() => setEditing(true)}
+                  onDelete={() => setDeleteConfirmOpen(true)}
+                  className="shrink-0"
+                  data-prevent-card-navigation="true"
+                />
+              )}
+            </div>
           </div>
         </div>
       )}

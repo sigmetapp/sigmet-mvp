@@ -61,37 +61,7 @@ export default function Sidebar({ user }: SidebarProps) {
           ))}
         </ul>
       </nav>
-      {isAdmin && (
-        <>
-          <div className={`px-2 py-2 border-t ${isLight ? "border-telegram-blue/15" : "border-telegram-blue/20"}`}>
-            <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-              Admin
-            </div>
-            <ul className="space-y-1 mt-1 ml-4 pl-2 border-l-2 border-telegram-blue/20">
-              {adminMenu.map((item) => (
-                <NavItem
-                  key={item.href}
-                  label={item.label}
-                  href={item.href}
-                  icon={item.icon}
-                />
-              ))}
-            </ul>
-          </div>
-          <div className={`px-2 py-2 border-t ${isLight ? "border-telegram-blue/15" : "border-telegram-blue/20"}`}>
-            <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-              Soon...
-            </div>
-            <ul className="space-y-1 mt-1">
-              <NavItem
-                label="Badges/Rewards"
-                href="/badges"
-                icon="🏅"
-              />
-            </ul>
-          </div>
-        </>
-      )}
+      {/* Admin menu moved to footer hamburger on all breakpoints */}
     </aside>
   );
 }

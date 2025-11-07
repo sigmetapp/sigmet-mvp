@@ -886,7 +886,7 @@ export default function PublicProfilePage() {
         ) : !profile ? (
           <div className="text-white/70 animate-fade-in">Profile not found</div>
         ) : (
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col md:flex-row md:items-start items-center gap-4">
             <div className="relative flex flex-col items-center animate-fade-in-scale animate-stagger-1">
               <div className="relative">
                 {(() => {
@@ -1006,8 +1006,8 @@ export default function PublicProfilePage() {
                 </Link>
               )}
             </div>
-            <div className="min-w-0 flex-1 animate-fade-in-up animate-stagger-2">
-              <div className="flex items-center gap-3 flex-wrap">
+            <div className="min-w-0 flex-1 w-full animate-fade-in-up animate-stagger-2">
+              <div className="flex md:items-center gap-2 md:gap-3 md:flex-wrap md:justify-start justify-center text-center md:text-left">
                 <div className="flex items-center gap-2">
                   <h1 className="text-2xl font-semibold text-white truncate animate-fade-in">
                     {profile.full_name || profile.username || profile.user_id.slice(0, 8)}
@@ -1039,13 +1039,13 @@ export default function PublicProfilePage() {
                   })()}
                 </div>
                 {isMe ? (
-                  <div className="ml-auto">
+                  <div className="md:ml-auto mt-2 md:mt-0 flex justify-center">
                     <Link href="/profile" className="px-3 py-1.5 rounded-lg text-sm border border-white/20 text-white/80 hover:bg-white/10">
                       Edit
                     </Link>
                   </div>
                 ) : (
-                  <div className="ml-auto flex gap-2">
+                  <div className="md:ml-auto mt-2 md:mt-0 flex gap-2 justify-center">
                     <Button variant="secondary">Connections</Button>
                     <Button variant={iFollow ? 'secondary' : 'primary'} onClick={toggleFollow} disabled={updatingFollow}>
                       {iFollow ? 'Following' : 'Follow'}

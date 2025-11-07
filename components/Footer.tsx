@@ -1,13 +1,25 @@
 "use client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { useTheme } from "@/components/ThemeProvider";
 
 export default function Footer() {
+  const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
   const { site_name, logo_url } = useSiteSettings();
   const { theme } = useTheme();
   const isLight = theme === "light";
   const year = new Date().getFullYear();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const email = data.user?.email || null;
+      setIsAdmin(!!email && ADMIN_EMAILS.has(email));
+    });
+  }, []);
 
   return (
     <footer className={`${isLight ? "border-t border-black/10 bg-white/70" : "border-t border-white/10 bg-black/30"}`}>
@@ -38,6 +50,18 @@ export default function Footer() {
             <p className={`${isLight ? "text-black/50" : "text-white/50"} max-w-xs`}>
               Build your social weight with meaningful progress and transparent reputation.
             </p>
+            {isAdmin && (
+              <button
+                onClick={() => setAdminOpen(true)}
+                className={`mt-3 px-3 py-1.5 rounded-full text-xs border transition ${
+                  isLight
+                    ? 'text-telegram-blue border-telegram-blue/25 hover:bg-telegram-blue/10'
+                    : 'text-telegram-blue-light border-telegram-blue/30 hover:bg-telegram-blue/15'
+                }`}
+              >
+                Admin
+              </button>
+            )}
           </div>
 
           <div>
@@ -64,10 +88,52 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className={`mt-8 pt-4 flex items-center justify-between text-xs md:text-sm ${isLight ? "border-t border-black/10" : "border-t border-white/10"}`}>
+        <div className={`mt-8 pt-4 flex items-center justify-between gap-3 text-xs md:text-sm ${isLight ? "border-t border-black/10" : "border-t border-white/10"}`}>
           <span>© {year} {site_name || "SIGMET"}. All rights reserved.</span>
         </div>
       </div>
+
+      {/* Admin sheet */}
+      {isAdmin && adminOpen && (
+        <div className="fixed inset-0 z-[9995]">
+          <div
+            className={`${isLight ? 'bg-black/40' : 'bg-black/60'} absolute inset-0`}
+            onClick={() => setAdminOpen(false)}
+          />
+          <div className="absolute bottom-0 left-0 right-0 p-3">
+            <div className={`mx-auto max-w-7xl rounded-2xl border shadow-xl p-3 ${
+              isLight ? 'bg-white border-telegram-blue/15' : 'bg-[rgba(15,22,35,0.98)] border-telegram-blue/20'
+            }`}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <Link href="/settings" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
+                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
+                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                }`} onClick={() => setAdminOpen(false)}>Settings</Link>
+                <Link href="/admin/users" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
+                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
+                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                }`} onClick={() => setAdminOpen(false)}>Users</Link>
+                <Link href="/admin/stats" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
+                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
+                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                }`} onClick={() => setAdminOpen(false)}>Stats</Link>
+                <Link href="/admin/tickets" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
+                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
+                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                }`} onClick={() => setAdminOpen(false)}>Tickets</Link>
+                <Link href="/sw/weights" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
+                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
+                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                }`} onClick={() => setAdminOpen(false)}>SW Weights</Link>
+                <Link href="/test" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
+                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
+                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                }`} onClick={() => setAdminOpen(false)}>Performance</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </footer>
   );
 }
