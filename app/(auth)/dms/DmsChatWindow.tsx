@@ -1837,13 +1837,19 @@ export default function DmsChatWindow({ partnerId }: Props) {
                         }`}
                       >
                         {/* Hover actions */}
-                        <div className={`absolute top-1 ${isMine ? 'right-2' : 'left-2'} z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition`}
+                        <div
+                          className={`absolute top-1 ${isMine ? 'right-2' : 'left-2'} z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition`}
                           style={{ pointerEvents: 'auto' }}
                         >
                           <button
                             type="button"
                             onClick={() => setReplyingTo(msg)}
-                            className="px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-[11px] text-white/80 hover:bg-white/15"
+                            className={[
+                              'px-1.5 py-0.5 rounded border text-[11px] transition',
+                              theme === 'light'
+                                ? 'bg-black/5 border-black/20 text-black/80 hover:bg-black/10'
+                                : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15',
+                            ].join(' ')}
                             title="Reply"
                           >
                             Reply
@@ -1946,10 +1952,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
                         {/* Local echo controls: show for pending messages (id === -1) */}
                         {isMine && msg.id === -1 && (
                           <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                            <span className="text-[11px] text-white/70">Sending…</span>
+                            <span className={theme === 'light' ? 'text-[11px] text-black/60' : 'text-[11px] text-white/70'}>Sending…</span>
                             <button
                               type="button"
-                              className="px-2 py-0.5 rounded bg-white/10 border border-white/20 text-[11px] text-white/80 hover:bg-white/15"
+                              className={[
+                                'px-2 py-0.5 rounded border text-[11px] transition',
+                                theme === 'light'
+                                  ? 'bg-black/5 border-black/20 text-black/80 hover:bg-black/10'
+                                  : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15',
+                              ].join(' ')}
                               onClick={() => {
                                 // Cancel: remove local echo
                                 setMessagesFromHook((prev: any[]) => prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id));
@@ -1959,7 +1970,12 @@ export default function DmsChatWindow({ partnerId }: Props) {
                             </button>
                             <button
                               type="button"
-                              className="px-2 py-0.5 rounded bg-blue-500/20 border border-blue-500/30 text-[11px] text-blue-200 hover:bg-blue-500/25"
+                              className={[
+                                'px-2 py-0.5 rounded border text-[11px] transition',
+                                theme === 'light'
+                                  ? 'bg-blue-600/10 border-blue-600/30 text-blue-700 hover:bg-blue-600/15'
+                                  : 'bg-blue-500/20 border-blue-500/30 text-blue-200 hover:bg-blue-500/25',
+                              ].join(' ')}
                               onClick={() => {
                                 // Retry: remove echo and resend with fresh client id
                                 const echoBody = msg.body || null;

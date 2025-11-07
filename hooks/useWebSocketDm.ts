@@ -765,6 +765,39 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
         // Status will be updated via message_ack and message_persisted events
         // The WebSocket client handles status updates internally
         // Filter will be cleared by handleMessagePersisted or after timeout
+        // Watchdog: if persisted не пришёл, продублировать HTTP-досылку тем же client_msg_id (идемпотентно)
+        try {
+          const wd = setTimeout(async () => {
+            try {
+              const { sendMessage: sendMessageHttp } = await import('@/lib/dms');
+              const saved = await sendMessageHttp(normalizedThreadId, body || null, attachments, clientMsgId);
+              // Заменить local-echo, если он ещё есть
+              setMessagesState((prev) => {
+                const hasEcho = prev.some(
+                  (m) => (m as any).client_msg_id === clientMsgId && m.id === -1
+                );
+                if (!hasEcho) return prev;
+                return sortMessagesChronologically(
+                  prev.map((m) =>
+                    (m as any).client_msg_id === clientMsgId && m.id === -1
+                      ? { ...saved, client_msg_id: clientMsgId }
+                      : m
+                  )
+                );
+              });
+              setLastServerMsgId(saved.id);
+            } catch (e) {
+              // молча, пользователь видит Retry/Cancel
+            } finally {
+              const t = pendingEchoTimeoutsRef.current.get(clientMsgId);
+              if (t) {
+                clearTimeout(t);
+                pendingEchoTimeoutsRef.current.delete(clientMsgId);
+              }
+            }
+          }, 3500);
+          pendingEchoTimeoutsRef.current.set(clientMsgId, wd);
+        } catch {}
 
         return result;
       } catch (error) {
