@@ -798,8 +798,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
           try {
             // Get message IDs of messages sent by current user
             const myMessageIds = sorted
-              .filter(m => m.sender_id === currentUserId)
-              .map(m => m.id);
+              .filter((m) => m.sender_id === currentUserId && Number.isFinite(Number(m.id)))
+              .map((m) => Number(m.id));
             
             if (myMessageIds.length > 0) {
               // Load receipts where partner is the recipient (user_id = partnerId)
