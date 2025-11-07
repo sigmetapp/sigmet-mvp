@@ -127,20 +127,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      result.push({
-        thread,
-        participant: {
-          thread_id: r.thread_id,
-          role: r.role,
-          last_read_message_id: r.last_read_message_id,
+        result.push({
+          thread,
+          participant: {
+            thread_id: r.thread_id,
+            role: r.role,
+            last_read_message_id: r.last_read_message_id,
             last_read_at: lastReadAt,
             notifications_muted: notificationsMuted,
             mute_until: muteUntil,
             is_pinned: Boolean(isPinned),
             pinned_at: pinnedAt,
-        },
-        unread_count: unreadCount,
-      });
+          },
+          unread_count: unreadCount,
+        });
     }
 
     // Sort by last_message_at desc (nulls last), then created_at desc as fallback

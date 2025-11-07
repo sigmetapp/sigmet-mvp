@@ -9,6 +9,22 @@ alter table public.dms_thread_participants
 alter table public.dms_thread_participants
   add column if not exists mute_until timestamptz;
 
+alter table public.dms_thread_participants
+  add column if not exists last_read_message_id bigint;
+
+alter table public.dms_thread_participants
+  add column if not exists last_read_at timestamptz;
+
+alter table public.dms_thread_participants
+  add column if not exists notifications_muted boolean;
+
+update public.dms_thread_participants
+  set notifications_muted = coalesce(notifications_muted, false)
+  where notifications_muted is null;
+
+alter table public.dms_thread_participants
+  alter column notifications_muted set default false;
+
 create index if not exists dms_participants_pinned_idx
   on public.dms_thread_participants (user_id, is_pinned desc, pinned_at desc nulls last);
 
@@ -47,7 +63,7 @@ as $$
 with ranked_threads as (
   select
     tp.thread_id,
-    tp.notifications_muted,
+    coalesce(tp.notifications_muted, false) as notifications_muted,
     tp.mute_until,
     coalesce(tp.is_pinned, false) as is_pinned,
     tp.pinned_at,
