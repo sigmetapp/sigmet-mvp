@@ -140,6 +140,12 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const showOnlineStatusRef = useRef<boolean>(true);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
+  // In-chat search
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchIndex, setSearchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const messageNodeMap = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -1394,6 +1400,48 @@ export default function DmsChatWindow({ partnerId }: Props) {
     };
   }, []);
 
+  // Global Ctrl/Cmd+F to open chat search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const meta = isMac ? e.metaKey : e.ctrlKey;
+      if (meta && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const matchedMessageIds = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [] as number[];
+    return messages
+      .filter((m) => (m.body || '').toLowerCase().includes(q))
+      .map((m) => m.id);
+  }, [messages, searchQuery]);
+
+  const scrollToMatch = useCallback((index: number) => {
+    const ids = matchedMessageIds;
+    if (ids.length === 0) return;
+    const normalized = ((index % ids.length) + ids.length) % ids.length;
+    const id = ids[normalized];
+    const node = messageNodeMap.current.get(id);
+    if (node && scrollRef.current) {
+      node.scrollIntoView({ block: 'center' });
+    }
+    setSearchIndex(normalized);
+  }, [matchedMessageIds]);
+
+  useEffect(() => {
+    setSearchIndex(0);
+    if (matchedMessageIds.length > 0) {
+      scrollToMatch(0);
+    }
+  }, [searchQuery, matchedMessageIds.length, scrollToMatch]);
+
   if (loading) {
     return (
       <div className="card card-glow h-full flex flex-col overflow-hidden">
@@ -1620,8 +1668,28 @@ export default function DmsChatWindow({ partnerId }: Props) {
                 new Date(prevMsg.created_at).getMinutes() !== new Date(msg.created_at).getMinutes() ||
                 formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
 
+              const isSearchMatch =
+                searchQuery.trim().length > 0 && (msg.body || '').toLowerCase().includes(searchQuery.trim().toLowerCase());
+              const highlightBody = (text: string) => {
+                const q = searchQuery.trim();
+                if (!q) return text;
+                const parts = text.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')})`, 'gi'));
+                return (
+                  <>
+                    {parts.map((part, i) => (
+                      <span key={i} className={part.toLowerCase() === q.toLowerCase() ? 'bg-yellow-500/30' : undefined}>
+                        {part}
+                      </span>
+                    ))}
+                  </>
+                );
+              };
+
               return (
-                <div key={msg.id}>
+                <div key={msg.id} ref={(el) => {
+                  if (el) messageNodeMap.current.set(msg.id, el);
+                  else messageNodeMap.current.delete(msg.id);
+                }}>
                   {showDate && (
                     <div className="text-center text-xs text-white/50 py-3">
                       <span className="bg-white/5 px-3 py-1 rounded-full border border-white/10">
@@ -1631,7 +1699,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   )}
 
                   <div
-                    className={`flex gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}
+                    className={`group flex gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       const msgToReply = messages.find((m) => m.id === msg.id);
@@ -1667,6 +1735,19 @@ export default function DmsChatWindow({ partnerId }: Props) {
                             : 'bg-white/10 text-white rounded-bl-sm border border-white/20 shadow-md'
                         }`}
                       >
+                        {/* Hover actions */}
+                        <div className={`absolute ${isMine ? 'left-1' : 'right-1'} -top-3 flex gap-1 opacity-0 group-hover:opacity-100 transition`}
+                          style={{ pointerEvents: 'auto' }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setReplyingTo(msg)}
+                            className="px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-[11px] text-white/80 hover:bg-white/15"
+                            title="Reply"
+                          >
+                            Reply
+                          </button>
+                        </div>
                         {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
                           <div className="mb-2 space-y-2">
                             {(msg.attachments as any[]).map((att: any, attIdx: number) => (
@@ -1681,7 +1762,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                           </div>
                         ) : msg.body && msg.body.trim() ? (
                           <div className="whitespace-pre-wrap leading-relaxed text-sm">
-                            {msg.body}
+                            {isSearchMatch ? highlightBody(msg.body) : msg.body}
                           </div>
                         ) : msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 ? (
                           null // Only show attachments if no text
@@ -1795,6 +1876,49 @@ export default function DmsChatWindow({ partnerId }: Props) {
         </div>
       )}
 
+
+      {/* In-chat search bar */}
+      {searchOpen && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10">
+          <div className="flex items-center gap-2 bg-white/10 border border-white/20 rounded-lg px-2 py-1 shadow-lg">
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search in conversation"
+              className="bg-transparent placeholder-white/40 text-sm text-white outline-none px-1 py-1 w-56"
+            />
+            <div className="text-[11px] text-white/60">
+              {matchedMessageIds.length > 0 ? `${searchIndex + 1}/${matchedMessageIds.length}` : '0/0'}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-xs"
+                onClick={() => scrollToMatch(searchIndex - 1)}
+                disabled={matchedMessageIds.length === 0}
+              >
+                Prev
+              </button>
+              <button
+                type="button"
+                className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-xs"
+                onClick={() => scrollToMatch(searchIndex + 1)}
+                disabled={matchedMessageIds.length === 0}
+              >
+                Next
+              </button>
+              <button
+                type="button"
+                className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-xs"
+                onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Selected files preview */}
         {selectedFiles.length > 0 && (
