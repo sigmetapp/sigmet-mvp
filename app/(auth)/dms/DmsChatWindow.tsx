@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateThread, listMessages, type Message, type Thread } from '@/lib/dms';
 import { useWebSocketDm } from '@/hooks/useWebSocketDm';
 import EmojiPicker from '@/components/EmojiPicker';
-import { uploadAttachment, type DmAttachment, getSignedUrlForAttachment } from '@/lib/dm/attachments';
+import { uploadAttachment, type DmAttachment, resolveAttachmentUrl } from '@/lib/dm/attachments';
 import { assertThreadId } from '@/lib/dm/threadId';
 import { useTheme } from '@/components/ThemeProvider';
 
@@ -160,8 +160,22 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   }, []);
 
+  type BeepOptions = {
+    volume?: number;
+    waveform?: OscillatorType;
+    attack?: number;
+    release?: number;
+  };
+
+  const DEFAULT_BEEP_PROFILE: Required<BeepOptions> = {
+    volume: 0.16,
+    waveform: 'sine',
+    attack: 0.012,
+    release: 0.08,
+  };
+
   const playBeep = useCallback(
-    async (frequency = 720, duration = 0.25) => {
+    async (frequency = 720, duration = 0.14, options?: BeepOptions) => {
       try {
         const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext) as
           | typeof AudioContext
@@ -175,26 +189,35 @@ export default function DmsChatWindow({ partnerId }: Props) {
         const ctx = audioContextRef.current;
         if (!ctx) return;
 
-        // Resume if suspended (non-blocking - don't await to avoid delay)
         if (ctx.state === 'suspended') {
           ctx.resume().catch((resumeErr) => {
             console.error('Error resuming audio context:', resumeErr);
           });
         }
 
+        const profile = { ...DEFAULT_BEEP_PROFILE, ...options };
+        const startTime = ctx.currentTime;
+        const effectiveDuration = Math.max(duration, 0.06);
+        const attackTime = Math.min(Math.max(profile.attack, 0.004), effectiveDuration * 0.6);
+        const sustainEnd = startTime + effectiveDuration;
+        const releaseTime = Math.max(Math.min(profile.release, 0.25), 0.03);
+        const stopTime = sustainEnd + releaseTime;
+
         const oscillator = ctx.createOscillator();
         const gainNode = ctx.createGain();
 
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+        oscillator.type = profile.waveform;
+        oscillator.frequency.setValueAtTime(frequency, startTime);
         oscillator.connect(gainNode);
         gainNode.connect(ctx.destination);
 
-        gainNode.gain.setValueAtTime(0.25, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+        gainNode.gain.setValueAtTime(0.0001, startTime);
+        gainNode.gain.linearRampToValueAtTime(profile.volume, startTime + attackTime);
+        gainNode.gain.setValueAtTime(profile.volume, sustainEnd);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, stopTime);
 
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + duration);
+        oscillator.start(startTime);
+        oscillator.stop(stopTime);
       } catch (err) {
         console.error('Error playing sound:', err);
       }
@@ -203,11 +226,11 @@ export default function DmsChatWindow({ partnerId }: Props) {
   );
 
   const playSendConfirmation = useCallback(() => {
-    void playBeep(860, 0.2);
+    void playBeep(840, 0.1, { volume: 0.12, waveform: 'triangle', release: 0.05 });
   }, [playBeep]);
 
   const playIncomingNotification = useCallback(() => {
-    void playBeep(640, 0.28);
+    void playBeep(600, 0.16, { volume: 0.15, waveform: 'sine', release: 0.06 });
   }, [playBeep]);
 
   function getAttachmentIcon(type?: DmAttachment['type']) {
@@ -229,17 +252,30 @@ export default function DmsChatWindow({ partnerId }: Props) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-      if (attachment.path) {
-        getSignedUrlForAttachment(attachment, 3600)
-          .then((signedUrl) => {
-            setUrl(signedUrl);
+      let cancelled = false;
+      setLoading(true);
+
+      (async () => {
+        try {
+          const resolved = await resolveAttachmentUrl(attachment, 3600);
+          if (!cancelled) {
+            setUrl(resolved);
+          }
+        } catch (err) {
+          console.error('Error loading attachment:', err);
+          if (!cancelled) {
+            setUrl(null);
+          }
+        } finally {
+          if (!cancelled) {
             setLoading(false);
-          })
-          .catch((err) => {
-            console.error('Error loading attachment:', err);
-            setLoading(false);
-          });
-      }
+          }
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
     }, [attachment]);
 
     if (loading) {
@@ -1117,18 +1153,18 @@ export default function DmsChatWindow({ partnerId }: Props) {
     return d.toLocaleDateString();
   }
 
-    function formatFileSize(bytes: number): string {
-      if (!Number.isFinite(bytes)) {
-        return '';
-      }
-      if (bytes >= 1024 * 1024) {
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-      }
-      if (bytes >= 1024) {
-        return `${(bytes / 1024).toFixed(1)} KB`;
-      }
-      return `${bytes} B`;
+  function formatFileSize(bytes?: number | null): string {
+    if (typeof bytes !== 'number' || !Number.isFinite(bytes)) {
+      return '';
     }
+    if (bytes >= 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    if (bytes >= 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${bytes} B`;
+  }
 
   if (loading) {
     return (
