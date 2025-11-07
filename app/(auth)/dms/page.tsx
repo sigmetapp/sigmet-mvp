@@ -1094,6 +1094,21 @@ function DmsInner() {
       ? flatPartners[highlightedIndex].user_id
       : null;
 
+  // Focus search input on Ctrl/Cmd+K
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const meta = isMac ? e.metaKey : e.ctrlKey;
+      if (meta && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <div className="flex flex-col md:flex-row gap-4 h-[calc(100vh-120px)]">
       {toast && (
@@ -1120,6 +1135,7 @@ function DmsInner() {
               </div>
               <div className="relative">
                 <input
+                  ref={searchInputRef}
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   onKeyDown={handleSearchKeyDown}

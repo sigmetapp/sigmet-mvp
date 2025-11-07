@@ -100,6 +100,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const hasUploadingAttachment = selectedFiles.some((item) => item.status === 'uploading');
+  const [isOffline, setIsOffline] = useState<boolean>(typeof navigator !== 'undefined' ? !navigator.onLine : false);
 
   // Use WebSocket hook for real-time messaging
   const {
@@ -1381,6 +1382,17 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
     return `${bytes} B`;
   }
+  // Track online/offline state
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -1539,6 +1551,13 @@ export default function DmsChatWindow({ partnerId }: Props) {
       {error && (
         <div className="px-4 py-2 bg-red-500/20 text-red-400 text-sm border-b border-red-500/30">
           {error}
+        </div>
+      )}
+
+      {/* Offline banner */}
+      {isOffline && (
+        <div className="px-4 py-2 bg-amber-500/15 text-amber-200 text-sm border-b border-amber-500/30">
+          You are offline. Messages will be sent when connection is restored.
         </div>
       )}
 
@@ -1936,7 +1955,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
               }
             }}
             placeholder={replyingTo ? "Reply to message..." : "Type a message..."}
-            disabled={uploadingAttachments}
+            disabled={uploadingAttachments || isOffline}
             rows={1}
             style={{
               height: 'auto',
@@ -1957,10 +1976,15 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   (!messageText.trim() && selectedFiles.length === 0) ||
                   sending ||
                   uploadingAttachments ||
-                  hasUploadingAttachment
+                  hasUploadingAttachment ||
+                  isOffline
                 }
               >
-              {uploadingAttachments ? (
+              {isOffline ? (
+                <span className="flex items-center gap-1">
+                  Offline
+                </span>
+              ) : uploadingAttachments ? (
                 <span className="flex items-center gap-1">
                   <span className="animate-spin">?</span>
                   Uploading...
