@@ -112,7 +112,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     sendMessage: wsSendMessage,
     sendTyping: wsSendTyping,
     acknowledgeMessage,
-  } = useWebSocketDm(thread?.id || null);
+  } = useWebSocketDm(thread?.id || null, { initialLimit: INITIAL_MESSAGE_LIMIT });
   
   // Local state
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -130,6 +130,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   const threadChannelRef = useRef<any>(null);
   const historySentinelRef = useRef<HTMLDivElement | null>(null);
   const historyObserverRef = useRef<IntersectionObserver | null>(null);
+  const historyAutoLoadReadyRef = useRef(false);
   const presenceUnsubscribeRef = useRef<(() => void | Promise<void>) | null>(null);
   const lastActivityRef = useRef<string | null>(null);
   const presenceOnlineRef = useRef<boolean>(false);
@@ -733,6 +734,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
     (async () => {
       oldestMessageIdRef.current = null;
+        historyAutoLoadReadyRef.current = false;
       setLoading(true);
       setError(null);
       setHasMoreHistory(true);
@@ -1026,18 +1028,21 @@ export default function DmsChatWindow({ partnerId }: Props) {
       historyObserverRef.current.disconnect();
     }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (entry?.isIntersecting && hasMoreHistory && !loadingOlderMessages) {
-          void loadOlderMessages();
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          if (!historyAutoLoadReadyRef.current) {
+            return;
+          }
+          if (entry?.isIntersecting && hasMoreHistory && !loadingOlderMessages) {
+            void loadOlderMessages();
+          }
+        },
+        {
+          root: scrollContainer,
+          threshold: 0.05,
         }
-      },
-      {
-        root: scrollContainer,
-        threshold: 0.05,
-      }
-    );
+      );
 
     observer.observe(sentinel);
     historyObserverRef.current = observer;
@@ -1050,14 +1055,26 @@ export default function DmsChatWindow({ partnerId }: Props) {
 
   // Scroll to bottom on new messages and when messages are initially loaded
   useEffect(() => {
-    if (scrollRef.current) {
-      // Use setTimeout to ensure DOM is updated
-      setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      }, 100);
+    if (messages.length === 0) {
+      return;
     }
+    const container = scrollRef.current;
+    if (!container) {
+      return;
+    }
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const shouldStickToBottom = distanceFromBottom <= 200;
+    if (!shouldStickToBottom && historyAutoLoadReadyRef.current) {
+      return;
+    }
+    // Use setTimeout to ensure DOM is updated
+    setTimeout(() => {
+      if (!scrollRef.current) {
+        return;
+      }
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      historyAutoLoadReadyRef.current = true;
+    }, 100);
   }, [messages.length]);
 
   // Scroll to bottom when thread changes (new conversation opened)
@@ -1067,6 +1084,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          historyAutoLoadReadyRef.current = true;
         }
       }, 200);
     }
