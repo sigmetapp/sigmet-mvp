@@ -548,7 +548,7 @@ function AdminTicketsInner() {
                     <img key={idx} src={url} alt={`Attachment ${idx + 1}`} className="rounded-lg max-w-full" />
                   ))}
                   {selectedTicket.video_urls?.map((url, idx) => (
-                    <video key={idx} src={url} controls className="rounded-lg max-w-full" />
+                    <video key={idx} src={url} controls preload="metadata" playsInline className="rounded-lg max-w-full" />
                   ))}
                 </div>
               </div>
@@ -598,7 +598,7 @@ function AdminTicketsInner() {
                             <img key={idx} src={url} alt={`Attachment ${idx + 1}`} className="rounded-lg max-w-full" />
                           ))}
                           {msg.video_urls.map((url, idx) => (
-                            <video key={idx} src={url} controls className="rounded-lg max-w-full" />
+                            <video key={idx} src={url} controls preload="metadata" playsInline className="rounded-lg max-w-full" />
                           ))}
                         </div>
                       )}

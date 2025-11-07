@@ -1292,11 +1292,20 @@ export default function PostFeed({
                             <video 
                               controls 
                               preload="metadata"
+                              playsInline
                               poster={p.image_url || undefined}
                               className={`w-full max-w-full max-h-[500px] h-auto rounded-none border relative ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
                               style={{ objectFit: 'contain' }}
                               onLoadedMetadata={(e) => {
                                 // Once video metadata is loaded, hide the placeholder
+                                const target = e.currentTarget;
+                                const placeholder = target.parentElement?.querySelector('.video-placeholder');
+                                if (placeholder) {
+                                  (placeholder as HTMLElement).style.display = 'none';
+                                }
+                              }}
+                              onLoadedData={(e) => {
+                                // Also hide placeholder when video data is loaded (for mobile)
                                 const target = e.currentTarget;
                                 const placeholder = target.parentElement?.querySelector('.video-placeholder');
                                 if (placeholder) {
@@ -1312,6 +1321,7 @@ export default function PostFeed({
                                 }
                               }}
                             >
+                              <source src={p.video_url} type="video/mp4" />
                               <source src={p.video_url} />
                             </video>
                             {!p.image_url && (

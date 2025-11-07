@@ -584,8 +584,10 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                     <video
                       controls
                       preload="metadata"
+                      playsInline
                       className="w-full rounded-lg border border-slate-200 dark:border-slate-700"
                     >
+                      <source src={comment.media_url} type="video/mp4" />
                       <source src={comment.media_url} />
                     </video>
                   ) : (
@@ -843,7 +845,8 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 />
               )}
               {post.video_url && (
-                <video controls preload="metadata" className="w-full">
+                <video controls preload="metadata" playsInline className="w-full">
+                  <source src={post.video_url} type="video/mp4" />
                   <source src={post.video_url} />
                 </video>
               )}

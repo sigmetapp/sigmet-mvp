@@ -390,6 +390,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           <video
             src={url}
             controls
+            preload="metadata"
+            playsInline
             className="max-w-full max-h-full"
           />
         </div>
