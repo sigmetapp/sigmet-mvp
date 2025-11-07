@@ -118,6 +118,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
   
   // Local state
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [messageReceipts, setMessageReceipts] = useState<Map<number, 'sent' | 'delivered' | 'read'>>(new Map());
@@ -1201,7 +1202,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
   }, []);
 
-  // Handle send message
+  // Handle send message or save edit
   async function handleSend() {
     if (!thread || !thread.id || (!messageText.trim() && selectedFiles.length === 0) || sending) {
       return;
@@ -1212,6 +1213,30 @@ export default function DmsChatWindow({ partnerId }: Props) {
     const filesToSend = selectedFiles;
 
     setReplyingTo(null);
+    if (editingMessageId) {
+      try {
+        setSending(true);
+        const response = await fetch('/api/dms/messages.edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message_id: editingMessageId, body: textToSend }),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.error || 'Failed to edit message');
+        }
+        setEditingMessageId(null);
+        setMessageText('');
+        setSending(false);
+        // Rely on realtime to update message body; scroll stays in place
+        return;
+      } catch (err: any) {
+        console.error('Error editing message:', err);
+        setError(err?.message || 'Failed to edit message');
+        setSending(false);
+        return;
+      }
+    }
     setSending(true);
 
     const hasAttachments = filesToSend.length > 0;
@@ -1388,6 +1413,20 @@ export default function DmsChatWindow({ partnerId }: Props) {
     }
     return `${bytes} B`;
   }
+
+  // Enable quick edit: ArrowUp when composer empty edits last own message (5 min window)
+  const tryEnterEditLastMessage = useCallback(() => {
+    if (sending || uploadingAttachments || hasUploadingAttachment) return;
+    if (messageText.trim().length > 0) return;
+    const myLast = [...messages].reverse().find((m) => m.sender_id === currentUserId && !m.deleted_at && (m.body || '').trim().length > 0);
+    if (!myLast) return;
+    const createdAt = new Date(myLast.created_at).getTime();
+    const within5m = Date.now() - createdAt <= 5 * 60 * 1000;
+    if (!within5m) return;
+    setEditingMessageId(myLast.id);
+    setMessageText(myLast.body || '');
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [messages, currentUserId, sending, uploadingAttachments, hasUploadingAttachment, messageText]);
   // Track online/offline state
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -1793,6 +1832,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                         width="14"
                                         height="14"
                                         className="text-white"
+                                        aria-label="Read"
+                                        title="Read"
                                         fill="currentColor"
                                         style={{ minWidth: '14px' }}
                                       >
@@ -1808,6 +1849,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                         width="14"
                                         height="14"
                                         className="text-white/70"
+                                        aria-label="Delivered"
+                                        title="Delivered"
                                         fill="currentColor"
                                         style={{ minWidth: '14px' }}
                                       >
@@ -1823,6 +1866,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                         width="14"
                                         height="14"
                                         className="text-white/50"
+                                        aria-label="Sent"
+                                        title="Sent"
                                         fill="currentColor"
                                         style={{ minWidth: '14px' }}
                                       >
@@ -2076,6 +2121,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 void handleSend();
+              } else if (e.key === 'ArrowUp') {
+                // Quick edit last message
+                tryEnterEditLastMessage();
               }
             }}
             placeholder={replyingTo ? "Reply to message..." : "Type a message..."}
@@ -2119,7 +2167,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                   Sending...
                 </span>
               ) : (
-                'Send'
+                editingMessageId ? 'Save' : 'Send'
               )}
             </button>
           </div>
