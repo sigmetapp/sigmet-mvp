@@ -1235,123 +1235,139 @@ export default function PostFeed({
                   : ''
               }`}
               onMouseEnter={() => addViewOnce(p.id)}
-              renderContent={() => (
-                <div className="relative z-10 space-y-2">
-                  {/* header */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <AvatarWithBadge
-                        avatarUrl={avatar}
-                        swScore={swScore}
-                        size="sm"
-                        alt="avatar"
-                        href={`/u/${encodeURIComponent(profile?.username || p.user_id || '')}`}
-                      />
-                      <div className="flex flex-col min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <a 
-                            href={`/u/${encodeURIComponent(profile?.username || p.user_id || '')}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`text-sm font-semibold truncate hover:underline ${
-                              isLight ? 'text-slate-900' : 'text-slate-100'
-                            }`}
-                            data-prevent-card-navigation="true"
-                          >
-                            {username}
-                          </a>
-                          {(fullName || p.category || postHasMentions || growthStatuses.length > 0) && (
-                            <span className="text-sm text-slate-500 dark:text-slate-400">
-                              |
-                            </span>
-                          )}
-                          {fullName && (
-                            <>
-                              <span className="text-sm text-slate-500 dark:text-slate-400">
-                                {fullName}
-                              </span>
-                              {(p.category || postHasMentions || growthStatuses.length > 0) && (
+              renderContent={(postCardPost, defaultContent) => {
+                // Get current data from state (not from closure)
+                const currentProfile = p.user_id ? profilesByUserId[p.user_id] : undefined;
+                const currentAvatar = currentProfile?.avatar_url || AVATAR_FALLBACK;
+                const currentUsername = currentProfile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
+                const currentFullName = currentProfile?.full_name || null;
+                const currentSwScore = p.user_id ? (swScoresByUserId[p.user_id] || 0) : 0;
+                const currentGrowthStatuses = growthStatusesByPostId[p.id] || [];
+                const currentPostHasMentions = hasMentions(p.body);
+                
+                return (
+                  <div className="relative z-10 flex flex-col gap-2">
+                    {/* Header with avatar and clickable nickname */}
+                    <header className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <AvatarWithBadge
+                          avatarUrl={currentAvatar}
+                          swScore={currentSwScore}
+                          size="sm"
+                          alt="avatar"
+                          href={`/u/${encodeURIComponent(currentProfile?.username || p.user_id || '')}`}
+                        />
+                        <div className="flex flex-col min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <a
+                              href={`/u/${encodeURIComponent(currentProfile?.username || p.user_id || '')}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`text-sm font-semibold truncate hover:underline ${
+                                isLight ? 'text-slate-900' : 'text-slate-100'
+                              }`}
+                              data-prevent-card-navigation="true"
+                            >
+                              {currentUsername}
+                            </a>
+                            {(() => {
+                              return (currentFullName || p.category || currentPostHasMentions || currentGrowthStatuses.length > 0) && (
                                 <span className="text-sm text-slate-500 dark:text-slate-400">
                                   |
                                 </span>
-                              )}
-                            </>
-                          )}
-                          {p.category && (
-                            <>
-                              <div className={`text-xs px-2 py-1 rounded-md font-medium ${
-                                hasCategory && categoryDirection
-                                  ? isLight
-                                    ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
-                                    : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
-                                  : isLight
-                                  ? 'text-slate-500 bg-slate-100/50 border border-slate-200'
-                                  : 'text-slate-400 bg-white/5 border border-slate-700'
-                              }`}>
-                                {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
-                              </div>
-                              {(postHasMentions || growthStatuses.length > 0) && (
+                              );
+                            })()}
+                            {currentFullName && (
+                              <>
                                 <span className="text-sm text-slate-500 dark:text-slate-400">
-                                  |
+                                  {currentFullName}
                                 </span>
-                              )}
-                            </>
-                          )}
-                          {postHasMentions && (
-                            <>
-                              <div className={`text-xs px-2 py-1 rounded-md font-medium ${
-                                isLight
-                                  ? 'bg-green-500/20 text-green-600 border border-green-500/30 shadow-sm'
-                                  : 'bg-green-500/25 text-green-400 border border-green-500/40 shadow-sm'
-                              }`}>
-                                Connections
-                              </div>
-                              {growthStatuses.length > 0 && (
-                                <span className="text-sm text-slate-500 dark:text-slate-400">
-                                  |
-                                </span>
-                              )}
-                            </>
-                          )}
-                          {growthStatuses.length > 0 && growthStatuses.map((status) => {
-                            const statusConfig = {
-                              proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
-                              grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
-                              drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
-                            };
-                            const config = statusConfig[status];
-                            return (
-                              <div
-                                key={status}
-                                className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
-                                title={config.label}
-                              >
-                                <span>{config.emoji}</span>
-                                <span>{config.label}</span>
-                              </div>
-                            );
-                          })}
+                                {(() => {
+                                  return (p.category || currentPostHasMentions || currentGrowthStatuses.length > 0) && (
+                                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                                      |
+                                    </span>
+                                  );
+                                })()}
+                              </>
+                            )}
+                            {p.category && (
+                              <>
+                                <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                  hasCategory && categoryDirection
+                                    ? isLight
+                                      ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                                      : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                                    : isLight
+                                    ? 'text-slate-500 bg-slate-100/50 border border-slate-200'
+                                    : 'text-slate-400 bg-white/5 border border-slate-700'
+                                }`}>
+                                  {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                                </div>
+                                {(() => {
+                                  return (currentPostHasMentions || currentGrowthStatuses.length > 0) && (
+                                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                                      |
+                                    </span>
+                                  );
+                                })()}
+                              </>
+                            )}
+                            {currentPostHasMentions && (
+                              <>
+                                <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                  isLight
+                                    ? 'bg-green-500/20 text-green-600 border border-green-500/30 shadow-sm'
+                                    : 'bg-green-500/25 text-green-400 border border-green-500/40 shadow-sm'
+                                }`}>
+                                  Connections
+                                </div>
+                                {currentGrowthStatuses.length > 0 && (
+                                  <span className="text-sm text-slate-500 dark:text-slate-400">
+                                    |
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            {currentGrowthStatuses.length > 0 && currentGrowthStatuses.map((status) => {
+                              const statusConfig = {
+                                proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
+                                grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
+                                drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
+                              };
+                              const config = statusConfig[status];
+                              return (
+                                <div
+                                  key={status}
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
+                                  title={config.label}
+                                >
+                                  <span>{config.emoji}</span>
+                                  <span>{config.label}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    {/* Report button - only for other users' posts, positioned at top right */}
-                    {!isMyPost && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setReportModalOpen(p.id);
-                        }}
-                        className={`p-1.5 rounded-full transition z-30 shrink-0 ${
-                          isLight
-                            ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
-                            : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
-                        }`}
-                        title="Report post"
-                        data-prevent-card-navigation="true"
-                      >
-                        <Flag className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
+                      {/* Report button - only for other users' posts, positioned at top right */}
+                      {uid && uid !== p.user_id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReportModalOpen(p.id);
+                          }}
+                          className={`p-1.5 rounded-full transition z-30 shrink-0 ${
+                            isLight
+                              ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
+                              : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
+                          }`}
+                          title="Report post"
+                          data-prevent-card-navigation="true"
+                        >
+                          <Flag className="h-3 w-3" />
+                        </button>
+                      )}
+                    </header>
 
                   {/* content */}
                   {editingId === p.id ? (
