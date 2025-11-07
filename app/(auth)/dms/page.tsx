@@ -906,14 +906,6 @@ function DmsInner() {
     [moveHighlight]
   );
 
-  useEffect(() => {
-    if (!selectedPartnerId) return;
-    const partner = flatPartners.find((item) => item.user_id === selectedPartnerId);
-    if (partner && partner.unread_count > 0) {
-      void markPartnerAsRead(partner, { silent: true });
-    }
-  }, [selectedPartnerId, flatPartners, markPartnerAsRead]);
-
   const handleRefresh = useCallback(() => {
     if (fetchInFlightRef.current) return;
     setError(null);
@@ -1082,6 +1074,14 @@ function DmsInner() {
     },
     [applyPartnerUpdate]
   );
+
+  useEffect(() => {
+    if (!selectedPartnerId) return;
+    const partner = flatPartners.find((item) => item.user_id === selectedPartnerId);
+    if (partner && partner.unread_count > 0) {
+      void markPartnerAsRead(partner, { silent: true });
+    }
+  }, [selectedPartnerId, flatPartners, markPartnerAsRead]);
 
   const showEmptyState =
     !loadingInitial && !error && !hasResults && !isSearching && partners.length === 0;
