@@ -978,6 +978,28 @@ export default function DmsChatWindow({ partnerId }: Props) {
     setMessageText(e.target.value);
     handleTyping();
   }, [handleTyping]);
+
+  // Persist per-thread draft
+  useEffect(() => {
+    if (!thread?.id) return;
+    const key = `dm:draft:${thread.id}`;
+    try {
+      localStorage.setItem(key, messageText);
+    } catch {}
+  }, [messageText, thread?.id]);
+
+  // Hydrate draft on thread change
+  useEffect(() => {
+    if (!thread?.id) return;
+    const key = `dm:draft:${thread.id}`;
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved && saved !== messageText) {
+        setMessageText(saved);
+        setTimeout(() => textareaRef.current?.focus(), 0);
+      }
+    } catch {}
+  }, [thread?.id]);
   
   const loadOlderMessages = useCallback(async () => {
     if (!thread?.id || loadingOlderMessages || !hasMoreHistory) {
@@ -1786,6 +1808,42 @@ export default function DmsChatWindow({ partnerId }: Props) {
                           >
                             Reply
                           </button>
+                          {isMine && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => { setEditingMessageId(msg.id); setMessageText(msg.body || ''); setTimeout(() => textareaRef.current?.focus(), 0); }}
+                                className="px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-[11px] text-white/80 hover:bg-white/15"
+                                title="Edit"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!confirm('Delete this message for everyone?')) return;
+                                  try {
+                                    const resp = await fetch('/api/dms/messages.delete', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ message_id: msg.id, mode: 'everyone' }),
+                                    });
+                                    if (!resp.ok) {
+                                      const body = await resp.json().catch(() => ({}));
+                                      throw new Error(body.error || 'Failed to delete message');
+                                    }
+                                  } catch (err) {
+                                    console.error('Delete failed', err);
+                                    setError((err as any)?.message || 'Failed to delete message');
+                                  }
+                                }}
+                                className="px-1.5 py-0.5 rounded bg-red-500/20 border border-red-500/30 text-[11px] text-red-200 hover:bg-red-500/25"
+                                title="Delete"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
                         </div>
                         {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
                           <div className="mb-2 space-y-2">
