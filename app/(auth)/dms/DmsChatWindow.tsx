@@ -25,6 +25,7 @@ type SelectedAttachment = {
 
 type Props = {
   partnerId: string;
+  onBack?: () => void;
 };
 
 function compareMessages(a: Message, b: Message): number {
@@ -69,7 +70,7 @@ function mergeMessages(existing: Message[], additions: Message[]): Message[] {
   return sortMessagesChronologically(Array.from(byId.values()));
 }
 
-export default function DmsChatWindow({ partnerId }: Props) {
+export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [thread, setThread] = useState<Thread | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1624,6 +1625,17 @@ export default function DmsChatWindow({ partnerId }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-3">
+          {/* Mobile back */}
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="md:hidden mr-1 rounded-lg px-2 py-1 border text-sm transition bg-white/10 border-white/20 text-white/90 hover:bg-white/15"
+              aria-label="Back"
+            >
+              ←
+            </button>
+          )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={partnerAvatar}
@@ -2197,7 +2209,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
       )}
 
       {/* Input */}
-      <div className="px-3 pb-3 pt-2 border-t border-white/10">
+      <div className="px-3 pb-3 pt-2 border-t border-white/10 pb-[calc(env(safe-area-inset-bottom)+12px)]">
       <div
         className={`relative flex items-end gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-2 transition ${
           isDragActive ? 'ring-2 ring-cyan-400/50 border-cyan-400/50 bg-white/10' : ''
