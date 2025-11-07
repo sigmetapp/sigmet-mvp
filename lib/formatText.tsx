@@ -2,9 +2,9 @@ import React from 'react';
 import Link from 'next/link';
 
 /**
- * Проверяет, содержит ли текст упоминания через @
- * @param text - Текст для проверки
- * @returns true если есть упоминания, иначе false
+ * Checks whether the text contains @mentions.
+ * @param text - Text to check
+ * @returns true if there are mentions, otherwise false
  */
 export function hasMentions(text: string | null | undefined): boolean {
   if (!text) return false;
@@ -13,16 +13,16 @@ export function hasMentions(text: string | null | undefined): boolean {
 }
 
 /**
- * Парсит текст и выделяет упоминания через @ светло-зеленой подчеркнутой линией
- * @param text - Текст для обработки
- * @returns React элементы с выделенными упоминаниями
+ * Parses text and highlights @mentions with a light green underline.
+ * @param text - Text to process
+ * @returns React nodes with highlighted mentions
  */
 export function formatTextWithMentions(text: string): React.ReactNode {
   if (!text) return text;
 
-  // Регулярное выражение для поиска упоминаний: @username (где username может содержать буквы, цифры, подчеркивания)
-  // Паттерн: @ за которым следует один или более символов (буквы, цифры, подчеркивания)
-  // Захватываем упоминание до пробела, знака препинания или конца строки
+  // Regex to find mentions: @username (letters, digits, underscores)
+  // Pattern: @ followed by one or more word characters
+  // Capture until a space, punctuation, or end of line
   const mentionRegex = /@(\w+)/g;
   
   const parts: React.ReactNode[] = [];
@@ -33,12 +33,12 @@ export function formatTextWithMentions(text: string): React.ReactNode {
     const [fullMatch, username] = match;
     const matchIndex = match.index;
 
-    // Добавляем текст до упоминания
+    // Add text before mention
     if (matchIndex > lastIndex) {
       parts.push(text.substring(lastIndex, matchIndex));
     }
 
-    // Добавляем упоминание с светло-зеленой подчеркнутой линией и ссылкой на страницу пользователя
+    // Add mention with underline and link to user profile
     parts.push(
       <Link
         key={`mention-${matchIndex}`}
@@ -68,7 +68,7 @@ export function formatTextWithMentions(text: string): React.ReactNode {
     lastIndex = matchIndex + fullMatch.length;
   }
 
-  // Добавляем оставшийся текст
+  // Add remaining text
   if (lastIndex < text.length) {
     parts.push(text.substring(lastIndex));
   }

@@ -1628,7 +1628,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                   const receiptStatus = messageReceipts.get(msg.id);
                                   
                                   if (receiptStatus === 'read') {
-                                    // 2 галочки - прочитано (двойная галочка) - синие
+                                    // Double checkmark — read (blue)
                                     return (
                                       <svg
                                         xmlns="http://www.w3.org/2000/svg"
@@ -1643,7 +1643,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                       </svg>
                                     );
                                   } else if (receiptStatus === 'delivered') {
-                                    // 1 галочка - доставлено (одинарная галочка) - серая
+                                    // Single checkmark — delivered (gray)
                                     return (
                                       <svg
                                         xmlns="http://www.w3.org/2000/svg"
@@ -1658,7 +1658,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                       </svg>
                                     );
                                   } else {
-                                    // 1 галочка - отправлено (одинарная галочка) - более прозрачная
+                                    // Single checkmark — sent (more transparent)
                                     return (
                                       <svg
                                         xmlns="http://www.w3.org/2000/svg"
