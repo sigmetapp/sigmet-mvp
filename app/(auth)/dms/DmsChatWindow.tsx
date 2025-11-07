@@ -117,6 +117,9 @@ export default function DmsChatWindow({ partnerId }: Props) {
     sendTyping: wsSendTyping,
     acknowledgeMessage,
   } = useWebSocketDm(thread?.id || null, { initialLimit: INITIAL_MESSAGE_LIMIT });
+
+  // Backward-compatible alias to avoid ReferenceError in older chunks
+  const wsSendMessage = sendMessageHook;
   
   // Local state
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
