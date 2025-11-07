@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import DmsChatWindow from './DmsChatWindow';
+import Toast from '@/components/Toast';
 
 export default function DmsPage() {
   return (
@@ -188,6 +189,35 @@ function deriveMessagePreview(partner: PartnerListItem, currentUserId: string | 
   return text;
 }
 
+type PresenceStatus = 'online' | 'recent' | 'offline';
+
+function getPresenceStatus(partner: PartnerListItem): PresenceStatus {
+  const reference =
+    partner.last_read_at ??
+    partner.last_message_at ??
+    partner.created_at ??
+    partner.pinned_at ??
+    null;
+
+  if (!reference) {
+    return 'offline';
+  }
+
+  const referenceDate = new Date(reference);
+  if (Number.isNaN(referenceDate.getTime())) {
+    return 'offline';
+  }
+
+  const diffMs = Date.now() - referenceDate.getTime();
+  if (diffMs <= 5 * 60 * 1000) {
+    return 'online';
+  }
+  if (diffMs <= 60 * 60 * 1000) {
+    return 'recent';
+  }
+  return 'offline';
+}
+
 function DmsInner() {
   const searchParams = useSearchParams();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -199,6 +229,9 @@ function DmsInner() {
   const [paginationState, setPaginationState] = useState({ offset: 0, hasMore: true });
   const [searchTerm, setSearchTerm] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+  const [toast, setToast] = useState<{ message: string; type?: 'success' | 'error' | 'info' } | null>(
+    null
+  );
 
   const paginationRef = useRef({ offset: 0, hasMore: true });
   const partnersRef = useRef<PartnerListItem[]>([]);
@@ -770,9 +803,17 @@ function DmsInner() {
           is_pinned: nextPinned,
           pinned_at: pinnedAt,
         }));
+        setToast({
+          message: nextPinned ? 'Conversation pinned' : 'Conversation unpinned',
+          type: 'success',
+        });
       } catch (err: any) {
         console.error('Failed to toggle pin state', err);
         setError(err?.message || 'Failed to update conversation');
+        setToast({
+          message: err?.message || 'Failed to update conversation',
+          type: 'error',
+        });
       }
     },
     [applyPartnerUpdate]
@@ -807,9 +848,17 @@ function DmsInner() {
           notifications_muted: nextMuted,
           mute_until: muteUntil,
         }));
+        setToast({
+          message: nextMuted ? 'Conversation muted' : 'Conversation unmuted',
+          type: 'info',
+        });
       } catch (err: any) {
         console.error('Failed to toggle mute state', err);
         setError(err?.message || 'Failed to update conversation');
+        setToast({
+          message: err?.message || 'Failed to update conversation',
+          type: 'error',
+        });
       }
     },
     [applyPartnerUpdate]
@@ -846,9 +895,17 @@ function DmsInner() {
           last_read_message_id: lastReadId,
           last_read_at: new Date().toISOString(),
         }));
+        setToast({
+          message: 'All messages marked as read',
+          type: 'success',
+        });
       } catch (err: any) {
         console.error('Failed to mark conversation as read', err);
         setError(err?.message || 'Failed to mark conversation as read');
+        setToast({
+          message: err?.message || 'Failed to mark conversation as read',
+          type: 'error',
+        });
       }
     },
     [applyPartnerUpdate]
@@ -863,6 +920,14 @@ function DmsInner() {
 
   return (
     <div className="flex flex-col md:flex-row gap-4 h-[calc(100vh-120px)]">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+          duration={2500}
+        />
+      )}
       <div className="w-full md:w-80 flex-shrink-0">
           <div className="card card-glow h-full flex flex-col">
             <div className="px-4 py-4 border-b border-white/10 space-y-3">
@@ -945,6 +1010,19 @@ function DmsInner() {
                           const timestampLabel = formatRelativeTime(
                             partner.last_message_at ?? partner.created_at
                           );
+                          const presenceStatus = getPresenceStatus(partner);
+                          const presenceClasses =
+                            presenceStatus === 'online'
+                              ? 'bg-emerald-400'
+                              : presenceStatus === 'recent'
+                                ? 'bg-amber-400'
+                                : 'bg-white/30';
+                          const presenceLabel =
+                            presenceStatus === 'online'
+                              ? 'Online'
+                              : presenceStatus === 'recent'
+                                ? 'Recently active'
+                                : 'Offline';
 
                           return (
                               <div
@@ -993,8 +1071,20 @@ function DmsInner() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0">
-                                    <div className="text-sm font-medium text-white truncate">
-                                      {name}
+                                    <div className="flex items-center gap-2">
+                                      <div className="text-sm font-medium text-white truncate">
+                                        {name}
+                                      </div>
+                                      <span
+                                        className="flex items-center gap-1 text-[11px] text-white/50"
+                                        title={presenceLabel}
+                                      >
+                                        <span
+                                          className={`h-2 w-2 rounded-full ${presenceClasses}`}
+                                          aria-hidden="true"
+                                        />
+                                        <span>{presenceStatus === 'online' ? 'Online' : presenceStatus === 'recent' ? 'Active' : 'Offline'}</span>
+                                      </span>
                                     </div>
                                     <div className="text-xs text-white/55 truncate">{preview}</div>
                                     <div className="mt-1 flex flex-wrap gap-2">
