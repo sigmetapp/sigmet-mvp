@@ -60,40 +60,61 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const hasMoreThreads = rows.length > limit;
       const trimmedRows = rows.slice(0, limit);
 
-      const partners: PartnerResponse[] = trimmedRows.map((row) => {
-        const rawThreadId = row.thread_id;
-        const threadId = typeof rawThreadId === 'number' ? rawThreadId : rawThreadId ? Number(rawThreadId) : null;
-        const rawLastMessageId = row.last_message_id;
-        const lastMessageId =
-          typeof rawLastMessageId === 'number' ? rawLastMessageId : rawLastMessageId ? Number(rawLastMessageId) : null;
-        const rawLastReadId = row.last_read_message_id;
-        const lastReadId =
-          typeof rawLastReadId === 'number' ? rawLastReadId : rawLastReadId ? Number(rawLastReadId) : null;
-        const partnerId = row.partner_id as string | null;
+      const partners: PartnerResponse[] = trimmedRows
+        .map((row) => {
+          const rawThreadId = row.thread_id;
+          const threadId =
+            typeof rawThreadId === 'number'
+              ? rawThreadId
+              : typeof rawThreadId === 'string'
+                ? Number(rawThreadId)
+                : null;
 
-        return {
-          user_id: partnerId ?? '',
-          username: row.partner_username ?? null,
-          full_name: row.partner_full_name ?? null,
-          avatar_url: row.partner_avatar_url ?? null,
-          thread_id: threadId,
-          messages24h: typeof row.messages24h === 'number' ? row.messages24h : Number(row.messages24h ?? 0),
-          last_message_at: row.last_message_at ?? null,
-          created_at: row.thread_created_at ?? null,
-          last_message_id: lastMessageId,
-          last_message_body: row.last_message_body ?? null,
-          last_message_kind: row.last_message_kind ?? null,
-          last_message_sender_id: row.last_message_sender_id ?? null,
-          unread_count: typeof row.unread_count === 'number' ? row.unread_count : Number(row.unread_count ?? 0),
-          is_pinned: Boolean(row.is_pinned),
-          pinned_at: row.pinned_at ?? null,
-          notifications_muted: Boolean(row.notifications_muted),
-          mute_until: row.mute_until ?? null,
-          last_read_message_id: lastReadId,
-          last_read_at: row.last_read_at ?? null,
-          source: 'thread',
-        };
-      }).filter((partner) => partner.user_id);
+          const rawLastMessageId = row.last_message_id;
+          let lastMessageId: number | null = null;
+          if (typeof rawLastMessageId === 'number') {
+            lastMessageId = rawLastMessageId;
+          } else if (typeof rawLastMessageId === 'string') {
+            const parsed = Number(rawLastMessageId);
+            if (Number.isFinite(parsed)) {
+              lastMessageId = parsed;
+            }
+          }
+
+          const rawLastReadId = row.last_read_message_id;
+          const lastReadId =
+            typeof rawLastReadId === 'number'
+              ? rawLastReadId
+              : typeof rawLastReadId === 'string'
+                ? Number(rawLastReadId)
+                : null;
+
+          const partnerId = row.partner_id as string | null;
+
+          return {
+            user_id: partnerId ?? '',
+            username: row.partner_username ?? null,
+            full_name: row.partner_full_name ?? null,
+            avatar_url: row.partner_avatar_url ?? null,
+            thread_id: threadId,
+            messages24h: typeof row.messages24h === 'number' ? row.messages24h : Number(row.messages24h ?? 0),
+            last_message_at: row.last_message_at ?? null,
+            created_at: row.thread_created_at ?? null,
+            last_message_id: lastMessageId,
+            last_message_body: row.last_message_body ?? null,
+            last_message_kind: row.last_message_kind ?? null,
+            last_message_sender_id: row.last_message_sender_id ?? null,
+            unread_count: typeof row.unread_count === 'number' ? row.unread_count : Number(row.unread_count ?? 0),
+            is_pinned: Boolean(row.is_pinned),
+            pinned_at: row.pinned_at ?? null,
+            notifications_muted: Boolean(row.notifications_muted),
+            mute_until: row.mute_until ?? null,
+            last_read_message_id: lastReadId,
+            last_read_at: row.last_read_at ?? null,
+            source: 'thread',
+          };
+        })
+        .filter((partner) => partner.user_id);
 
       const partnerIds = new Set(partners.map((p) => p.user_id));
 
