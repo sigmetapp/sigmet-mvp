@@ -16,7 +16,7 @@ export default function SidebarShell({ user, children }: { user: User; children:
     }`}>
       {/* Mobile top bar removed */}
 
-      <div className="mx-auto flex max-w-7xl">
+      <div className="mx-auto flex max-w-[1088px]">
         {/* Desktop sidebar */}
         <div className="hidden h-[calc(100vh-0px)] shrink-0 lg:block lg:sticky lg:top-0">
           <Sidebar user={user} />

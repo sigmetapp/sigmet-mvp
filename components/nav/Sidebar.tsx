@@ -15,7 +15,7 @@ const menu = [
   { label: 'SW', href: '/sw', icon: <Trophy size={18} />, bordered: true },
   { label: 'Feeds', href: '/feed', icon: <Rss size={18} /> },
   { label: 'Page', href: '/page', icon: <User size={18} /> },
-  { label: 'Connections/Follow', href: '/connections', icon: <Users size={18} /> },
+  { label: 'Connections', href: '/connections', icon: <Users size={18} /> },
   { label: 'Messages', href: '/dms', icon: <MessageSquare size={18} />, badgeKey: 'unreadDM' as const },
   { label: 'Growth 8', href: '/growth-directions', icon: <Sprout size={18} /> },
   { label: 'Settings', href: '/profile', icon: <SettingsIcon size={18} /> },
@@ -40,7 +40,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
 
   return (
-    <aside className={`flex h-full w-64 flex-col border-r backdrop-blur-md transition-colors ${
+    <aside className={`flex h-full w-[218px] flex-col border-r backdrop-blur-md transition-colors ${
       isLight
         ? "border-telegram-blue/15 bg-white/90 text-telegram-text"
         : "border-telegram-blue/20 bg-[rgba(15,22,35,0.9)] text-telegram-text"

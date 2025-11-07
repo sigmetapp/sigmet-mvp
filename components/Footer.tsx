@@ -23,7 +23,7 @@ export default function Footer() {
 
   return (
     <footer className={`${isLight ? "border-t border-black/10 bg-white/70" : "border-t border-white/10 bg-black/30"}`}>
-      <div className={`max-w-7xl mx-auto px-4 py-10 text-sm ${isLight ? "text-black/60" : "text-white/70"}`}>
+      <div className={`max-w-[1088px] mx-auto px-4 py-10 text-sm ${isLight ? "text-black/60" : "text-white/70"}`}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div>
             <a href="https://sigmet.app" target="_blank" rel="noreferrer" className="flex items-center gap-2 mb-3">
@@ -101,7 +101,7 @@ export default function Footer() {
             onClick={() => setAdminOpen(false)}
           />
           <div className="absolute bottom-0 left-0 right-0 p-3">
-            <div className={`mx-auto max-w-7xl rounded-2xl border shadow-xl p-3 ${
+            <div className={`mx-auto max-w-[1088px] rounded-2xl border shadow-xl p-3 ${
               isLight ? 'bg-white border-telegram-blue/15' : 'bg-[rgba(15,22,35,0.98)] border-telegram-blue/20'
             }`}>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
