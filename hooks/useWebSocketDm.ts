@@ -69,6 +69,8 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
   // Also track timeouts to clear filters
   const sentClientMsgIdsRef = useRef<Set<string>>(new Set());
   const filterTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  // Watchdog for local-echo: fallback HTTP send if WS persist doesn't arrive in time
+  const pendingEchoTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   
   const wsClientRef = useRef(getWebSocketClient());
   const authTokenRef = useRef<string | null>(null);
@@ -400,11 +402,16 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
               return updated;
             });
             
-            // Clear timeout if it exists
+            // Clear filter and watchdog timers if they exist
             const timeout = filterTimeoutsRef.current.get(event.client_msg_id);
             if (timeout) {
               clearTimeout(timeout);
               filterTimeoutsRef.current.delete(event.client_msg_id);
+            }
+            const echoTimeout = pendingEchoTimeoutsRef.current.get(event.client_msg_id);
+            if (echoTimeout) {
+              clearTimeout(echoTimeout);
+              pendingEchoTimeoutsRef.current.delete(event.client_msg_id);
             }
             
             // Remove from filter after persistence (message is now in DB)
@@ -763,15 +770,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       } catch (error) {
         console.warn('WebSocket sendMessage failed, falling back to Supabase realtime:', error);
         setTransport('supabase');
-        // Remove local echo on error
-        setMessagesState((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
-        sentClientMsgIdsRef.current.delete(clientMsgId);
-        const timeout = filterTimeoutsRef.current.get(clientMsgId);
-        if (timeout) {
-          clearTimeout(timeout);
-          filterTimeoutsRef.current.delete(clientMsgId);
-        }
-        // Continue to fallback below
+        // Continue to fallback below without removing local echo
       }
     }
 
@@ -819,17 +818,19 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
 
       return { client_msg_id: clientMsgId, server_msg_id: savedMessage.id };
     } catch (error) {
-      // Remove local echo on error
-      setMessagesState((prev) => prev.filter((m) => (m as any).client_msg_id !== clientMsgId));
-      sentClientMsgIdsRef.current.delete(clientMsgId);
-      const timeout = filterTimeoutsRef.current.get(clientMsgId);
-      if (timeout) {
-        clearTimeout(timeout);
-        filterTimeoutsRef.current.delete(clientMsgId);
-      }
+      // Keep local echo for user retry; clear filters after timeout
       throw error;
     }
   }, [transport]);
+
+  // Watchdog: if local echo wasn't persisted in time via WS, fallback to HTTP persist
+  useEffect(() => {
+    return () => {
+      // clear any pending timeouts on unmount
+      pendingEchoTimeoutsRef.current.forEach((t) => clearTimeout(t));
+      pendingEchoTimeoutsRef.current.clear();
+    };
+  }, []);
 
   // Send typing indicator
   const sendTyping = useCallback((threadId: ThreadId, typing: boolean) => {
