@@ -112,7 +112,8 @@ export default function DmsChatWindow({ partnerId }: Props) {
     partnerOnline: wsPartnerOnline,
     // Avoid shadowing local helper name; alias merge function from hook
     mergeMessages: mergeMessagesIntoState,
-    sendMessage: wsSendMessage,
+    setMessages: setMessagesFromHook,
+    sendMessage: sendMessageHook,
     sendTyping: wsSendTyping,
     acknowledgeMessage,
   } = useWebSocketDm(thread?.id || null, { initialLimit: INITIAL_MESSAGE_LIMIT });
@@ -1358,22 +1359,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
         playSendConfirmation();
         return;
       }
-      await (async () => {
-        const maxAttempts = 3;
-        let attempt = 0;
-        const delays = [300, 900, 2000];
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-          try {
-            await wsSendMessage(threadId, messageBody, annotateDocumentVersions(attachments, messages) as unknown[]);
-            break;
-          } catch (err) {
-            attempt += 1;
-            if (attempt >= maxAttempts) throw err;
-            await new Promise((r) => setTimeout(r, delays[Math.min(attempt - 1, delays.length - 1)]));
-          }
-        }
-      })();
+      await sendMessageHook(threadId, messageBody, annotateDocumentVersions(attachments, messages) as unknown[]);
 
       setMessageText('');
       setSelectedFiles((prev) => {
@@ -1493,7 +1479,7 @@ export default function DmsChatWindow({ partnerId }: Props) {
         if (cancelled) return;
         const item = queue[i];
         try {
-          await wsSendMessage(thread.id, item.body, annotateDocumentVersions(item.attachments, messages) as unknown[]);
+          await sendMessageHook(thread.id, item.body, annotateDocumentVersions(item.attachments, messages) as unknown[]);
           setOutbox((prev) => prev.slice(1));
           await new Promise((r) => setTimeout(r, 150));
         } catch (err) {
@@ -1952,6 +1938,35 @@ export default function DmsChatWindow({ partnerId }: Props) {
                                 })()}
                               </div>
                             )}
+                          </div>
+                        )}
+                        {/* Local echo controls: show for pending messages (id === -1) */}
+                        {isMine && msg.id === -1 && (
+                          <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                            <span className="text-[11px] text-white/70">Sending…</span>
+                            <button
+                              type="button"
+                              className="px-2 py-0.5 rounded bg-white/10 border border-white/20 text-[11px] text-white/80 hover:bg-white/15"
+                              onClick={() => {
+                                // Cancel: remove local echo
+                                setMessagesFromHook((prev: any[]) => prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id));
+                              }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              className="px-2 py-0.5 rounded bg-blue-500/20 border border-blue-500/30 text-[11px] text-blue-200 hover:bg-blue-500/25"
+                              onClick={() => {
+                                // Retry: remove echo and resend with fresh client id
+                                const echoBody = msg.body || null;
+                                const echoAttachments = Array.isArray(msg.attachments) ? (msg.attachments as any[]) : [];
+                                setMessagesFromHook((prev: any[]) => prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id));
+                                void sendMessageHook(thread!.id, echoBody, echoAttachments);
+                              }}
+                            >
+                              Retry
+                            </button>
                           </div>
                         )}
                       </div>
