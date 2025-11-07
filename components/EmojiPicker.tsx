@@ -48,6 +48,17 @@ export default function EmojiPicker({
   const [isOpen, setIsOpen] = useState(false);
   const [, setRecentEmojis] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('recentEmojis') : null;
@@ -109,6 +120,11 @@ export default function EmojiPicker({
   const triggerClasses = VARIANT_STYLES[variant];
   const alignmentClasses = align === 'left' ? 'left-0' : 'right-0';
   const positionClasses = position === 'top' ? 'bottom-full mb-2' : 'mt-2';
+
+  // Hide emoji picker on mobile devices
+  if (isMobile) {
+    return null;
+  }
 
   return (
     <div ref={containerRef} className="relative">

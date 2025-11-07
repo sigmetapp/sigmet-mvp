@@ -1139,7 +1139,7 @@ export default function PostFeed({
                 commentsCount: commentCount,
               }}
               disableNavigation={true}
-              className={`card p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out ${
+              className={`card p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out rounded-none md:rounded-none ${
                 hasCategory && categoryDirection
                   ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
                   : ''
@@ -1287,11 +1287,13 @@ export default function PostFeed({
                         </div>
                       )}
                       {p.video_url && (
-                        <div className="mt-3 flex justify-center">
+                        <div className="mt-3 flex justify-center w-full">
                           <video 
                             controls 
-                            preload="metadata" 
-                            className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                            preload="metadata"
+                            poster={p.image_url || undefined}
+                            className={`w-full max-w-full max-h-[500px] h-auto rounded-none border ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                            style={{ objectFit: 'contain' }}
                           >
                             <source src={p.video_url} />
                           </video>
@@ -1470,6 +1472,7 @@ export default function PostFeed({
                           }
                           placeholder="Write a comment?"
                           className={`input py-2 focus:ring-0 flex-1 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                          style={{ fontSize: '16px' }} // Prevent zoom on mobile
                         />
                         <input
                           id={`cfile-${p.id}`}
@@ -1557,7 +1560,7 @@ export default function PostFeed({
     <div className={className || ''}>
       {/* Filters toggle - render inside if not rendering outside */}
       {showFilters && !renderFiltersOutside && (
-        <div className="card p-3 md:p-4 mb-6">
+        <div className="card p-3 md:p-4 mb-6 px-4 md:px-4">
           {filtersJSX}
         </div>
       )}

@@ -1009,6 +1009,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
             placeholder="Write a comment?"
             rows={3}
             className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm outline-none focus:ring focus:ring-sky-500/40 dark:border-slate-700"
+            style={{ fontSize: '16px' }} // Prevent zoom on mobile
           />
           <div className="mt-3 flex items-center justify-end gap-2">
             <EmojiPicker

@@ -12,9 +12,9 @@ export default function FeedPage() {
 
   return (
     <RequireAuth>
-      <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+      <div className="max-w-7xl mx-auto px-0 md:px-4 py-6 md:py-8">
         {/* Page header with filters in one row */}
-        <div className="mb-6 md:mb-8">
+        <div className="mb-6 md:mb-8 px-4 md:px-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? "bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent" : "gradient-text"}`}>
               Your feed
