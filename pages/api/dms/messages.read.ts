@@ -98,30 +98,85 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Best-effort: mark receipts up to nextId as read
+    // Mark receipts up to nextId as read
+    // Get all message IDs up to and including the target message from partner
     const { data: ids } = await execOrFetch(
       client
         .from('dms_messages')
-        .select('id')
+        .select('id, sender_id')
         .eq('thread_id', threadIdNum)
-        .lte('created_at', msgCheck.created_at || new Date().toISOString())
+        .lte('id', upToNum)
+        .neq('sender_id', user.id)
         .limit(1000)
     );
 
-    let idList: string[] = (ids || []).map((x: any) => String(x.id));
+    let idList: number[] = (ids || []).map((x: any) => {
+      const id = typeof x.id === 'string' ? Number.parseInt(x.id, 10) : Number(x.id);
+      return Number.isNaN(id) ? null : id;
+    }).filter((id): id is number => id !== null);
+
     if (idList.length === 0) {
-      // Fallback for test doubles that may not return rows: include the up-to id directly
-      idList = [nextId];
+      // Fallback: include the up-to id directly if it's from partner
+      const { data: msgCheck2 } = await client
+        .from('dms_messages')
+        .select('sender_id')
+        .eq('thread_id', threadIdNum)
+        .eq('id', upToNum)
+        .maybeSingle();
+      
+      if (msgCheck2 && msgCheck2.sender_id !== user.id) {
+        idList = [upToNum];
+      }
     }
+
     if (idList.length > 0) {
+      // Update existing receipts to 'read' status
       await execOrFetch(
         client
           .from('dms_message_receipts')
           .update({ status: 'read', updated_at: new Date().toISOString() })
           .eq('user_id', user.id)
-          .eq('status', 'delivered')
           .in('message_id', idList)
       );
+
+      // Create receipts with 'read' status for messages that don't have receipts yet
+      // Use upsert to handle both insert and update
+      const receiptsToUpsert = idList.map((msgId) => ({
+        message_id: msgId,
+        user_id: user.id,
+        status: 'read' as const,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+
+      if (receiptsToUpsert.length > 0) {
+        try {
+          await execOrFetch(
+            client
+              .from('dms_message_receipts')
+              .upsert(receiptsToUpsert, {
+                onConflict: 'message_id,user_id',
+                ignoreDuplicates: false,
+              })
+          );
+        } catch (upsertErr: any) {
+          // If upsert fails, try insert with onConflict
+          console.warn('Upsert failed, trying insert with onConflict:', upsertErr);
+          try {
+            for (const receipt of receiptsToUpsert) {
+              await execOrFetch(
+                client
+                  .from('dms_message_receipts')
+                  .insert(receipt)
+                  .onConflict('message_id,user_id')
+                  .merge({ status: 'read', updated_at: new Date().toISOString() })
+              );
+            }
+          } catch (insertErr) {
+            console.error('Error creating receipts:', insertErr);
+          }
+        }
+      }
     }
 
     return res.status(200).json({ ok: true, last_read_message_id: nextId });
