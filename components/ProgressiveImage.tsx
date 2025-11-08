@@ -50,11 +50,44 @@ export default function ProgressiveImage({
   // Generate blur placeholder if not provided
   const defaultBlurDataURL = blurDataURL || generateBlurPlaceholder(width || 400, height || 400);
 
+  // Optimize image URL for avatars
+  // Note: Supabase Storage doesn't support width/height query params directly
+  // But we can ensure proper caching headers and use appropriate sizes
+  const optimizeImageUrl = (url: string): string => {
+    if (!url || url.startsWith('data:')) {
+      return url;
+    }
+    
+    // For now, return the URL as-is
+    // Future optimization: could use image transformation service or CDN
+    // For Supabase Storage, images are served with proper caching headers
+    return url;
+  };
+
   useEffect(() => {
-    setCurrentSrc(src);
+    const optimizedSrc = optimizeImageUrl(src);
+    setCurrentSrc(optimizedSrc);
     setImageLoaded(false);
     setImageError(false);
-  }, [src]);
+    
+    // Preload image if priority is set
+    if (priority && optimizedSrc && !optimizedSrc.startsWith('data:') && typeof document !== 'undefined') {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = optimizedSrc;
+      if ('fetchPriority' in link) {
+        (link as any).fetchPriority = 'high';
+      }
+      document.head.appendChild(link);
+      
+      return () => {
+        if (document.head.contains(link)) {
+          document.head.removeChild(link);
+        }
+      };
+    }
+  }, [src, width, height, priority]);
 
   const handleLoad = () => {
     setImageLoaded(true);
@@ -145,7 +178,8 @@ export default function ProgressiveImage({
         onError={handleError}
         loading={priority ? 'eager' : 'lazy'}
         decoding="async"
-        sizes={sizes}
+        sizes={sizes || (width ? `${width}px` : undefined)}
+        {...(priority && { fetchPriority: 'high' as const })}
         {...rest}
       />
 

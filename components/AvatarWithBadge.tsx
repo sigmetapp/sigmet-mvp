@@ -30,7 +30,8 @@ export default function AvatarWithBadge({
   alt = 'avatar',
   onClick,
   href,
-}: AvatarWithBadgeProps) {
+  priority = false,
+}: AvatarWithBadgeProps & { priority?: boolean }) {
   const showBadge = shouldShowBadge(swScore, swLevels);
   const level = getSWLevel(swScore, swLevels);
   const colorScheme = getLevelColorScheme(level.name);
@@ -58,7 +59,7 @@ export default function AvatarWithBadge({
         title={showBadge && colorScheme ? level.name : undefined}
         objectFit="cover"
         placeholder="blur"
-        priority={false}
+        priority={priority}
       />
     </div>
   );
