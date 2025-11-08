@@ -459,11 +459,22 @@ async function handleSendMessage(
 
   } catch (err: any) {
     gatewayLogger.error('Send message error:', err);
+    
+    // Use centralized error handling
+    const { handleDmError } = require('./errorHandler');
+    handleDmError(err, {
+      component: 'gateway',
+      action: 'send_message',
+      threadId: String(threadId),
+      userId: conn.userId,
+    });
+    
     send(conn.ws, { type: 'error', error: err?.message || 'Internal error', code: 'INTERNAL_ERROR' });
   }
 }
 
 // Handle message sync (for reconnect/offline)
+// Uses sequence_number for reliable ordering and synchronization
 async function handleSync(conn: Connection, threadId: ThreadId, lastServerMsgId: number | null) {
   try {
     const supabase = getSupabaseService();
@@ -481,14 +492,35 @@ async function handleSync(conn: Connection, threadId: ThreadId, lastServerMsgId:
       return;
     }
 
-    // Fetch messages after last_server_msg_id
+    // Get last sequence_number from last_server_msg_id if provided
+    let lastSequenceNumber: number | null = null;
+    if (lastServerMsgId !== null) {
+      const { data: lastMessage } = await supabase
+        .from('dms_messages')
+        .select('sequence_number')
+        .eq('thread_id', threadId)
+        .eq('id', lastServerMsgId)
+        .maybeSingle();
+      
+      if (lastMessage?.sequence_number) {
+        lastSequenceNumber = typeof lastMessage.sequence_number === 'string'
+          ? parseInt(lastMessage.sequence_number, 10)
+          : Number(lastMessage.sequence_number);
+      }
+    }
+
+    // Fetch messages after last sequence_number (more reliable than id)
     let query = supabase
       .from('dms_messages')
       .select('*')
       .eq('thread_id', threadId)
-      .order('id', { ascending: true });
+      .order('sequence_number', { ascending: true })
+      .order('id', { ascending: true }); // Fallback ordering by id
 
-    if (lastServerMsgId !== null) {
+    if (lastSequenceNumber !== null) {
+      query = query.gt('sequence_number', lastSequenceNumber);
+    } else if (lastServerMsgId !== null) {
+      // Fallback to id-based sync if sequence_number not available
       query = query.gt('id', lastServerMsgId);
     }
 
@@ -499,11 +531,19 @@ async function handleSync(conn: Connection, threadId: ThreadId, lastServerMsgId:
       return;
     }
 
-    const lastId = messages && messages.length > 0
-      ? (typeof messages[messages.length - 1]!.id === 'string'
-          ? parseInt(messages[messages.length - 1]!.id, 10)
-          : Number(messages[messages.length - 1]!.id))
-      : lastServerMsgId;
+    // Calculate last_server_msg_id and last_sequence_number
+    let lastId = lastServerMsgId;
+    let lastSeq = lastSequenceNumber;
+    
+    if (messages && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1]!;
+      lastId = typeof lastMsg.id === 'string' ? parseInt(lastMsg.id, 10) : Number(lastMsg.id);
+      if (lastMsg.sequence_number !== null && lastMsg.sequence_number !== undefined) {
+        lastSeq = typeof lastMsg.sequence_number === 'string'
+          ? parseInt(lastMsg.sequence_number, 10)
+          : Number(lastMsg.sequence_number);
+      }
+    }
 
     send(conn.ws, {
       type: 'sync_response',
@@ -512,6 +552,15 @@ async function handleSync(conn: Connection, threadId: ThreadId, lastServerMsgId:
       last_server_msg_id: lastId,
     });
   } catch (err: any) {
+    // Use centralized error handling
+    const { handleDmError } = require('./errorHandler');
+    handleDmError(err, {
+      component: 'gateway',
+      action: 'sync',
+      threadId: String(threadId),
+      userId: conn.userId,
+    });
+    
     send(conn.ws, { type: 'error', error: err?.message || 'Internal error', code: 'INTERNAL_ERROR' });
   }
 }

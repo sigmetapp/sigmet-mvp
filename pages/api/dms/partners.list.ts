@@ -47,11 +47,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
 
       const fetchLimit = limit + 1;
-      const { data: threadData, error: threadError } = await client.rpc('dms_list_partners', {
-        p_user_id: user.id,
-        p_limit: fetchLimit,
-        p_offset: offset,
-      });
+      // Try optimized function first, fallback to original if not available
+      let threadData: any = null;
+      let threadError: any = null;
+      
+      try {
+        const result = await client.rpc('dms_list_partners_optimized', {
+          p_user_id: user.id,
+          p_limit: fetchLimit,
+          p_offset: offset,
+        });
+        threadData = result.data;
+        threadError = result.error;
+      } catch (err: any) {
+        // Fallback to original function if optimized version doesn't exist
+        const result = await client.rpc('dms_list_partners', {
+          p_user_id: user.id,
+          p_limit: fetchLimit,
+          p_offset: offset,
+        });
+        threadData = result.data;
+        threadError = result.error;
+      }
 
       if (threadError) {
         return res.status(400).json({ ok: false, error: threadError.message });
