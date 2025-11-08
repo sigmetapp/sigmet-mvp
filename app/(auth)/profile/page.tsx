@@ -7,6 +7,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import CountryCitySelect from '@/components/CountryCitySelect';
 import EducationalInstitutionSelect from '@/components/EducationalInstitutionSelect';
 import { useTheme } from '@/components/ThemeProvider';
+import ProfileSkeleton from '@/components/ProfileSkeleton';
 
 export default function ProfilePage() {
   return (
@@ -157,7 +158,9 @@ function ProfileSettings() {
     }
   }
 
-  if (loading) return <div className={`p-6 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Loading...</div>;
+  if (loading) {
+    return <ProfileSkeleton />;
+  }
 
   return (
     <main className="max-w-2xl mx-auto px-0 md:px-4 py-4 md:p-4">
