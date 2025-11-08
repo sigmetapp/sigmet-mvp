@@ -1278,7 +1278,7 @@ export default function PublicProfilePage() {
       {!loadingProfile && profile && (
         <div className="grid gap-6 md:grid-cols-[1.6fr_1.2fr_1.2fr]">
           {/* Info block - Bio, Location, Website, Joined */}
-          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-5">
+          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-2">
             <div className="space-y-4">
               {/* Bio */}
               {profile.bio && (
@@ -1412,7 +1412,7 @@ export default function PublicProfilePage() {
           </div>
 
           {/* Additional Info block - Relationship Status, Place of Study, Date of birth, Work & Career */}
-          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-7">
+          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-3">
             <div className="space-y-4">
               {/* Relationship Status */}
               {profile.relationship_status && (
@@ -1530,7 +1530,7 @@ export default function PublicProfilePage() {
           </div>
 
           {/* Stats block - Connections, Following, Followers, Referrals */}
-          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-6">
+          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-4">
             <div className="space-y-3">
               {/* Connections */}
               <div className="flex items-center justify-between gap-3">
