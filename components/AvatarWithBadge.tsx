@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { getSWLevel, getLevelColorScheme, shouldShowBadge, type SWLevel } from '@/lib/swLevels';
-import ProgressiveImage from './ProgressiveImage';
 import { resolveAvatarUrl } from '@/lib/utils';
 
 type AvatarWithBadgeProps = {
@@ -37,15 +36,18 @@ export default function AvatarWithBadge({
   const level = getSWLevel(swScore, swLevels);
   const colorScheme = getLevelColorScheme(level.name);
   const normalizedAvatarUrl = resolveAvatarUrl(avatarUrl) ?? avatarUrl;
+  const AVATAR_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
 
   const avatarElement = (
     <div className={`relative inline-block ${sizeClasses[size]} ${className}`}>
-      <ProgressiveImage
-        src={normalizedAvatarUrl}
+      {/* Actual image */}
+      <img
+        key={normalizedAvatarUrl}
+        src={normalizedAvatarUrl || AVATAR_FALLBACK}
         alt={alt}
         width={size === 'sm' ? 50 : size === 'md' ? 60 : 80}
         height={size === 'sm' ? 50 : size === 'md' ? 60 : 80}
-        className={`${sizeClasses[size]} rounded-full shrink-0 ${
+        className={`${sizeClasses[size]} rounded-full shrink-0 object-cover ${
           showBadge && colorScheme
             ? 'border-2'
             : 'border border-white/10'
@@ -59,9 +61,15 @@ export default function AvatarWithBadge({
             : undefined
         }
         title={showBadge && colorScheme ? level.name : undefined}
-        objectFit="cover"
-        placeholder="blur"
-        priority={priority}
+        loading={priority ? 'eager' : 'lazy'}
+        decoding="async"
+        fetchPriority={priority ? 'high' : 'auto'}
+        onError={(e) => {
+          const target = e.target as HTMLImageElement;
+          if (target.src !== AVATAR_FALLBACK) {
+            target.src = AVATAR_FALLBACK;
+          }
+        }}
       />
     </div>
   );
