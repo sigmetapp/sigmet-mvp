@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, memo } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import Button from "@/components/Button";
 import { RequireAuth } from "@/components/RequireAuth";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
+import Skeleton from "@/components/Skeleton";
 
 type SimpleProfile = {
   user_id: string;
@@ -14,17 +15,242 @@ type SimpleProfile = {
   avatar_url: string | null;
 };
 
-type PostRow = {
-  id: number;
-  user_id: string | null;
-  body: string | null;
-  created_at: string;
-};
-
 type Connection = {
   userId: string;
-  connectionsCount: number; // number of mutual mentions (connections) - posts where both users tagged each other
+  connectionsCount: number;
 };
+
+type ConnectionsData = {
+  connections: Connection[];
+  profiles: Record<string, SimpleProfile>;
+  swScores: Record<string, number>;
+  trustFlowScores: Record<string, number>;
+  myFollowing: string[];
+  myFollowers: string[];
+  followersProfiles: Record<string, SimpleProfile>;
+  followingProfiles: Record<string, SimpleProfile>;
+  followersSWScores: Record<string, number>;
+  followersTrustFlowScores: Record<string, number>;
+  followingSWScores: Record<string, number>;
+  followingTrustFlowScores: Record<string, number>;
+  recommendedPeople: Array<{
+    userId: string;
+    reason: 'connection' | 'mutual_follow';
+  }>;
+  recommendedProfiles: Record<string, SimpleProfile>;
+  recommendedSWScores: Record<string, number>;
+};
+
+// Memoized connection item component
+const ConnectionItem = memo(function ConnectionItem({
+  connection,
+  profile,
+  swScore,
+  trustFlow,
+  AVATAR_FALLBACK,
+}: {
+  connection: Connection;
+  profile?: SimpleProfile;
+  swScore: number;
+  trustFlow: number;
+  AVATAR_FALLBACK: string;
+}) {
+  const displayName = profile?.full_name || profile?.username || connection.userId.slice(0, 8);
+  const username = profile?.username || connection.userId.slice(0, 8);
+  const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+  const profileUrl = username ? `/u/${username}` : `/u/${connection.userId}`;
+  const dmUrl = `/dms?partnerId=${encodeURIComponent(connection.userId)}`;
+
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
+      <AvatarWithBadge
+        avatarUrl={avatar}
+        swScore={swScore}
+        size="md"
+        alt={displayName}
+        href={profileUrl}
+      />
+      <div className="min-w-0 flex-1">
+        <Link href={profileUrl} className="block hover:underline">
+          <div className="text-white font-medium truncate">{displayName}</div>
+          <div className="text-white/60 text-sm truncate">@{username}</div>
+        </Link>
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="text-right space-y-1">
+          <div className="text-white/80 text-sm font-medium">
+            {connection.connectionsCount} {connection.connectionsCount === 1 ? 'connection' : 'connections'}
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            {swScore > 0 && (
+              <div className="text-white/60">
+                SW: {swScore}
+              </div>
+            )}
+            <div className="text-white/60">
+              TF: {trustFlow}
+            </div>
+          </div>
+        </div>
+        <Link href={dmUrl}>
+          <Button variant="primary" size="sm">
+            Write
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+});
+
+// Memoized follower/following item component
+const FollowItem = memo(function FollowItem({
+  userId,
+  profile,
+  isFollowing,
+  isUpdating,
+  swScore,
+  trustFlow,
+  onToggleFollow,
+  AVATAR_FALLBACK,
+  meId,
+}: {
+  userId: string;
+  profile?: SimpleProfile;
+  isFollowing: boolean;
+  isUpdating: boolean;
+  swScore: number;
+  trustFlow: number;
+  onToggleFollow: (userId: string, isFollowing: boolean) => void;
+  AVATAR_FALLBACK: string;
+  meId: string;
+}) {
+  const displayName = profile?.full_name || profile?.username || userId.slice(0, 8);
+  const username = profile?.username || userId.slice(0, 8);
+  const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+  const profileUrl = username ? `/u/${username}` : `/u/${userId}`;
+
+  return (
+    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
+      <AvatarWithBadge
+        avatarUrl={avatar}
+        swScore={swScore}
+        size="sm"
+        alt={displayName}
+        href={profileUrl}
+      />
+      <Link href={profileUrl} className="min-w-0 flex-1 hover:underline">
+        <div className="text-white font-medium truncate">{displayName}</div>
+        <div className="text-white/60 text-sm truncate">@{username}</div>
+        <div className="flex items-center gap-3 text-xs mt-1">
+          {swScore > 0 && (
+            <div className="text-white/60">
+              SW: {swScore}
+            </div>
+          )}
+          <div className="text-white/60">
+            TF: {trustFlow}
+          </div>
+        </div>
+      </Link>
+      {meId !== userId && (
+        <Button
+          variant={isFollowing ? 'secondary' : 'primary'}
+          size="sm"
+          onClick={(e) => {
+            e.preventDefault();
+            onToggleFollow(userId, isFollowing);
+          }}
+          disabled={isUpdating}
+        >
+          {isFollowing ? 'Unfollow' : 'Follow'}
+        </Button>
+      )}
+    </div>
+  );
+});
+
+// Memoized recommended item component
+const RecommendedItem = memo(function RecommendedItem({
+  rec,
+  profile,
+  swScore,
+  AVATAR_FALLBACK,
+}: {
+  rec: { userId: string; reason: 'connection' | 'mutual_follow' };
+  profile?: SimpleProfile;
+  swScore: number;
+  AVATAR_FALLBACK: string;
+}) {
+  const displayName = profile?.full_name || profile?.username || rec.userId.slice(0, 8);
+  const username = profile?.username || rec.userId.slice(0, 8);
+  const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+  const profileUrl = username ? `/u/${username}` : `/u/${rec.userId}`;
+  const dmUrl = `/dms?partnerId=${encodeURIComponent(rec.userId)}`;
+  const reasonText = rec.reason === 'connection' 
+    ? 'Connected through your connections' 
+    : 'Mutual follow';
+
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
+      <AvatarWithBadge
+        avatarUrl={avatar}
+        swScore={swScore}
+        size="md"
+        alt={displayName}
+        href={profileUrl}
+      />
+      <div className="min-w-0 flex-1">
+        <Link href={profileUrl} className="block hover:underline">
+          <div className="text-white font-medium truncate">{displayName}</div>
+          <div className="text-white/60 text-sm truncate">@{username}</div>
+          <div className="text-white/50 text-xs mt-1">{reasonText}</div>
+        </Link>
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <Link href={dmUrl}>
+          <Button variant="primary" size="sm">
+            Write
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+});
+
+// Skeleton loader for connection items
+const ConnectionSkeleton = memo(function ConnectionSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg border border-white/10">
+      <Skeleton variant="circular" width={48} height={48} />
+      <div className="min-w-0 flex-1 space-y-2">
+        <Skeleton width="60%" height={16} />
+        <Skeleton width="40%" height={14} />
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="text-right space-y-2">
+          <Skeleton width={80} height={14} />
+          <Skeleton width={60} height={12} />
+        </div>
+        <Skeleton width={60} height={32} />
+      </div>
+    </div>
+  );
+});
+
+// Skeleton loader for follow items
+const FollowSkeleton = memo(function FollowSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-2 rounded-lg">
+      <Skeleton variant="circular" width={40} height={40} />
+      <div className="min-w-0 flex-1 space-y-2">
+        <Skeleton width="50%" height={16} />
+        <Skeleton width="40%" height={14} />
+        <Skeleton width="30%" height={12} />
+      </div>
+      <Skeleton width={80} height={32} />
+    </div>
+  );
+});
 
 export default function ConnectionsPage() {
   return (
@@ -37,578 +263,89 @@ export default function ConnectionsPage() {
 function ConnectionsInner() {
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
-  const [meId, setMeId] = useState<string | null>(null);
-  const [meUsername, setMeUsername] = useState<string | null>(null);
-
-  const [loading, setLoading] = useState(true);
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [profiles, setProfiles] = useState<Record<string, SimpleProfile>>({});
-
-  const [myFollowing, setMyFollowing] = useState<Set<string>>(new Set());
-  const [myFollowers, setMyFollowers] = useState<Set<string>>(new Set());
-  const [swScores, setSwScores] = useState<Record<string, number>>({});
-  const [trustFlowScores, setTrustFlowScores] = useState<Record<string, number>>({});
-  const [followersProfiles, setFollowersProfiles] = useState<Record<string, SimpleProfile>>({});
-  const [followingProfiles, setFollowingProfiles] = useState<Record<string, SimpleProfile>>({});
-  const [followersSWScores, setFollowersSWScores] = useState<Record<string, number>>({});
-  const [followersTrustFlowScores, setFollowersTrustFlowScores] = useState<Record<string, number>>({});
-  const [followingSWScores, setFollowingSWScores] = useState<Record<string, number>>({});
-  const [followingTrustFlowScores, setFollowingTrustFlowScores] = useState<Record<string, number>>({});
-  const [updatingFollows, setUpdatingFollows] = useState<Record<string, boolean>>({});
   
-  // Recommended people
-  const [recommendedPeople, setRecommendedPeople] = useState<Array<{
-    userId: string;
-    reason: 'connection' | 'mutual_follow';
-  }>>([]);
-  const [recommendedProfiles, setRecommendedProfiles] = useState<Record<string, SimpleProfile>>({});
-  const [recommendedSWScores, setRecommendedSWScores] = useState<Record<string, number>>({});
+  const [meId, setMeId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<ConnectionsData | null>(null);
+  const [updatingFollows, setUpdatingFollows] = useState<Record<string, boolean>>({});
 
   const title = useMemo(() => "Connections", []);
 
+  // Load user ID
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser();
       const uid = data.user?.id ?? null;
       setMeId(uid);
-      if (!uid) return;
-      // Load my username
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("user_id, username")
-        .eq("user_id", uid)
-        .maybeSingle();
-      setMeUsername((prof as any)?.username ?? null);
     })();
   }, []);
 
+  // Load connections data from API
   useEffect(() => {
-    if (!meId || !meUsername) return;
+    if (!meId) return;
+
+    let cancelled = false;
+
     (async () => {
       setLoading(true);
       try {
-        // Load all posts to check for mutual mentions
-        const { data: allPosts } = await supabase
-          .from("posts")
-          .select("id, user_id, body, created_at")
-          .order("created_at", { ascending: false })
-          .limit(1000);
-
-        if (!allPosts || allPosts.length === 0) {
-          setConnections([]);
-          setProfiles({});
-          setLoading(false);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          if (!cancelled) setLoading(false);
           return;
         }
 
-        // Build my mention patterns
-        const myMentionPatterns: string[] = [];
-        if (meUsername && meUsername.trim() !== "") {
-          myMentionPatterns.push(`@${meUsername.toLowerCase()}`);
-          myMentionPatterns.push(`/u/${meUsername.toLowerCase()}`);
-        }
-        if (meId) {
-          myMentionPatterns.push(`/u/${meId}`);
-        }
+        const response = await fetch('/api/connections/list', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
 
-        // Map: userId -> set of post IDs where they mentioned me
-        const theyMentionedMe: Record<string, Set<number>> = {};
-        
-        // Map: userId -> set of post IDs where I mentioned them
-        const iMentionedThem: Record<string, Set<number>> = {};
-
-        // Helper function to check if text contains a mention (whole word match)
-        const hasMention = (text: string, patterns: string[]): boolean => {
-          const lowerText = text.toLowerCase();
-          for (const pattern of patterns) {
-            // Check for @username pattern (must be followed by space, newline, or end of string)
-            if (pattern.startsWith('@')) {
-              const regex = new RegExp(`@${pattern.substring(1)}(\\s|$|\\n)`, 'i');
-              if (regex.test(lowerText)) return true;
-            }
-            // Check for /u/username or /u/userid pattern
-            if (pattern.startsWith('/u/')) {
-              const regex = new RegExp(`/u/${pattern.substring(3)}(\\s|$|\\n)`, 'i');
-              if (regex.test(lowerText)) return true;
-            }
-          }
-          return false;
-        };
-
-        // First pass: find posts where others mentioned me
-        for (const post of allPosts) {
-          const authorId = post.user_id;
-          if (!authorId || authorId === meId) continue;
-
-          const body = post.body || "";
-          
-          if (hasMention(body, myMentionPatterns)) {
-            if (!theyMentionedMe[authorId]) {
-              theyMentionedMe[authorId] = new Set();
-            }
-            theyMentionedMe[authorId].add(post.id);
-          }
-        }
-
-        // Second pass: find posts where I mentioned others
-        // Load all usernames for comparison
-        const allUserIds = new Set<string>();
-        Object.keys(theyMentionedMe).forEach((uid) => allUserIds.add(uid));
-
-        if (allUserIds.size > 0) {
-          const { data: userProfiles } = await supabase
-            .from("profiles")
-            .select("user_id, username")
-            .in("user_id", Array.from(allUserIds));
-
-          const usernameToUserId: Record<string, string> = {};
-          if (userProfiles) {
-            for (const profile of userProfiles as any[]) {
-              const uid = profile.user_id as string;
-              const username = (profile.username || "").toLowerCase();
-              if (username) {
-                usernameToUserId[`@${username}`] = uid;
-                usernameToUserId[`/u/${username}`] = uid;
-              }
-            }
-          }
-
-          // Find my posts that mention others
-          for (const post of allPosts) {
-            if (post.user_id !== meId) continue;
-
-            const body = post.body || "";
-            
-            // Check for mentions of other users (whole word match)
-            for (const [pattern, uid] of Object.entries(usernameToUserId)) {
-              const lowerPattern = pattern.toLowerCase();
-              let found = false;
-              
-              // Check for @username pattern
-              if (lowerPattern.startsWith('@')) {
-                const username = lowerPattern.substring(1);
-                const regex = new RegExp(`@${username}(\\s|$|\\n)`, 'i');
-                if (regex.test(body)) found = true;
-              }
-              // Check for /u/username pattern
-              if (lowerPattern.startsWith('/u/')) {
-                const username = lowerPattern.substring(3);
-                const regex = new RegExp(`/u/${username}(\\s|$|\\n)`, 'i');
-                if (regex.test(body)) found = true;
-              }
-              
-              if (found) {
-                if (!iMentionedThem[uid]) {
-                  iMentionedThem[uid] = new Set();
-                }
-                iMentionedThem[uid].add(post.id);
-              }
-            }
-          }
-        }
-
-        // Calculate connections: non-mutual tags
-        // A connection is created when: user A tags me OR I tag user A
-        // Each tag counts as 1 connection
-        // If they tagged me 2 times, that's 2 connections
-        // If I tagged them 1 time, that's 1 connection
-        // Total connections = sum of all tags (their tags + my tags)
-        const connections: Connection[] = [];
-        
-        // Combine all users who mentioned me or whom I mentioned
-        const allConnectedUsers = new Set<string>();
-        Object.keys(theyMentionedMe).forEach(uid => allConnectedUsers.add(uid));
-        Object.keys(iMentionedThem).forEach(uid => allConnectedUsers.add(uid));
-        
-        for (const userId of allConnectedUsers) {
-          const theirPosts = theyMentionedMe[userId] || new Set();
-          const myPosts = iMentionedThem[userId] || new Set();
-
-          // Count connections: sum of all tags
-          // Each post where they mentioned me = 1 connection
-          // Each post where I mentioned them = 1 connection
-          const connectionsCount = theirPosts.size + myPosts.size;
-
-          if (connectionsCount > 0) {
-            connections.push({
-              userId,
-              connectionsCount,
-            });
-          }
-        }
-
-        // Sort by connections count (descending)
-        connections.sort((a, b) => b.connectionsCount - a.connectionsCount);
-        setConnections(connections);
-
-        // Load profiles for these users
-        const ids = connections.map((c) => c.userId);
-        if (ids.length > 0) {
-          const { data: profs } = await supabase
-            .from("profiles")
-            .select("user_id, username, full_name, avatar_url")
-            .in("user_id", ids);
-          const map: Record<string, SimpleProfile> = {};
-          for (const p of (profs as any[]) || []) {
-            map[p.user_id as string] = {
-              user_id: p.user_id as string,
-              username: (p.username as string | null) ?? null,
-              full_name: (p.full_name as string | null) ?? null,
-              avatar_url: (p.avatar_url as string | null) ?? null,
-            };
-          }
-          setProfiles(map);
-
-          // Load SW scores for connections
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorMessage = 'Failed to load connections';
           try {
-            const { data: swData } = await supabase
-              .from("sw_scores")
-              .select("user_id, total")
-              .in("user_id", ids);
-            const swMap: Record<string, number> = {};
-            if (swData) {
-              for (const row of swData as any[]) {
-                swMap[row.user_id as string] = (row.total as number) || 0;
-              }
-            }
-            setSwScores(swMap);
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.error || errorMessage;
           } catch {
-            // SW scores table may not exist
-            setSwScores({});
+            // Use default error message
           }
-
-          // Load Trust Flow scores for connections
-          try {
-            const { data: trustData } = await supabase
-              .from("trust_feedback")
-              .select("target_user_id, value")
-              .in("target_user_id", ids);
-            const trustMap: Record<string, number> = {};
-            if (trustData) {
-              const trustSums: Record<string, number> = {};
-              for (const row of trustData as any[]) {
-                const userId = row.target_user_id as string;
-                trustSums[userId] = (trustSums[userId] || 0) + (Number(row.value) || 0);
-              }
-              for (const userId of ids) {
-                const sum = trustSums[userId] || 0;
-                trustMap[userId] = Math.max(0, Math.min(120, 80 + sum * 2));
-              }
-            } else {
-              // Set default 80 for all if no data
-              for (const userId of ids) {
-                trustMap[userId] = 80;
-              }
-            }
-            setTrustFlowScores(trustMap);
-          } catch {
-            // Trust Flow table may not exist, set defaults
-            const defaultTrust: Record<string, number> = {};
-            for (const userId of ids) {
-              defaultTrust[userId] = 80;
-            }
-            setTrustFlowScores(defaultTrust);
-          }
-        } else {
-          setProfiles({});
-          setSwScores({});
-          setTrustFlowScores({});
+          throw new Error(errorMessage);
         }
 
-        // Load follows (followers and following for me)
-        try {
-          const [{ data: followingRows }, { data: followerRows }] = await Promise.all([
-            supabase.from("follows").select("followee_id").eq("follower_id", meId),
-            supabase.from("follows").select("follower_id").eq("followee_id", meId),
-          ]);
-          const followingSet = new Set(((followingRows as any[]) || []).map((r) => r.followee_id as string));
-          const followersSet = new Set(((followerRows as any[]) || []).map((r) => r.follower_id as string));
-          
-          setMyFollowing(followingSet);
-          setMyFollowers(followersSet);
-
-          // Load profiles for followers and following
-          const allFollowUserIds = Array.from(new Set([...followingSet, ...followersSet]));
-          if (allFollowUserIds.length > 0) {
-            const { data: followProfs } = await supabase
-              .from("profiles")
-              .select("user_id, username, full_name, avatar_url")
-              .in("user_id", allFollowUserIds);
-
-            const followersMap: Record<string, SimpleProfile> = {};
-            const followingMap: Record<string, SimpleProfile> = {};
-
-            if (followProfs) {
-              for (const p of followProfs as any[]) {
-                const profile: SimpleProfile = {
-                  user_id: p.user_id as string,
-                  username: (p.username as string | null) ?? null,
-                  full_name: (p.full_name as string | null) ?? null,
-                  avatar_url: (p.avatar_url as string | null) ?? null,
-                };
-                if (followersSet.has(p.user_id as string)) {
-                  followersMap[p.user_id as string] = profile;
-                }
-                if (followingSet.has(p.user_id as string)) {
-                  followingMap[p.user_id as string] = profile;
-                }
-              }
-            }
-
-            setFollowersProfiles(followersMap);
-            setFollowingProfiles(followingMap);
-
-            // Load SW scores for followers and following
-            try {
-              const { data: swData } = await supabase
-                .from("sw_scores")
-                .select("user_id, total")
-                .in("user_id", allFollowUserIds);
-              const swMap: Record<string, number> = {};
-              if (swData) {
-                for (const row of swData as any[]) {
-                  swMap[row.user_id as string] = (row.total as number) || 0;
-                }
-              }
-              // Separate for followers and following
-              const followersSW: Record<string, number> = {};
-              const followingSW: Record<string, number> = {};
-              for (const userId of allFollowUserIds) {
-                const score = swMap[userId] || 0;
-                if (followersSet.has(userId)) {
-                  followersSW[userId] = score;
-                }
-                if (followingSet.has(userId)) {
-                  followingSW[userId] = score;
-                }
-              }
-              setFollowersSWScores(followersSW);
-              setFollowingSWScores(followingSW);
-            } catch {
-              setFollowersSWScores({});
-              setFollowingSWScores({});
-            }
-
-            // Load Trust Flow scores for followers and following
-            try {
-              const { data: trustData } = await supabase
-                .from("trust_feedback")
-                .select("target_user_id, value")
-                .in("target_user_id", allFollowUserIds);
-              const trustMap: Record<string, number> = {};
-              if (trustData) {
-                const trustSums: Record<string, number> = {};
-                for (const row of trustData as any[]) {
-                  const userId = row.target_user_id as string;
-                  trustSums[userId] = (trustSums[userId] || 0) + (Number(row.value) || 0);
-                }
-                for (const userId of allFollowUserIds) {
-                  const sum = trustSums[userId] || 0;
-                  trustMap[userId] = Math.max(0, Math.min(120, 80 + sum * 2));
-                }
-              } else {
-                // Set default 80 for all if no data
-                for (const userId of allFollowUserIds) {
-                  trustMap[userId] = 80;
-                }
-              }
-              // Separate for followers and following
-              const followersTrust: Record<string, number> = {};
-              const followingTrust: Record<string, number> = {};
-              for (const userId of allFollowUserIds) {
-                const score = trustMap[userId] ?? 80;
-                if (followersSet.has(userId)) {
-                  followersTrust[userId] = score;
-                }
-                if (followingSet.has(userId)) {
-                  followingTrust[userId] = score;
-                }
-              }
-              setFollowersTrustFlowScores(followersTrust);
-              setFollowingTrustFlowScores(followingTrust);
-            } catch {
-              // Trust Flow table may not exist, set defaults
-              const defaultFollowersTrust: Record<string, number> = {};
-              const defaultFollowingTrust: Record<string, number> = {};
-              for (const userId of allFollowUserIds) {
-                if (followersSet.has(userId)) {
-                  defaultFollowersTrust[userId] = 80;
-                }
-                if (followingSet.has(userId)) {
-                  defaultFollowingTrust[userId] = 80;
-                }
-              }
-              setFollowersTrustFlowScores(defaultFollowersTrust);
-              setFollowingTrustFlowScores(defaultFollowingTrust);
-            }
-          }
-        } catch {
-          // follows table may not exist in some envs
-          setMyFollowing(new Set());
-          setMyFollowers(new Set());
-          setFollowersProfiles({});
-          setFollowingProfiles({});
-          setFollowersSWScores({});
-          setFollowersTrustFlowScores({});
-          setFollowingSWScores({});
-          setFollowingTrustFlowScores({});
+        const result: ConnectionsData = await response.json();
+        if (!cancelled) {
+          setData(result);
         }
-
-        // Calculate recommended people
-        const recommended: Array<{ userId: string; reason: 'connection' | 'mutual_follow' }> = [];
-        const recommendedSet = new Set<string>();
-
-        // 1. Find 2nd degree connections (people connected through your connections)
-        const connectionUserIds = connections.map(c => c.userId);
-        if (connectionUserIds.length > 0 && allPosts.length > 0) {
-          const connectionUserIdsSet = new Set(connectionUserIds);
-          
-          // Load all profiles at once to avoid database calls in loop
-          const { data: allProfilesData } = await supabase
-            .from("profiles")
-            .select("user_id, username");
-          
-          const allProfilesMap: Record<string, string> = {};
-          if (allProfilesData) {
-            for (const p of allProfilesData as any[]) {
-              const username = (p.username || "").toLowerCase();
-              if (username) {
-                allProfilesMap[p.user_id as string] = username;
-              }
-            }
-          }
-          
-          // For each connection, find their connections
-          for (const connectionUserId of connectionUserIds) {
-            const connectionProfile = profiles[connectionUserId];
-            if (!connectionProfile?.username) continue;
-            
-            const theirUsername = connectionProfile.username.toLowerCase();
-            const theirMentionPatterns: string[] = [];
-            theirMentionPatterns.push(`@${theirUsername}`);
-            theirMentionPatterns.push(`/u/${theirUsername}`);
-            theirMentionPatterns.push(`/u/${connectionUserId}`);
-
-            // Find posts where others mentioned this connection
-            const theyMentionedConnection: Record<string, Set<number>> = {};
-            const connectionMentionedThem: Record<string, Set<number>> = {};
-
-            for (const post of allPosts) {
-              const authorId = post.user_id;
-              if (!authorId || authorId === meId || authorId === connectionUserId) continue;
-
-              const body = post.body || "";
-              if (hasMention(body, theirMentionPatterns)) {
-                if (!theyMentionedConnection[authorId]) {
-                  theyMentionedConnection[authorId] = new Set();
-                }
-                theyMentionedConnection[authorId].add(post.id);
-              }
-            }
-
-            // Find posts where this connection mentioned others
-            for (const post of allPosts) {
-              if (post.user_id !== connectionUserId) continue;
-              const body = post.body || "";
-              
-              // Check for mentions of other users using the pre-loaded profiles map
-              for (const userId of Object.keys(theyMentionedConnection)) {
-                const otherUsername = allProfilesMap[userId];
-                if (otherUsername) {
-                  const patterns = [`@${otherUsername}`, `/u/${otherUsername}`, `/u/${userId}`];
-                  if (hasMention(body, patterns)) {
-                    if (!connectionMentionedThem[userId]) {
-                      connectionMentionedThem[userId] = new Set();
-                    }
-                    connectionMentionedThem[userId].add(post.id);
-                  }
-                }
-              }
-            }
-
-            // Find mutual connections for this connection
-            for (const userId of Object.keys(theyMentionedConnection)) {
-              if (userId === meId || connectionUserIdsSet.has(userId) || recommendedSet.has(userId)) continue;
-              
-              const theirPosts = theyMentionedConnection[userId];
-              const connectionPosts = connectionMentionedThem[userId] || new Set();
-              
-              if (theirPosts.size > 0 && connectionPosts.size > 0) {
-                recommended.push({ userId, reason: 'connection' });
-                recommendedSet.add(userId);
-              }
-            }
-          }
-        }
-
-        // 2. Find mutual follows (people who follow you AND you follow them)
-        const mutualFollows = Array.from(myFollowers).filter(uid => myFollowing.has(uid));
-        for (const uid of mutualFollows) {
-          if (!recommendedSet.has(uid) && !connectionUserIds.includes(uid)) {
-            recommended.push({ userId: uid, reason: 'mutual_follow' });
-            recommendedSet.add(uid);
-          }
-        }
-
-        setRecommendedPeople(recommended);
-
-        // Load profiles for recommended people
-        if (recommended.length > 0) {
-          const recommendedIds = recommended.map(r => r.userId);
-          const { data: recProfs } = await supabase
-            .from("profiles")
-            .select("user_id, username, full_name, avatar_url")
-            .in("user_id", recommendedIds);
-          
-          const recMap: Record<string, SimpleProfile> = {};
-          if (recProfs) {
-            for (const p of recProfs as any[]) {
-              recMap[p.user_id as string] = {
-                user_id: p.user_id as string,
-                username: (p.username as string | null) ?? null,
-                full_name: (p.full_name as string | null) ?? null,
-                avatar_url: (p.avatar_url as string | null) ?? null,
-              };
-            }
-          }
-          setRecommendedProfiles(recMap);
-
-          // Load SW scores for recommended people
-          try {
-            const { data: swData } = await supabase
-              .from("sw_scores")
-              .select("user_id, total")
-              .in("user_id", recommendedIds);
-            const swMap: Record<string, number> = {};
-            if (swData) {
-              for (const row of swData as any[]) {
-                swMap[row.user_id as string] = (row.total as number) || 0;
-              }
-            }
-            setRecommendedSWScores(swMap);
-          } catch {
-            // SW scores table may not exist
-            setRecommendedSWScores({});
-          }
-        } else {
-          setRecommendedProfiles({});
-          setRecommendedSWScores({});
+      } catch (error) {
+        console.error('Error loading connections:', error);
+        if (!cancelled) {
+          setData(null);
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     })();
-  }, [meId, meUsername]);
 
-  const toggleFollow = async (userId: string, isFollowing: boolean) => {
+    return () => {
+      cancelled = true;
+    };
+  }, [meId]);
+
+  const toggleFollow = useCallback(async (userId: string, isFollowing: boolean) => {
     if (!meId || !userId || meId === userId) return;
     
     setUpdatingFollows(prev => ({ ...prev, [userId]: true }));
     try {
       if (!isFollowing) {
         const { error } = await supabase.from('follows').insert({ follower_id: meId, followee_id: userId });
-        if (!error) {
-          setMyFollowing(prev => new Set([...prev, userId]));
+        if (!error && data) {
+          setData({
+            ...data,
+            myFollowing: [...data.myFollowing, userId],
+          });
         }
       } else {
         const { error } = await supabase
@@ -616,18 +353,26 @@ function ConnectionsInner() {
           .delete()
           .eq('follower_id', meId)
           .eq('followee_id', userId);
-        if (!error) {
-          setMyFollowing(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(userId);
-            return newSet;
+        if (!error && data) {
+          setData({
+            ...data,
+            myFollowing: data.myFollowing.filter(id => id !== userId),
           });
         }
       }
     } finally {
       setUpdatingFollows(prev => ({ ...prev, [userId]: false }));
     }
-  };
+  }, [meId, data]);
+
+  // Memoized sets for quick lookups
+  const myFollowingSet = useMemo(() => {
+    return new Set(data?.myFollowing || []);
+  }, [data?.myFollowing]);
+
+  const myFollowersSet = useMemo(() => {
+    return new Set(data?.myFollowers || []);
+  }, [data?.myFollowers]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 md:p-6 space-y-6">
@@ -642,62 +387,25 @@ function ConnectionsInner() {
       <div className="card p-4 md:p-6 space-y-4">
         <div className="text-white/80 font-medium text-lg">Connections</div>
         {loading ? (
-          <div className="text-white/70 text-sm">Loading…</div>
-        ) : connections.length === 0 ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <ConnectionSkeleton key={i} />
+            ))}
+          </div>
+        ) : !data || data.connections.length === 0 ? (
           <div className="text-white/60 text-sm">No connections yet. Tag people in posts to create connections.</div>
         ) : (
           <div className="space-y-3">
-            {connections.map((c) => {
-              const p = profiles[c.userId];
-              const displayName = p?.full_name || p?.username || c.userId.slice(0, 8);
-              const username = p?.username || c.userId.slice(0, 8);
-              const avatar = p?.avatar_url || AVATAR_FALLBACK;
-              const connectionsCount = c.connectionsCount;
-              const swScore = swScores[c.userId] || 0;
-              const trustFlow = trustFlowScores[c.userId] ?? 80;
-              const profileUrl = username ? `/u/${username}` : `/u/${c.userId}`;
-              const dmUrl = `/dms?partnerId=${encodeURIComponent(c.userId)}`;
-
-              return (
-                <div key={c.userId} className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
-                  <AvatarWithBadge
-                    avatarUrl={avatar}
-                    swScore={swScore}
-                    size="md"
-                    alt={displayName}
-                    href={profileUrl}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <Link href={profileUrl} className="block hover:underline">
-                      <div className="text-white font-medium truncate">{displayName}</div>
-                      <div className="text-white/60 text-sm truncate">@{username}</div>
-                    </Link>
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="text-right space-y-1">
-                      <div className="text-white/80 text-sm font-medium">
-                        {connectionsCount} {connectionsCount === 1 ? 'connection' : 'connections'}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs">
-                        {swScore > 0 && (
-                          <div className="text-white/60">
-                            SW: {swScore}
-                          </div>
-                        )}
-                        <div className="text-white/60">
-                          TF: {trustFlow}
-                        </div>
-                      </div>
-                    </div>
-                    <Link href={dmUrl}>
-                      <Button variant="primary" size="sm">
-                        Write
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
+            {data.connections.map((c) => (
+              <ConnectionItem
+                key={c.userId}
+                connection={c}
+                profile={data.profiles[c.userId]}
+                swScore={data.swScores[c.userId] || 0}
+                trustFlow={data.trustFlowScores[c.userId] ?? 80}
+                AVATAR_FALLBACK={AVATAR_FALLBACK}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -707,119 +415,59 @@ function ConnectionsInner() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="card p-4 md:p-6 space-y-4">
             <div className="text-white/80 font-medium text-lg">Followers</div>
-            {myFollowers.size === 0 ? (
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <FollowSkeleton key={i} />
+                ))}
+              </div>
+            ) : !data || myFollowersSet.size === 0 ? (
               <div className="text-white/60 text-sm">No followers yet.</div>
             ) : (
               <div className="space-y-3">
-                {Array.from(myFollowers).map((uid) => {
-                  const p = followersProfiles[uid];
-                  const displayName = p?.full_name || p?.username || uid.slice(0, 8);
-                  const username = p?.username || uid.slice(0, 8);
-                  const avatar = p?.avatar_url || AVATAR_FALLBACK;
-                  const profileUrl = username ? `/u/${username}` : `/u/${uid}`;
-                  const isFollowing = myFollowing.has(uid);
-                  const isUpdating = updatingFollows[uid] || false;
-                  const swScore = followersSWScores[uid] || 0;
-                  const trustFlow = followersTrustFlowScores[uid] ?? 80;
-
-                  return (
-                    <div key={uid} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <AvatarWithBadge
-                        avatarUrl={avatar}
-                        swScore={swScore}
-                        size="sm"
-                        alt={displayName}
-                        href={profileUrl}
-                      />
-                      <Link href={profileUrl} className="min-w-0 flex-1 hover:underline">
-                        <div className="text-white font-medium truncate">{displayName}</div>
-                        <div className="text-white/60 text-sm truncate">@{username}</div>
-                        <div className="flex items-center gap-3 text-xs mt-1">
-                          {swScore > 0 && (
-                            <div className="text-white/60">
-                              SW: {swScore}
-                            </div>
-                          )}
-                          <div className="text-white/60">
-                            TF: {trustFlow}
-                          </div>
-                        </div>
-                      </Link>
-                      {meId !== uid && (
-                        <Button
-                          variant={isFollowing ? 'secondary' : 'primary'}
-                          size="sm"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            toggleFollow(uid, isFollowing);
-                          }}
-                          disabled={isUpdating}
-                        >
-                          {isFollowing ? 'Unfollow' : 'Follow'}
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
+                {Array.from(myFollowersSet).map((uid) => (
+                  <FollowItem
+                    key={uid}
+                    userId={uid}
+                    profile={data?.followersProfiles[uid]}
+                    isFollowing={myFollowingSet.has(uid)}
+                    isUpdating={updatingFollows[uid] || false}
+                    swScore={data?.followersSWScores[uid] || 0}
+                    trustFlow={data?.followersTrustFlowScores[uid] ?? 80}
+                    onToggleFollow={toggleFollow}
+                    AVATAR_FALLBACK={AVATAR_FALLBACK}
+                    meId={meId}
+                  />
+                ))}
               </div>
             )}
           </div>
           <div className="card p-4 md:p-6 space-y-4">
             <div className="text-white/80 font-medium text-lg">Following</div>
-            {myFollowing.size === 0 ? (
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <FollowSkeleton key={i} />
+                ))}
+              </div>
+            ) : !data || myFollowingSet.size === 0 ? (
               <div className="text-white/60 text-sm">You are not following anyone yet.</div>
             ) : (
               <div className="space-y-3">
-                {Array.from(myFollowing).map((uid) => {
-                  const p = followingProfiles[uid];
-                  const displayName = p?.full_name || p?.username || uid.slice(0, 8);
-                  const username = p?.username || uid.slice(0, 8);
-                  const avatar = p?.avatar_url || AVATAR_FALLBACK;
-                  const profileUrl = username ? `/u/${username}` : `/u/${uid}`;
-                  const isFollowing = true; // Always true in this list
-                  const isUpdating = updatingFollows[uid] || false;
-                  const swScore = followingSWScores[uid] || 0;
-                  const trustFlow = followingTrustFlowScores[uid] ?? 80;
-
-                  return (
-                    <div key={uid} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <AvatarWithBadge
-                        avatarUrl={avatar}
-                        swScore={swScore}
-                        size="sm"
-                        alt={displayName}
-                        href={profileUrl}
-                      />
-                      <Link href={profileUrl} className="min-w-0 flex-1 hover:underline">
-                        <div className="text-white font-medium truncate">{displayName}</div>
-                        <div className="text-white/60 text-sm truncate">@{username}</div>
-                        <div className="flex items-center gap-3 text-xs mt-1">
-                          {swScore > 0 && (
-                            <div className="text-white/60">
-                              SW: {swScore}
-                            </div>
-                          )}
-                          <div className="text-white/60">
-                            TF: {trustFlow}
-                          </div>
-                        </div>
-                      </Link>
-                      {meId !== uid && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            toggleFollow(uid, isFollowing);
-                          }}
-                          disabled={isUpdating}
-                        >
-                          Unfollow
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
+                {Array.from(myFollowingSet).map((uid) => (
+                  <FollowItem
+                    key={uid}
+                    userId={uid}
+                    profile={data?.followingProfiles[uid]}
+                    isFollowing={true}
+                    isUpdating={updatingFollows[uid] || false}
+                    swScore={data?.followingSWScores[uid] || 0}
+                    trustFlow={data?.followingTrustFlowScores[uid] ?? 80}
+                    onToggleFollow={toggleFollow}
+                    AVATAR_FALLBACK={AVATAR_FALLBACK}
+                    meId={meId}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -831,49 +479,24 @@ function ConnectionsInner() {
         <div className="card p-4 md:p-6 space-y-4">
           <div className="text-white/80 font-medium text-lg">Recommended People</div>
           {loading ? (
-            <div className="text-white/70 text-sm">Loading…</div>
-          ) : recommendedPeople.length === 0 ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <ConnectionSkeleton key={i} />
+              ))}
+            </div>
+          ) : !data || data.recommendedPeople.length === 0 ? (
             <div className="text-white/60 text-sm">No recommendations available yet.</div>
           ) : (
             <div className="space-y-3">
-              {recommendedPeople.map((rec) => {
-                const p = recommendedProfiles[rec.userId];
-                const displayName = p?.full_name || p?.username || rec.userId.slice(0, 8);
-                const username = p?.username || rec.userId.slice(0, 8);
-                const avatar = p?.avatar_url || AVATAR_FALLBACK;
-                const profileUrl = username ? `/u/${username}` : `/u/${rec.userId}`;
-                const dmUrl = `/dms?partnerId=${encodeURIComponent(rec.userId)}`;
-                const reasonText = rec.reason === 'connection' 
-                  ? 'Connected through your connections' 
-                  : 'Mutual follow';
-                const swScore = recommendedSWScores[rec.userId] || 0;
-
-                return (
-                  <div key={rec.userId} className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
-                    <AvatarWithBadge
-                      avatarUrl={avatar}
-                      swScore={swScore}
-                      size="md"
-                      alt={displayName}
-                      href={profileUrl}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <Link href={profileUrl} className="block hover:underline">
-                        <div className="text-white font-medium truncate">{displayName}</div>
-                        <div className="text-white/60 text-sm truncate">@{username}</div>
-                        <div className="text-white/50 text-xs mt-1">{reasonText}</div>
-                      </Link>
-                    </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <Link href={dmUrl}>
-                        <Button variant="primary" size="sm">
-                          Write
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
+              {data.recommendedPeople.map((rec) => (
+                <RecommendedItem
+                  key={rec.userId}
+                  rec={rec}
+                  profile={data.recommendedProfiles[rec.userId]}
+                  swScore={data.recommendedSWScores[rec.userId] || 0}
+                  AVATAR_FALLBACK={AVATAR_FALLBACK}
+                />
+              ))}
             </div>
           )}
         </div>
