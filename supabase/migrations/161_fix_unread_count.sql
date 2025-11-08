@@ -77,7 +77,10 @@ last_read_message_time as (
     select created_at
     from public.dms_messages
     where thread_id = lt.thread_id
-      and id::text = lt.last_read_message_id::text
+      and (
+        (lt.last_read_message_id is not null and id::text = lt.last_read_message_id::text)
+        or (lt.last_read_message_id is null and false)
+      )
     order by created_at desc
     limit 1
   ) m on true

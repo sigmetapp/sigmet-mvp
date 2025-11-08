@@ -87,6 +87,8 @@ export function useUnreadDmCount() {
   useEffect(() => {
     if (!currentUserId) return;
 
+    let timeoutId: NodeJS.Timeout | null = null;
+
     // Subscribe to changes in dms_thread_participants to detect when messages are read
     const channel = supabase
       .channel(`unread_dm_count:${currentUserId}`)
@@ -99,32 +101,41 @@ export function useUnreadDmCount() {
           filter: `user_id=eq.${currentUserId}`,
         },
         () => {
-          // Refetch unread count when participant data changes (e.g., last_read_message_id)
-          const fetchUnreadCount = async () => {
-            try {
-              const response = await fetch('/api/dms/partners.list?limit=100&offset=0');
-              if (!response.ok) return;
+          // Debounce refetch to avoid too many requests
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          timeoutId = setTimeout(() => {
+            // Refetch unread count when participant data changes (e.g., last_read_message_id)
+            const fetchUnreadCount = async () => {
+              try {
+                const response = await fetch('/api/dms/partners.list?limit=100&offset=0');
+                if (!response.ok) return;
 
-              const data = await response.json();
-              if (!data.ok || !Array.isArray(data.partners)) return;
+                const data = await response.json();
+                if (!data.ok || !Array.isArray(data.partners)) return;
 
-              const total = data.partners.reduce((sum: number, partner: { unread_count?: number }) => {
-                const count = typeof partner.unread_count === 'number' ? partner.unread_count : 0;
-                return sum + count;
-              }, 0);
+                const total = data.partners.reduce((sum: number, partner: { unread_count?: number }) => {
+                  const count = typeof partner.unread_count === 'number' ? partner.unread_count : 0;
+                  return sum + count;
+                }, 0);
 
-              setUnreadCount(total);
-            } catch (err) {
-              console.error('Error fetching unread count:', err);
-            }
-          };
+                setUnreadCount(total);
+              } catch (err) {
+                console.error('Error fetching unread count:', err);
+              }
+            };
 
-          void fetchUnreadCount();
+            void fetchUnreadCount();
+          }, 300);
         }
       )
       .subscribe();
 
     return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       void supabase.removeChannel(channel);
     };
   }, [currentUserId]);

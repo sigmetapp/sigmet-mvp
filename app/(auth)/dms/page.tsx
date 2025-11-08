@@ -1025,8 +1025,8 @@ function DmsInner() {
         }
         return;
       }
-      const upToId = Number(partner.last_message_id);
-      if (!Number.isFinite(upToId)) return;
+      const upToId = String(partner.last_message_id || '');
+      if (!upToId) return;
       if (markReadInFlightRef.current.has(partner.user_id)) {
         return;
       }
@@ -1059,6 +1059,9 @@ function DmsInner() {
           last_read_message_id: lastReadId,
           last_read_at: new Date().toISOString(),
         }));
+        
+        // Refetch partners to update unread counts
+        void fetchPartners({ reset: true });
         
         // Dispatch event for unread count update
         window.dispatchEvent(
