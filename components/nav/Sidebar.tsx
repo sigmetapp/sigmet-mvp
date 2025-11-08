@@ -4,7 +4,6 @@ import type { User } from '@supabase/supabase-js';
 import { Trophy, Rss, User, Users, MessageSquare, Sprout, Settings as SettingsIcon } from 'lucide-react';
 import NavItem from './NavItem';
 import { useTheme } from '@/components/ThemeProvider';
-import { useUnreadDmCount } from '@/hooks/useUnreadDmCount';
 
 export type SidebarProps = {
   user: User;
@@ -17,7 +16,7 @@ const menu = [
   { label: 'Feeds', href: '/feed', icon: <Rss size={18} /> },
   { label: 'Page', href: '/page', icon: <User size={18} /> },
   { label: 'Connections', href: '/connections', icon: <Users size={18} /> },
-  { label: 'Messages', href: '/dms', icon: <MessageSquare size={18} />, badgeKey: 'unreadDM' as const },
+  { label: 'Messages', href: '/dms', icon: <MessageSquare size={18} /> },
   { label: 'Growth 8', href: '/growth-directions', icon: <Sprout size={18} /> },
   { label: 'Settings', href: '/profile', icon: <SettingsIcon size={18} /> },
 ];
@@ -34,7 +33,6 @@ const adminMenu = [
 export default function Sidebar({ user }: SidebarProps) {
   const { theme } = useTheme();
   const isLight = theme === "light";
-  const { unreadCount: unreadDM, refresh: refreshUnreadCount } = useUnreadDmCount();
 
   const userEmail = user.email || null;
   const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
@@ -48,15 +46,6 @@ export default function Sidebar({ user }: SidebarProps) {
       <div className="px-3 py-3">
         <div className="flex items-center justify-between">
           <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>Menu</div>
-          {unreadDM > 0 && (
-            <button
-              onClick={() => refreshUnreadCount()}
-              className="text-xs px-2 py-1 rounded bg-white/10 text-white/70 hover:bg-white/15 transition"
-              title="Обновить счетчик непрочитанных"
-            >
-              🔄
-            </button>
-          )}
         </div>
       </div>
       <nav className="px-2">
@@ -67,7 +56,6 @@ export default function Sidebar({ user }: SidebarProps) {
               label={item.label}
               href={item.href}
               icon={item.icon}
-              badgeCount={item.badgeKey === 'unreadDM' ? unreadDM : undefined}
               bordered={item.bordered}
             />
           ))}
