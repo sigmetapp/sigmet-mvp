@@ -110,17 +110,17 @@ messages_24h as (
 ),
 unread as (
   select
-    public.dms_messages.thread_id,
+    dm.thread_id,
     count(*) as unread_count
-  from public.dms_messages
-  join limited_threads lt on lt.thread_id = public.dms_messages.thread_id
-  where public.dms_messages.deleted_at is null
-    and public.dms_messages.sender_id <> p_user_id
+  from public.dms_messages dm
+  join limited_threads lt on lt.thread_id = dm.thread_id
+  where dm.deleted_at is null
+    and dm.sender_id <> p_user_id
     and (
       lt.last_read_message_id is null
-      or public.dms_messages.id > lt.last_read_message_id
+      or (dm.id::bigint) > (lt.last_read_message_id::bigint)
     )
-  group by public.dms_messages.thread_id
+  group by dm.thread_id
 )
 select
   lt.thread_id::text as thread_id,
