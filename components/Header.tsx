@@ -196,8 +196,8 @@ export default function Header() {
           </Link>
 
           {/* Search inline and flexible */}
-          <div className="flex-1 min-w-0 overflow-hidden mr-1">
-            <SearchInput className="w-full max-w-full" />
+          <div className="flex-1 min-w-0 overflow-hidden mr-1.5 shrink" style={{ maxWidth: 'calc(100vw - 32px - 180px)' }}>
+            <SearchInput />
           </div>
 
           {/* Icon nav for Home / Feed / Invite */}
