@@ -440,6 +440,17 @@ function DmsInner() {
 
           const incoming = (payload.partners ?? []).map((item) => normalizePartner(item));
 
+        // Debug: log unread counts
+        if (incoming.length > 0) {
+          const totalUnread = incoming.reduce((sum, p) => sum + (p.unread_count || 0), 0);
+          console.log('[DM] Partners loaded:', incoming.length, 'Total unread:', totalUnread);
+          incoming.forEach((p) => {
+            if (p.unread_count > 0) {
+              console.log('[DM] Partner:', p.user_id, 'unread:', p.unread_count, 'last_read_at:', p.last_read_at, 'last_read_message_id:', p.last_read_message_id);
+            }
+          });
+        }
+
         const nextPagination = {
           offset: payload.pagination?.nextOffset ?? fetchOffset + incoming.length,
           hasMore: payload.pagination?.hasMore ?? false,
