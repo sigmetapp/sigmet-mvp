@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { supabase } from "@/lib/supabaseClient";
 import { useTheme } from "@/components/ThemeProvider";
@@ -19,6 +19,32 @@ export default function Header() {
   const [pathname, setPathname] = useState<string>("");
   // Mobile menu removed in favor of inline icons
   const { theme, toggleTheme } = useTheme();
+  const preloadLinkRef = useRef<HTMLLinkElement | null>(null);
+
+  // Preload logo image for faster loading
+  useEffect(() => {
+    if (logo_url && typeof document !== "undefined") {
+      // Remove existing preload link if any
+      if (preloadLinkRef.current) {
+        document.head.removeChild(preloadLinkRef.current);
+      }
+      
+      // Create and add preload link
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.href = logo_url;
+      link.fetchPriority = "high";
+      document.head.appendChild(link);
+      preloadLinkRef.current = link;
+
+      return () => {
+        if (preloadLinkRef.current && document.head.contains(preloadLinkRef.current)) {
+          document.head.removeChild(preloadLinkRef.current);
+        }
+      };
+    }
+  }, [logo_url]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
@@ -57,6 +83,9 @@ export default function Header() {
               width={36}
               height={36}
               className="rounded-md"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
             />
           ) : (
             <div className={`h-9 w-9 rounded-md grid place-items-center border ${
@@ -183,6 +212,9 @@ export default function Header() {
                 width={28}
                 height={28}
                 className="rounded-md"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
               />
             ) : (
               <div className={`h-7 w-7 rounded-md grid place-items-center border ${
