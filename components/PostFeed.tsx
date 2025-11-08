@@ -201,6 +201,7 @@ export default function PostFeed({
   const [myDirections, setMyDirections] = useState<string[]>([]);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'connections' | 'discuss' | 'direction'>( 'all');
+  const [loadingDirections, setLoadingDirections] = useState(false);
 
   const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'connections' | 'discuss' | 'direction', offset = 0, limit = 50) => {
     if (offset === 0) {
@@ -306,13 +307,80 @@ export default function PostFeed({
     setLoadingMore(false);
   }, [availableDirections, filterUserId]);
 
-  // page mount
+  // Load directions from growth-directions API - only primary (priority) directions
+  // Load immediately on mount, in parallel with posts
+  const loadingDirectionsRef = useRef(false);
+  const loadDirections = useCallback(async () => {
+    if (loadingDirectionsRef.current) return; // Prevent duplicate loads
+    
+    loadingDirectionsRef.current = true;
+    setLoadingDirections(true);
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const userId = auth.user?.id;
+      if (!userId) {
+        loadingDirectionsRef.current = false;
+        setLoadingDirections(false);
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        loadingDirectionsRef.current = false;
+        setLoadingDirections(false);
+        return;
+      }
+
+      const res = await fetch('/api/growth/directions.list', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (res.ok) {
+        const { directions: dirs } = await res.json();
+        const rawDirections = Array.isArray(dirs) ? dirs : [];
+        // Filter only primary (priority) directions that are selected and not in development
+        const directionsInDevelopment = ['creativity', 'mindfulness_purpose', 'relationships', 'career', 'finance'];
+        const mapped = rawDirections
+          .filter((dir: any) => {
+            const isInDevelopment = directionsInDevelopment.includes(dir.slug);
+            return dir.isSelected && dir.isPrimary === true && !isInDevelopment;
+          })
+          .map((dir: any) => ({
+            id: dir.id,
+            slug: dir.slug,
+            title: dir.title,
+            emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
+          }));
+        setAvailableDirections(mapped);
+
+        // Use primary directions IDs directly (no need to check profile)
+        const priorityIds = mapped.map((dir) => dir.id);
+        
+        setMyDirections(priorityIds);
+        // Default to "All" (null) instead of first direction
+        setActiveDirection(null);
+      }
+    } catch (error) {
+      console.error('Error loading directions:', error);
+    } finally {
+      loadingDirectionsRef.current = false;
+      setLoadingDirections(false);
+    }
+  }, []);
+
+  // page mount - load posts and directions in parallel
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
     // Initial load - load all posts without filter
     const initialLimit = enableLazyLoad ? 10 : 50;
     loadFeed(null, 'all', 0, initialLimit);
-  }, [loadFeed, enableLazyLoad]);
+    // Load directions in parallel
+    if (showFilters) {
+      loadDirections();
+    }
+  }, [loadFeed, enableLazyLoad, showFilters, loadDirections]);
 
   // Reload feed when active filter or direction changes
   useEffect(() => {
@@ -362,55 +430,6 @@ export default function PostFeed({
       }
     };
   }, [enableLazyLoad, hasMore, loadingMore, posts.length, loadFeed, showFilters, activeFilter, activeDirection]);
-
-  // Load directions from growth-directions API - only primary (priority) directions
-  useEffect(() => {
-    (async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const userId = auth.user?.id;
-      if (!userId) return;
-
-      // Load available directions from API
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        const res = await fetch('/api/growth/directions.list', {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-
-        if (res.ok) {
-          const { directions: dirs } = await res.json();
-          const rawDirections = Array.isArray(dirs) ? dirs : [];
-          // Filter only primary (priority) directions that are selected and not in development
-          const directionsInDevelopment = ['creativity', 'mindfulness_purpose', 'relationships', 'career', 'finance'];
-          const mapped = rawDirections
-            .filter((dir: any) => {
-              const isInDevelopment = directionsInDevelopment.includes(dir.slug);
-              return dir.isSelected && dir.isPrimary === true && !isInDevelopment;
-            })
-            .map((dir: any) => ({
-              id: dir.id,
-              slug: dir.slug,
-              title: dir.title,
-              emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
-            }));
-          setAvailableDirections(mapped);
-
-          // Use primary directions IDs directly (no need to check profile)
-          const priorityIds = mapped.map((dir) => dir.id);
-          
-          setMyDirections(priorityIds);
-          // Default to "All" (null) instead of first direction
-          setActiveDirection(null);
-        }
-      } catch (error) {
-        console.error('Error loading directions:', error);
-      }
-    })();
-  }, []);
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -1155,12 +1174,12 @@ export default function PostFeed({
                         swScore={p.user_id ? (swScoresByUserId[p.user_id] || 0) : 0}
                         size="sm"
                         alt="avatar"
-                        href={`/u/${p.user_id}`}
+                        href={`/u/${encodeURIComponent(profile?.username || p.user_id || '')}`}
                       />
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <a 
-                            href={`/u/${p.user_id}`}
+                            href={`/u/${encodeURIComponent(profile?.username || p.user_id || '')}`}
                             onClick={(e) => e.stopPropagation()}
                             className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
                             data-prevent-card-navigation="true"
