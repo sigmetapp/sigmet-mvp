@@ -61,8 +61,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? rawClientMsgId.trim().slice(0, 128)
         : null;
 
+    // Validate reply_to_message_id if provided
+    const rawReplyToMessageId = req.body?.reply_to_message_id;
+    let replyToMessageId: number | null = null;
+    if (rawReplyToMessageId !== undefined && rawReplyToMessageId !== null) {
+      const parsed = typeof rawReplyToMessageId === 'string' 
+        ? Number.parseInt(rawReplyToMessageId, 10)
+        : Number(rawReplyToMessageId);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        replyToMessageId = parsed;
+      }
+    }
+
     if (!threadId) {
       return res.status(400).json({ ok: false, error: 'Invalid thread_id' });
+    }
+
+    // Validate reply_to_message_id belongs to the same thread if provided
+    if (replyToMessageId !== null) {
+      const { data: replyMessage, error: replyErr } = await authedClient
+        .from('dms_messages')
+        .select('id, thread_id, deleted_at')
+        .eq('id', replyToMessageId)
+        .eq('thread_id', threadId)
+        .is('deleted_at', null)
+        .maybeSingle();
+      
+      if (replyErr || !replyMessage) {
+        return res.status(400).json({ ok: false, error: 'Invalid reply_to_message_id: message not found in thread or deleted' });
+      }
     }
 
     // If body is null but we have attachments, use a placeholder to avoid RLS issues
@@ -143,6 +170,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         p_kind: messageKind,
         p_attachments: attachmentsArray,
         p_client_msg_id: clientMsgId,
+        p_reply_to_message_id: replyToMessageId,
       });
 
       message = rpcResult?.data ?? null;
@@ -171,6 +199,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           body: body || (attachmentsArray.length > 0 ? '\u200B' : null),
           attachments: attachmentsArray,
           client_msg_id: clientMsgId,
+          reply_to_message_id: replyToMessageId,
         })
         .select('*')
         .single();

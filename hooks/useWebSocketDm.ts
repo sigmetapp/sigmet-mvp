@@ -356,6 +356,11 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
               deleted_at: message.deleted_at || null,
               sequence_number: typeof sequenceNumber === 'number' ? sequenceNumber : null,
               client_msg_id: message.client_msg_id ?? null,
+              reply_to_message_id: message.reply_to_message_id 
+                ? (typeof message.reply_to_message_id === 'string' 
+                    ? parseInt(message.reply_to_message_id, 10) 
+                    : Number(message.reply_to_message_id))
+                : null,
             };
 
             // Simplified deduplication: use only id and sequence_number
@@ -453,6 +458,11 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
                   ? parseInt(msg.sequence_number, 10)
                   : Number(msg.sequence_number),
             client_msg_id: msg.client_msg_id ?? null,
+            reply_to_message_id: msg.reply_to_message_id 
+              ? (typeof msg.reply_to_message_id === 'string' 
+                  ? parseInt(msg.reply_to_message_id, 10) 
+                  : Number(msg.reply_to_message_id))
+              : null,
           }));
 
           // Simplified merge: use addOrUpdateMessage for each message
@@ -552,6 +562,11 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
                       ? parseInt(row.sequence_number, 10)
                       : Number(row.sequence_number),
                 client_msg_id: row.client_msg_id ?? null,
+                reply_to_message_id: row.reply_to_message_id 
+                  ? (typeof row.reply_to_message_id === 'string' 
+                      ? parseInt(row.reply_to_message_id, 10) 
+                      : Number(row.reply_to_message_id))
+                  : null,
             };
 
             setMessagesState((prev) => {
