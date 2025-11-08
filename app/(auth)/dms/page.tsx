@@ -300,7 +300,6 @@ function DmsInner() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const listContainerRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map<string, HTMLDivElement>());
-  const markReadInFlightRef = useRef<Set<string>>(new Set());
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -1025,85 +1024,6 @@ function DmsInner() {
     [applyPartnerUpdate]
   );
 
-  const markPartnerAsRead = useCallback(
-    async (partner: PartnerListItem, options: { silent?: boolean } = {}) => {
-      if (!partner.thread_id || !partner.last_message_id) return;
-      if (partner.unread_count <= 0) {
-        if (!options.silent) {
-          setToast({
-            message: 'No unread messages remaining',
-            type: 'info',
-          });
-        }
-        return;
-      }
-      const upToId = String(partner.last_message_id || '');
-      if (!upToId) return;
-      if (markReadInFlightRef.current.has(partner.user_id)) {
-        return;
-      }
-      markReadInFlightRef.current.add(partner.user_id);
-      if (!options.silent) {
-        setError(null);
-      }
-      try {
-        const response = await fetch('/api/dms/messages.read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            thread_id: String(partner.thread_id),
-            up_to_message_id: String(upToId),
-          }),
-        });
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(body.error || 'Failed to mark messages as read');
-        }
-        const payload = await response.json().catch(() => ({}));
-        const lastReadId =
-          payload?.last_read_message_id !== undefined
-            ? String(payload.last_read_message_id)
-            : String(upToId);
-
-        applyPartnerUpdate(partner.user_id, (current) => ({
-          ...current,
-          unread_count: 0,
-          last_read_message_id: lastReadId,
-          last_read_at: new Date().toISOString(),
-        }));
-        
-        // Dispatch event for unread count update
-        window.dispatchEvent(
-          new CustomEvent('dm:message-read', {
-            detail: {
-              threadId: partner.thread_id,
-              partnerId: partner.user_id,
-            },
-          })
-        );
-        
-        if (!options.silent) {
-          setToast({
-            message: 'All messages marked as read',
-            type: 'success',
-          });
-        }
-      } catch (err: any) {
-        console.error('Failed to mark conversation as read', err);
-        if (!options.silent) {
-          setError(err?.message || 'Failed to mark conversation as read');
-          setToast({
-            message: err?.message || 'Failed to mark conversation as read',
-            type: 'error',
-          });
-        }
-      } finally {
-        markReadInFlightRef.current.delete(partner.user_id);
-      }
-    },
-    [applyPartnerUpdate]
-  );
-
   // Listen for message read events to update unread count
   useEffect(() => {
     if (!currentUserId) return;
@@ -1426,29 +1346,6 @@ function DmsInner() {
                                     {partner.notifications_muted ? 'Unmute' : 'Mute'}
                                   </span>
                                 </button>
-                                {partner.unread_count > 0 && partner.last_message_id && (
-                                  <button
-                                    type="button"
-                                    aria-label="Mark read"
-                                    title="Mark read"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                        void markPartnerAsRead(partner);
-                                    }}
-                                    className="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/15 inline-flex items-center gap-1"
-                                  >
-                                    {/* Check icon */}
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      viewBox="0 0 24 24"
-                                      fill="currentColor"
-                                      className="h-4 w-4"
-                                    >
-                                      <path d="M9 16.2l-3.5-3.5L4 14.2 9 19l12-12-1.5-1.5z" />
-                                    </svg>
-                                    <span className="hidden md:inline">Mark read</span>
-                                  </button>
-                                )}
                               </div>
                             </div>
                           );
