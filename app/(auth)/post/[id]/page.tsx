@@ -1,5 +1,8 @@
 import { notFound } from 'next/navigation';
+import { Suspense, cache } from 'react';
+import type { Metadata } from 'next';
 import PostDetailClient from './PostDetailClient';
+import PostDetailSkeleton from '@/components/PostDetailSkeleton';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 type PostRecord = {
@@ -20,21 +23,25 @@ type Profile = {
   avatar_url: string | null;
 };
 
-export default async function PostDetailPage({ params }: { params: { id: string } }) {
-  const rawId = params.id;
-  const postId = Number(rawId);
-
-  if (!Number.isFinite(postId) || Number.isNaN(postId)) {
-    notFound();
-  }
-
+// Cache the post data loading function to avoid duplicate requests
+const loadPostData = cache(async (postId: number) => {
   const admin = supabaseAdmin();
 
-  const { data: post, error: postError } = await admin
-    .from<PostRecord>('posts')
-    .select('*')
-    .eq('id', postId)
-    .maybeSingle();
+  // Load post and profile in parallel
+  const [postResult, commentCountResult] = await Promise.all([
+    admin
+      .from<PostRecord>('posts')
+      .select('*')
+      .eq('id', postId)
+      .maybeSingle(),
+    admin
+      .from('comments')
+      .select('*', { count: 'exact', head: true })
+      .eq('post_id', postId),
+  ]);
+
+  const { data: post, error: postError } = postResult;
+  const { count } = commentCountResult;
 
   if (postError || !post) {
     notFound();
@@ -52,16 +59,54 @@ export default async function PostDetailPage({ params }: { params: { id: string 
     }
   }
 
-  let commentCount = 0;
-  try {
-    const { count } = await admin
-      .from('comments')
-      .select('*', { count: 'exact', head: true })
-      .eq('post_id', postId);
-    commentCount = count ?? 0;
-  } catch {
-    commentCount = 0;
+  const commentCount = count ?? 0;
+
+  return { post, authorProfile, commentCount };
+});
+
+export default async function PostDetailPage({ params }: { params: { id: string } }) {
+  const rawId = params.id;
+  const postId = Number(rawId);
+
+  if (!Number.isFinite(postId) || Number.isNaN(postId)) {
+    notFound();
   }
+
+  return (
+    <Suspense fallback={<PostDetailSkeleton />}>
+      <PostDetailPageContent postId={postId} />
+    </Suspense>
+  );
+}
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const rawId = params.id;
+  const postId = Number(rawId);
+
+  if (!Number.isFinite(postId) || Number.isNaN(postId)) {
+    return {
+      title: 'Post not found',
+    };
+  }
+
+  try {
+    const { post, authorProfile } = await loadPostData(postId);
+    const username = authorProfile?.username || authorProfile?.full_name || 'User';
+    const postPreview = post.body ? (post.body.length > 100 ? post.body.substring(0, 100) + '...' : post.body) : '';
+
+    return {
+      title: `Post by ${username}`,
+      description: postPreview || `View post by ${username}`,
+    };
+  } catch {
+    return {
+      title: 'Post not found',
+    };
+  }
+}
+
+async function PostDetailPageContent({ postId }: { postId: number }) {
+  const { post, authorProfile, commentCount } = await loadPostData(postId);
 
   return <PostDetailClient postId={postId} initialPost={{ post, authorProfile, commentCount }} />;
 }
