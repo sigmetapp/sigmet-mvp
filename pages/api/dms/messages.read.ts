@@ -7,6 +7,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { client, user } = await getAuthedClient(req);
+    
+    // Validate user.id is a valid UUID
+    if (!user?.id || typeof user.id !== 'string') {
+      return res.status(401).json({ ok: false, error: 'Invalid user ID' });
+    }
+    
     const execOrFetch = async (q: any): Promise<{ data: any; error: any }> => {
       if (typeof q?.exec === 'function') return await q.exec();
       return await q;
@@ -100,7 +106,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Mark receipts up to nextId as read
     // Get all message IDs up to and including the target message from partner
-    const { data: ids } = await execOrFetch(
+    // Note: sender_id is UUID, so we compare it with user.id (also UUID) directly
+    const { data: ids, error: idsError } = await execOrFetch(
       client
         .from('dms_messages')
         .select('id, sender_id')
@@ -110,6 +117,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .is('deleted_at', null)
         .limit(1000)
     );
+    
+    if (idsError) {
+      console.error('Error fetching message IDs:', idsError);
+      return res.status(400).json({ ok: false, error: idsError.message || 'Failed to fetch messages' });
+    }
 
     let idList: number[] = (ids || []).map((x: any) => {
       const id = typeof x.id === 'string' ? Number.parseInt(x.id, 10) : Number(x.id);
@@ -118,7 +130,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (idList.length === 0) {
       // Fallback: include the up-to id directly if it's from partner
-      const { data: msgCheck2 } = await client
+      const { data: msgCheck2, error: msgCheck2Error } = await client
         .from('dms_messages')
         .select('sender_id')
         .eq('thread_id', threadIdNum)
@@ -126,7 +138,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .is('deleted_at', null)
         .maybeSingle();
       
-      if (msgCheck2 && msgCheck2.sender_id !== user.id) {
+      if (msgCheck2Error) {
+        console.error('Error checking message sender:', msgCheck2Error);
+      } else if (msgCheck2 && msgCheck2.sender_id !== user.id) {
         idList = [upToNum];
       }
     }
@@ -134,56 +148,84 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (idList.length > 0) {
       // Use upsert to create or update receipts to 'read' status
       // This ensures that all messages from partner get receipts with 'read' status
-      const receiptsToUpsert = idList.map((msgId) => ({
-        message_id: msgId,
-        user_id: user.id,
-        status: 'read' as const,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
+      // Validate that user.id is a string (UUID) and message_id is a number
+      const receiptsToUpsert = idList.map((msgId) => {
+        // Ensure message_id is a number and user_id is a string (UUID)
+        if (typeof msgId !== 'number' || Number.isNaN(msgId)) {
+          console.error('Invalid message_id:', msgId);
+          return null;
+        }
+        if (typeof user.id !== 'string') {
+          console.error('Invalid user_id:', user.id);
+          return null;
+        }
+        return {
+          message_id: msgId,
+          user_id: user.id,
+          status: 'read' as const,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }).filter((r): r is NonNullable<typeof r> => r !== null);
 
-      try {
-        // Try upsert first (works in Supabase)
-        const upsertResult = await execOrFetch(
-          client
-            .from('dms_message_receipts')
-            .upsert(receiptsToUpsert, {
-              onConflict: 'message_id,user_id',
-              ignoreDuplicates: false,
-            })
-        );
+      if (receiptsToUpsert.length > 0) {
+        // Log for debugging
+        console.log('Creating/updating receipts:', {
+          count: receiptsToUpsert.length,
+          userId: user.id,
+          userIdType: typeof user.id,
+          firstReceipt: receiptsToUpsert[0],
+        });
         
-        if (upsertResult.error) {
-          console.error('Error upserting receipts:', upsertResult.error);
-          // Fallback: try insert with onConflict
+        try {
+          // Try upsert first (works in Supabase)
+          const upsertResult = await execOrFetch(
+            client
+              .from('dms_message_receipts')
+              .upsert(receiptsToUpsert, {
+                onConflict: 'message_id,user_id',
+                ignoreDuplicates: false,
+              })
+          );
+          
+          if (upsertResult.error) {
+            console.error('Error upserting receipts:', upsertResult.error);
+            // Fallback: try insert with onConflict one by one
+            for (const receipt of receiptsToUpsert) {
+              try {
+                const insertResult = await execOrFetch(
+                  client
+                    .from('dms_message_receipts')
+                    .insert(receipt)
+                    .onConflict('message_id,user_id')
+                    .merge({ status: 'read', updated_at: new Date().toISOString() })
+                );
+                if (insertResult.error) {
+                  console.error('Error creating single receipt:', insertResult.error, receipt);
+                }
+              } catch (singleErr: any) {
+                console.error('Error creating single receipt:', singleErr, receipt);
+              }
+            }
+          }
+        } catch (upsertErr: any) {
+          console.error('Error upserting receipts:', upsertErr);
+          // Fallback: try insert with onConflict one by one
           for (const receipt of receiptsToUpsert) {
             try {
-              await execOrFetch(
+              const insertResult = await execOrFetch(
                 client
                   .from('dms_message_receipts')
                   .insert(receipt)
                   .onConflict('message_id,user_id')
                   .merge({ status: 'read', updated_at: new Date().toISOString() })
               );
+              if (insertResult.error) {
+                console.error('Error creating single receipt:', insertResult.error, receipt);
+              }
             } catch (singleErr: any) {
               console.error('Error creating single receipt:', singleErr, receipt);
             }
-          }
-        }
-      } catch (upsertErr: any) {
-        console.error('Error upserting receipts:', upsertErr);
-        // Fallback: try insert with onConflict one by one
-        for (const receipt of receiptsToUpsert) {
-          try {
-            await execOrFetch(
-              client
-                .from('dms_message_receipts')
-                .insert(receipt)
-                .onConflict('message_id,user_id')
-                .merge({ status: 'read', updated_at: new Date().toISOString() })
-            );
-          } catch (singleErr: any) {
-            console.error('Error creating single receipt:', singleErr, receipt);
           }
         }
       }
