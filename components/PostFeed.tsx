@@ -8,6 +8,7 @@ import {
   useCallback,
 } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from "@/lib/supabaseClient";
 import Button from "@/components/Button";
 import PostCard from "@/components/PostCard";
@@ -25,6 +26,7 @@ import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag } from "lucide-reac
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
+import PostSkeleton from "@/components/PostSkeleton";
 
 function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
@@ -1148,9 +1150,18 @@ export default function PostFeed({
   const renderPostsList = () => (
     <>
       {loading ? (
-        <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <PostSkeleton 
+              key={`skeleton-${i}`}
+              showImage={i === 0}
+              showActions={true}
+            />
+          ))}
+        </div>
       ) : (
-        posts.map((p) => {
+        <AnimatePresence mode="popLayout">
+          {posts.map((p, index) => {
           const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
           const avatar = profile?.avatar_url || AVATAR_FALLBACK;
           const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
@@ -1175,22 +1186,32 @@ export default function PostFeed({
           const isMyPost = uid === p.user_id;
 
           return (
-            <PostCard
+            <motion.div
               key={p.id}
-              post={{
-                id: String(p.id),
-                author: username,
-                content: p.body ?? '',
-                createdAt: p.created_at,
-                commentsCount: commentCount,
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{
+                duration: 0.3,
+                delay: Math.min(index * 0.05, 0.3), // Stagger animation, max 0.3s delay
+                ease: [0.4, 0, 0.2, 1], // Custom easing for smooth animation
               }}
-              disableNavigation={true}
-              className={`card p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out rounded-none md:rounded-none ${
-                hasCategory && categoryDirection
-                  ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
-                  : ''
-              }`}
-              onMouseEnter={() => addViewOnce(p.id)}
+            >
+              <PostCard
+                post={{
+                  id: String(p.id),
+                  author: username,
+                  content: p.body ?? '',
+                  createdAt: p.created_at,
+                  commentsCount: commentCount,
+                }}
+                disableNavigation={true}
+                className={`card p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out rounded-none md:rounded-none ${
+                  hasCategory && categoryDirection
+                    ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
+                    : ''
+                }`}
+                onMouseEnter={() => addViewOnce(p.id)}
               renderContent={() => (
                 <div className="relative z-10 space-y-2">
                   {/* header */}
@@ -1605,14 +1626,24 @@ export default function PostFeed({
                 </div>
               )}
             />
+            </motion.div>
           );
-        })
+          })}
+        </AnimatePresence>
       )}
       {/* Lazy load trigger */}
       {enableLazyLoad && (
         <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
           {loadingMore && (
-            <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading more posts...</div>
+            <div className="space-y-3 w-full">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <PostSkeleton 
+                  key={`loading-more-${i}`}
+                  showImage={false}
+                  showActions={true}
+                />
+              ))}
+            </div>
           )}
           {!hasMore && posts.length > 0 && (
             <div className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
