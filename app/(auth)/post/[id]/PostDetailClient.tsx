@@ -16,6 +16,7 @@ import AvatarWithBadge from '@/components/AvatarWithBadge';
 import ViewsChart from '@/components/ViewsChart';
 import PostReportModal from '@/components/PostReportModal';
 import PostDetailSkeleton from '@/components/PostDetailSkeleton';
+import ProgressiveImage from '@/components/ProgressiveImage';
 
 type PostRecord = {
   id: number;
@@ -643,11 +644,13 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                       <source src={comment.media_url} />
                     </video>
                   ) : (
-                    <img
+                    <ProgressiveImage
                       src={comment.media_url}
                       alt="comment media"
-                      loading="lazy"
                       className="w-full rounded-lg border border-slate-200 dark:border-slate-700"
+                      placeholder="blur"
+                      priority={false}
+                      objectFit="cover"
                     />
                   )}
                 </div>
@@ -906,13 +909,13 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           {(post.image_url || post.video_url) && (
             <div className="overflow-hidden rounded-none border border-slate-200 dark:border-slate-700">
               {post.image_url && (
-                <img
+                <ProgressiveImage
                   src={post.image_url}
                   alt="Post media"
-                  className="w-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                  fetchPriority="high"
+                  className="w-full"
+                  placeholder="blur"
+                  priority={true}
+                  objectFit="cover"
                 />
               )}
               {post.video_url && (

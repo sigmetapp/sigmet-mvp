@@ -1,11 +1,14 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import DmsChatWindow from '../DmsChatWindow';
+import ProgressiveImage from '@/components/ProgressiveImage';
+import DmChatLoading from './loading';
 
 export default function DmPage() {
   return (
@@ -153,11 +156,15 @@ function DmPageInner() {
                           : 'hover:bg-white/5 border border-transparent'
                       }`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <ProgressiveImage
                         src={avatar}
                         alt={name}
-                        className="h-10 w-10 rounded-full object-cover border border-white/10 flex-shrink-0"
+                        width={40}
+                        height={40}
+                        className="h-10 w-10 rounded-full border border-white/10 flex-shrink-0"
+                        placeholder="blur"
+                        priority={false}
+                        objectFit="cover"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="text-white/90 font-medium truncate">{name}</div>
@@ -178,7 +185,9 @@ function DmPageInner() {
 
       {/* Chat window - right side */}
       <div className="flex-1 min-w-0">
-        <DmsChatWindow partnerId={partnerId} />
+        <Suspense fallback={<DmChatLoading />}>
+          <DmsChatWindow partnerId={partnerId} />
+        </Suspense>
       </div>
     </div>
   );

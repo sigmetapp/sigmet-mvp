@@ -1,9 +1,11 @@
 'use client';
 
+import { Suspense } from 'react';
 import { RequireAuth } from "@/components/RequireAuth";
 import PostFeed from "@/components/PostFeed";
 import { useTheme } from "@/components/ThemeProvider";
 import { useState } from "react";
+import FeedLoading from './loading';
 
 export default function FeedPage() {
   const { theme } = useTheme();
@@ -28,15 +30,17 @@ export default function FeedPage() {
         </div>
 
         <div className="w-full">
-          <PostFeed
-            showFilters={true}
-            showComposer={true}
-            className=""
-            renderFiltersOutside={true}
-            renderFilters={setFiltersElement}
-            buttonPosition="inline"
-            enableLazyLoad={false}
-          />
+          <Suspense fallback={<FeedLoading />}>
+            <PostFeed
+              showFilters={true}
+              showComposer={true}
+              className=""
+              renderFiltersOutside={true}
+              renderFilters={setFiltersElement}
+              buttonPosition="inline"
+              enableLazyLoad={false}
+            />
+          </Suspense>
         </div>
       </div>
     </RequireAuth>

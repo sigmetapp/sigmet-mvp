@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
@@ -10,6 +11,7 @@ import DmsChatWindow from './DmsChatWindow';
 import Toast from '@/components/Toast';
 import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 import type { DmAttachment } from '@/lib/dm/attachments';
+import DmsLoading from './loading';
 
 export default function DmsPage() {
   return (
@@ -1415,7 +1417,9 @@ function DmsInner() {
       </div>
       <div className={["flex-1 min-w-0 min-h-0", !selectedPartnerId ? "hidden md:block" : "block"].join(" ") }>
         {selectedPartnerId ? (
-          <DmsChatWindow partnerId={selectedPartnerId} onBack={() => setSelectedPartnerId(null)} />
+          <Suspense fallback={<DmsLoading />}>
+            <DmsChatWindow partnerId={selectedPartnerId} onBack={() => setSelectedPartnerId(null)} />
+          </Suspense>
         ) : (
           <div className="card card-glow h-full flex items-center justify-center">
             <div className="text-white/70 text-center">
