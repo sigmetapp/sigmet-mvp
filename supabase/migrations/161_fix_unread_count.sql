@@ -43,7 +43,7 @@ with ranked_threads as (
     tp.mute_until,
     coalesce(tp.is_pinned, false) as is_pinned,
     tp.pinned_at,
-    tp.last_read_message_id::bigint as last_read_message_id,
+    tp.last_read_message_id,
     tp.last_read_at,
     t.created_at,
     t.last_message_id,
@@ -66,6 +66,21 @@ limited_threads as (
   from ranked_threads
   where rn > coalesce(p_offset, 0)
     and rn <= coalesce(p_offset, 0) + coalesce(p_limit, 20)
+),
+last_read_message_time as (
+  select
+    lt.thread_id,
+    lt.last_read_at,
+    m.created_at as last_read_message_created_at
+  from limited_threads lt
+  left join lateral (
+    select created_at
+    from public.dms_messages
+    where thread_id = lt.thread_id
+      and id::text = lt.last_read_message_id::text
+    order by created_at desc
+    limit 1
+  ) m on true
 ),
 partners as (
   select
@@ -118,12 +133,12 @@ unread as (
         and msg.deleted_at is null
         and msg.sender_id <> p_user_id
         and (
-          lt.last_read_message_id is null
-          or lt.last_read_at is null
-          or msg.created_at > lt.last_read_at
+          lrmt.last_read_message_created_at is null
+          or msg.created_at > lrmt.last_read_message_created_at
         )
     ) as unread_count
   from limited_threads lt
+  left join last_read_message_time lrmt on lrmt.thread_id = lt.thread_id
 )
 select
   lt.thread_id::text as thread_id,
