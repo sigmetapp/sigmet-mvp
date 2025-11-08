@@ -25,6 +25,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: 'Invalid input' });
     }
 
+    // Convert threadId to number for database queries (thread_id is bigint in DB)
+    const threadIdNum = Number.parseInt(threadId, 10);
+    if (Number.isNaN(threadIdNum)) {
+      return res.status(400).json({ ok: false, error: 'Invalid thread_id format' });
+    }
+
     // Ensure membership and get current last_read where supported. If the
     // column does not exist in the database, fall back to a membership-only check.
     let participant: any | null = null;
@@ -32,7 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { data, error } = await client
         .from('dms_thread_participants')
         .select('thread_id, last_read_message_id')
-        .eq('thread_id', threadId)
+        .eq('thread_id', threadIdNum)
         .eq('user_id', user.id)
         .maybeSingle();
       if (!error) {
@@ -41,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const { data: data2, error: err2 } = await client
           .from('dms_thread_participants')
           .select('thread_id')
-          .eq('thread_id', threadId)
+          .eq('thread_id', threadIdNum)
           .eq('user_id', user.id)
           .maybeSingle();
         if (err2) return res.status(400).json({ ok: false, error: err2.message });
@@ -62,10 +68,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { data: msgCheck } = await client
       .from('dms_messages')
       .select('id, created_at')
-      .eq('thread_id', threadId)
+      .eq('thread_id', threadIdNum)
       .eq('id', upToNum)
       .maybeSingle();
-    if (!msgCheck) return res.status(400).json({ ok: false, error: 'up_to_message_id not in thread' });
+    if (!msgCheck) {
+      // Log for debugging
+      console.error('Message not found in thread:', { threadId, threadIdNum, upTo, upToNum });
+      return res.status(400).json({ ok: false, error: 'up_to_message_id not in thread' });
+    }
 
     const prev = participant.last_read_message_id ? String(participant.last_read_message_id) : null;
     const nextId = String(upToNum);
@@ -79,7 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             last_read_message_id: upToNum, 
             last_read_at: msgCheck.created_at || new Date().toISOString() 
           })
-          .eq('thread_id', threadId)
+          .eq('thread_id', threadIdNum)
           .eq('user_id', user.id);
       } catch (err: any) {
         // Log error for debugging
@@ -93,7 +103,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       client
         .from('dms_messages')
         .select('id')
-        .eq('thread_id', threadId)
+        .eq('thread_id', threadIdNum)
         .lte('created_at', msgCheck.created_at || new Date().toISOString())
         .limit(1000)
     );

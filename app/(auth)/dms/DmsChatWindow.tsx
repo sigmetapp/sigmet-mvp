@@ -884,18 +884,17 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           
           // Mark all messages as read when thread is opened and messages are loaded
           // This ensures that when user opens a chat, all visible messages are marked as read
-          if (sorted.length > 0 && currentUserId && partnerId) {
+          if (sorted.length > 0 && currentUserId && partnerId && threadId) {
             const lastMessage = sorted[sorted.length - 1];
-            // Only mark as read if there are messages from partner
-            const hasPartnerMessages = sorted.some(m => m.sender_id === partnerId && m.sender_id !== currentUserId);
-            if (hasPartnerMessages && lastMessage) {
+            // Mark all messages as read when opening chat, regardless of sender
+            // This ensures that on page refresh, these messages won't be unread
+            if (lastMessage) {
               // Mark all messages up to the last one as read immediately
-              // This ensures that on page refresh, these messages won't be unread
               fetch('/api/dms/messages.read', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  thread_id: threadId,
+                  thread_id: String(threadId),
                   up_to_message_id: String(lastMessage.id),
                 }),
               })
@@ -905,11 +904,18 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   window.dispatchEvent(
                     new CustomEvent('dm:message-read', {
                       detail: {
-                        threadId: threadId,
+                        threadId: String(threadId),
                         partnerId: partnerId,
                       },
                     })
                   );
+                } else {
+                  // Log error response for debugging
+                  response.json().then((data) => {
+                    console.error('Error marking messages as read on thread open:', data);
+                  }).catch(() => {
+                    console.error('Error marking messages as read on thread open:', response.status, response.statusText);
+                  });
                 }
               })
               .catch((err) => {
@@ -1199,36 +1205,40 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       // Mark all messages as read when initially scrolling to bottom
       // This ensures that when user opens a chat, all visible messages are marked as read
       const lastMessage = messages[messages.length - 1];
-      if (lastMessage) {
-        const hasPartnerMessages = messages.some(m => m.sender_id === partnerId && m.sender_id !== currentUserId);
-        if (hasPartnerMessages) {
-          // Mark all messages as read immediately when chat is opened
-          // This ensures that on page refresh, these messages won't be unread
-          fetch('/api/dms/messages.read', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              thread_id: thread.id,
-              up_to_message_id: String(lastMessage.id),
-            }),
-          })
-          .then((response) => {
-            if (response.ok) {
-              // Dispatch event to update unread count in partner list
-              window.dispatchEvent(
-                new CustomEvent('dm:message-read', {
-                  detail: {
-                    threadId: thread.id,
-                    partnerId: partnerId,
-                  },
-                })
-              );
-            }
-          })
-          .catch((err) => {
-            console.error('Error marking messages as read on initial scroll:', err);
-          });
-        }
+      if (lastMessage && thread?.id) {
+        // Mark all messages as read immediately when chat is opened
+        // This ensures that on page refresh, these messages won't be unread
+        fetch('/api/dms/messages.read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thread_id: String(thread.id),
+            up_to_message_id: String(lastMessage.id),
+          }),
+        })
+        .then((response) => {
+          if (response.ok) {
+            // Dispatch event to update unread count in partner list
+            window.dispatchEvent(
+              new CustomEvent('dm:message-read', {
+                detail: {
+                  threadId: String(thread.id),
+                  partnerId: partnerId,
+                },
+              })
+            );
+          } else {
+            // Log error response for debugging
+            response.json().then((data) => {
+              console.error('Error marking messages as read on initial scroll:', data);
+            }).catch(() => {
+              console.error('Error marking messages as read on initial scroll:', response.status, response.statusText);
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('Error marking messages as read on initial scroll:', err);
+        });
       }
       return;
     }
@@ -1242,35 +1252,39 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       
       // Mark all messages as read when auto-scrolling to bottom
       const lastMessage = messages[messages.length - 1];
-      if (lastMessage) {
-        const hasPartnerMessages = messages.some(m => m.sender_id === partnerId && m.sender_id !== currentUserId);
-        if (hasPartnerMessages) {
-          acknowledgeMessage(lastMessage.id, thread.id, 'read');
-          fetch('/api/dms/messages.read', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              thread_id: thread.id,
-              up_to_message_id: String(lastMessage.id),
-            }),
-          })
-          .then((response) => {
-            if (response.ok) {
-              // Dispatch event to update unread count in partner list
-              window.dispatchEvent(
-                new CustomEvent('dm:message-read', {
-                  detail: {
-                    threadId: thread.id,
-                    partnerId: partnerId,
-                  },
-                })
-              );
-            }
-          })
-          .catch((err) => {
-            console.error('Error marking messages as read on auto-scroll:', err);
-          });
-        }
+      if (lastMessage && thread?.id) {
+        acknowledgeMessage(lastMessage.id, thread.id, 'read');
+        fetch('/api/dms/messages.read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thread_id: String(thread.id),
+            up_to_message_id: String(lastMessage.id),
+          }),
+        })
+        .then((response) => {
+          if (response.ok) {
+            // Dispatch event to update unread count in partner list
+            window.dispatchEvent(
+              new CustomEvent('dm:message-read', {
+                detail: {
+                  threadId: String(thread.id),
+                  partnerId: partnerId,
+                },
+              })
+            );
+          } else {
+            // Log error response for debugging
+            response.json().then((data) => {
+              console.error('Error marking messages as read on auto-scroll:', data);
+            }).catch(() => {
+              console.error('Error marking messages as read on auto-scroll:', response.status, response.statusText);
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('Error marking messages as read on auto-scroll:', err);
+        });
       }
     }
   }, [messages.length, thread?.id, currentUserId, partnerId, messages, acknowledgeMessage]);
@@ -1304,7 +1318,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             }
             markReadTimeout = setTimeout(() => {
               // Only mark as read if message is from partner
-              if (lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId) {
+              if (lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId && thread?.id) {
                 acknowledgeMessage(lastMessage.id, thread.id, 'read');
                 lastMarkedReadMessageId = lastMessage.id;
                 
@@ -1313,7 +1327,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    thread_id: thread.id,
+                    thread_id: String(thread.id),
                     up_to_message_id: String(lastMessage.id),
                   }),
                 })
@@ -1323,11 +1337,18 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                     window.dispatchEvent(
                       new CustomEvent('dm:message-read', {
                         detail: {
-                          threadId: thread.id,
+                          threadId: String(thread.id),
                           partnerId: partnerId,
                         },
                       })
                     );
+                  } else {
+                    // Log error response for debugging
+                    response.json().then((data) => {
+                      console.error('Error marking messages as read:', data);
+                    }).catch(() => {
+                      console.error('Error marking messages as read:', response.status, response.statusText);
+                    });
                   }
                 })
                 .catch((err) => {
@@ -1359,16 +1380,15 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     setShowNewBanner(false);
     
     // Mark all messages as read when jumping to bottom
-    if (messages.length > 0) {
+    if (messages.length > 0 && thread?.id) {
       const lastMessage = messages[messages.length - 1];
-      const hasPartnerMessages = messages.some(m => m.sender_id === partnerId && m.sender_id !== currentUserId);
-      if (hasPartnerMessages && lastMessage) {
+      if (lastMessage) {
         acknowledgeMessage(lastMessage.id, thread.id, 'read');
         fetch('/api/dms/messages.read', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            thread_id: thread.id,
+            thread_id: String(thread.id),
             up_to_message_id: String(lastMessage.id),
           }),
         })
@@ -1378,11 +1398,18 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             window.dispatchEvent(
               new CustomEvent('dm:message-read', {
                 detail: {
-                  threadId: thread.id,
+                  threadId: String(thread.id),
                   partnerId: partnerId,
                 },
               })
             );
+          } else {
+            // Log error response for debugging
+            response.json().then((data) => {
+              console.error('Error marking messages as read on jump to bottom:', data);
+            }).catch(() => {
+              console.error('Error marking messages as read on jump to bottom:', response.status, response.statusText);
+            });
           }
         })
         .catch((err) => {

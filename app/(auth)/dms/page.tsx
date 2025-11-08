@@ -1051,8 +1051,8 @@ function DmsInner() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            thread_id: partner.thread_id,
-            up_to_message_id: upToId,
+            thread_id: String(partner.thread_id),
+            up_to_message_id: String(upToId),
           }),
         });
         if (!response.ok) {
