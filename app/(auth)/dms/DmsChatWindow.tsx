@@ -126,7 +126,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [messageReceipts, setMessageReceipts] = useState<Map<number, 'sent' | 'delivered' | 'read'>>(new Map());
+  const [messageReceipts, setMessageReceipts] = useState<Map<string, 'sent' | 'delivered' | 'read'>>(new Map());
   
   // Theme
   const { theme } = useTheme();
@@ -646,49 +646,66 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     const wsClient = getWebSocketClient();
     
     const handleAck = async (event: any) => {
-      if (event.type === 'ack' && event.thread_id === thread.id) {
-        // Only update receipts for messages sent by current user
-        // The ack event comes from the partner, so we update the receipt status
-        // Verify that this receipt is for a message sent by current user
-        try {
-          const { data: message } = await supabase
-            .from('dms_messages')
-            .select('sender_id')
-            .eq('id', event.message_id)
-            .eq('sender_id', currentUserId)
-            .maybeSingle();
-          
-          if (message) {
-            // This receipt is for a message sent by current user
-            setMessageReceipts((prev) => {
-              const updated = new Map(prev);
-              // The status should be 'delivered' or 'read' from the partner
-              updated.set(event.message_id, event.status || 'delivered');
-              return updated;
-            });
+        if (event.type === 'ack' && event.thread_id === thread.id) {
+          // Only update receipts for messages sent by current user
+          // The ack event comes from the partner, so we update the receipt status
+          // Verify that this receipt is for a message sent by current user
+          try {
+            const { data: message } = await supabase
+              .from('dms_messages')
+              .select('sender_id')
+              .eq('id', event.message_id)
+              .eq('sender_id', currentUserId)
+              .maybeSingle();
+            
+            if (message) {
+              // This receipt is for a message sent by current user
+              setMessageReceipts((prev) => {
+                const updated = new Map(prev);
+                const receiptKey = String(event.message_id);
+                // The status should be 'delivered' or 'read' from the partner
+                updated.set(receiptKey, event.status || 'delivered');
+                return updated;
+              });
+            }
+          } catch (err) {
+            console.error('Error verifying ack message:', err);
           }
-        } catch (err) {
-          console.error('Error verifying ack message:', err);
         }
-      }
     };
 
     const handleMessage = (event: any) => {
-      if (event.type === 'message' && event.thread_id === thread.id) {
-        const message = event.message as any;
-        // If this is our message, mark it as sent on server confirmation
-        // Receipts will be updated when partner acknowledges
-        if (message.sender_id === currentUserId) {
-          setMessageReceipts((prev) => {
-            const updated = new Map(prev);
-            // Initially mark as 'sent', will be updated to 'delivered'/'read' when partner acknowledges
-            if (!updated.has(event.server_msg_id)) {
-              updated.set(event.server_msg_id, 'sent');
-            }
-            return updated;
-          });
+        if (event.type === 'message' && event.thread_id === thread.id) {
+          const message = event.message as any;
+          // If this is our message, mark it as sent on server confirmation
+          // Receipts will be updated when partner acknowledges
+          if (message.sender_id === currentUserId) {
+            setMessageReceipts((prev) => {
+              const updated = new Map(prev);
+              const receiptKey = String(event.server_msg_id);
+              // Initially mark as 'sent', will be updated to 'delivered'/'read' when partner acknowledges
+              if (!updated.has(receiptKey)) {
+                updated.set(receiptKey, 'sent');
+              }
+              return updated;
+            });
+            setMessagesFromHook((prev: any[]) =>
+              prev.map((msg) => {
+                const matchesById = String((msg as any)?.id ?? '') === String(event.server_msg_id ?? '');
+                const matchesByClient =
+                  (msg as any)?.client_msg_id && message.client_msg_id && (msg as any).client_msg_id === message.client_msg_id;
+                if (!matchesById && !matchesByClient) {
+                  return msg;
+                }
+                return {
+                  ...msg,
+                  send_error: undefined,
+                  delivery_state: 'sent',
+                };
+              })
+            );
+          }
         }
-      }
     };
 
     const unsubAck = wsClient.on('ack', handleAck);
@@ -721,14 +738,34 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 .eq('sender_id', currentUserId)
                 .maybeSingle();
               
-              if (message) {
-                // This receipt is for a message sent by current user
-                setMessageReceipts((prev) => {
-                  const updated = new Map(prev);
-                  updated.set(receipt.message_id, receipt.status || 'delivered');
-                  return updated;
-                });
-              }
+                if (message) {
+                  // This receipt is for a message sent by current user
+                  setMessageReceipts((prev) => {
+                    const updated = new Map(prev);
+                    const receiptKey = String(receipt.message_id);
+                    updated.set(receiptKey, receipt.status || 'delivered');
+                    return updated;
+                  });
+                  setMessagesFromHook((prev: any[]) =>
+                    prev.map((msg) => {
+                      const matchesById = String((msg as any)?.id ?? '') === String(receipt.message_id ?? '');
+                      if (!matchesById) {
+                        return msg;
+                      }
+                      const deliveryState =
+                        receipt.status === 'read'
+                          ? 'read'
+                          : receipt.status === 'delivered'
+                            ? 'delivered'
+                            : 'sent';
+                      return {
+                        ...msg,
+                        send_error: undefined,
+                        delivery_state: deliveryState,
+                      };
+                    })
+                  );
+                }
             } catch (err) {
               console.error('Error verifying receipt message:', err);
             }
@@ -807,22 +844,29 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           try {
             // Get message IDs of messages sent by current user
             const myMessageIds = sorted
-              .filter((m) => m.sender_id === currentUserId && Number.isFinite(Number(m.id)))
-              .map((m) => Number(m.id));
+              .filter((m) => m.sender_id === currentUserId)
+              .map((m) => String(m.id));
+            const supabaseMessageIds = myMessageIds.map((id) => {
+              if (/^\d+$/.test(id)) {
+                const numeric = Number(id);
+                return Number.isSafeInteger(numeric) ? numeric : id;
+              }
+              return id;
+            });
             
-            if (myMessageIds.length > 0) {
+            if (supabaseMessageIds.length > 0) {
               // Load receipts where partner is the recipient (user_id = partnerId)
               const { data: receipts } = await supabase
                 .from('dms_message_receipts')
                 .select('message_id, status')
-                .in('message_id', myMessageIds)
+                .in('message_id', supabaseMessageIds)
                 .eq('user_id', partnerId);
               
               if (receipts) {
-                const receiptsMap = new Map<number, 'sent' | 'delivered' | 'read'>();
+                const receiptsMap = new Map<string, 'sent' | 'delivered' | 'read'>();
                 for (const receipt of receipts) {
                   const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
-                  receiptsMap.set(receipt.message_id, status);
+                  receiptsMap.set(String(receipt.message_id), status);
                 }
                 setMessageReceipts(receiptsMap);
               }
@@ -946,11 +990,11 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         if (thread?.id) {
           if (isAtBottom) {
             acknowledgeMessage(lastMessage.id, thread.id, 'read');
-            setMessageReceipts((prev) => {
-              const updated = new Map(prev);
-              updated.set(lastMessage.id, 'read');
-              return updated;
-            });
+              setMessageReceipts((prev) => {
+                const updated = new Map(prev);
+                updated.set(String(lastMessage.id), 'read');
+                return updated;
+              });
           } else {
             setNewMessagesCount((c) => c + 1);
           }
@@ -1903,8 +1947,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                             {/* Message status indicators (only for sent messages) */}
                             {isMine && (
                               <div className="flex items-center ml-1">
-                                {(() => {
-                                  const receiptStatus = messageReceipts.get(msg.id);
+                                  {(() => {
+                                    const receiptStatus = messageReceipts.get(String(msg.id));
                                   
                                   if (receiptStatus === 'read') {
                                     // Double checkmark — read (blue)
@@ -1963,45 +2007,55 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                             )}
                           </div>
                         )}
-                        {/* Local echo controls: show for pending messages (id === -1) */}
-                        {isMine && msg.id === -1 && (
-                          <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                            <span className={theme === 'light' ? 'text-[11px] text-black/60' : 'text-[11px] text-white/70'}>Sending…</span>
-                            <button
-                              type="button"
-                              className={[
-                                'px-2 py-0.5 rounded border text-[11px] transition',
-                                theme === 'light'
-                                  ? 'bg-black/5 border-black/20 text-black/80 hover:bg-black/10'
-                                  : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15',
-                              ].join(' ')}
-                              onClick={() => {
-                                // Cancel: remove local echo
-                                setMessagesFromHook((prev: any[]) => prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id));
-                              }}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              className={[
-                                'px-2 py-0.5 rounded border text-[11px] transition',
-                                theme === 'light'
-                                  ? 'bg-blue-600/10 border-blue-600/30 text-blue-700 hover:bg-blue-600/15'
-                                  : 'bg-blue-500/20 border-blue-500/30 text-blue-200 hover:bg-blue-500/25',
-                              ].join(' ')}
-                              onClick={() => {
-                                // Retry: remove echo and resend with fresh client id
-                                const echoBody = msg.body || null;
-                                const echoAttachments = Array.isArray(msg.attachments) ? (msg.attachments as any[]) : [];
-                                setMessagesFromHook((prev: any[]) => prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id));
-                                void sendMessageHook(thread!.id, echoBody, echoAttachments);
-                              }}
-                            >
-                              Retry
-                            </button>
-                          </div>
-                        )}
+                          {/* Local echo controls: show for pending messages (id === -1) */}
+                          {isMine && msg.id === -1 && (
+                            <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                              <span className={theme === 'light' ? 'text-[11px] text-black/60' : 'text-[11px] text-white/70'}>
+                                {(msg as any)?.send_error ? 'Failed to send' : 'Sending…'}
+                              </span>
+                              <button
+                                type="button"
+                                className={[
+                                  'px-2 py-0.5 rounded border text-[11px] transition',
+                                  theme === 'light'
+                                    ? 'bg-black/5 border-black/20 text-black/80 hover:bg-black/10'
+                                    : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15',
+                                ].join(' ')}
+                                onClick={() => {
+                                  // Cancel: remove local echo
+                                  setMessagesFromHook((prev: any[]) =>
+                                    prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id)
+                                  );
+                                }}
+                              >
+                                Cancel
+                              </button>
+                              {(msg as any)?.send_error && (
+                                <button
+                                  type="button"
+                                  className={[
+                                    'px-2 py-0.5 rounded border text-[11px] transition',
+                                    theme === 'light'
+                                      ? 'bg-blue-600/10 border-blue-600/30 text-blue-700 hover:bg-blue-600/15'
+                                      : 'bg-blue-500/20 border-blue-500/30 text-blue-200 hover:bg-blue-500/25',
+                                  ].join(' ')}
+                                  onClick={() => {
+                                    // Retry: remove echo and resend with fresh client id
+                                    const echoBody = msg.body || null;
+                                    const echoAttachments = Array.isArray(msg.attachments)
+                                      ? (msg.attachments as any[])
+                                      : [];
+                                    setMessagesFromHook((prev: any[]) =>
+                                      prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id)
+                                    );
+                                    void sendMessageHook(thread!.id, echoBody, echoAttachments);
+                                  }}
+                                >
+                                  Retry
+                                </button>
+                              )}
+                            </div>
+                          )}
                       </div>
                     </div>
                   </div>

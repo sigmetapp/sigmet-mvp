@@ -22,6 +22,7 @@ import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 
 const MESSAGE_CACHE_KEY_PREFIX = 'dm:messages:';
 const MESSAGE_CACHE_LIMIT = 200;
+const MAX_HTTP_FALLBACK_ATTEMPTS = 3;
 
 function compareMessages(a: Message, b: Message): number {
   const seqA = a.sequence_number ?? null;
@@ -71,6 +72,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
   const filterTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   // Watchdog for local-echo: fallback HTTP send if WS persist doesn't arrive in time
   const pendingEchoTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const pendingEchoAttemptsRef = useRef<Map<string, number>>(new Map());
   
   const wsClientRef = useRef(getWebSocketClient());
   const authTokenRef = useRef<string | null>(null);
@@ -413,6 +415,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
               clearTimeout(echoTimeout);
               pendingEchoTimeoutsRef.current.delete(event.client_msg_id);
             }
+            pendingEchoAttemptsRef.current.delete(event.client_msg_id);
             
             // Remove from filter after persistence (message is now in DB)
             // Keep filter for a bit longer to catch any delayed WebSocket events
@@ -730,7 +733,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
     filterTimeoutsRef.current.set(clientMsgId, filterTimeout);
 
     // Create local-echo message with 'sending' status
-    const localEchoMessage: Message = {
+    const localEchoMessage: Message & { delivery_state?: 'sending' | 'failed' | 'sent'; send_error?: string } = {
       id: -1, // Temporary ID
       thread_id: normalizedThreadId,
       sender_id: currentUserId,
@@ -741,6 +744,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       edited_at: null,
       deleted_at: null,
       client_msg_id: clientMsgId,
+      delivery_state: 'sending',
     };
 
     // Add local-echo message immediately (only if not already exists)
@@ -762,16 +766,13 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       try {
         const result = await wsClient.sendMessage(normalizedThreadId, body, attachments, clientMsgId);
 
-        // Status will be updated via message_ack and message_persisted events
-        // The WebSocket client handles status updates internally
-        // Filter will be cleared by handleMessagePersisted or after timeout
-        // Watchdog: if persisted не пришёл, продублировать HTTP-досылку тем же client_msg_id (идемпотентно)
-        try {
-          const wd = setTimeout(async () => {
+        const scheduleHttpFallback = (attempt: number) => {
+          const delay = attempt === 1 ? 1500 : 3000;
+          const watchdog = setTimeout(async () => {
+            pendingEchoTimeoutsRef.current.delete(clientMsgId);
             try {
               const { sendMessage: sendMessageHttp } = await import('@/lib/dms');
               const saved = await sendMessageHttp(normalizedThreadId, body || null, attachments, clientMsgId);
-              // Заменить local-echo, если он ещё есть
               setMessagesState((prev) => {
                 const hasEcho = prev.some(
                   (m) => (m as any).client_msg_id === clientMsgId && m.id === -1
@@ -780,24 +781,43 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
                 return sortMessagesChronologically(
                   prev.map((m) =>
                     (m as any).client_msg_id === clientMsgId && m.id === -1
-                      ? { ...saved, client_msg_id: clientMsgId }
+                      ? {
+                          ...saved,
+                          client_msg_id: clientMsgId,
+                          send_error: undefined,
+                          delivery_state: 'sent',
+                        }
                       : m
                   )
                 );
               });
               setLastServerMsgId(saved.id);
-            } catch (e) {
-              // молча, пользователь видит Retry/Cancel
-            } finally {
-              const t = pendingEchoTimeoutsRef.current.get(clientMsgId);
-              if (t) {
-                clearTimeout(t);
-                pendingEchoTimeoutsRef.current.delete(clientMsgId);
+              pendingEchoAttemptsRef.current.delete(clientMsgId);
+            } catch (fallbackError) {
+              if (attempt < MAX_HTTP_FALLBACK_ATTEMPTS) {
+                scheduleHttpFallback(attempt + 1);
+              } else {
+                pendingEchoAttemptsRef.current.delete(clientMsgId);
+                setMessagesState((prev) =>
+                  prev.map((msg) => {
+                    if ((msg as any).client_msg_id === clientMsgId && msg.id === -1) {
+                      return {
+                        ...msg,
+                        send_error: (fallbackError as Error)?.message ?? 'Failed to send',
+                        delivery_state: 'failed',
+                      };
+                    }
+                    return msg;
+                  })
+                );
               }
             }
-          }, 3500);
-          pendingEchoTimeoutsRef.current.set(clientMsgId, wd);
-        } catch {}
+          }, delay);
+          pendingEchoTimeoutsRef.current.set(clientMsgId, watchdog);
+          pendingEchoAttemptsRef.current.set(clientMsgId, attempt);
+        };
+
+        scheduleHttpFallback(1);
 
         return result;
       } catch (error) {
@@ -824,6 +844,8 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
                 return {
                   ...savedMessage,
                   client_msg_id: clientMsgId,
+                  send_error: undefined,
+                  delivery_state: 'sent',
                 };
               }
               return msg;
@@ -841,7 +863,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
 
         return sortMessagesChronologically([
           ...prev,
-          { ...savedMessage, client_msg_id: clientMsgId },
+          { ...savedMessage, client_msg_id: clientMsgId, send_error: undefined, delivery_state: 'sent' },
         ]);
       });
 
@@ -862,6 +884,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       // clear any pending timeouts on unmount
       pendingEchoTimeoutsRef.current.forEach((t) => clearTimeout(t));
       pendingEchoTimeoutsRef.current.clear();
+      pendingEchoAttemptsRef.current.clear();
     };
   }, []);
 

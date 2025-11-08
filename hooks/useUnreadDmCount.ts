@@ -6,6 +6,33 @@ import { supabase } from '@/lib/supabaseClient';
 /**
  * Hook to track total unread DM count across all conversations
  */
+type PartnerSummary = {
+  thread_id?: string | null;
+  unread_count?: number | null;
+};
+
+function computeUnreadTotal(partners: PartnerSummary[]): number {
+  if (!Array.isArray(partners) || partners.length === 0) {
+    return 0;
+  }
+  return partners.reduce((acc, partner) => {
+    if (!partner?.thread_id) {
+      return acc;
+    }
+    const raw = partner.unread_count;
+    const numeric =
+      typeof raw === 'number'
+        ? raw
+        : raw !== null && raw !== undefined
+          ? Number(raw)
+          : 0;
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return acc;
+    }
+    return acc + numeric;
+  }, 0);
+}
+
 export function useUnreadDmCount() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -46,10 +73,7 @@ export function useUnreadDmCount() {
         if (cancelled) return;
 
         // Sum up all unread counts
-        const total = data.partners.reduce((sum: number, partner: { unread_count?: number }) => {
-          const count = typeof partner.unread_count === 'number' ? partner.unread_count : 0;
-          return sum + count;
-        }, 0);
+        const total = computeUnreadTotal(data.partners);
 
         console.log('[useUnreadDmCount] Total unread:', total, 'Partners:', data.partners.length);
         data.partners.forEach((p: any) => {
@@ -126,10 +150,7 @@ export function useUnreadDmCount() {
                 const data = await response.json();
                 if (!data.ok || !Array.isArray(data.partners)) return;
 
-                const total = data.partners.reduce((sum: number, partner: { unread_count?: number }) => {
-                  const count = typeof partner.unread_count === 'number' ? partner.unread_count : 0;
-                  return sum + count;
-                }, 0);
+                const total = computeUnreadTotal(data.partners);
 
                 setUnreadCount(total);
               } catch (err) {
@@ -166,10 +187,7 @@ export function useUnreadDmCount() {
           throw new Error('Invalid response');
         }
 
-        const total = data.partners.reduce((sum: number, partner: { unread_count?: number }) => {
-          const count = typeof partner.unread_count === 'number' ? partner.unread_count : 0;
-          return sum + count;
-        }, 0);
+        const total = computeUnreadTotal(data.partners);
 
         console.log('[useUnreadDmCount] Manual refresh - Total unread:', total);
         setUnreadCount(total);
