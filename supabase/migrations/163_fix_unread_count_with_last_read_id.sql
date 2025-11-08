@@ -68,13 +68,22 @@ limited_threads as (
 normalized_threads as (
   select
     lt.*,
-    case
-      when lt.last_read_message_id is null then null
-      when (lt.last_read_message_id::text) ~ '^\d+$' then (lt.last_read_message_id::text)::bigint
-      else null
-    end as last_read_message_id_num,
     lt.last_read_message_id::text as last_read_message_id_text
   from limited_threads lt
+),
+last_read_markers as (
+  select
+    nt.thread_id,
+    nt.last_read_message_id_text,
+    (
+      select msg.created_at
+      from public.dms_messages msg
+      where msg.thread_id = nt.thread_id
+        and msg.id::text = nt.last_read_message_id_text
+      order by msg.created_at desc
+      limit 1
+    ) as last_read_message_created_at
+  from normalized_threads nt
 ),
 partners as (
   select
@@ -127,14 +136,12 @@ unread as (
         and msg.deleted_at is null
         and msg.sender_id <> p_user_id
         and (
-          (nt.last_read_message_id_num is not null and msg.id > nt.last_read_message_id_num)
-          or (
-            nt.last_read_message_id_num is null
-            and (nt.last_read_at is null or msg.created_at > nt.last_read_at)
-          )
+          coalesce(lrm.last_read_message_created_at, nt.last_read_at) is null
+          or msg.created_at > coalesce(lrm.last_read_message_created_at, nt.last_read_at)
         )
     ) as unread_count
   from normalized_threads nt
+  left join last_read_markers lrm on lrm.thread_id = nt.thread_id
 )
 select
   nt.thread_id::text as thread_id,
