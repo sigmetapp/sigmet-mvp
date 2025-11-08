@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
+import SWSkeleton from '@/components/SWSkeleton';
 
 type SWBreakdown = {
   registration: { points: number; count: number; weight: number };
@@ -217,15 +218,44 @@ function getNextLevel(sw: number, levels: SWLevel[]): SWLevel | null {
   return null;
 }
 
+const CACHE_KEY_SW = 'sw_data_cache';
+const CACHE_KEY_RECENT_ACTIVITY = 'sw_recent_activity_cache';
+const CACHE_KEY_CITY_LEADERS = 'sw_city_leaders_cache';
+const CACHE_KEY_ADMIN = 'sw_admin_cache';
+const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
+function getCachedData<T>(key: string): T | null {
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp > CACHE_TTL) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedData<T>(key: string, data: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
 export default function SWPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
-  const [swData, setSwData] = useState<SWData | null>(null);
+  const [swData, setSwData] = useState<SWData | null>(getCachedData<SWData>(CACHE_KEY_SW));
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState<'overview' | 'factors' | 'levels' | 'breakdown'>('overview');
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(getCachedData<boolean>(CACHE_KEY_ADMIN));
   const [recentActivity, setRecentActivity] = useState<{
     profileComplete: boolean;
     postsCount: number;
@@ -235,7 +265,7 @@ export default function SWPage() {
     totalAcceptedInvites?: number;
     followersCount: number;
     connectionsCount: number;
-  } | null>(null);
+  } | null>(getCachedData(CACHE_KEY_RECENT_ACTIVITY));
   const [swLevels, setSwLevels] = useState<SWLevel[]>(SW_LEVELS); // Start with default levels
   const [cityLeaders, setCityLeaders] = useState<Array<{
     userId: string;
@@ -245,13 +275,121 @@ export default function SWPage() {
     avatarUrl: string | null;
     city: string | null;
     country: string | null;
-  }>>([]);
+  }>>(getCachedData(CACHE_KEY_CITY_LEADERS) || []);
 
   useEffect(() => {
-    checkAdmin();
-    loadSW();
-    loadRecentActivity();
-    loadCityLeaders();
+    // Если есть кэшированные данные, показываем их сразу
+    const hasCachedData = swData || isAdmin !== null;
+    if (hasCachedData) {
+      setLoading(false);
+    }
+
+    // Оптимизированная загрузка: получаем auth данные один раз и загружаем все параллельно
+    async function loadAllData() {
+      try {
+        // Получаем auth данные один раз
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+
+        const session = await supabase.auth.getSession();
+        const token = session.data.session?.access_token;
+        if (!token) {
+          setError('Not authenticated');
+          setLoading(false);
+          return;
+        }
+
+        // Загружаем все данные параллельно
+        const [swDataResult, recentActivityData, cityLeadersData, adminData] = await Promise.allSettled([
+          // Основные данные SW
+          fetch('/api/sw/calculate', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }).then(res => {
+            if (!res.ok) throw new Error('Failed to load SW data');
+            return res.json();
+          }),
+          // Недавняя активность
+          fetch('/api/sw/recent-activity', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }).then(res => res.ok ? res.json() : null),
+          // Лидеры города
+          fetch('/api/sw/city-leaders', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }).then(res => res.ok ? res.json() : null),
+          // Проверка админа
+          supabase.rpc('is_admin_uid').then(({ data, error }) => {
+            if (error) throw error;
+            return data ?? false;
+          }),
+        ]);
+
+        // Обрабатываем результаты и кэшируем
+        if (swDataResult.status === 'fulfilled') {
+          const data = swDataResult.value;
+          setSwData(data);
+          setCachedData(CACHE_KEY_SW, data);
+          
+          // Load SW levels from weights if available
+          if (data.weights?.sw_levels) {
+            try {
+              const levels = typeof data.weights.sw_levels === 'string' 
+                ? JSON.parse(data.weights.sw_levels)
+                : data.weights.sw_levels;
+              
+              const mappedLevels = levels.map((level: any, index: number) => {
+                const defaultLevel = SW_LEVELS.find(l => l.name === level.name) || SW_LEVELS[index] || SW_LEVELS[0];
+                return {
+                  name: level.name || defaultLevel.name,
+                  minSW: level.minSW ?? defaultLevel.minSW,
+                  maxSW: level.maxSW ?? defaultLevel.maxSW,
+                  features: defaultLevel.features,
+                  color: defaultLevel.color,
+                };
+              });
+              
+              if (mappedLevels.length > 0) {
+                setSwLevels(mappedLevels);
+              }
+            } catch (err) {
+              console.error('Error parsing sw_levels:', err);
+            }
+          }
+          setError(null);
+        } else {
+          setError(swDataResult.reason?.message || 'Failed to load SW data');
+        }
+
+        if (recentActivityData.status === 'fulfilled' && recentActivityData.value) {
+          setRecentActivity(recentActivityData.value);
+          setCachedData(CACHE_KEY_RECENT_ACTIVITY, recentActivityData.value);
+        }
+
+        if (cityLeadersData.status === 'fulfilled' && cityLeadersData.value) {
+          const leaders = cityLeadersData.value.leaders || [];
+          setCityLeaders(leaders);
+          setCachedData(CACHE_KEY_CITY_LEADERS, leaders);
+        }
+
+        if (adminData.status === 'fulfilled') {
+          setIsAdmin(adminData.value);
+          setCachedData(CACHE_KEY_ADMIN, adminData.value);
+        } else {
+          setIsAdmin(false);
+          setCachedData(CACHE_KEY_ADMIN, false);
+        }
+
+        setLoading(false);
+      } catch (error: any) {
+        console.error('Error loading data:', error);
+        setError(error.message || 'Failed to load data');
+        setLoading(false);
+      }
+    }
+
+    loadAllData();
   }, []);
 
   async function loadRecentActivity() {
@@ -423,12 +561,9 @@ export default function SWPage() {
     }
   }
 
-  if (loading || isAdmin === null) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-6 md:p-6">
-        <div className="text-white/70">Loading SW data…</div>
-      </div>
-    );
+  // Показываем скелетон только если нет кэшированных данных
+  if (loading && !swData && isAdmin === null) {
+    return <SWSkeleton />;
   }
 
   if (error) {
@@ -634,7 +769,7 @@ export default function SWPage() {
                     <Link
                       key={leader.userId}
                       href={profileUrl}
-                      className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors"
+                      className={`flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors`}
                     >
                       <div className="flex-shrink-0 w-8 text-center">
                         <span className="text-white/60 text-sm font-semibold">#{index + 1}</span>
