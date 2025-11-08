@@ -8,6 +8,7 @@ import {
   useCallback,
 } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import Button from "@/components/Button";
 import PostCard from "@/components/PostCard";
@@ -15,16 +16,29 @@ import { useTheme } from "@/components/ThemeProvider";
 import PostReactions, { ReactionType } from "@/components/PostReactions";
 import PostActionMenu from "@/components/PostActionMenu";
 import PostCommentsBadge from "@/components/PostCommentsBadge";
-import PostReportModal from "@/components/PostReportModal";
 import Toast from "@/components/Toast";
 import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
-import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
 import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag } from "lucide-react";
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
-import ViewsChart from "@/components/ViewsChart";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
+
+// Динамические импорты для тяжелых компонентов
+const EmojiPicker = dynamic(() => import("@/components/EmojiPicker"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-8 w-8 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
+  ),
+});
+
+const PostReportModal = dynamic(() => import("@/components/PostReportModal"), {
+  ssr: false,
+});
+
+const ViewsChart = dynamic(() => import("@/components/ViewsChart"), {
+  ssr: false,
+});
 
 function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
@@ -201,122 +215,209 @@ export default function PostFeed({
   const [myDirections, setMyDirections] = useState<string[]>([]);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'connections' | 'discuss' | 'direction'>( 'all');
+  const directionsLoadedRef = useRef(false); // Track if directions have been loaded to prevent unnecessary reloads
+  const initialLoadDoneRef = useRef(false); // Track if initial load has been done
 
-  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'connections' | 'discuss' | 'direction', offset = 0, limit = 50) => {
-    if (offset === 0) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-    
-    let query = supabase
-      .from("posts")
-      .select("*", { count: 'exact' });
-    
-    // Filter by user_id if provided (for profile page)
-    if (filterUserId) {
-      query = query.eq('user_id', filterUserId);
-    }
-    
-    // Apply filter based on filterType
-    if (filterType === 'connections') {
-      // Filter posts that contain mentions (@username pattern)
-      // body must not be null and not empty, and must contain @ followed by word characters
-      query = query
-        .not('body', 'is', null)
-        .not('body', 'eq', '')
-        .ilike('body', '%@%');
-    } else if (filterType === 'discuss') {
-      // Filter posts that contain "?" in body (body must not be null and not empty)
-      query = query
-        .not('body', 'is', null)
-        .not('body', 'eq', '')
-        .ilike('body', '%?%');
-    } else if (filterType === 'direction' && directionId && availableDirections.length > 0) {
-      const direction = availableDirections.find((dir) => dir.id === directionId);
-      if (direction) {
-        // Filter posts where category matches direction title or slug
-        query = query.or(`category.ilike.%${direction.title}%,category.ilike.%${direction.slug}%`);
-      }
-    }
-    // filterType === 'all' means no additional filtering
-    
-    const { data, error, count } = await query
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
-      
-    if (!error && data) {
+  const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'connections' | 'discuss' | 'direction', offset = 0, limit = 50, directionsOverride?: Array<{ id: string; slug: string; title: string; emoji: string }>) => {
+    try {
+      // Use directionsOverride if provided, otherwise use state
+      const directionsToUse = directionsOverride || availableDirections;
       if (offset === 0) {
-        setPosts(data as Post[]);
+        setLoading(true);
       } else {
-        setPosts((prev) => [...prev, ...(data as Post[])]);
+        setLoadingMore(true);
       }
       
-      // Check if there are more posts
-      const totalLoaded = offset + (data as Post[]).length;
-      setHasMore(count ? totalLoaded < count : (data as Post[]).length === limit);
+      let query = supabase
+        .from("posts")
+        .select("*", { count: 'exact' });
       
-      // Preload comment counts for visible posts
-      preloadCommentCounts(data as Post[]);
-
-      // Preload author profiles (username, full_name, avatar)
-      const userIds = Array.from(
-        new Set((data as Post[]).map((p) => p.user_id).filter((x): x is string => Boolean(x)))
-      );
-      if (userIds.length > 0) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("user_id, username, full_name, avatar_url")
-          .in("user_id", userIds);
-        if (profs) {
-          setProfilesByUserId((prev) => {
-            const map = { ...prev };
-            for (const p of profs as any[]) {
-              map[p.user_id as string] = { 
-                username: p.username ?? null, 
-                full_name: p.full_name ?? null,
-                avatar_url: p.avatar_url ?? null 
-              };
-            }
-            return map;
-          });
+      // Filter by user_id if provided (for profile page)
+      if (filterUserId) {
+        query = query.eq('user_id', filterUserId);
+      }
+      
+      // Apply filter based on filterType
+      if (filterType === 'connections') {
+        // Filter posts that contain mentions (@username pattern)
+        // body must not be null and not empty, and must contain @ followed by word characters
+        query = query
+          .not('body', 'is', null)
+          .not('body', 'eq', '')
+          .ilike('body', '%@%');
+      } else if (filterType === 'discuss') {
+        // Filter posts that contain "?" in body (body must not be null and not empty)
+        query = query
+          .not('body', 'is', null)
+          .not('body', 'eq', '')
+          .ilike('body', '%?%');
+      } else if (filterType === 'direction' && directionId && directionsToUse.length > 0) {
+        const direction = directionsToUse.find((dir) => dir.id === directionId);
+        if (direction) {
+          // Filter posts where category matches direction title or slug
+          query = query.or(`category.ilike.%${direction.title}%,category.ilike.%${direction.slug}%`);
         }
-
-        // Load SW scores for authors
+      }
+      // filterType === 'all' means no additional filtering
+      
+      const { data, error, count } = await query
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+        
+      if (error) {
+        console.error('Error loading posts:', error);
+        // Set empty posts on error
+        if (offset === 0) {
+          setPosts([]);
+        }
+        setHasMore(false);
+        return;
+      }
+      
+      if (data) {
+        const postsData = data as Post[];
+        
+        if (offset === 0) {
+          setPosts(postsData);
+        } else {
+          setPosts((prev) => [...prev, ...postsData]);
+        }
+        
+        // Check if there are more posts
+        const totalLoaded = offset + postsData.length;
+        setHasMore(count ? totalLoaded < count : postsData.length === limit);
+        
+        // Extract user IDs for parallel loading
+        const userIds = Array.from(
+          new Set(postsData.map((p) => p.user_id).filter((x): x is string => Boolean(x)))
+        );
+        
+        // Extract post IDs for comment counts
+        const postIds = postsData.map((p) => p.id);
+        
+        // Parallel loading: profiles, SW scores, and comment counts
         try {
-          const { data: swData } = await supabase
-            .from("sw_scores")
-            .select("user_id, total")
-            .in("user_id", userIds);
-          if (swData) {
+          const [profilesResult, swScoresResult, commentCountsResult] = await Promise.all([
+            // Load profiles
+            userIds.length > 0
+              ? supabase
+                  .from("profiles")
+                  .select("user_id, username, full_name, avatar_url")
+                  .in("user_id", userIds)
+              : Promise.resolve({ data: null, error: null }),
+            
+            // Load SW scores
+            userIds.length > 0
+              ? supabase
+                  .from("sw_scores")
+                  .select("user_id, total")
+                  .in("user_id", userIds)
+                  .catch(() => ({ data: null, error: null })) // SW scores table may not exist
+              : Promise.resolve({ data: null, error: null }),
+            
+            // Load comment counts
+            postIds.length > 0
+              ? supabase
+                  .from("comments")
+                  .select("post_id")
+                  .in("post_id", postIds)
+                  .catch(() => ({ data: null, error: null }))
+              : Promise.resolve({ data: null, error: null }),
+          ]);
+          
+          // Process profiles
+          if (profilesResult.data) {
+            setProfilesByUserId((prev) => {
+              const map = { ...prev };
+              for (const p of profilesResult.data as any[]) {
+                map[p.user_id as string] = { 
+                  username: p.username ?? null, 
+                  full_name: p.full_name ?? null,
+                  avatar_url: p.avatar_url ?? null 
+                };
+              }
+              return map;
+            });
+          }
+          
+          // Process SW scores
+          if (swScoresResult.data) {
             setSwScoresByUserId((prev) => {
               const map = { ...prev };
-              for (const row of swData as any[]) {
+              for (const row of swScoresResult.data as any[]) {
                 map[row.user_id as string] = (row.total as number) || 0;
               }
               return map;
             });
           }
-        } catch {
-          // SW scores table may not exist
+          
+          // Process comment counts
+          if (commentCountsResult.data) {
+            const counts: Record<number, number> = {};
+            for (const row of commentCountsResult.data as any[]) {
+              const pid = row.post_id as number;
+              counts[pid] = (counts[pid] || 0) + 1;
+            }
+            setCommentCounts((prev) => ({ ...prev, ...counts }));
+          }
+        } catch (parallelError) {
+          console.error('Error loading parallel data:', parallelError);
+          // Continue even if parallel loading fails
         }
+      } else {
+        // No data returned
+        if (offset === 0) {
+          setPosts([]);
+        }
+        setHasMore(false);
       }
+    } catch (err) {
+      console.error('Error in loadFeed:', err);
+      // Set empty posts on error
+      if (offset === 0) {
+        setPosts([]);
+      }
+      setHasMore(false);
+    } finally {
+      // Always reset loading states
+      setLoading(false);
+      setLoadingMore(false);
     }
-    setLoading(false);
-    setLoadingMore(false);
-  }, [availableDirections, filterUserId]);
+  }, [filterUserId, availableDirections]); // Keep availableDirections but use directionsOverride parameter
 
   // page mount
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
     // Initial load - load all posts without filter
-    const initialLimit = enableLazyLoad ? 10 : 50;
-    loadFeed(null, 'all', 0, initialLimit);
+    if (!initialLoadDoneRef.current) {
+      const initialLimit = enableLazyLoad ? 10 : 50;
+      loadFeed(null, 'all', 0, initialLimit);
+      initialLoadDoneRef.current = true;
+    }
   }, [loadFeed, enableLazyLoad]);
 
   // Reload feed when active filter or direction changes
   useEffect(() => {
+    // Skip if initial load hasn't been done yet
+    if (!initialLoadDoneRef.current) {
+      return;
+    }
+    
     const limit = enableLazyLoad ? 10 : 50;
+    
+    // Skip reload if this is the first time directions are loaded and filter is not 'direction'
+    // This prevents unnecessary reload when directions finish loading
+    if (!directionsLoadedRef.current && availableDirections.length > 0 && activeFilter !== 'direction') {
+      directionsLoadedRef.current = true;
+      // Don't reload feed on initial directions load if filter is not 'direction'
+      return;
+    }
+    
+    // Mark that we've processed directions
+    if (availableDirections.length > 0 && !directionsLoadedRef.current) {
+      directionsLoadedRef.current = true;
+    }
+    
     if (!showFilters) {
       // If filters are hidden, just load all posts (or filtered by user_id)
       loadFeed(null, 'all', 0, limit);
@@ -329,7 +430,7 @@ export default function PostFeed({
       loadFeed(null, 'discuss', 0, limit);
     } else if (activeFilter === 'direction') {
       if (availableDirections.length > 0) {
-        loadFeed(activeDirection, 'direction', 0, limit);
+        loadFeed(activeDirection, 'direction', 0, limit, availableDirections);
       }
     } else {
       // activeFilter === 'all'
@@ -397,6 +498,7 @@ export default function PostFeed({
               title: dir.title,
               emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
             }));
+          
           setAvailableDirections(mapped);
 
           // Use primary directions IDs directly (no need to check profile)
@@ -801,24 +903,6 @@ export default function PostFeed({
   }
 
   // --- comments
-  async function preloadCommentCounts(list: Post[]) {
-    try {
-      const ids = list.map((p) => p.id);
-      const { data } = await supabase
-        .from("comments")
-        .select("post_id")
-        .in("post_id", ids);
-      const counts: Record<number, number> = {};
-      for (const row of (data as any[]) || []) {
-        const pid = row.post_id as number;
-        counts[pid] = (counts[pid] || 0) + 1;
-      }
-      setCommentCounts(counts);
-    } catch {
-      // fallback: leave zeroes
-    }
-  }
-
   async function loadComments(postId: number) {
     const { data, error, count } = await supabase
       .from("comments")
@@ -1102,7 +1186,11 @@ export default function PostFeed({
   const renderPostsList = () => (
     <>
       {loading ? (
-        <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading?</div>
+        <div className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>Loading...</div>
+      ) : posts.length === 0 ? (
+        <div className={`text-center py-8 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+          No posts found
+        </div>
       ) : (
         posts.map((p) => {
           const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
@@ -1110,6 +1198,8 @@ export default function PostFeed({
           const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
           const fullName = profile?.full_name || null;
           const commentCount = commentCounts[p.id] ?? 0;
+          const swScore = p.user_id ? (swScoresByUserId[p.user_id] || 0) : 0;
+          const growthStatuses = growthStatusesByPostId[p.id] || [];
           
           // Check if post has mentions
           const postHasMentions = hasMentions(p.body);
@@ -1130,7 +1220,7 @@ export default function PostFeed({
 
           return (
             <PostCard
-              key={p.id}
+              key={`post-${p.id}-${profile?.username || p.user_id}-${swScore}-${growthStatuses.length}`}
               post={{
                 id: String(p.id),
                 author: username,
@@ -1145,121 +1235,139 @@ export default function PostFeed({
                   : ''
               }`}
               onMouseEnter={() => addViewOnce(p.id)}
-              renderContent={() => (
-                <div className="relative z-10 space-y-2">
-                  {/* header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                      <AvatarWithBadge
-                        avatarUrl={avatar}
-                        swScore={p.user_id ? (swScoresByUserId[p.user_id] || 0) : 0}
-                        size="sm"
-                        alt="avatar"
-                        href={`/u/${p.user_id}`}
-                      />
-                      <div className="flex flex-col min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <a 
-                            href={`/u/${p.user_id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
-                            data-prevent-card-navigation="true"
-                          >
-                            {username}
-                          </a>
-                          {(fullName || p.category || postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                            <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                              |
-                            </span>
-                          )}
-                          {fullName && (
-                            <>
-                              <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                                {fullName}
-                              </span>
-                              {(p.category || postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+              renderContent={(postCardPost, defaultContent) => {
+                // Get current data from state (not from closure)
+                const currentProfile = p.user_id ? profilesByUserId[p.user_id] : undefined;
+                const currentAvatar = currentProfile?.avatar_url || AVATAR_FALLBACK;
+                const currentUsername = currentProfile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
+                const currentFullName = currentProfile?.full_name || null;
+                const currentSwScore = p.user_id ? (swScoresByUserId[p.user_id] || 0) : 0;
+                const currentGrowthStatuses = growthStatusesByPostId[p.id] || [];
+                const currentPostHasMentions = hasMentions(p.body);
+                
+                return (
+                  <div className="relative z-10 flex flex-col gap-2">
+                    {/* Header with avatar and clickable nickname */}
+                    <header className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <AvatarWithBadge
+                          avatarUrl={currentAvatar}
+                          swScore={currentSwScore}
+                          size="sm"
+                          alt="avatar"
+                          href={`/u/${encodeURIComponent(currentProfile?.username || p.user_id || '')}`}
+                        />
+                        <div className="flex flex-col min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <a
+                              href={`/u/${encodeURIComponent(currentProfile?.username || p.user_id || '')}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`text-sm font-semibold truncate hover:underline ${
+                                isLight ? 'text-slate-900' : 'text-slate-100'
+                              }`}
+                              data-prevent-card-navigation="true"
+                            >
+                              {currentUsername}
+                            </a>
+                            {(() => {
+                              return (currentFullName || p.category || currentPostHasMentions || currentGrowthStatuses.length > 0) && (
+                                <span className="text-sm text-slate-500 dark:text-slate-400">
                                   |
                                 </span>
-                              )}
-                            </>
-                          )}
-                          {p.category && (
-                            <>
-                              <div className={`text-xs px-2 py-1 rounded-md font-medium ${
-                                hasCategory && categoryDirection
-                                  ? isLight
-                                    ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
-                                    : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
-                                  : isLight
-                                  ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
-                                  : 'text-telegram-text-secondary bg-white/5'
-                              }`}>
-                                {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
-                              </div>
-                              {(postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                                  |
+                              );
+                            })()}
+                            {currentFullName && (
+                              <>
+                                <span className="text-sm text-slate-500 dark:text-slate-400">
+                                  {currentFullName}
                                 </span>
-                              )}
-                            </>
-                          )}
-                          {postHasMentions && (
-                            <>
-                              <div className={`text-xs px-2 py-1 rounded-md font-medium ${
-                                isLight
-                                  ? 'bg-green-500/20 text-green-600 border border-green-500/30 shadow-sm'
-                                  : 'bg-green-500/25 text-green-400 border border-green-500/40 shadow-sm'
-                              }`}>
-                                Connections
-                              </div>
-                              {(growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0) && (
-                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
-                                  |
-                                </span>
-                              )}
-                            </>
-                          )}
-                          {growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0 && growthStatusesByPostId[p.id].map((status) => {
-                            const statusConfig = {
-                              proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
-                              grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
-                              drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
-                            };
-                            const config = statusConfig[status];
-                            return (
-                              <div
-                                key={status}
-                                className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
-                                title={config.label}
-                              >
-                                <span>{config.emoji}</span>
-                                <span>{config.label}</span>
-                              </div>
-                            );
-                          })}
+                                {(() => {
+                                  return (p.category || currentPostHasMentions || currentGrowthStatuses.length > 0) && (
+                                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                                      |
+                                    </span>
+                                  );
+                                })()}
+                              </>
+                            )}
+                            {p.category && (
+                              <>
+                                <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                  hasCategory && categoryDirection
+                                    ? isLight
+                                      ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
+                                      : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                                    : isLight
+                                    ? 'text-slate-500 bg-slate-100/50 border border-slate-200'
+                                    : 'text-slate-400 bg-white/5 border border-slate-700'
+                                }`}>
+                                  {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
+                                </div>
+                                {(() => {
+                                  return (currentPostHasMentions || currentGrowthStatuses.length > 0) && (
+                                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                                      |
+                                    </span>
+                                  );
+                                })()}
+                              </>
+                            )}
+                            {currentPostHasMentions && (
+                              <>
+                                <div className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                  isLight
+                                    ? 'bg-green-500/20 text-green-600 border border-green-500/30 shadow-sm'
+                                    : 'bg-green-500/25 text-green-400 border border-green-500/40 shadow-sm'
+                                }`}>
+                                  Connections
+                                </div>
+                                {currentGrowthStatuses.length > 0 && (
+                                  <span className="text-sm text-slate-500 dark:text-slate-400">
+                                    |
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            {currentGrowthStatuses.length > 0 && currentGrowthStatuses.map((status) => {
+                              const statusConfig = {
+                                proud: { emoji: String.fromCodePoint(0x1F7E2), label: 'Proud', color: isLight ? 'bg-green-500/20 text-green-600 border-green-500/30' : 'bg-green-500/25 text-green-400 border-green-500/40' },
+                                grateful: { emoji: String.fromCodePoint(0x1FA75), label: 'Grateful', color: isLight ? 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30' : 'bg-yellow-500/25 text-yellow-400 border-yellow-500/40' },
+                                drained: { emoji: String.fromCodePoint(0x26AB), label: 'Drained', color: isLight ? 'bg-gray-500/20 text-gray-600 border-gray-500/30' : 'bg-gray-500/25 text-gray-400 border-gray-500/40' },
+                              };
+                              const config = statusConfig[status];
+                              return (
+                                <div
+                                  key={status}
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium inline-flex items-center gap-1 border ${config.color}`}
+                                  title={config.label}
+                                >
+                                  <span>{config.emoji}</span>
+                                  <span>{config.label}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    {/* Report button - only for other users' posts, positioned at top right */}
-                    {!isMyPost && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setReportModalOpen(p.id);
-                        }}
-                        className={`p-1.5 rounded-full transition z-30 shrink-0 ${
-                          isLight
-                            ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
-                            : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
-                        }`}
-                        title="Report post"
-                        data-prevent-card-navigation="true"
-                      >
-                        <Flag className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
+                      {/* Report button - only for other users' posts, positioned at top right */}
+                      {uid && uid !== p.user_id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReportModalOpen(p.id);
+                          }}
+                          className={`p-1.5 rounded-full transition z-30 shrink-0 ${
+                            isLight
+                              ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
+                              : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
+                          }`}
+                          title="Report post"
+                          data-prevent-card-navigation="true"
+                        >
+                          <Flag className="h-3 w-3" />
+                        </button>
+                      )}
+                    </header>
 
                   {/* content */}
                   {editingId === p.id ? (

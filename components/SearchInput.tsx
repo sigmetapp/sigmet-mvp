@@ -510,10 +510,24 @@ export default function SearchInput({ className = "" }: { className?: string }) 
       )}
 
       {/* Regular search input */}
-      <div ref={containerRef} className={`relative w-[313px] md:w-[313px] ${className}`}>
+      <div 
+        ref={containerRef} 
+        className={`relative w-[313px] md:w-[313px] ${className}`}
+        onClick={(e) => {
+          // On mobile, clicking anywhere in the container should open modal
+          if (isMobile && !isModalOpen) {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsModalOpen(true);
+            setTimeout(() => {
+              modalInputRef.current?.focus();
+            }, 100);
+          }
+        }}
+      >
         <div className="relative">
           <Search
-            className={`absolute left-3 top-1/2 -translate-y-1/2 ${
+            className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${
               isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
             }`}
             size={18}
@@ -523,13 +537,38 @@ export default function SearchInput({ className = "" }: { className?: string }) 
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onFocus={handleFocus}
+            onFocus={(e) => {
+              // On mobile, prevent default focus and open modal instead
+              if (isMobile && !isModalOpen) {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsModalOpen(true);
+                setTimeout(() => {
+                  modalInputRef.current?.focus();
+                }, 100);
+              } else {
+                handleFocus();
+              }
+            }}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onClick={(e) => {
               // On mobile, clicking should open modal
               if (isMobile && !isModalOpen) {
                 e.preventDefault();
+                e.stopPropagation();
+                inputRef.current?.blur(); // Prevent keyboard
+                setIsModalOpen(true);
+                setTimeout(() => {
+                  modalInputRef.current?.focus();
+                }, 100);
+              }
+            }}
+            onTouchStart={(e) => {
+              // On mobile touch, open modal
+              if (isMobile && !isModalOpen) {
+                e.preventDefault();
+                e.stopPropagation();
                 setIsModalOpen(true);
                 setTimeout(() => {
                   modalInputRef.current?.focus();
@@ -538,6 +577,8 @@ export default function SearchInput({ className = "" }: { className?: string }) 
             }}
             placeholder="Search people, posts, cities..."
             className={`w-full pl-10 pr-10 py-2 rounded-lg text-sm border transition ${
+              isMobile ? 'cursor-pointer' : ''
+            } ${
               isLight
                 ? "bg-white/90 border-telegram-blue/20 text-telegram-text placeholder:text-telegram-text-secondary focus:border-telegram-blue focus:outline-none focus:ring-2 focus:ring-telegram-blue/20"
                 : "bg-[rgba(255,255,255,0.05)] border-telegram-blue/30 text-telegram-text placeholder:text-telegram-text-secondary focus:border-telegram-blue focus:outline-none focus:ring-2 focus:ring-telegram-blue/30"
@@ -546,8 +587,11 @@ export default function SearchInput({ className = "" }: { className?: string }) 
           />
           {query && (
             <button
-              onClick={handleClear}
-              className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded ${
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent container click
+                handleClear();
+              }}
+              className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded z-10 ${
                 isLight
                   ? "text-telegram-text-secondary hover:bg-telegram-blue/10"
                   : "text-telegram-text-secondary hover:bg-white/10"
