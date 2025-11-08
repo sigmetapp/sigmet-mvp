@@ -1104,9 +1104,34 @@ function DmsInner() {
     [applyPartnerUpdate]
   );
 
-  // Don't automatically mark messages as read when selecting a partner
-  // Messages will be marked as read when the chat window is opened and messages are loaded
-  // This is handled in DmsChatWindow.tsx
+  // Listen for message read events to update unread count
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const handleMessageRead = (event: CustomEvent) => {
+      const { partnerId, threadId } = event.detail || {};
+      if (!partnerId || !threadId) return;
+
+      // Update partner's unread count to 0
+      applyPartnerUpdate(partnerId, (current) => ({
+        ...current,
+        unread_count: 0,
+        last_read_message_id: current.last_message_id,
+        last_read_at: new Date().toISOString(),
+      }));
+
+      // Refetch partners list to ensure data is up to date
+      setTimeout(() => {
+        void fetchPartners({ reset: false });
+      }, 300);
+    };
+
+    window.addEventListener('dm:message-read', handleMessageRead as EventListener);
+
+    return () => {
+      window.removeEventListener('dm:message-read', handleMessageRead as EventListener);
+    };
+  }, [currentUserId, applyPartnerUpdate, fetchPartners]);
 
   const showEmptyState =
     !loadingInitial && !error && !hasResults && !isSearching && partners.length === 0;

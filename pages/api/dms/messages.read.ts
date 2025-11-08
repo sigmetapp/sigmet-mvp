@@ -53,28 +53,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!participant) return res.status(403).json({ ok: false, error: 'Forbidden' });
 
     // Ensure up_to is a message in this thread
+    // Convert upTo to number for comparison
+    const upToNum = Number.parseInt(upTo, 10);
+    if (Number.isNaN(upToNum)) {
+      return res.status(400).json({ ok: false, error: 'Invalid up_to_message_id format' });
+    }
+
     const { data: msgCheck } = await client
       .from('dms_messages')
       .select('id, created_at')
       .eq('thread_id', threadId)
-      .eq('id', upTo)
+      .eq('id', upToNum)
       .maybeSingle();
     if (!msgCheck) return res.status(400).json({ ok: false, error: 'up_to_message_id not in thread' });
 
     const prev = participant.last_read_message_id ? String(participant.last_read_message_id) : null;
-    const nextId = upTo;
+    const nextId = String(upToNum);
 
     if (nextId !== prev) {
       try {
+        // Update last_read_message_id as bigint (number)
         await client
           .from('dms_thread_participants')
           .update({ 
-            last_read_message_id: nextId, 
+            last_read_message_id: upToNum, 
             last_read_at: msgCheck.created_at || new Date().toISOString() 
           })
           .eq('thread_id', threadId)
           .eq('user_id', user.id);
-      } catch {
+      } catch (err: any) {
+        // Log error for debugging
+        console.error('Error updating last_read_message_id:', err);
         // Column may not exist; ignore update failure in that case
       }
     }

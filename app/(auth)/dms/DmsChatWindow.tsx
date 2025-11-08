@@ -898,7 +898,21 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   thread_id: threadId,
                   up_to_message_id: String(lastMessage.id),
                 }),
-              }).catch((err) => {
+              })
+              .then((response) => {
+                if (response.ok) {
+                  // Dispatch event to update unread count in partner list
+                  window.dispatchEvent(
+                    new CustomEvent('dm:message-read', {
+                      detail: {
+                        threadId: threadId,
+                        partnerId: partnerId,
+                      },
+                    })
+                  );
+                }
+              })
+              .catch((err) => {
                 console.error('Error marking messages as read on thread open:', err);
               });
             }
@@ -1197,7 +1211,21 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
               thread_id: thread.id,
               up_to_message_id: String(lastMessage.id),
             }),
-          }).catch((err) => {
+          })
+          .then((response) => {
+            if (response.ok) {
+              // Dispatch event to update unread count in partner list
+              window.dispatchEvent(
+                new CustomEvent('dm:message-read', {
+                  detail: {
+                    threadId: thread.id,
+                    partnerId: partnerId,
+                  },
+                })
+              );
+            }
+          })
+          .catch((err) => {
             console.error('Error marking messages as read on initial scroll:', err);
           });
         }
@@ -1225,7 +1253,21 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
               thread_id: thread.id,
               up_to_message_id: String(lastMessage.id),
             }),
-          }).catch((err) => {
+          })
+          .then((response) => {
+            if (response.ok) {
+              // Dispatch event to update unread count in partner list
+              window.dispatchEvent(
+                new CustomEvent('dm:message-read', {
+                  detail: {
+                    threadId: thread.id,
+                    partnerId: partnerId,
+                  },
+                })
+              );
+            }
+          })
+          .catch((err) => {
             console.error('Error marking messages as read on auto-scroll:', err);
           });
         }
@@ -1274,7 +1316,21 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                     thread_id: thread.id,
                     up_to_message_id: String(lastMessage.id),
                   }),
-                }).catch((err) => {
+                })
+                .then((response) => {
+                  if (response.ok) {
+                    // Dispatch event to update unread count in partner list
+                    window.dispatchEvent(
+                      new CustomEvent('dm:message-read', {
+                        detail: {
+                          threadId: thread.id,
+                          partnerId: partnerId,
+                        },
+                      })
+                    );
+                  }
+                })
+                .catch((err) => {
                   console.error('Error marking messages as read:', err);
                 });
               }
@@ -1315,7 +1371,21 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             thread_id: thread.id,
             up_to_message_id: String(lastMessage.id),
           }),
-        }).catch((err) => {
+        })
+        .then((response) => {
+          if (response.ok) {
+            // Dispatch event to update unread count in partner list
+            window.dispatchEvent(
+              new CustomEvent('dm:message-read', {
+                detail: {
+                  threadId: thread.id,
+                  partnerId: partnerId,
+                },
+              })
+            );
+          }
+        })
+        .catch((err) => {
           console.error('Error marking messages as read on jump to bottom:', err);
         });
       }
