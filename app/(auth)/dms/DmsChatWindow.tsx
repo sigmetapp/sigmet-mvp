@@ -881,7 +881,49 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
           }
-        }, 300);
+          
+          // Mark all messages as read when thread is opened and messages are loaded
+          // This ensures that when user opens a chat, all visible messages are marked as read
+          if (sorted.length > 0 && currentUserId && partnerId && threadId) {
+            const lastMessage = sorted[sorted.length - 1];
+            // Mark all messages as read when opening chat, regardless of sender
+            // This ensures that on page refresh, these messages won't be unread
+            if (lastMessage) {
+              // Mark all messages up to the last one as read immediately
+              fetch('/api/dms/messages.read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  thread_id: String(threadId),
+                  up_to_message_id: String(lastMessage.id),
+                }),
+              })
+              .then((response) => {
+                if (response.ok) {
+                  // Dispatch event to update unread count in partner list
+                  window.dispatchEvent(
+                    new CustomEvent('dm:message-read', {
+                      detail: {
+                        threadId: String(threadId),
+                        partnerId: partnerId,
+                      },
+                    })
+                  );
+                } else {
+                  // Log error response for debugging
+                  response.json().then((data) => {
+                    console.error('Error marking messages as read on thread open:', data);
+                  }).catch(() => {
+                    console.error('Error marking messages as read on thread open:', response.status, response.statusText);
+                  });
+                }
+              })
+              .catch((err) => {
+                console.error('Error marking messages as read on thread open:', err);
+              });
+            }
+          }
+        }, 100);
 
         setHasMoreHistory(sorted.length === INITIAL_MESSAGE_LIMIT);
         
@@ -989,12 +1031,37 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         // If user is at bottom, auto-read and keep stickiness. Otherwise, accumulate counter.
         if (thread?.id) {
           if (isAtBottom) {
+            // Mark message as read via API to update receipts
             acknowledgeMessage(lastMessage.id, thread.id, 'read');
-              setMessageReceipts((prev) => {
-                const updated = new Map(prev);
-                updated.set(String(lastMessage.id), 'read');
-                return updated;
-              });
+            fetch('/api/dms/messages.read', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                thread_id: String(thread.id),
+                up_to_message_id: String(lastMessage.id),
+              }),
+            })
+            .then((response) => {
+              if (response.ok) {
+                // Dispatch event to update unread count in partner list
+                window.dispatchEvent(
+                  new CustomEvent('dm:message-read', {
+                    detail: {
+                      threadId: String(thread.id),
+                      partnerId: partnerId,
+                    },
+                  })
+                );
+              }
+            })
+            .catch((err) => {
+              console.error('Error marking message as read:', err);
+            });
+            setMessageReceipts((prev) => {
+              const updated = new Map(prev);
+              updated.set(String(lastMessage.id), 'read');
+              return updated;
+            });
           } else {
             setNewMessagesCount((c) => c + 1);
           }
@@ -1144,8 +1211,9 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   }, [hasMoreHistory, loadingOlderMessages, loadOlderMessages, thread?.id]);
 
   // Scroll to bottom on new messages and when messages are initially loaded
+  // Also mark messages as read when scrolling to bottom
   useLayoutEffect(() => {
-    if (messages.length === 0) {
+    if (messages.length === 0 || !thread?.id || !currentUserId || !partnerId) {
       return;
     }
 
@@ -1158,6 +1226,45 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       container.scrollTop = container.scrollHeight;
       historyAutoLoadReadyRef.current = true;
       initialScrollDoneRef.current = true;
+      
+      // Mark all messages as read when initially scrolling to bottom
+      // This ensures that when user opens a chat, all visible messages are marked as read
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && thread?.id) {
+        // Mark all messages as read immediately when chat is opened
+        // This ensures that on page refresh, these messages won't be unread
+        fetch('/api/dms/messages.read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thread_id: String(thread.id),
+            up_to_message_id: String(lastMessage.id),
+          }),
+        })
+        .then((response) => {
+          if (response.ok) {
+            // Dispatch event to update unread count in partner list
+            window.dispatchEvent(
+              new CustomEvent('dm:message-read', {
+                detail: {
+                  threadId: String(thread.id),
+                  partnerId: partnerId,
+                },
+              })
+            );
+          } else {
+            // Log error response for debugging
+            response.json().then((data) => {
+              console.error('Error marking messages as read on initial scroll:', data);
+            }).catch(() => {
+              console.error('Error marking messages as read on initial scroll:', response.status, response.statusText);
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('Error marking messages as read on initial scroll:', err);
+        });
+      }
       return;
     }
 
@@ -1167,13 +1274,54 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
 
     if (shouldStickToBottom && historyAutoLoadReadyRef.current) {
       container.scrollTop = container.scrollHeight;
+      
+      // Mark all messages as read when auto-scrolling to bottom
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && thread?.id) {
+        acknowledgeMessage(lastMessage.id, thread.id, 'read');
+        fetch('/api/dms/messages.read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thread_id: String(thread.id),
+            up_to_message_id: String(lastMessage.id),
+          }),
+        })
+        .then((response) => {
+          if (response.ok) {
+            // Dispatch event to update unread count in partner list
+            window.dispatchEvent(
+              new CustomEvent('dm:message-read', {
+                detail: {
+                  threadId: String(thread.id),
+                  partnerId: partnerId,
+                },
+              })
+            );
+          } else {
+            // Log error response for debugging
+            response.json().then((data) => {
+              console.error('Error marking messages as read on auto-scroll:', data);
+            }).catch(() => {
+              console.error('Error marking messages as read on auto-scroll:', response.status, response.statusText);
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('Error marking messages as read on auto-scroll:', err);
+        });
+      }
     }
-  }, [messages.length]);
+  }, [messages.length, thread?.id, currentUserId, partnerId, messages, acknowledgeMessage]);
 
   // Track scroll position to toggle bottom stickiness and banner
+  // Also mark messages as read when user scrolls to bottom
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container) return;
+    if (!container || !thread?.id || !currentUserId || !partnerId) return;
+
+    let markReadTimeout: NodeJS.Timeout | null = null;
+    let lastMarkedReadMessageId: number | null = null;
 
     const onScroll = () => {
       const distanceFromBottom =
@@ -1184,22 +1332,117 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         // Clear new messages counter when user reaches bottom
         setNewMessagesCount(0);
         setShowNewBanner(false);
+
+        // Mark all messages as read when user is at bottom
+        if (messages.length > 0) {
+          const lastMessage = messages[messages.length - 1];
+          if (lastMessage && lastMessage.id !== lastMarkedReadMessageId) {
+            // Debounce mark as read to avoid too many requests
+            if (markReadTimeout) {
+              clearTimeout(markReadTimeout);
+            }
+            markReadTimeout = setTimeout(() => {
+              // Only mark as read if message is from partner
+              if (lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId && thread?.id) {
+                acknowledgeMessage(lastMessage.id, thread.id, 'read');
+                lastMarkedReadMessageId = lastMessage.id;
+                
+                // Also call the API to update last_read_message_id
+                fetch('/api/dms/messages.read', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    thread_id: String(thread.id),
+                    up_to_message_id: String(lastMessage.id),
+                  }),
+                })
+                .then((response) => {
+                  if (response.ok) {
+                    // Dispatch event to update unread count in partner list
+                    window.dispatchEvent(
+                      new CustomEvent('dm:message-read', {
+                        detail: {
+                          threadId: String(thread.id),
+                          partnerId: partnerId,
+                        },
+                      })
+                    );
+                  } else {
+                    // Log error response for debugging
+                    response.json().then((data) => {
+                      console.error('Error marking messages as read:', data);
+                    }).catch(() => {
+                      console.error('Error marking messages as read:', response.status, response.statusText);
+                    });
+                  }
+                })
+                .catch((err) => {
+                  console.error('Error marking messages as read:', err);
+                });
+              }
+            }, 500);
+          }
+        }
       }
     };
 
     container.addEventListener('scroll', onScroll);
     // Initialize once
     onScroll();
-    return () => container.removeEventListener('scroll', onScroll);
-  }, []);
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      if (markReadTimeout) {
+        clearTimeout(markReadTimeout);
+      }
+    };
+  }, [thread?.id, currentUserId, partnerId, messages, acknowledgeMessage]);
 
   const handleJumpToBottom = useCallback(() => {
     const container = scrollRef.current;
-    if (!container) return;
+    if (!container || !thread?.id || !currentUserId || !partnerId) return;
     container.scrollTop = container.scrollHeight;
     setNewMessagesCount(0);
     setShowNewBanner(false);
-  }, []);
+    
+    // Mark all messages as read when jumping to bottom
+    if (messages.length > 0 && thread?.id) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage) {
+        acknowledgeMessage(lastMessage.id, thread.id, 'read');
+        fetch('/api/dms/messages.read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thread_id: String(thread.id),
+            up_to_message_id: String(lastMessage.id),
+          }),
+        })
+        .then((response) => {
+          if (response.ok) {
+            // Dispatch event to update unread count in partner list
+            window.dispatchEvent(
+              new CustomEvent('dm:message-read', {
+                detail: {
+                  threadId: String(thread.id),
+                  partnerId: partnerId,
+                },
+              })
+            );
+          } else {
+            // Log error response for debugging
+            response.json().then((data) => {
+              console.error('Error marking messages as read on jump to bottom:', data);
+            }).catch(() => {
+              console.error('Error marking messages as read on jump to bottom:', response.status, response.statusText);
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('Error marking messages as read on jump to bottom:', err);
+        });
+      }
+    }
+  }, [thread?.id, currentUserId, partnerId, messages, acknowledgeMessage]);
 
   // Auto-show/auto-hide banner with smooth animations
   useEffect(() => {
@@ -2237,30 +2480,62 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
 
       {/* Reply preview */}
       {replyingTo && (
-        <div className="px-4 py-2 border-t border-white/10 bg-white/5 flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="text-xs text-white/60 mb-1">Replying to:</div>
-            <div className="text-sm text-white/90 truncate">
-              {replyingTo.body?.substring(0, 100)}{replyingTo.body && replyingTo.body.length > 100 ? '...' : ''}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setReplyingTo(null)}
-            className="text-white/60 hover:text-white/90 transition ml-2"
-            title="Cancel reply"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
+        <div className="px-4 py-2 border-t border-white/10 bg-white/5">
+          <div className="flex items-start gap-2">
+            <div 
+              className="flex-1 min-w-0 cursor-pointer hover:bg-white/5 rounded-lg p-1 -m-1 transition"
+              onClick={() => {
+                // Scroll to the quoted message
+                const node = messageNodeMap.current.get(replyingTo.id);
+                if (node && scrollRef.current) {
+                  node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                  // Highlight the message briefly
+                  node.style.backgroundColor = 'rgba(59, 130, 246, 0.3)';
+                  setTimeout(() => {
+                    node.style.backgroundColor = '';
+                  }, 2000);
+                }
+              }}
+              title="Click to scroll to quoted message"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+              <div className="text-xs text-white/60 mb-1.5">Replying to:</div>
+              <div className="border-l-2 border-white/20 pl-3 py-1.5 bg-white/5 rounded-r-lg">
+                <div className="text-xs text-white/50 mb-0.5">
+                  {replyingTo.sender_id === currentUserId ? 'You' : (partnerProfile?.full_name || partnerProfile?.username || 'User')}
+                </div>
+                {replyingTo.deleted_at ? (
+                  <div className="text-sm text-white/50 italic">Message deleted</div>
+                ) : replyingTo.body ? (
+                  <div className="text-sm text-white/90 whitespace-pre-wrap break-words">
+                    {replyingTo.body.length > 150 ? replyingTo.body.substring(0, 150) + '...' : replyingTo.body}
+                  </div>
+                ) : replyingTo.attachments && Array.isArray(replyingTo.attachments) && replyingTo.attachments.length > 0 ? (
+                  <div className="text-sm text-white/90">
+                    {getAttachmentIcon((replyingTo.attachments[0] as any)?.type)} Attachment
+                  </div>
+                ) : (
+                  <div className="text-sm text-white/50 italic">Empty message</div>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              className="text-white/60 hover:text-white/90 transition ml-2 flex-shrink-0"
+              title="Cancel reply"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
