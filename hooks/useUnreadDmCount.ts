@@ -66,11 +66,17 @@ export function useUnreadDmCount() {
 
     // Listen for custom events from DmGlobalNotifications
     const handleNewMessage = () => {
-      void fetchUnreadCount();
+      // Small delay to ensure database is updated
+      setTimeout(() => {
+        void fetchUnreadCount();
+      }, 100);
     };
 
     const handleMessageRead = () => {
-      void fetchUnreadCount();
+      // Small delay to ensure database is updated
+      setTimeout(() => {
+        void fetchUnreadCount();
+      }, 100);
     };
 
     window.addEventListener('dm:new-message', handleNewMessage);

@@ -71,17 +71,14 @@ last_read_message_time as (
   select
     lt.thread_id,
     lt.last_read_at,
-    m.created_at as last_read_message_created_at
+    coalesce(m.created_at, lt.last_read_at) as last_read_message_created_at
   from limited_threads lt
   left join lateral (
     select created_at
     from public.dms_messages
     where thread_id = lt.thread_id
-      and (
-        (lt.last_read_message_id is not null and id::text = lt.last_read_message_id::text)
-        or (lt.last_read_message_id is null and false)
-      )
-    order by created_at desc
+      and lt.last_read_message_id is not null
+      and id::text = lt.last_read_message_id::text
     limit 1
   ) m on true
 ),
@@ -136,8 +133,8 @@ unread as (
         and msg.deleted_at is null
         and msg.sender_id <> p_user_id
         and (
-          lrmt.last_read_message_created_at is null
-          or msg.created_at > lrmt.last_read_message_created_at
+          coalesce(lrmt.last_read_message_created_at, lt.last_read_at) is null
+          or msg.created_at > coalesce(lrmt.last_read_message_created_at, lt.last_read_at)
         )
     ) as unread_count
   from limited_threads lt
