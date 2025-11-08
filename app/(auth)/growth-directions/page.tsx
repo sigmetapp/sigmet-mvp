@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import Button from '@/components/Button';
 import { useTheme } from '@/components/ThemeProvider';
 import { resolveDirectionEmoji } from '@/lib/directions';
+import Skeleton from '@/components/Skeleton';
 
 type Direction = {
   id: string;
@@ -168,8 +169,12 @@ function GrowthDirectionsInner() {
   const [resettingAchievements, setResettingAchievements] = useState(false);
 
   useEffect(() => {
-    loadDirections();
-    checkAdmin();
+    // Load initial data in parallel for faster page load
+    Promise.all([
+      loadDirections(),
+      checkAdmin(),
+      loadCompletedTasks(),
+    ]).catch(console.error);
   }, []);
 
   async function checkAdmin() {
@@ -199,9 +204,7 @@ function GrowthDirectionsInner() {
     }
   }, [directions, selectedDirection, tasks]);
 
-  useEffect(() => {
-    loadCompletedTasks();
-  }, []);
+  // Removed duplicate loadCompletedTasks - now loaded in initial useEffect
 
   useEffect(() => {
     setCompletedPage((prev) => {
@@ -591,15 +594,15 @@ function GrowthDirectionsInner() {
     return prioritized.slice(0, 3);
   };
 
-  function focusTaskCard(targetId: string) {
+  const focusTaskCard = useCallback((targetId: string) => {
     const element = document.getElementById(targetId);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setHighlightedTaskId(targetId);
     }
-  }
+  }, []);
 
-  function handleSummaryTaskClick(item: TaskSummaryItem) {
+  const handleSummaryTaskClick = useCallback((item: TaskSummaryItem) => {
     setPinnedTask(item);
     if (item.directionId !== selectedDirection) {
       setFocusTask(item);
@@ -608,7 +611,7 @@ function GrowthDirectionsInner() {
     }
 
     setFocusTask(item);
-  }
+  }, [selectedDirection]);
 
   async function toggleDirection(directionId: string) {
     if (toggling.has(directionId)) return;
@@ -1157,21 +1160,36 @@ function GrowthDirectionsInner() {
     }
   }
 
-  const currentDirection = directions.find((d) => d.id === selectedDirection);
+  // Memoize computed values for better performance
+  const currentDirection = useMemo(() => 
+    directions.find((d) => d.id === selectedDirection),
+    [directions, selectedDirection]
+  );
 
-  const selectedPrimaryDirections = directions.filter((d) => d.isSelected && d.isPrimary);
+  const selectedPrimaryDirections = useMemo(() => 
+    directions.filter((d) => d.isSelected && d.isPrimary),
+    [directions]
+  );
   const selectedPrimaryCount = selectedPrimaryDirections.length;
   const primaryLimitReached = selectedPrimaryCount >= 3;
-  const displayedHabits = getDisplayedTasks(tasks.habits, 'habit');
-  const displayedGoals = getDisplayedTasks(tasks.goals, 'goal');
+  
+  const displayedHabits = useMemo(() => getDisplayedTasks(tasks.habits, 'habit'), [tasks.habits]);
+  const displayedGoals = useMemo(() => getDisplayedTasks(tasks.goals, 'goal'), [tasks.goals]);
   const extraHabits = Math.max(0, tasks.habits.length - displayedHabits.length);
   const extraGoals = Math.max(0, tasks.goals.length - displayedGoals.length);
   const totalHabits = tasks.habits.length;
   const totalGoals = tasks.goals.length;
-  const totalCompletedPages = Math.ceil(completedTasks.length / COMPLETED_PAGE_SIZE) || 1;
-  const paginatedCompletedTasks = completedTasks.slice(
-    completedPage * COMPLETED_PAGE_SIZE,
-    completedPage * COMPLETED_PAGE_SIZE + COMPLETED_PAGE_SIZE
+  
+  const totalCompletedPages = useMemo(() => 
+    Math.ceil(completedTasks.length / COMPLETED_PAGE_SIZE) || 1,
+    [completedTasks.length]
+  );
+  const paginatedCompletedTasks = useMemo(() => 
+    completedTasks.slice(
+      completedPage * COMPLETED_PAGE_SIZE,
+      completedPage * COMPLETED_PAGE_SIZE + COMPLETED_PAGE_SIZE
+    ),
+    [completedTasks, completedPage]
   );
   const completedRangeStart = completedTasks.length === 0 ? 0 : completedPage * COMPLETED_PAGE_SIZE + 1;
   const completedRangeEnd = completedTasks.length === 0
@@ -1181,10 +1199,19 @@ function GrowthDirectionsInner() {
   const renderSummaryTaskList = (list: TaskSummaryItem[]) => {
     if (loadingSummary) {
       return (
-        <div className="min-h-[120px] flex items-center">
-          <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-            Loading...
-          </p>
+        <div className="min-h-[120px] space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="card p-2">
+              <div className="flex items-center gap-3">
+                <Skeleton variant="circular" width={24} height={24} />
+                <div className="flex-1 space-y-1">
+                  <Skeleton width="70%" height={14} />
+                  <Skeleton width="50%" height={12} />
+                </div>
+                <Skeleton width={60} height={20} className="rounded-full" />
+              </div>
+            </div>
+          ))}
         </div>
       );
     }
@@ -1207,9 +1234,9 @@ function GrowthDirectionsInner() {
               key={`${item.directionId}-${item.id}-${item.type}`}
               type="button"
               onClick={() => handleSummaryTaskClick(item)}
-              className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition relative ${
-                isLight ? 'bg-telegram-bg-secondary hover:bg-telegram-blue/10' : 'bg-white/5 hover:bg-white/10'
-              } ${item.directionIsPrimary ? 'ring-2 ring-telegram-blue/30' : ''}`}
+              className={`card w-full text-left flex items-center gap-3 p-2 transition relative hover:scale-[1.02] ${
+                item.directionIsPrimary ? 'ring-2 ring-telegram-blue/30' : ''
+              }`}
             >
               {item.directionIsPrimary && (
                 <div className="absolute top-0 right-0 w-2 h-2 bg-telegram-blue rounded-full"></div>
@@ -1249,9 +1276,9 @@ function GrowthDirectionsInner() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 animate-fade-in-up">
       {/* Header */}
-      <div className="mb-6 md:mb-8">
+      <div className="mb-6 md:mb-8 animate-fade-in-up animate-stagger-1">
         <div className="flex items-center justify-between">
           <div>
             <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
@@ -1299,8 +1326,30 @@ function GrowthDirectionsInner() {
 
 
       {/* Completed Tasks & Total Points Section */}
-      {!loading && (
-        <div className={`p-4 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-telegram-bg-secondary border-telegram-blue/10' : 'bg-white/5 border-telegram-blue/20'}`}>
+      {loading ? (
+        <div className="card p-4 md:p-6 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+            <div className="space-y-2">
+              <Skeleton width="200px" height={24} />
+              <Skeleton width="150px" height={16} />
+            </div>
+            <Skeleton width="150px" height={80} className="rounded-2xl" />
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center gap-3 p-3">
+                <Skeleton variant="circular" width={36} height={36} />
+                <div className="flex-1 space-y-2">
+                  <Skeleton width="60%" height={16} />
+                  <Skeleton width="40%" height={12} />
+                </div>
+                <Skeleton width={80} height={20} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="card p-4 md:p-6 mb-6 animate-fade-in-up animate-stagger-2">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>
               <h2 className={`font-semibold text-base mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
@@ -1327,11 +1376,28 @@ function GrowthDirectionsInner() {
           </div>
 
           {loadingCompleted ? (
-            <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-              <div className="inline-flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-telegram-blue border-t-transparent rounded-full animate-spin"></div>
-                <span>Loading completed tasks...</span>
+            <div className="space-y-3">
+              {/* Table header skeleton */}
+              <div className="flex items-center gap-3 pb-2 border-b border-telegram-blue/10">
+                <Skeleton width="30%" height={14} />
+                <Skeleton width="15%" height={14} />
+                <Skeleton width="20%" height={14} />
+                <Skeleton width="20%" height={14} />
+                <Skeleton width="15%" height={14} />
               </div>
+              {/* Table rows skeleton */}
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-3 py-2 border-b border-telegram-blue/5">
+                  <div className="flex items-center gap-2 w-[30%]">
+                    <Skeleton variant="circular" width={36} height={36} />
+                    <Skeleton width="70%" height={16} />
+                  </div>
+                  <Skeleton width="15%" height={24} className="rounded-full" />
+                  <Skeleton width="20%" height={14} />
+                  <Skeleton width="20%" height={14} />
+                  <Skeleton width="15%" height={16} />
+                </div>
+              ))}
             </div>
           ) : completedTasks.length === 0 ? (
             <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
@@ -1370,7 +1436,7 @@ function GrowthDirectionsInner() {
                           isLight
                             ? 'hover:bg-telegram-blue/5 border-b border-telegram-blue/5'
                             : 'hover:bg-white/5 border-b border-white/5'
-                        } ${index % 2 === 0 ? (isLight ? 'bg-telegram-bg-secondary/40' : 'bg-white/5') : ''}`}
+                        }`}
                       >
                         <td className="py-2 px-3 align-middle">
                           <div className="flex items-center gap-2">
@@ -1485,14 +1551,79 @@ function GrowthDirectionsInner() {
       )}
 
       {loading ? (
-        <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-          Loading...
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Directions List Skeleton */}
+          <div className="lg:col-span-1 space-y-4">
+            <div className="card p-4">
+              <Skeleton width="100px" height={20} className="mb-3" />
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="card p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 space-y-2">
+                        <Skeleton width="70%" height={16} />
+                        <Skeleton width="50%" height={12} />
+                      </div>
+                      <Skeleton width={60} height={24} className="rounded-full" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Tasks View Skeleton */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="card p-4 mb-6">
+              <Skeleton width="200px" height={20} className="mb-2" />
+              <Skeleton width="150px" height={16} />
+            </div>
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+              {/* Habits Skeleton */}
+              <section className="space-y-4">
+                <Skeleton width="100px" height={20} />
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="card p-4 md:p-6 space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Skeleton width="60%" height={18} />
+                        <Skeleton width={80} height={24} className="rounded-full" />
+                      </div>
+                      <Skeleton width="100%" height={16} />
+                      <Skeleton width="80%" height={16} />
+                      <Skeleton width="120px" height={14} />
+                    </div>
+                    <Skeleton width="100%" height={40} className="rounded-lg" />
+                  </div>
+                ))}
+              </section>
+
+              {/* Goals Skeleton */}
+              <section className="space-y-4">
+                <Skeleton width="100px" height={20} />
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="card p-4 md:p-6 space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Skeleton width="60%" height={18} />
+                        <Skeleton width={80} height={24} className="rounded-full" />
+                      </div>
+                      <Skeleton width="100%" height={16} />
+                      <Skeleton width="80%" height={16} />
+                      <Skeleton width="120px" height={14} />
+                    </div>
+                    <Skeleton width="100%" height={40} className="rounded-lg" />
+                  </div>
+                ))}
+              </section>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Directions List */}
-          <div className="lg:col-span-1 space-y-4">
-            <div className={`p-4 rounded-lg border ${isLight ? 'bg-telegram-bg-secondary border-telegram-blue/10' : 'bg-white/5 border-telegram-blue/20'}`}>
+          <div className="lg:col-span-1 space-y-4 animate-fade-in-up animate-stagger-3">
+            <div className="card p-4">
               <h2 className={`font-semibold mb-3 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
                 Directions
               </h2>
@@ -1594,10 +1725,10 @@ function GrowthDirectionsInner() {
           </div>
 
           {/* Tasks View */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6 animate-fade-in-up animate-stagger-4">
             {selectedDirection ? (
               <>
-                  <div className={`p-4 rounded-lg border mb-6 ${isLight ? 'bg-telegram-bg-secondary border-telegram-blue/10' : 'bg-white/5 border-telegram-blue/20'}`}>
+                  <div className="card p-4 mb-6">
                     <div className="flex items-center gap-3 mb-4">
                       <div>
                         <h2 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
@@ -1611,8 +1742,44 @@ function GrowthDirectionsInner() {
                   </div>
 
                 {loadingTasks ? (
-                  <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                    Loading tasks...
+                  <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+                    {/* Habits Skeleton */}
+                    <section className="space-y-4">
+                      <Skeleton width="100px" height={20} />
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="card p-4 md:p-6 space-y-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Skeleton width="60%" height={18} />
+                              <Skeleton width={80} height={24} className="rounded-full" />
+                            </div>
+                            <Skeleton width="100%" height={16} />
+                            <Skeleton width="80%" height={16} />
+                            <Skeleton width="120px" height={14} />
+                          </div>
+                          <Skeleton width="100%" height={40} className="rounded-lg" />
+                        </div>
+                      ))}
+                    </section>
+
+                    {/* Goals Skeleton */}
+                    <section className="space-y-4">
+                      <Skeleton width="100px" height={20} />
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="card p-4 md:p-6 space-y-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Skeleton width="60%" height={18} />
+                              <Skeleton width={80} height={24} className="rounded-full" />
+                            </div>
+                            <Skeleton width="100%" height={16} />
+                            <Skeleton width="80%" height={16} />
+                            <Skeleton width="120px" height={14} />
+                          </div>
+                          <Skeleton width="100%" height={40} className="rounded-lg" />
+                        </div>
+                      ))}
+                    </section>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
@@ -1644,9 +1811,9 @@ function GrowthDirectionsInner() {
                             <div
                               key={habit.id}
                               id={elementId}
-                              className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
-                                isHighlighted ? 'ring-2 ring-telegram-blue' : ''
-                              } ${isLight ? 'bg-telegram-bg-secondary border-telegram-blue/10' : 'bg-white/5 border-telegram-blue/20'}`}
+                              className={`card p-4 md:p-6 space-y-4 transition-all duration-300 hover:scale-[1.02] ${
+                                isHighlighted ? 'ring-2 ring-telegram-blue scale-[1.02]' : ''
+                              }`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -1686,7 +1853,7 @@ function GrowthDirectionsInner() {
                               </div>
 
                               {isActive && habit.userTask && (
-                                <div className={`grid grid-cols-2 gap-4 p-3 rounded-xl ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}>
+                                <div className="card grid grid-cols-2 gap-4 p-3">
                                   <div>
                                     <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
                                       Current Streak
@@ -1771,9 +1938,9 @@ function GrowthDirectionsInner() {
                             <div
                               key={goal.id}
                               id={elementId}
-                              className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
-                                isHighlighted ? 'ring-2 ring-telegram-blue' : ''
-                              } ${isLight ? 'bg-telegram-bg-secondary border-telegram-blue/10' : 'bg-white/5 border-telegram-blue/20'}`}
+                              className={`card p-4 md:p-6 space-y-4 transition-all duration-300 hover:scale-[1.02] ${
+                                isHighlighted ? 'ring-2 ring-telegram-blue scale-[1.02]' : ''
+                              }`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
