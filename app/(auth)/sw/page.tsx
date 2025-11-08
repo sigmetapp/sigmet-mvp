@@ -249,10 +249,106 @@ export default function SWPage() {
   }>>([]);
 
   useEffect(() => {
-    checkAdmin();
-    loadSW();
-    loadRecentActivity();
-    loadCityLeaders();
+    // Оптимизированная загрузка: получаем auth данные один раз и загружаем все параллельно
+    async function loadAllData() {
+      try {
+        // Получаем auth данные один раз
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+
+        const session = await supabase.auth.getSession();
+        const token = session.data.session?.access_token;
+        if (!token) {
+          setError('Not authenticated');
+          setLoading(false);
+          return;
+        }
+
+        // Загружаем все данные параллельно
+        const [swData, recentActivityData, cityLeadersData, adminData] = await Promise.allSettled([
+          // Основные данные SW
+          fetch('/api/sw/calculate', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }).then(res => {
+            if (!res.ok) throw new Error('Failed to load SW data');
+            return res.json();
+          }),
+          // Недавняя активность
+          fetch('/api/sw/recent-activity', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }).then(res => res.ok ? res.json() : null),
+          // Лидеры города
+          fetch('/api/sw/city-leaders', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }).then(res => res.ok ? res.json() : null),
+          // Проверка админа
+          supabase.rpc('is_admin_uid').then(({ data, error }) => {
+            if (error) throw error;
+            return data ?? false;
+          }),
+        ]);
+
+        // Обрабатываем результаты
+        if (swData.status === 'fulfilled') {
+          const data = swData.value;
+          setSwData(data);
+          
+          // Load SW levels from weights if available
+          if (data.weights?.sw_levels) {
+            try {
+              const levels = typeof data.weights.sw_levels === 'string' 
+                ? JSON.parse(data.weights.sw_levels)
+                : data.weights.sw_levels;
+              
+              const mappedLevels = levels.map((level: any, index: number) => {
+                const defaultLevel = SW_LEVELS.find(l => l.name === level.name) || SW_LEVELS[index] || SW_LEVELS[0];
+                return {
+                  name: level.name || defaultLevel.name,
+                  minSW: level.minSW ?? defaultLevel.minSW,
+                  maxSW: level.maxSW ?? defaultLevel.maxSW,
+                  features: defaultLevel.features,
+                  color: defaultLevel.color,
+                };
+              });
+              
+              if (mappedLevels.length > 0) {
+                setSwLevels(mappedLevels);
+              }
+            } catch (err) {
+              console.error('Error parsing sw_levels:', err);
+            }
+          }
+          setError(null);
+        } else {
+          setError(swData.reason?.message || 'Failed to load SW data');
+        }
+
+        if (recentActivityData.status === 'fulfilled' && recentActivityData.value) {
+          setRecentActivity(recentActivityData.value);
+        }
+
+        if (cityLeadersData.status === 'fulfilled' && cityLeadersData.value) {
+          setCityLeaders(cityLeadersData.value.leaders || []);
+        }
+
+        if (adminData.status === 'fulfilled') {
+          setIsAdmin(adminData.value);
+        } else {
+          setIsAdmin(false);
+        }
+
+        setLoading(false);
+      } catch (error: any) {
+        console.error('Error loading data:', error);
+        setError(error.message || 'Failed to load data');
+        setLoading(false);
+      }
+    }
+
+    loadAllData();
   }, []);
 
   async function loadRecentActivity() {
@@ -955,7 +1051,7 @@ export default function SWPage() {
               </div>
 
               {/* Comments */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.7s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
                 <div>
                   <div className="text-white font-medium text-sm">Comments</div>
                   <div className="text-white/60 text-xs">Published comments</div>
@@ -967,7 +1063,7 @@ export default function SWPage() {
               </div>
 
               {/* Reactions */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.8s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
                 <div>
                   <div className="text-white font-medium text-sm">Reactions</div>
                   <div className="text-white/60 text-xs">Reactions received on your posts</div>
@@ -979,7 +1075,7 @@ export default function SWPage() {
               </div>
 
               {/* Invites */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.9s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
                 <div>
                   <div className="text-white font-medium text-sm">Invite People</div>
                   <div className="text-white/60 text-xs">People who joined via your invite code and received 70 pts</div>
@@ -991,7 +1087,7 @@ export default function SWPage() {
               </div>
 
               {/* Growth Bonus */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '1.0s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
                 <div>
                   <div className="text-white font-medium text-sm">Growth Bonus</div>
                   <div className="text-white/60 text-xs">{breakdown.growthBonus?.description || "5% bonus on invited users' growth points"}</div>
