@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import Button from '@/components/Button';
 import { supabase } from '@/lib/supabaseClient';
@@ -8,11 +9,14 @@ import CountryCitySelect from '@/components/CountryCitySelect';
 import EducationalInstitutionSelect from '@/components/EducationalInstitutionSelect';
 import { useTheme } from '@/components/ThemeProvider';
 import ProfileSkeleton from '@/components/ProfileSkeleton';
+import ProfileLoading from './loading';
 
 export default function ProfilePage() {
   return (
     <RequireAuth>
-      <ProfileSettings />
+      <Suspense fallback={<ProfileLoading />}>
+        <ProfileSettings />
+      </Suspense>
     </RequireAuth>
   );
 }

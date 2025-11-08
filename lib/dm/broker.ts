@@ -81,6 +81,7 @@ export function createRedisBroker(
   }: RedisBrokerOptions = {}
 ): GatewayBroker {
   let running = false;
+  let unsubscribeHandler: (() => void) | null = null;
 
   async function ensureGroupExists(): Promise<void> {
     try {
@@ -94,13 +95,29 @@ export function createRedisBroker(
   }
 
   async function publish(event: GatewayBrokerEvent): Promise<void> {
-    const payload = JSON.stringify(event);
-    await client.xadd(stream, '*', 'event', payload);
+    try {
+      const payload = JSON.stringify(event);
+      await client.xadd(stream, '*', 'event', payload);
+    } catch (error) {
+      console.error('Redis broker publish error:', error);
+      throw error;
+    }
   }
 
   async function subscribe(
     handler: (event: GatewayBrokerEvent) => Promise<void> | void
   ): Promise<() => void> {
+    if (running) {
+      // Already subscribed, return existing unsubscribe function
+      return () => {
+        if (unsubscribeHandler) {
+          unsubscribeHandler();
+          unsubscribeHandler = null;
+        }
+        running = false;
+      };
+    }
+
     running = true;
 
     await ensureGroupExists();
@@ -141,6 +158,7 @@ export function createRedisBroker(
                 await client.xack(stream, group, id);
               } catch (err) {
                 console.error('Redis broker handler error:', err);
+                // Don't ack on error - will be retried
               }
             }
           }
@@ -151,10 +169,25 @@ export function createRedisBroker(
       }
     };
 
-    void loop();
+    // Start processing loop
+    const loopPromise = loop();
+    
+    unsubscribeHandler = () => {
+      running = false;
+    };
+
+    // Handle loop errors
+    loopPromise.catch((err) => {
+      console.error('Redis broker loop error:', err);
+      running = false;
+    });
 
     return () => {
       running = false;
+      if (unsubscribeHandler) {
+        unsubscribeHandler();
+        unsubscribeHandler = null;
+      }
     };
   }
 

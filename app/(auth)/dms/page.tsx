@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
@@ -10,6 +11,7 @@ import DmsChatWindow from './DmsChatWindow';
 import Toast from '@/components/Toast';
 import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 import type { DmAttachment } from '@/lib/dm/attachments';
+import DmsLoading from './loading';
 
 export default function DmsPage() {
   return (
@@ -314,21 +316,31 @@ function DmsInner() {
   }, []);
 
   const persistCache = useCallback(
-    (items: PartnerListItem[], pagination: { offset: number; hasMore: boolean }) => {
+    async (items: PartnerListItem[], pagination: { offset: number; hasMore: boolean }) => {
       if (!currentUserId || typeof window === 'undefined') return;
-      const cacheKey = `dm:partners:${currentUserId}`;
+      
+      // Try IndexedDB first, fallback to sessionStorage
       try {
-        window.sessionStorage.setItem(
-          cacheKey,
-          JSON.stringify({
-            version: 1,
-            timestamp: Date.now(),
-            partners: items,
-            pagination,
-          })
-        );
+        const { cachePartners } = await import('@/lib/dm/cache');
+        await cachePartners(currentUserId, items);
       } catch (err) {
-        console.warn('Failed to persist DM partners cache', err);
+        console.warn('Failed to cache partners in IndexedDB, using sessionStorage:', err);
+        
+        // Fallback to sessionStorage
+        const cacheKey = `dm:partners:${currentUserId}`;
+        try {
+          window.sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+              version: 1,
+              timestamp: Date.now(),
+              partners: items,
+              pagination,
+            })
+          );
+        } catch (sessionErr) {
+          console.warn('Failed to persist DM partners cache', sessionErr);
+        }
       }
     },
     [currentUserId]
@@ -344,13 +356,37 @@ function DmsInner() {
       return;
     }
 
-    const cacheKey = `dm:partners:${currentUserId}`;
     let hydrated = false;
 
-    try {
-      const raw = window.sessionStorage.getItem(cacheKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
+    // Try IndexedDB first, fallback to sessionStorage
+    (async () => {
+      try {
+        const { getCachedPartners } = await import('@/lib/dm/cache');
+        const cached = await getCachedPartners(currentUserId);
+        
+        if (cached && cached.length > 0) {
+          const cachedPartners = (cached as PartnerLike[]).map((item) =>
+            normalizePartner(item)
+          );
+          setPartners(cachedPartners);
+          partnersRef.current = cachedPartners;
+          const cachedPagination = { offset: cachedPartners.length, hasMore: true };
+          paginationRef.current = cachedPagination;
+          setPaginationState(cachedPagination);
+          setLoadingInitial(false);
+          hydrated = true;
+          return;
+        }
+      } catch (err) {
+        console.warn('Failed to hydrate from IndexedDB, trying sessionStorage:', err);
+      }
+
+      // Fallback to sessionStorage
+      const cacheKey = `dm:partners:${currentUserId}`;
+      try {
+        const raw = window.sessionStorage.getItem(cacheKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
           if (parsed && Array.isArray(parsed.partners)) {
             const ttlValid =
               typeof parsed.timestamp === 'number' &&
@@ -359,31 +395,32 @@ function DmsInner() {
               const cachedPartners = (parsed.partners as PartnerLike[]).map((item) =>
                 normalizePartner(item)
               );
-            setPartners(cachedPartners);
-            partnersRef.current = cachedPartners;
-            const cachedPagination =
-              parsed.pagination ?? { offset: cachedPartners.length, hasMore: true };
-            paginationRef.current = cachedPagination;
-            setPaginationState(cachedPagination);
-            setLoadingInitial(false);
-            hydrated = true;
-          } else {
-            window.sessionStorage.removeItem(cacheKey);
+              setPartners(cachedPartners);
+              partnersRef.current = cachedPartners;
+              const cachedPagination =
+                parsed.pagination ?? { offset: cachedPartners.length, hasMore: true };
+              paginationRef.current = cachedPagination;
+              setPaginationState(cachedPagination);
+              setLoadingInitial(false);
+              hydrated = true;
+            } else {
+              window.sessionStorage.removeItem(cacheKey);
+            }
           }
         }
+      } catch (err) {
+        console.warn('Failed to hydrate DM partners cache', err);
       }
-    } catch (err) {
-      console.warn('Failed to hydrate DM partners cache', err);
-    }
 
-    if (!hydrated) {
-      setPartners([]);
-      partnersRef.current = [];
-      const resetPagination = { offset: 0, hasMore: true };
-      paginationRef.current = resetPagination;
-      setPaginationState(resetPagination);
-      setLoadingInitial(true);
-    }
+      if (!hydrated) {
+        setPartners([]);
+        partnersRef.current = [];
+        const resetPagination = { offset: 0, hasMore: true };
+        paginationRef.current = resetPagination;
+        setPaginationState(resetPagination);
+        setLoadingInitial(true);
+      }
+    })();
   }, [currentUserId]);
 
   const fetchPartners = useCallback(
@@ -1046,10 +1083,23 @@ function DmsInner() {
       }, 300);
     };
 
+    // Listen for DM errors to show user-friendly messages
+    const handleDmError = (event: CustomEvent) => {
+      const { message, severity } = event.detail || {};
+      if (message && (severity === 'high' || severity === 'critical')) {
+        setToast({
+          message,
+          type: severity === 'critical' ? 'error' : 'error',
+        });
+      }
+    };
+
     window.addEventListener('dm:message-read', handleMessageRead as EventListener);
+    window.addEventListener('dm:error', handleDmError as EventListener);
 
     return () => {
       window.removeEventListener('dm:message-read', handleMessageRead as EventListener);
+      window.removeEventListener('dm:error', handleDmError as EventListener);
     };
   }, [currentUserId, applyPartnerUpdate, fetchPartners]);
 
@@ -1367,7 +1417,9 @@ function DmsInner() {
       </div>
       <div className={["flex-1 min-w-0 min-h-0", !selectedPartnerId ? "hidden md:block" : "block"].join(" ") }>
         {selectedPartnerId ? (
-          <DmsChatWindow partnerId={selectedPartnerId} onBack={() => setSelectedPartnerId(null)} />
+          <Suspense fallback={<DmsLoading />}>
+            <DmsChatWindow partnerId={selectedPartnerId} onBack={() => setSelectedPartnerId(null)} />
+          </Suspense>
         ) : (
           <div className="card card-glow h-full flex items-center justify-center">
             <div className="text-white/70 text-center">

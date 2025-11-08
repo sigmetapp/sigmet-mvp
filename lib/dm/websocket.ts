@@ -362,6 +362,7 @@ export class WebSocketClient {
   }
 
   // Sync messages for thread
+  // Note: Gateway will use sequence_number for more reliable synchronization
   syncThread(threadId: ThreadId, lastServerMsgId: number | null = null): void {
     if (this.state === 'authenticated') {
       const normalizedThreadId = assertThreadId(threadId, 'Invalid thread ID');
