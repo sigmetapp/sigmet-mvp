@@ -881,6 +881,26 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
           }
+          
+          // Mark all messages as read when thread is opened and messages are loaded
+          if (sorted.length > 0 && currentUserId && partnerId) {
+            const lastMessage = sorted[sorted.length - 1];
+            // Only mark as read if there are messages from partner
+            const hasPartnerMessages = sorted.some(m => m.sender_id === partnerId && m.sender_id !== currentUserId);
+            if (hasPartnerMessages && lastMessage) {
+              // Mark all messages up to the last one as read
+              fetch('/api/dms/messages.read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  thread_id: threadId,
+                  up_to_message_id: String(lastMessage.id),
+                }),
+              }).catch((err) => {
+                console.error('Error marking messages as read on thread open:', err);
+              });
+            }
+          }
         }, 300);
 
         setHasMoreHistory(sorted.length === INITIAL_MESSAGE_LIMIT);
@@ -1144,8 +1164,9 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   }, [hasMoreHistory, loadingOlderMessages, loadOlderMessages, thread?.id]);
 
   // Scroll to bottom on new messages and when messages are initially loaded
+  // Also mark messages as read when scrolling to bottom
   useLayoutEffect(() => {
-    if (messages.length === 0) {
+    if (messages.length === 0 || !thread?.id || !currentUserId || !partnerId) {
       return;
     }
 
@@ -1158,6 +1179,24 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       container.scrollTop = container.scrollHeight;
       historyAutoLoadReadyRef.current = true;
       initialScrollDoneRef.current = true;
+      
+      // Mark all messages as read when initially scrolling to bottom
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage) {
+        const hasPartnerMessages = messages.some(m => m.sender_id === partnerId && m.sender_id !== currentUserId);
+        if (hasPartnerMessages) {
+          fetch('/api/dms/messages.read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              thread_id: thread.id,
+              up_to_message_id: String(lastMessage.id),
+            }),
+          }).catch((err) => {
+            console.error('Error marking messages as read on initial scroll:', err);
+          });
+        }
+      }
       return;
     }
 
@@ -1167,13 +1206,36 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
 
     if (shouldStickToBottom && historyAutoLoadReadyRef.current) {
       container.scrollTop = container.scrollHeight;
+      
+      // Mark all messages as read when auto-scrolling to bottom
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage) {
+        const hasPartnerMessages = messages.some(m => m.sender_id === partnerId && m.sender_id !== currentUserId);
+        if (hasPartnerMessages) {
+          acknowledgeMessage(lastMessage.id, thread.id, 'read');
+          fetch('/api/dms/messages.read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              thread_id: thread.id,
+              up_to_message_id: String(lastMessage.id),
+            }),
+          }).catch((err) => {
+            console.error('Error marking messages as read on auto-scroll:', err);
+          });
+        }
+      }
     }
-  }, [messages.length]);
+  }, [messages.length, thread?.id, currentUserId, partnerId, messages, acknowledgeMessage]);
 
   // Track scroll position to toggle bottom stickiness and banner
+  // Also mark messages as read when user scrolls to bottom
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container) return;
+    if (!container || !thread?.id || !currentUserId || !partnerId) return;
+
+    let markReadTimeout: NodeJS.Timeout | null = null;
+    let lastMarkedReadMessageId: number | null = null;
 
     const onScroll = () => {
       const distanceFromBottom =
@@ -1184,22 +1246,76 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         // Clear new messages counter when user reaches bottom
         setNewMessagesCount(0);
         setShowNewBanner(false);
+
+        // Mark all messages as read when user is at bottom
+        if (messages.length > 0) {
+          const lastMessage = messages[messages.length - 1];
+          if (lastMessage && lastMessage.id !== lastMarkedReadMessageId) {
+            // Debounce mark as read to avoid too many requests
+            if (markReadTimeout) {
+              clearTimeout(markReadTimeout);
+            }
+            markReadTimeout = setTimeout(() => {
+              // Only mark as read if message is from partner
+              if (lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId) {
+                acknowledgeMessage(lastMessage.id, thread.id, 'read');
+                lastMarkedReadMessageId = lastMessage.id;
+                
+                // Also call the API to update last_read_message_id
+                fetch('/api/dms/messages.read', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    thread_id: thread.id,
+                    up_to_message_id: String(lastMessage.id),
+                  }),
+                }).catch((err) => {
+                  console.error('Error marking messages as read:', err);
+                });
+              }
+            }, 500);
+          }
+        }
       }
     };
 
     container.addEventListener('scroll', onScroll);
     // Initialize once
     onScroll();
-    return () => container.removeEventListener('scroll', onScroll);
-  }, []);
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      if (markReadTimeout) {
+        clearTimeout(markReadTimeout);
+      }
+    };
+  }, [thread?.id, currentUserId, partnerId, messages, acknowledgeMessage]);
 
   const handleJumpToBottom = useCallback(() => {
     const container = scrollRef.current;
-    if (!container) return;
+    if (!container || !thread?.id || !currentUserId || !partnerId) return;
     container.scrollTop = container.scrollHeight;
     setNewMessagesCount(0);
     setShowNewBanner(false);
-  }, []);
+    
+    // Mark all messages as read when jumping to bottom
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      const hasPartnerMessages = messages.some(m => m.sender_id === partnerId && m.sender_id !== currentUserId);
+      if (hasPartnerMessages && lastMessage) {
+        acknowledgeMessage(lastMessage.id, thread.id, 'read');
+        fetch('/api/dms/messages.read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thread_id: thread.id,
+            up_to_message_id: String(lastMessage.id),
+          }),
+        }).catch((err) => {
+          console.error('Error marking messages as read on jump to bottom:', err);
+        });
+      }
+    }
+  }, [thread?.id, currentUserId, partnerId, messages, acknowledgeMessage]);
 
   // Auto-show/auto-hide banner with smooth animations
   useEffect(() => {
