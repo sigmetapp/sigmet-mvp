@@ -126,7 +126,7 @@ messages_24h as (
   where m.created_at >= now() - interval '24 hours'
   group by m.thread_id
 ),
-unread as (
+unread_last_read as (
   select
     nt.thread_id,
     (
@@ -139,9 +139,21 @@ unread as (
           coalesce(lrm.last_read_message_created_at, nt.last_read_at) is null
           or msg.created_at > coalesce(lrm.last_read_message_created_at, nt.last_read_at)
         )
-    ) as unread_count
+      ) as unread_count
   from normalized_threads nt
   left join last_read_markers lrm on lrm.thread_id = nt.thread_id
+),
+unread_receipts as (
+  select
+    msg.thread_id,
+    count(*) filter (where coalesce(r.status, 'sent') <> 'read') as unread_count
+  from public.dms_message_receipts r
+  join public.dms_messages msg
+    on msg.id::text = r.message_id::text
+  join normalized_threads nt on nt.thread_id = msg.thread_id
+  where r.user_id = p_user_id
+    and msg.deleted_at is null
+  group by msg.thread_id
 )
 select
   nt.thread_id::text as thread_id,
@@ -156,7 +168,7 @@ select
   coalesce(lm.attachments, '[]'::jsonb) as last_message_attachments,
   coalesce(lm.created_at, nt.last_message_at) as last_message_at,
   coalesce(m24.cnt, 0) as messages24h,
-  coalesce(u.unread_count, 0) as unread_count,
+  coalesce(ur.unread_count, ul.unread_count, 0) as unread_count,
   nt.is_pinned,
   nt.pinned_at,
   nt.notifications_muted,
@@ -169,7 +181,8 @@ join partners p on p.thread_id = nt.thread_id
 left join public.profiles prof on prof.user_id = p.partner_id
 left join last_messages lm on lm.thread_id = nt.thread_id
 left join messages_24h m24 on m24.thread_id = nt.thread_id
-left join unread u on u.thread_id = nt.thread_id
+left join unread_receipts ur on ur.thread_id = nt.thread_id
+left join unread_last_read ul on ul.thread_id = nt.thread_id
 order by
   nt.is_pinned desc,
   nt.pinned_at desc nulls last,
