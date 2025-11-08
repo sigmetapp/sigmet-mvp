@@ -65,20 +65,20 @@ export default function PostReportModal({
       />
       <div className="relative z-10 w-full max-w-md mx-auto p-4">
         <div
-          className={`telegram-card-glow p-4 md:p-6 space-y-4 ${
+          className={`card-glow-primary p-4 md:p-6 space-y-4 ${
             isLight ? '' : ''
           }`}
         >
           <div className="flex items-center justify-between">
-            <div className={`font-medium ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+            <div className={`font-medium ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
               Report Post
             </div>
             <button
               onClick={onClose}
               className={`transition ${
                 isLight
-                  ? 'text-telegram-text-secondary hover:text-telegram-blue'
-                  : 'text-telegram-text-secondary hover:text-telegram-blue-light'
+                  ? 'text-primary-text-secondary hover:text-primary-blue'
+                  : 'text-primary-text-secondary hover:text-primary-blue-light'
               }`}
               aria-label="Close"
             >
@@ -90,7 +90,7 @@ export default function PostReportModal({
             <div>
               <label
                 className={`block text-sm font-medium mb-2 ${
-                  isLight ? 'text-telegram-text' : 'text-telegram-text'
+                  isLight ? 'text-primary-text' : 'text-primary-text'
                 }`}
               >
                 Reason for complaint
@@ -102,8 +102,8 @@ export default function PostReportModal({
                     className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
                       selectedType === type.value
                         ? isLight
-                          ? 'border-telegram-blue bg-telegram-blue/10'
-                          : 'border-telegram-blue bg-telegram-blue/15'
+                          ? 'border-primary-blue bg-primary-blue/10'
+                          : 'border-primary-blue bg-primary-blue/15'
                         : isLight
                         ? 'border-black/10 hover:bg-black/5'
                         : 'border-white/10 hover:bg-white/5'
@@ -119,7 +119,7 @@ export default function PostReportModal({
                     />
                     <span
                       className={`text-sm ${
-                        isLight ? 'text-telegram-text' : 'text-telegram-text'
+                        isLight ? 'text-primary-text' : 'text-primary-text'
                       }`}
                     >
                       {type.label}
@@ -132,7 +132,7 @@ export default function PostReportModal({
             <div>
               <label
                 className={`block text-sm font-medium mb-2 ${
-                  isLight ? 'text-telegram-text' : 'text-telegram-text'
+                  isLight ? 'text-primary-text' : 'text-primary-text'
                 }`}
               >
                 Additional details
@@ -144,8 +144,8 @@ export default function PostReportModal({
                 rows={4}
                 className={`input w-full rounded-xl p-3 outline-none transition resize-none ${
                   isLight
-                    ? 'placeholder-telegram-text-secondary/60'
-                    : 'placeholder-telegram-text-secondary/50'
+                    ? 'placeholder-primary-text-secondary/60'
+                    : 'placeholder-primary-text-secondary/50'
                 }`}
               />
             </div>

@@ -316,7 +316,7 @@ export default function PostActionMenu({
         aria-label="Post actions"
         data-prevent-card-navigation="true"
         data-testid="action-trigger"
-        className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-telegram-text-secondary hover:text-telegram-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 active:scale-[0.95] relative z-[105]"
+        className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-primary-text-secondary hover:text-primary-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 active:scale-[0.95] relative z-[105]"
       >
         <motion.div
           whileHover={{ scale: 1.05 }}
@@ -377,7 +377,7 @@ export default function PostActionMenu({
                           type="button"
                           onClick={handleEdit}
                           role="menuitem"
-                          className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-telegram-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:bg-black/5 dark:focus-visible:bg-white/5"
+                          className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-primary-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:bg-black/5 dark:focus-visible:bg-white/5"
                         >
                           <Pencil className="h-4 w-4" />
                           <span>Edit</span>
@@ -414,11 +414,11 @@ export default function PostActionMenu({
                     >
                       <p
                         id="confirm-title"
-                        className="text-sm text-telegram-text font-medium"
+                        className="text-sm text-primary-text font-medium"
                       >
                         Confirm deletion
                       </p>
-                      <p className="text-xs text-telegram-text-secondary">
+                      <p className="text-xs text-primary-text-secondary">
                         Are you sure you want to delete this post? This action
                         cannot be undone.
                       </p>
@@ -427,7 +427,7 @@ export default function PostActionMenu({
                           ref={cancelButtonRef}
                           type="button"
                           onClick={handleDeleteCancel}
-                          className={`flex-1 px-3 py-2 rounded-lg text-sm border bg-transparent ${isLight ? 'border-black/20 text-telegram-text hover:bg-black/5' : 'border-white/10 text-telegram-text hover:bg-white/5'} transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-telegram-blue/50`}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm border bg-transparent ${isLight ? 'border-black/20 text-primary-text hover:bg-black/5' : 'border-white/10 text-primary-text hover:bg-white/5'} transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue/50`}
                         >
                           Cancel
                         </button>

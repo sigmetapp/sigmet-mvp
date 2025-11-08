@@ -1249,18 +1249,18 @@ export default function PublicProfilePage() {
                   <div className="mt-4">
                     <div className={`px-4 py-3 rounded-xl border-2 shadow-lg ${
                       isLight 
-                        ? 'border-telegram-blue/50 bg-gradient-to-r from-telegram-blue/15 to-telegram-blue-light/15' 
-                        : 'border-telegram-blue/40 bg-gradient-to-r from-telegram-blue/20 to-telegram-blue-light/20'
+                        ? 'border-primary-blue/50 bg-gradient-to-r from-primary-blue/15 to-primary-blue-light/15' 
+                        : 'border-primary-blue/40 bg-gradient-to-r from-primary-blue/20 to-primary-blue-light/20'
                     }`}>
                       <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                        isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                        isLight ? 'text-primary-text-secondary' : 'text-white/60'
                       }`}>
                         Focus on:
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-2xl leading-none">{primaryDirection.emoji}</span>
                         <span className={`text-base font-semibold ${
-                          isLight ? 'text-telegram-text' : 'text-white/90'
+                          isLight ? 'text-primary-text' : 'text-white/90'
                         }`}>
                           {primaryDirection.title}
                         </span>
@@ -1294,11 +1294,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Bio
                     </div>
-                    <div className={`text-sm leading-relaxed ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                    <div className={`text-sm leading-relaxed ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
                       {profile.bio}
                     </div>
                   </div>
@@ -1320,11 +1320,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Country - City
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
                       {(() => {
                         const city = String(profile.country).split(",")[0].trim();
                         return (
@@ -1355,11 +1355,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Projects / Startups / Portfolio
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
                       <a 
                         href={profile.website_url} 
                         target="_blank" 
@@ -1394,11 +1394,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Joined
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
                       {new Date(profile.created_at).toLocaleDateString('en-GB', { 
                         day: '2-digit', 
                         month: '2-digit', 
@@ -1428,11 +1428,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Relationship Status
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
                       {profile.relationship_status === 'single' ? 'Single' :
                        profile.relationship_status === 'looking' ? 'Looking' :
                        profile.relationship_status === 'dating' ? 'Dating' :
@@ -1457,11 +1457,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Place of Study
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
                       {educationalInstitution.name} ({educationalInstitution.type === 'school' ? 'School' : educationalInstitution.type === 'college' ? 'College' : 'University'})
                     </div>
                   </div>
@@ -1482,11 +1482,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Date of birth
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
                       {new Date(profile.date_of_birth).toLocaleDateString('en-GB', { 
                         day: '2-digit', 
                         month: '2-digit', 
@@ -1511,11 +1511,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Work & Career
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-white/90'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
                       {profile.work_career_status === 'employed' ? 'Employed' :
                        profile.work_career_status === 'entrepreneur' ? 'Entrepreneur' :
                        profile.work_career_status === 'student' ? 'Student' :
@@ -1546,11 +1546,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Connections
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-white/70'}`}>
                       Mutual connections
                     </div>
                   </div>
@@ -1578,11 +1578,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Following
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-white/70'}`}>
                       People you follow
                     </div>
                   </div>
@@ -1610,11 +1610,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Followers
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-white/70'}`}>
                       People following you
                     </div>
                   </div>
@@ -1642,11 +1642,11 @@ export default function PublicProfilePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
-                      isLight ? 'text-telegram-text-secondary' : 'text-white/60'
+                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
                     }`}>
                       Referrals
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-white/70'}`}>
+                    <div className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-white/70'}`}>
                       Invited users
                     </div>
                   </div>

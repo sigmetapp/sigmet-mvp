@@ -70,8 +70,8 @@ function AdminStatsInner() {
             disabled={loadingStats}
             className={`px-4 py-2 rounded-xl font-medium transition ${
               isLight
-                ? 'bg-telegram-blue text-white hover:bg-telegram-blue-dark'
-                : 'bg-telegram-blue text-white hover:bg-telegram-blue-dark'
+                ? 'bg-primary-blue text-white hover:bg-primary-blue-dark'
+                : 'bg-primary-blue text-white hover:bg-primary-blue-dark'
             } disabled:opacity-60`}
           >
             {loadingStats ? 'Loading...' : 'Refresh stats'}

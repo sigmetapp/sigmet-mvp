@@ -39,8 +39,8 @@ export default function Footer() {
               ) : (
                 <div className={`h-8 w-8 rounded-md grid place-items-center border ${
                   isLight 
-                    ? "bg-telegram-blue/10 border-telegram-blue/20 text-telegram-blue" 
-                    : "bg-telegram-blue/20 border-telegram-blue/30 text-telegram-blue-light"
+                    ? "bg-primary-blue/10 border-primary-blue/20 text-primary-blue" 
+                    : "bg-primary-blue/20 border-primary-blue/30 text-primary-blue-light"
                 }`}>
                   S
                 </div>
@@ -55,8 +55,8 @@ export default function Footer() {
                 onClick={() => setAdminOpen(true)}
                 className={`mt-3 px-3 py-1.5 rounded-full text-xs border transition ${
                   isLight
-                    ? 'text-telegram-blue border-telegram-blue/25 hover:bg-telegram-blue/10'
-                    : 'text-telegram-blue-light border-telegram-blue/30 hover:bg-telegram-blue/15'
+                    ? 'text-primary-blue border-primary-blue/25 hover:bg-primary-blue/10'
+                    : 'text-primary-blue-light border-primary-blue/30 hover:bg-primary-blue/15'
                 }`}
               >
                 Admin
@@ -102,32 +102,32 @@ export default function Footer() {
           />
           <div className="absolute bottom-0 left-0 right-0 p-3">
             <div className={`mx-auto max-w-[1088px] rounded-2xl border shadow-xl p-3 ${
-              isLight ? 'bg-white border-telegram-blue/15' : 'bg-[rgba(15,22,35,0.98)] border-telegram-blue/20'
+              isLight ? 'bg-white border-primary-blue/15' : 'bg-[rgba(15,22,35,0.98)] border-primary-blue/20'
             }`}>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <Link href="/settings" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
-                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
-                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                  isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
+                          : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
                 }`} onClick={() => setAdminOpen(false)}>Settings</Link>
                 <Link href="/admin/users" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
-                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
-                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                  isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
+                          : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
                 }`} onClick={() => setAdminOpen(false)}>Users</Link>
                 <Link href="/admin/stats" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
-                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
-                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                  isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
+                          : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
                 }`} onClick={() => setAdminOpen(false)}>Stats</Link>
                 <Link href="/admin/tickets" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
-                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
-                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                  isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
+                          : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
                 }`} onClick={() => setAdminOpen(false)}>Tickets</Link>
                 <Link href="/sw/weights" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
-                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
-                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                  isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
+                          : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
                 }`} onClick={() => setAdminOpen(false)}>SW Weights</Link>
                 <Link href="/test" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
-                  isLight ? 'text-telegram-text-secondary border border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
-                          : 'text-telegram-text-secondary border border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                  isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
+                          : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
                 }`} onClick={() => setAdminOpen(false)}>Performance</Link>
               </div>
             </div>

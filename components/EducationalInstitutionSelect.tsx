@@ -220,7 +220,7 @@ export default function EducationalInstitutionSelect({
                         {inst.city && ` • ${inst.city}`}
                         {inst.country && ` • ${inst.country}`}
                         {inst.source === "external" && (
-                          <span className="ml-1 text-telegram-blue">(external)</span>
+                          <span className="ml-1 text-primary-blue">(external)</span>
                         )}
                       </div>
                     </button>
@@ -233,7 +233,7 @@ export default function EducationalInstitutionSelect({
               {/* Always show option to use custom name */}
               <button
                 type="button"
-                className={`w-full text-left px-3 py-2 text-sm text-telegram-blue font-medium ${
+                className={`w-full text-left px-3 py-2 text-sm text-primary-blue font-medium ${
                   isLight ? "hover:bg-gray-100" : "hover:bg-white/5"
                 }`}
                 onClick={() => select(null)}

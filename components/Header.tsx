@@ -42,8 +42,8 @@ export default function Header() {
     <header
       className={`sticky top-0 z-50 backdrop-blur-md transition-colors ${
         isLight 
-          ? "border-b border-telegram-blue/15 bg-white/80 supports-[backdrop-filter]:bg-white/70" 
-          : "border-b border-telegram-blue/20 bg-[rgba(15,22,35,0.8)] supports-[backdrop-filter]:bg-[rgba(15,22,35,0.7)]"
+          ? "border-b border-primary-blue/15 bg-white/80 supports-[backdrop-filter]:bg-white/70" 
+          : "border-b border-primary-blue/20 bg-[rgba(15,22,35,0.8)] supports-[backdrop-filter]:bg-[rgba(15,22,35,0.7)]"
       }`}
     >
       <div className="max-w-[1088px] mx-auto px-4 h-14 relative">
@@ -61,13 +61,13 @@ export default function Header() {
           ) : (
             <div className={`h-9 w-9 rounded-md grid place-items-center border ${
               isLight 
-                ? "bg-telegram-blue/10 border-telegram-blue/20 text-telegram-blue" 
-                : "bg-telegram-blue/20 border-telegram-blue/30 text-telegram-blue-light"
+                ? "bg-primary-blue/10 border-primary-blue/20 text-primary-blue" 
+                : "bg-primary-blue/20 border-primary-blue/30 text-primary-blue-light"
             }`}>
               S
             </div>
           )}
-          <span className={`${isLight ? "text-telegram-text" : "text-telegram-text"} font-semibold tracking-tight hidden sm:inline`}>
+          <span className={`${isLight ? "text-primary-text" : "text-primary-text"} font-semibold tracking-tight hidden sm:inline`}>
             {site_name || "SIGMET"}
           </span>
           <span className={`px-2 py-0.5 rounded-md text-xs font-normal tracking-wide hidden sm:inline-flex items-center border ${
@@ -92,11 +92,11 @@ export default function Header() {
             const className = `px-3 py-1.5 rounded-lg text-sm font-medium transition ${
               active
                 ? isLight
-                  ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                  : "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                  ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                  : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
                 : isLight
-                ? "text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
-                : "text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
+                ? "text-primary-text-secondary hover:text-primary-blue hover:bg-primary-blue/10"
+                : "text-primary-text-secondary hover:text-primary-blue-light hover:bg-primary-blue/15"
             }`;
             return isExternal ? (
               <a
@@ -125,8 +125,8 @@ export default function Header() {
             aria-label="Toggle theme"
             className={`ml-2 h-9 w-9 grid place-items-center rounded-lg border transition ${
               isLight
-                ? "border-telegram-blue/20 text-telegram-blue hover:bg-telegram-blue/10"
-                : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/20"
+                ? "border-primary-blue/20 text-primary-blue hover:bg-primary-blue/10"
+                : "border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/20"
             }`}
             title={isLight ? "Switch to dark" : "Switch to light"}
           >
@@ -140,8 +140,8 @@ export default function Header() {
                 href="/login"
                 className={`ml-2 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition ${
                   isLight
-                    ? "border-telegram-blue text-telegram-blue hover:bg-telegram-blue/10"
-                    : "border-telegram-blue text-telegram-blue-light hover:bg-telegram-blue/15"
+                    ? "border-primary-blue text-primary-blue hover:bg-primary-blue/10"
+                    : "border-primary-blue text-primary-blue-light hover:bg-primary-blue/15"
                 }`}
               >
                 Log in
@@ -150,8 +150,8 @@ export default function Header() {
                 href="/signup"
                 className={`ml-2 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                   isLight
-                    ? "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                    : "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                    ? "bg-primary-blue text-white hover:bg-primary-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                    : "bg-primary-blue text-white hover:bg-primary-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
                 }`}
               >
                 Sign up
@@ -162,8 +162,8 @@ export default function Header() {
               onClick={handleLogout}
               className={`ml-2 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition ${
                 isLight
-                  ? "border-telegram-blue/30 text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
-                  : "border-telegram-blue/30 text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
+                  ? "border-primary-blue/30 text-primary-text-secondary hover:text-primary-blue hover:bg-primary-blue/10"
+                  : "border-primary-blue/30 text-primary-text-secondary hover:text-primary-blue-light hover:bg-primary-blue/15"
               }`}
             >
               Logout
@@ -187,8 +187,8 @@ export default function Header() {
             ) : (
               <div className={`h-7 w-7 rounded-md grid place-items-center border ${
                 isLight 
-                  ? "bg-telegram-blue/10 border-telegram-blue/20 text-telegram-blue" 
-                  : "bg-telegram-blue/20 border-telegram-blue/30 text-telegram-blue-light"
+                  ? "bg-primary-blue/10 border-primary-blue/20 text-primary-blue" 
+                  : "bg-primary-blue/20 border-primary-blue/30 text-primary-blue-light"
               }`}>
                 S
               </div>
@@ -207,8 +207,8 @@ export default function Header() {
               aria-label="Home"
               className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
                 isLight
-                  ? "border-telegram-blue/20 text-telegram-text-secondary hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                  : "border-telegram-blue/30 text-telegram-text-secondary hover:bg-telegram-blue/20 hover:text-telegram-blue-light"
+                  ? "border-primary-blue/20 text-primary-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue"
+                  : "border-primary-blue/30 text-primary-text-secondary hover:bg-primary-blue/20 hover:text-primary-blue-light"
               }`}
             >
               <Home size={18} />
@@ -218,8 +218,8 @@ export default function Header() {
               aria-label="Feed"
               className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
                 isLight
-                  ? "border-telegram-blue/20 text-telegram-text-secondary hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                  : "border-telegram-blue/30 text-telegram-text-secondary hover:bg-telegram-blue/20 hover:text-telegram-blue-light"
+                  ? "border-primary-blue/20 text-primary-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue"
+                  : "border-primary-blue/30 text-primary-text-secondary hover:bg-primary-blue/20 hover:text-primary-blue-light"
               }`}
             >
               <Rss size={18} />
@@ -229,8 +229,8 @@ export default function Header() {
               aria-label="Invite"
               className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
                 isLight
-                  ? "border-telegram-blue/20 text-telegram-text-secondary hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                  : "border-telegram-blue/30 text-telegram-text-secondary hover:bg-telegram-blue/20 hover:text-telegram-blue-light"
+                  ? "border-primary-blue/20 text-primary-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue"
+                  : "border-primary-blue/30 text-primary-text-secondary hover:bg-primary-blue/20 hover:text-primary-blue-light"
               }`}
             >
               <UserPlus size={18} />
@@ -242,8 +242,8 @@ export default function Header() {
               aria-label="Toggle theme"
               className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
                 isLight
-                  ? "border-telegram-blue/20 text-telegram-blue hover:bg-telegram-blue/10"
-                  : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/20"
+                  ? "border-primary-blue/20 text-primary-blue hover:bg-primary-blue/10"
+                  : "border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/20"
               }`}
               title={isLight ? "Switch to dark" : "Switch to light"}
             >

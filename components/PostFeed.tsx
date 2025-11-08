@@ -1057,11 +1057,11 @@ export default function PostFeed({
           className={`px-3 py-1.5 rounded-full text-sm transition border ${
             activeFilter === 'all'
               ? isLight
-                ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                ? "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                : "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
               : isLight
-              ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-              : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+              ? "text-primary-text-secondary border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue"
+              : "text-primary-text-secondary border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light"
           }`}
         >
           All
@@ -1074,11 +1074,11 @@ export default function PostFeed({
           className={`px-3 py-1.5 rounded-full text-sm transition border ${
             activeFilter === 'connections'
               ? isLight
-                ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                ? "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                : "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
               : isLight
-              ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-              : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+              ? "text-primary-text-secondary border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue"
+              : "text-primary-text-secondary border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light"
           }`}
         >
           Connections
@@ -1091,11 +1091,11 @@ export default function PostFeed({
           className={`px-3 py-1.5 rounded-full text-sm transition border ${
             activeFilter === 'discuss'
               ? isLight
-                ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                ? "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                : "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
               : isLight
-              ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-              : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+              ? "text-primary-text-secondary border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue"
+              : "text-primary-text-secondary border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light"
           }`}
         >
           {DISCUSS_EMOJI} Discuss
@@ -1124,11 +1124,11 @@ export default function PostFeed({
               className={`px-3 py-1.5 rounded-full text-sm transition border ${
                 active
                   ? isLight
-                    ? "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                    : "bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                    ? "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                    : "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
                   : isLight
-                  ? "text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue"
-                  : "text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light"
+                  ? "text-primary-text-secondary border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue"
+                  : "text-primary-text-secondary border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light"
               }`}
             >
               {label}
@@ -1208,7 +1208,7 @@ export default function PostFeed({
                 disableNavigation={true}
                 className={`card p-3 md:p-4 space-y-2 relative transition-transform duration-200 ease-out rounded-none md:rounded-none ${
                   hasCategory && categoryDirection
-                    ? 'ring-2 ring-telegram-blue border-2 border-telegram-blue/60 shadow-lg bg-gradient-to-br from-telegram-blue/5 to-telegram-blue-light/5'
+                    ? 'ring-2 ring-primary-blue border-2 border-primary-blue/60 shadow-lg bg-gradient-to-br from-primary-blue/5 to-primary-blue-light/5'
                     : ''
                 }`}
                 onMouseEnter={() => addViewOnce(p.id)}
@@ -1229,23 +1229,23 @@ export default function PostFeed({
                           <a 
                             href={`/u/${encodeURIComponent(profile?.username || p.user_id || '')}`}
                             onClick={(e) => e.stopPropagation()}
-                            className={`text-sm truncate hover:underline ${isLight ? "text-telegram-text" : "text-telegram-text"}`}
+                            className={`text-sm truncate hover:underline ${isLight ? "text-primary-text" : "text-primary-text"}`}
                             data-prevent-card-navigation="true"
                           >
                             {username}
                           </a>
                           {(fullName || p.category || postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                            <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                            <span className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
                               |
                             </span>
                           )}
                           {fullName && (
                             <>
-                              <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                              <span className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
                                 {fullName}
                               </span>
                               {(p.category || postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                <span className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
                                   |
                                 </span>
                               )}
@@ -1256,16 +1256,16 @@ export default function PostFeed({
                               <div className={`text-xs px-2 py-1 rounded-md font-medium ${
                                 hasCategory && categoryDirection
                                   ? isLight
-                                    ? 'bg-telegram-blue/25 text-telegram-blue border border-telegram-blue/40 shadow-sm'
-                                    : 'bg-telegram-blue/35 text-telegram-blue-light border border-telegram-blue/60 shadow-sm'
+                                    ? 'bg-primary-blue/25 text-primary-blue border border-primary-blue/40 shadow-sm'
+                                    : 'bg-primary-blue/35 text-primary-blue-light border border-primary-blue/60 shadow-sm'
                                   : isLight
-                                  ? 'text-telegram-text-secondary bg-telegram-bg-secondary/50'
-                                  : 'text-telegram-text-secondary bg-white/5'
+                                  ? 'text-primary-text-secondary bg-primary-bg-secondary/50'
+                                  : 'text-primary-text-secondary bg-white/5'
                               }`}>
                                 {categoryDirection ? `${categoryDirection.emoji} ${p.category}` : p.category}
                               </div>
                               {(postHasMentions || (growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0)) && (
-                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                <span className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
                                   |
                                 </span>
                               )}
@@ -1281,7 +1281,7 @@ export default function PostFeed({
                                 Connections
                               </div>
                               {(growthStatusesByPostId[p.id] && growthStatusesByPostId[p.id].length > 0) && (
-                                <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                                <span className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
                                   |
                                 </span>
                               )}
@@ -1317,8 +1317,8 @@ export default function PostFeed({
                         }}
                         className={`p-1.5 rounded-full transition z-30 shrink-0 ${
                           isLight
-                            ? 'bg-white/95 hover:bg-white text-telegram-text-secondary hover:text-red-600 border border-black/20 shadow-md'
-                            : 'bg-black/80 hover:bg-black/90 text-telegram-text-secondary hover:text-red-400 border border-white/20 shadow-md'
+                            ? 'bg-white/95 hover:bg-white text-primary-text-secondary hover:text-red-600 border border-black/20 shadow-md'
+                            : 'bg-black/80 hover:bg-black/90 text-primary-text-secondary hover:text-red-400 border border-white/20 shadow-md'
                         }`}
                         title="Report post"
                         data-prevent-card-navigation="true"
@@ -1334,7 +1334,7 @@ export default function PostFeed({
                       <textarea
                         value={editBody}
                         onChange={(e) => setEditBody(e.target.value)}
-                        className={`input w-full rounded-2xl p-3 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                        className={`input w-full rounded-2xl p-3 ${isLight ? "placeholder-primary-text-secondary/60" : "placeholder-primary-text-secondary/50"}`}
                       />
                       <div className="flex gap-2">
                         <Button onClick={() => saveEdit(p)} variant="primary">Save</Button>
@@ -1359,13 +1359,13 @@ export default function PostFeed({
                       role="button"
                       aria-label="Open post"
                     >
-                      {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>{formatTextWithMentions(p.body)}</p>}
+                      {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-primary-text" : "text-primary-text"}`}>{formatTextWithMentions(p.body)}</p>}
                       {p.image_url && (
                         <div className="mt-3 flex justify-center">
                           <img 
                             src={p.image_url} 
                             loading="lazy" 
-                            className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border object-contain ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`} 
+                            className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border object-contain ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`} 
                             alt="post image" 
                           />
                         </div>
@@ -1378,7 +1378,7 @@ export default function PostFeed({
                               preload="metadata"
                               playsInline
                               poster={p.image_url || undefined}
-                              className={`w-full max-w-full max-h-[500px] h-auto rounded-none border relative ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+                              className={`w-full max-w-full max-h-[500px] h-auto rounded-none border relative ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`}
                               style={{ objectFit: 'contain' }}
                               onLoadedMetadata={(e) => {
                                 // Once video metadata is loaded, hide the placeholder
@@ -1422,7 +1422,7 @@ export default function PostFeed({
                   )}
 
                   {/* footer */}
-                  <div className={`flex items-center gap-5 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                  <div className={`flex items-center gap-5 ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1590,7 +1590,7 @@ export default function PostFeed({
                             }))
                           }
                           placeholder="Write a comment?"
-                          className={`input py-2 focus:ring-0 flex-1 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                          className={`input py-2 focus:ring-0 flex-1 ${isLight ? "placeholder-primary-text-secondary/60" : "placeholder-primary-text-secondary/50"}`}
                           style={{ fontSize: '16px' }} // Prevent zoom on mobile
                         />
                         <input
@@ -1607,15 +1607,15 @@ export default function PostFeed({
                           htmlFor={`cfile-${p.id}`}
                           className={`px-3 py-2 rounded-xl border text-sm cursor-pointer transition flex items-center justify-center gap-2 ${
                             isLight
-                              ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                              : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                              ? "border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10"
+                              : "border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/15"
                           }`}
                         >
                           <Paperclip className="h-4 w-4" aria-hidden="true" />
                           <span className="sr-only">Attach file</span>
                         </label>
                         {commentFile[p.id] && (
-                          <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>{commentFile[p.id]?.name}</span>
+                          <span className={`text-xs truncate max-w-[120px] ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>{commentFile[p.id]?.name}</span>
                         )}
                         <button onClick={() => addComment(p.id)} className="btn btn-primary">
                           Send
@@ -1646,7 +1646,7 @@ export default function PostFeed({
             </div>
           )}
           {!hasMore && posts.length > 0 && (
-            <div className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+            <div className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
               No more posts
             </div>
           )}
@@ -1746,12 +1746,12 @@ export default function PostFeed({
             onClick={() => !publishing && setComposerOpen(false)}
           />
           <div className="relative z-10 w-full max-w-xl mx-auto p-4">
-            <div className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? "" : ""}`}>
+            <div className={`card-glow-primary p-4 md:p-6 space-y-4 ${isLight ? "" : ""}`}>
               <div className="flex items-center justify-between">
-                <div className={`font-medium ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create post</div>
+                <div className={`font-medium ${isLight ? "text-primary-text" : "text-primary-text"}`}>Create post</div>
                 <button
                   onClick={() => !publishing && setComposerOpen(false)}
-                  className={`transition ${isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"}`}
+                  className={`transition ${isLight ? "text-primary-text-secondary hover:text-primary-blue" : "text-primary-text-secondary hover:text-primary-blue-light"}`}
                   aria-label="Close composer"
                 >
                   <CloseIcon className="h-5 w-5" aria-hidden="true" />
@@ -1767,7 +1767,7 @@ export default function PostFeed({
                 value={text}
                 onChange={setText}
                 placeholder="What do you want to share?"
-                className={`input w-full outline-none min-h-[120px] text-base md:text-lg ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                className={`input w-full outline-none min-h-[120px] text-base md:text-lg ${isLight ? "placeholder-primary-text-secondary/60" : "placeholder-primary-text-secondary/50"}`}
                 userId={uid}
               />
               <input
@@ -1793,15 +1793,15 @@ export default function PostFeed({
                   onClick={() => unifiedFileRef.current?.click()}
                   className={`px-3 py-2 rounded-xl border text-sm transition flex items-center gap-2 ${
                     isLight
-                      ? "border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10"
-                      : "border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15"
+                      ? "border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10"
+                      : "border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/15"
                   }`}
                 >
                   <ImageIcon className="h-4 w-4" aria-hidden="true" />
                   <span>Media</span>
                 </button>
                 {(img || vid) && (
-                  <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+                  <span className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
                     {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
                   </span>
                 )}

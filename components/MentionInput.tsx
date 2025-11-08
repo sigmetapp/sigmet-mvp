@@ -195,7 +195,7 @@ export default function MentionInput({
                 onClick={() => insertMention(user)}
                 className={`w-full px-3 py-2 text-left transition-colors ${
                   index === selectedIndex 
-                    ? 'bg-telegram-blue/20 dark:bg-telegram-blue/30' 
+                    ? 'bg-primary-blue/20 dark:bg-primary-blue/30' 
                     : 'hover:bg-white/50 dark:hover:bg-slate-700/50'
                 }`}
               >
@@ -216,7 +216,7 @@ export default function MentionInput({
                     <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
                       @{username}
                       {isFollowing && isFollower && (
-                        <span className="ml-1 text-telegram-blue dark:text-telegram-blue-light">• mutual</span>
+                        <span className="ml-1 text-primary-blue dark:text-primary-blue-light">• mutual</span>
                       )}
                       {isFollowing && !isFollower && (
                         <span className="ml-1 text-slate-400">• following</span>

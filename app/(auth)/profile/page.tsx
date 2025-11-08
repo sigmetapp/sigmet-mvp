@@ -164,14 +164,14 @@ function ProfileSettings() {
 
   return (
     <main className="max-w-2xl mx-auto px-0 md:px-4 py-4 md:p-4">
-      <div className="telegram-card-glow p-4 md:p-5 space-y-3">
-        <h1 className={`text-lg font-semibold ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Profile settings</h1>
+      <div className="card-glow-primary p-4 md:p-5 space-y-3">
+        <h1 className={`text-lg font-semibold ${isLight ? "text-primary-text" : "text-primary-text"}`}>Profile settings</h1>
 
         {/* Avatar section - more compact */}
         <div className="flex items-center gap-3 pb-2 border-b border-white/10">
           <img
             src={profile.avatar_url || AVATAR_FALLBACK}
-            className={`w-16 h-16 rounded-full object-cover border-2 ${isLight ? "border-telegram-blue/20" : "border-telegram-blue/30"}`}
+            className={`w-16 h-16 rounded-full object-cover border-2 ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`}
             alt="avatar"
           />
           <div className="flex-1">
@@ -187,8 +187,8 @@ function ProfileSettings() {
                 htmlFor="avatar-upload"
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
                   isLight
-                    ? "bg-telegram-blue text-white hover:bg-telegram-blue-dark"
-                    : "bg-telegram-blue text-white hover:bg-telegram-blue-dark"
+                    ? "bg-primary-blue text-white hover:bg-primary-blue-dark"
+                    : "bg-primary-blue text-white hover:bg-primary-blue-dark"
                 }`}
               >
                 Choose file
@@ -205,7 +205,7 @@ function ProfileSettings() {
               )}
             </div>
             {file && (
-              <div className={`text-xs mt-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+              <div className={`text-xs mt-1 ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
                 {file.name}
               </div>
             )}
@@ -407,9 +407,9 @@ function ProfileSettings() {
                 name="online_status"
                 checked={profile.show_online_status !== false}
                 onChange={() => setProfile({ ...profile, show_online_status: true })}
-                className={isLight ? "text-telegram-blue" : "text-telegram-blue-light"}
+                className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
               />
-              <span className={`text-sm ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Show</span>
+              <span className={`text-sm ${isLight ? "text-primary-text" : "text-primary-text"}`}>Show</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -417,9 +417,9 @@ function ProfileSettings() {
                 name="online_status"
                 checked={profile.show_online_status === false}
                 onChange={() => setProfile({ ...profile, show_online_status: false })}
-                className={isLight ? "text-telegram-blue" : "text-telegram-blue-light"}
+                className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
               />
-              <span className={`text-sm ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Hide</span>
+              <span className={`text-sm ${isLight ? "text-primary-text" : "text-primary-text"}`}>Hide</span>
             </label>
           </div>
         </div>

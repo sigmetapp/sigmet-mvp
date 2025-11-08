@@ -8,14 +8,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'telegram-blue': '#3390EC',
-        'telegram-blue-light': '#5BA8F0',
-        'telegram-blue-dark': '#2B7ED6',
-        'telegram-bg': '#FFFFFF',
-        'telegram-bg-secondary': '#F1F1F1',
-        'telegram-text': '#000000',
-        'telegram-text-secondary': '#707579',
-        'telegram-hover': '#F0F0F0',
+        'primary-blue': '#3390EC',
+        'primary-blue-light': '#5BA8F0',
+        'primary-blue-dark': '#2B7ED6',
+        'primary-bg': '#FFFFFF',
+        'primary-bg-secondary': '#F1F1F1',
+        'primary-text': '#000000',
+        'primary-text-secondary': '#707579',
+        'primary-hover': '#F0F0F0',
       },
     },
   },

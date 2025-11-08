@@ -154,7 +154,7 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
               <div className="flex items-center justify-between mb-4">
                 <h3
                   className={`text-lg font-semibold ${
-                    isLight ? 'text-telegram-text' : 'text-telegram-text'
+                    isLight ? 'text-primary-text' : 'text-primary-text'
                   }`}
                 >
                   Views Last 7 Days
@@ -163,8 +163,8 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
                   onClick={onClose}
                   className={`p-1 rounded-lg transition ${
                     isLight
-                      ? 'text-telegram-text-secondary hover:bg-black/5'
-                      : 'text-telegram-text-secondary hover:bg-white/5'
+                      ? 'text-primary-text-secondary hover:bg-black/5'
+                      : 'text-primary-text-secondary hover:bg-white/5'
                   }`}
                   aria-label="Close"
                 >
@@ -176,7 +176,7 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
               {loading ? (
                 <div
                   className={`h-[200px] flex items-center justify-center ${
-                    isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'
+                    isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'
                   }`}
                 >
                   Loading...
@@ -184,7 +184,7 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
               ) : views.length === 0 ? (
                 <div
                   className={`h-[200px] flex items-center justify-center ${
-                    isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'
+                    isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'
                   }`}
                 >
                   No view data available
@@ -243,7 +243,7 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
                                 y={y - 5}
                                 textAnchor="middle"
                                 className={`text-xs font-medium ${
-                                  isLight ? 'fill-telegram-text' : 'fill-telegram-text'
+                                  isLight ? 'fill-primary-text' : 'fill-primary-text'
                                 }`}
                               >
                                 {view.view_count}
@@ -255,7 +255,7 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
                               y={chartHeight - padding + 15}
                               textAnchor="middle"
                               className={`text-xs ${
-                                isLight ? 'fill-telegram-text-secondary' : 'fill-telegram-text-secondary'
+                                isLight ? 'fill-primary-text-secondary' : 'fill-primary-text-secondary'
                               }`}
                             >
                               {getDayLabel(view.view_date)}
@@ -266,7 +266,7 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
                               y={chartHeight - padding + 28}
                               textAnchor="middle"
                               className={`text-xs ${
-                                isLight ? 'fill-telegram-text-secondary' : 'fill-telegram-text-secondary'
+                                isLight ? 'fill-primary-text-secondary' : 'fill-primary-text-secondary'
                               }`}
                             >
                               {formatDate(view.view_date)}
@@ -280,7 +280,7 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
                   {/* Summary */}
                   <div
                     className={`text-sm pt-2 border-t ${
-                      isLight ? 'border-black/10 text-telegram-text-secondary' : 'border-white/10 text-telegram-text-secondary'
+                      isLight ? 'border-black/10 text-primary-text-secondary' : 'border-white/10 text-primary-text-secondary'
                     }`}
                   >
                     <div className="flex items-center justify-between">

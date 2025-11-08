@@ -235,7 +235,7 @@ export default function SWWeightsPage() {
             onClick={() => setActiveSection(section)}
             className={`px-4 py-2 text-sm font-medium transition-colors capitalize ${
               activeSection === section
-                ? 'text-white border-b-2 border-telegram-blue'
+                ? 'text-white border-b-2 border-primary-blue'
                 : 'text-white/60 hover:text-white/80'
             }`}
           >
@@ -255,7 +255,7 @@ export default function SWWeightsPage() {
                 type="number"
                 value={editedWeights.registration_points ?? weights.registration_points ?? 0}
                 onChange={(e) => setEditedWeights({ ...editedWeights, registration_points: parseInt(e.target.value) || 0 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">pts per registration</div>
             </div>
@@ -266,7 +266,7 @@ export default function SWWeightsPage() {
                 type="number"
                 value={editedWeights.profile_complete_points ?? weights.profile_complete_points ?? 0}
                 onChange={(e) => setEditedWeights({ ...editedWeights, profile_complete_points: parseInt(e.target.value) || 0 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">pts when complete</div>
             </div>
@@ -277,7 +277,7 @@ export default function SWWeightsPage() {
                 type="number"
                 value={editedWeights.growth_total_points_multiplier ?? weights.growth_total_points_multiplier ?? 1}
                 onChange={(e) => setEditedWeights({ ...editedWeights, growth_total_points_multiplier: parseInt(e.target.value) || 1 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">multiplier</div>
             </div>
@@ -288,7 +288,7 @@ export default function SWWeightsPage() {
                 type="number"
                 value={editedWeights.follower_points ?? weights.follower_points ?? 0}
                 onChange={(e) => setEditedWeights({ ...editedWeights, follower_points: parseInt(e.target.value) || 0 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">pts per follower</div>
             </div>
@@ -299,7 +299,7 @@ export default function SWWeightsPage() {
                 type="number"
                 value={editedWeights.connection_first_points ?? weights.connection_first_points ?? 0}
                 onChange={(e) => setEditedWeights({ ...editedWeights, connection_first_points: parseInt(e.target.value) || 0 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">pts per first connection</div>
             </div>
@@ -310,7 +310,7 @@ export default function SWWeightsPage() {
                 type="number"
                 value={editedWeights.connection_repeat_points ?? weights.connection_repeat_points ?? 0}
                 onChange={(e) => setEditedWeights({ ...editedWeights, connection_repeat_points: parseInt(e.target.value) || 0 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">pts per repeat connection</div>
             </div>
@@ -321,7 +321,7 @@ export default function SWWeightsPage() {
                 type="number"
                 value={editedWeights.post_points ?? weights.post_points ?? 0}
                 onChange={(e) => setEditedWeights({ ...editedWeights, post_points: parseInt(e.target.value) || 0 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">pts per post</div>
             </div>
@@ -332,7 +332,7 @@ export default function SWWeightsPage() {
                 type="number"
                 value={editedWeights.comment_points ?? weights.comment_points ?? 0}
                 onChange={(e) => setEditedWeights({ ...editedWeights, comment_points: parseInt(e.target.value) || 0 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">pts per comment</div>
             </div>
@@ -343,7 +343,7 @@ export default function SWWeightsPage() {
                 type="number"
                 value={editedWeights.reaction_points ?? weights.reaction_points ?? 0}
                 onChange={(e) => setEditedWeights({ ...editedWeights, reaction_points: parseInt(e.target.value) || 0 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">pts per reaction</div>
             </div>
@@ -363,7 +363,7 @@ export default function SWWeightsPage() {
                 step="0.0001"
                 value={editedWeights.daily_inflation_rate ?? weights.daily_inflation_rate ?? 0.001}
                 onChange={(e) => setEditedWeights({ ...editedWeights, daily_inflation_rate: parseFloat(e.target.value) || 0.001 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">per day (0.001 = 0.1%)</div>
             </div>
@@ -375,7 +375,7 @@ export default function SWWeightsPage() {
                 step="0.0001"
                 value={editedWeights.user_growth_inflation_rate ?? weights.user_growth_inflation_rate ?? 0.0001}
                 onChange={(e) => setEditedWeights({ ...editedWeights, user_growth_inflation_rate: parseFloat(e.target.value) || 0.0001 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">per 100 users (0.0001 = 0.01%)</div>
             </div>
@@ -389,7 +389,7 @@ export default function SWWeightsPage() {
                 max="1"
                 value={editedWeights.min_inflation_rate ?? weights.min_inflation_rate ?? 0.5}
                 onChange={(e) => setEditedWeights({ ...editedWeights, min_inflation_rate: parseFloat(e.target.value) || 0.5 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">min value (0.5 = 50%)</div>
             </div>
@@ -408,7 +408,7 @@ export default function SWWeightsPage() {
                 type="number"
                 value={editedWeights.invite_points ?? weights.invite_points ?? 50}
                 onChange={(e) => setEditedWeights({ ...editedWeights, invite_points: parseInt(e.target.value) || 50 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">pts per invite</div>
             </div>
@@ -422,7 +422,7 @@ export default function SWWeightsPage() {
                 max="1"
                 value={editedWeights.growth_bonus_percentage ?? weights.growth_bonus_percentage ?? 0.05}
                 onChange={(e) => setEditedWeights({ ...editedWeights, growth_bonus_percentage: parseFloat(e.target.value) || 0.05 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">(0.05 = 5%)</div>
             </div>
@@ -442,7 +442,7 @@ export default function SWWeightsPage() {
                 min="1"
                 value={editedWeights.cache_duration_minutes ?? weights.cache_duration_minutes ?? 5}
                 onChange={(e) => setEditedWeights({ ...editedWeights, cache_duration_minutes: parseInt(e.target.value) || 5 })}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
               />
               <div className="text-white/60 text-sm w-32">minutes</div>
             </div>
@@ -471,7 +471,7 @@ export default function SWWeightsPage() {
                     type="text"
                     value={level.name}
                     onChange={(e) => updateLevel(index, 'name', e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                    className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
                     placeholder="Level name"
                   />
                   <Button
@@ -489,7 +489,7 @@ export default function SWWeightsPage() {
                       type="number"
                       value={level.minSW}
                       onChange={(e) => updateLevel(index, 'minSW', parseInt(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                      className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
                     />
                   </div>
                   <div className="flex-1">
@@ -498,7 +498,7 @@ export default function SWWeightsPage() {
                       type="number"
                       value={level.maxSW ?? ''}
                       onChange={(e) => updateLevel(index, 'maxSW', e.target.value ? parseInt(e.target.value) : undefined)}
-                      className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-telegram-blue/50"
+                      className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-primary-blue/50"
                       placeholder="Leave empty for unlimited"
                     />
                   </div>

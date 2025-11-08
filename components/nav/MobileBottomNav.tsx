@@ -34,8 +34,8 @@ export default function MobileBottomNav({ user }: BottomNavProps) {
       <nav
         className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-md px-2 py-2 safe-bottom ${
           isLight
-            ? 'bg-white/90 border-telegram-blue/15'
-            : 'bg-[rgba(15,22,35,0.9)] border-telegram-blue/20'
+            ? 'bg-white/90 border-primary-blue/15'
+            : 'bg-[rgba(15,22,35,0.9)] border-primary-blue/20'
         }`}
       >
         <div className="mx-auto max-w-[1088px]">
@@ -49,11 +49,11 @@ export default function MobileBottomNav({ user }: BottomNavProps) {
                 className={`h-10 w-full grid place-items-center rounded-lg border transition ${
                   active
                     ? isLight
-                      ? 'bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-telegram-blue'
-                      : 'bg-telegram-blue/25 text-telegram-blue-light border-telegram-blue/40'
+                      ? 'bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-primary-blue'
+                      : 'bg-primary-blue/25 text-primary-blue-light border-primary-blue/40'
                     : isLight
-                    ? 'text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
-                    : 'text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                    ? 'text-primary-text-secondary border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
+                    : 'text-primary-text-secondary border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
                 }`}
               >
                 <span aria-hidden>{item.icon}</span>
