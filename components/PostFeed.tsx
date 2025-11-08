@@ -27,6 +27,7 @@ import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
 import PostSkeleton from "@/components/PostSkeleton";
+import { resolveAvatarUrl } from "@/lib/utils";
 
 function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
@@ -1202,7 +1203,7 @@ export default function PostFeed({
         <AnimatePresence mode="popLayout">
           {posts.map((p, index) => {
           const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
-          const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+          const avatar = resolveAvatarUrl(profile?.avatar_url) ?? AVATAR_FALLBACK;
           const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
           const fullName = profile?.full_name || null;
           const commentCount = commentCounts[p.id] ?? 0;

@@ -17,6 +17,7 @@ import ViewsChart from '@/components/ViewsChart';
 import PostReportModal from '@/components/PostReportModal';
 import PostDetailSkeleton from '@/components/PostDetailSkeleton';
 import ProgressiveImage from '@/components/ProgressiveImage';
+import { resolveAvatarUrl } from '@/lib/utils';
 
 type PostRecord = {
   id: number;
@@ -594,7 +595,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       return list.map((comment) => {
         const profile = comment.user_id ? commenterProfiles[comment.user_id] : undefined;
         const username = profile?.username || (comment.user_id ? comment.user_id.slice(0, 8) : 'Anon');
-        const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+        const avatar = resolveAvatarUrl(profile?.avatar_url) ?? AVATAR_FALLBACK;
         const swScore = comment.user_id ? (commenterSWScores[comment.user_id] ?? 0) : 0;
         const profileUrl = comment.user_id ? (profile?.username ? `/u/${profile.username}` : `/u/${comment.user_id}`) : undefined;
 
@@ -738,7 +739,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   }, [post?.created_at, post?.updated_at]);
 
   const commentCount = comments.length || initialPost.commentCount || 0;
-  const avatar = authorProfile?.avatar_url || AVATAR_FALLBACK;
+  const avatar = resolveAvatarUrl(authorProfile?.avatar_url) ?? AVATAR_FALLBACK;
   const username = authorProfile?.username || (post.user_id ? post.user_id.slice(0, 8) : 'anon');
   const fullName = authorProfile?.full_name || null;
 

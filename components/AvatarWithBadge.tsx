@@ -3,6 +3,7 @@
 import React from 'react';
 import { getSWLevel, getLevelColorScheme, shouldShowBadge, type SWLevel } from '@/lib/swLevels';
 import ProgressiveImage from './ProgressiveImage';
+import { resolveAvatarUrl } from '@/lib/utils';
 
 type AvatarWithBadgeProps = {
   avatarUrl: string;
@@ -35,11 +36,12 @@ export default function AvatarWithBadge({
   const showBadge = shouldShowBadge(swScore, swLevels);
   const level = getSWLevel(swScore, swLevels);
   const colorScheme = getLevelColorScheme(level.name);
+  const normalizedAvatarUrl = resolveAvatarUrl(avatarUrl) ?? avatarUrl;
 
   const avatarElement = (
     <div className={`relative inline-block ${sizeClasses[size]} ${className}`}>
       <ProgressiveImage
-        src={avatarUrl}
+        src={normalizedAvatarUrl}
         alt={alt}
         width={size === 'sm' ? 50 : size === 'md' ? 60 : 80}
         height={size === 'sm' ? 50 : size === 'md' ? 60 : 80}

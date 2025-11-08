@@ -5,6 +5,7 @@ import { Search, User, MapPin, FileText, X } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "@/components/ThemeProvider";
 import { useRouter } from "next/navigation";
+import { resolveAvatarUrl } from "@/lib/utils";
 
 interface SearchResult {
   people: Array<{
@@ -50,6 +51,8 @@ export default function SearchInput({ className = "" }: { className?: string }) 
   const { theme } = useTheme();
   const router = useRouter();
   const isLight = theme === "light";
+  const AVATAR_FALLBACK =
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
 
   // Detect mobile
   useEffect(() => {
@@ -318,33 +321,43 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                         }`}>
                           People
                         </div>
-                        {results.people.map((person) => (
-                          <Link
-                            key={person.user_id}
-                            href={`/u/${person.username || person.user_id}`}
-                            onClick={() => {
-                              setIsOpen(false);
-                              setIsModalOpen(false);
-                              setQuery("");
-                            }}
-                            className={`flex items-center gap-3 px-4 py-3 hover:bg-opacity-50 transition ${
-                              isLight ? "hover:bg-primary-blue/10" : "hover:bg-white/5"
-                            }`}
-                          >
-                            {person.avatar_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={person.avatar_url}
-                                alt={person.full_name || person.username || "User"}
-                                className="w-10 h-10 rounded-full"
-                              />
-                            ) : (
-                              <div className={`w-10 h-10 rounded-full grid place-items-center ${
-                                isLight ? "bg-primary-blue/10 text-primary-blue" : "bg-primary-blue/20 text-primary-blue-light"
-                              }`}>
-                                <User size={20} />
-                              </div>
-                            )}
+                          {results.people.map((person) => (
+                            <Link
+                              key={person.user_id}
+                              href={`/u/${person.username || person.user_id}`}
+                              onClick={() => {
+                                setIsOpen(false);
+                                setIsModalOpen(false);
+                                setQuery("");
+                              }}
+                              className={`flex items-center gap-3 px-4 py-3 hover:bg-opacity-50 transition ${
+                                isLight ? "hover:bg-primary-blue/10" : "hover:bg-white/5"
+                              }`}
+                            >
+                              {(() => {
+                                const avatarSrc = resolveAvatarUrl(person.avatar_url);
+                                if (avatarSrc) {
+                                  return (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={avatarSrc}
+                                      alt={person.full_name || person.username || "User"}
+                                      className="w-10 h-10 rounded-full"
+                                    />
+                                  );
+                                }
+                                return (
+                                  <div
+                                    className={`w-10 h-10 rounded-full grid place-items-center ${
+                                      isLight
+                                        ? "bg-primary-blue/10 text-primary-blue"
+                                        : "bg-primary-blue/20 text-primary-blue-light"
+                                    }`}
+                                  >
+                                    <User size={20} />
+                                  </div>
+                                );
+                              })()}
                             <div className="flex-1 min-w-0">
                               <div className={`text-base font-medium truncate ${
                                 isLight ? "text-primary-text" : "text-primary-text"

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
+import { resolveAvatarUrl } from '@/lib/utils';
 
 interface ProfileRow {
   user_id: string;
@@ -76,13 +77,16 @@ function CityUsersInner() {
             {users.map((u) => (
               <li key={u.user_id} className="py-3 flex items-center gap-3">
                 <img
-                  src={u.avatar_url || AVATAR_FALLBACK}
+                  src={resolveAvatarUrl(u.avatar_url) ?? AVATAR_FALLBACK}
                   alt="avatar"
                   className="h-10 w-10 rounded-full object-cover border border-white/10"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="text-white truncate">
-                    <Link href={`/u/${encodeURIComponent(u.username || u.user_id)}`} className="hover:underline">
+                    <Link
+                      href={`/u/${encodeURIComponent(u.username || u.user_id)}`}
+                      className="hover:underline"
+                    >
                       {u.full_name || u.username || u.user_id.slice(0, 8)}
                     </Link>
                   </div>

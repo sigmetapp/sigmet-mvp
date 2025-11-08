@@ -12,6 +12,7 @@ import Toast from '@/components/Toast';
 import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 import type { DmAttachment } from '@/lib/dm/attachments';
 import DmsLoading from './loading';
+import { resolveAvatarUrl } from '@/lib/utils';
 
 export default function DmsPage() {
   return (
@@ -1209,42 +1210,42 @@ function DmsInner() {
                   <br />
                   Start a conversation by visiting a user's profile.
                 </div>
-              ) : !hasResults && isSearching ? (
-                <div className="text-white/60 text-sm py-6 text-center">
-                  No matches found for{' '}
-                  <span className="font-semibold text-white">“{searchTerm.trim()}”</span>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {partnerSections.map((section) => (
-                    <div key={section.key}>
-                      <div className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-white/40">
-                        {section.label}
-                      </div>
-                      <div className="space-y-1">
-                        {section.items.map((partner) => {
-                          const name =
-                            partner.full_name || partner.username || partner.user_id.slice(0, 8);
-                          const avatar = partner.avatar_url || AVATAR_FALLBACK;
-                          const isSelected = selectedPartnerId === partner.user_id;
-                          const isHighlighted = highlightedPartnerId === partner.user_id;
-                          const previewMeta = deriveMessagePreview(partner, currentUserId);
-                          const timestampLabel = formatRelativeTime(
-                            partner.last_message_at ?? partner.created_at
-                          );
-                          const presenceStatus = getPresenceStatus(partner, presenceOnlineMap);
-                          const presenceClasses =
-                            presenceStatus === 'online'
-                              ? 'bg-emerald-400'
-                              : presenceStatus === 'recent'
-                                ? 'bg-amber-400'
-                                : 'bg-white/30';
-                          const presenceLabel =
-                            presenceStatus === 'online'
-                              ? 'Online'
-                              : presenceStatus === 'recent'
-                                ? 'Active recently'
-                                : 'Offline';
+                ) : !hasResults && isSearching ? (
+                  <div className="text-white/60 text-sm py-6 text-center">
+                    No matches found for{' '}
+                    <span className="font-semibold text-white">“{searchTerm.trim()}”</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {partnerSections.map((section) => (
+                      <div key={section.key}>
+                        <div className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-white/40">
+                          {section.label}
+                        </div>
+                        <div className="space-y-1">
+                          {section.items.map((partner) => {
+                            const name =
+                              partner.full_name || partner.username || partner.user_id.slice(0, 8);
+                            const avatar = resolveAvatarUrl(partner.avatar_url) ?? AVATAR_FALLBACK;
+                            const isSelected = selectedPartnerId === partner.user_id;
+                            const isHighlighted = highlightedPartnerId === partner.user_id;
+                            const previewMeta = deriveMessagePreview(partner, currentUserId);
+                            const timestampLabel = formatRelativeTime(
+                              partner.last_message_at ?? partner.created_at
+                            );
+                            const presenceStatus = getPresenceStatus(partner, presenceOnlineMap);
+                            const presenceClasses =
+                              presenceStatus === 'online'
+                                ? 'bg-emerald-400'
+                                : presenceStatus === 'recent'
+                                  ? 'bg-amber-400'
+                                  : 'bg-white/30';
+                            const presenceLabel =
+                              presenceStatus === 'online'
+                                ? 'Online'
+                                : presenceStatus === 'recent'
+                                  ? 'Active recently'
+                                  : 'Offline';
 
                           return (
                               <div

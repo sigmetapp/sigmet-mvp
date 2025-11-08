@@ -10,6 +10,7 @@ import EducationalInstitutionSelect from '@/components/EducationalInstitutionSel
 import { useTheme } from '@/components/ThemeProvider';
 import ProfileSkeleton from '@/components/ProfileSkeleton';
 import ProfileLoading from './loading';
+import { resolveAvatarUrl } from '@/lib/utils';
 
 export default function ProfilePage() {
   return (
@@ -174,7 +175,7 @@ function ProfileSettings() {
         {/* Avatar section - more compact */}
         <div className="flex items-center gap-3 pb-2 border-b border-white/10">
           <img
-            src={profile.avatar_url || AVATAR_FALLBACK}
+              src={resolveAvatarUrl(profile.avatar_url) ?? AVATAR_FALLBACK}
             className={`w-16 h-16 rounded-full object-cover border-2 ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`}
             alt="avatar"
           />
