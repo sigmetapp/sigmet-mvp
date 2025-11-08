@@ -269,23 +269,62 @@ export default function PostFeed({
       preloadCommentCounts(data as Post[]);
 
       // Preload author profiles (username, full_name, avatar)
+      // Load profiles together with posts to ensure avatars are available
       const userIds = Array.from(
         new Set((data as Post[]).map((p) => p.user_id).filter((x): x is string => Boolean(x)))
       );
       if (userIds.length > 0) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("user_id, username, full_name, avatar_url")
-          .in("user_id", userIds);
-        if (profs) {
+        try {
+          const { data: profs, error: profError } = await supabase
+            .from("profiles")
+            .select("user_id, username, full_name, avatar_url")
+            .in("user_id", userIds);
+          
+          if (profError) {
+            console.error('Error loading profiles:', profError);
+          }
+          
+          if (profs && profs.length > 0) {
+            setProfilesByUserId((prev) => {
+              const map = { ...prev };
+              for (const p of profs as any[]) {
+                map[p.user_id as string] = { 
+                  username: p.username ?? null, 
+                  full_name: p.full_name ?? null,
+                  avatar_url: p.avatar_url ?? null 
+                };
+              }
+              return map;
+            });
+          } else {
+            // If no profiles found, still set empty profiles to prevent re-fetching
+            setProfilesByUserId((prev) => {
+              const map = { ...prev };
+              for (const uid of userIds) {
+                if (!map[uid]) {
+                  map[uid] = { 
+                    username: null, 
+                    full_name: null,
+                    avatar_url: null 
+                  };
+                }
+              }
+              return map;
+            });
+          }
+        } catch (error) {
+          console.error('Error loading profiles:', error);
+          // Set empty profiles to prevent re-fetching
           setProfilesByUserId((prev) => {
             const map = { ...prev };
-            for (const p of profs as any[]) {
-              map[p.user_id as string] = { 
-                username: p.username ?? null, 
-                full_name: p.full_name ?? null,
-                avatar_url: p.avatar_url ?? null 
-              };
+            for (const uid of userIds) {
+              if (!map[uid]) {
+                map[uid] = { 
+                  username: null, 
+                  full_name: null,
+                  avatar_url: null 
+                };
+              }
             }
             return map;
           });
