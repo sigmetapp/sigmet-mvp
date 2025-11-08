@@ -112,14 +112,14 @@ AS $$
   ),
   last_messages AS (
     SELECT
-      lt.thread_id,
+      nt.thread_id,
       lm.id,
       lm.body,
       lm.kind,
       lm.sender_id,
       lm.attachments,
       lm.created_at
-    FROM limited_threads lt
+    FROM normalized_threads nt
     LEFT JOIN LATERAL (
       SELECT
         m.id::TEXT AS id,
@@ -129,7 +129,7 @@ AS $$
         m.attachments,
         m.created_at
       FROM dms_messages m
-      WHERE m.thread_id = lt.thread_id
+      WHERE m.thread_id = nt.thread_id
       ORDER BY m.created_at DESC, m.id DESC
       LIMIT 1
     ) lm ON true
@@ -139,7 +139,7 @@ AS $$
       m.thread_id,
       COUNT(*) FILTER (WHERE m.deleted_at IS NULL) AS cnt
     FROM dms_messages m
-    JOIN limited_threads lt ON lt.thread_id = m.thread_id
+    JOIN normalized_threads nt ON nt.thread_id = m.thread_id
     WHERE m.created_at >= NOW() - INTERVAL '24 hours'
     GROUP BY m.thread_id
   ),
@@ -149,7 +149,7 @@ AS $$
       COUNT(*) FILTER (WHERE COALESCE(r.status, 'sent') <> 'read') AS unread_count
     FROM dms_message_receipts r
     JOIN dms_messages msg ON msg.id = r.message_id
-    JOIN limited_threads lt ON lt.thread_id = msg.thread_id
+    JOIN normalized_threads nt ON nt.thread_id = msg.thread_id
     WHERE r.user_id = p_user_id
       AND msg.deleted_at IS NULL
       AND msg.sender_id <> p_user_id
@@ -157,10 +157,10 @@ AS $$
   ),
   unread_fallback AS (
     SELECT
-      lt.thread_id,
+      nt.thread_id,
       COUNT(*) AS unread_count
-    FROM limited_threads lt
-    JOIN dms_messages msg ON msg.thread_id = lt.thread_id
+    FROM normalized_threads nt
+    JOIN dms_messages msg ON msg.thread_id = nt.thread_id
     WHERE msg.deleted_at IS NULL
       AND msg.sender_id <> p_user_id
       AND NOT EXISTS (
@@ -170,42 +170,42 @@ AS $$
           AND r.user_id = p_user_id
           AND r.status = 'read'
       )
-    GROUP BY lt.thread_id
+    GROUP BY nt.thread_id
   )
   SELECT
-    lt.thread_id::TEXT AS thread_id,
+    nt.thread_id::TEXT AS thread_id,
     p.partner_id,
     prof.username,
     prof.full_name,
     prof.avatar_url,
-    COALESCE(lm.id, lt.last_message_id::TEXT) AS last_message_id,
+    COALESCE(lm.id, nt.last_message_id::TEXT) AS last_message_id,
     lm.body,
     lm.kind,
     lm.sender_id,
     COALESCE(lm.attachments, '[]'::jsonb) AS last_message_attachments,
-    COALESCE(lm.created_at, lt.last_message_at) AS last_message_at,
+    COALESCE(lm.created_at, nt.last_message_at) AS last_message_at,
     COALESCE(m24.cnt, 0) AS messages24h,
     COALESCE(ur.unread_count, uf.unread_count, 0) AS unread_count,
-    lt.is_pinned,
-    lt.pinned_at,
-    lt.notifications_muted,
-    lt.mute_until,
-    lt.last_read_message_id_text AS last_read_message_id,
-    lt.last_read_at,
-    lt.created_at AS thread_created_at
-  FROM limited_threads lt
-  JOIN partners p ON p.thread_id = lt.thread_id
+    nt.is_pinned,
+    nt.pinned_at,
+    nt.notifications_muted,
+    nt.mute_until,
+    nt.last_read_message_id_text AS last_read_message_id,
+    nt.last_read_at,
+    nt.created_at AS thread_created_at
+  FROM normalized_threads nt
+  JOIN partners p ON p.thread_id = nt.thread_id
   LEFT JOIN profiles prof ON prof.user_id = p.partner_id
-  LEFT JOIN last_messages lm ON lm.thread_id = lt.thread_id
-  LEFT JOIN messages_24h m24 ON m24.thread_id = lt.thread_id
-  LEFT JOIN unread_receipts ur ON ur.thread_id = lt.thread_id
-  LEFT JOIN unread_fallback uf ON uf.thread_id = lt.thread_id
+  LEFT JOIN last_messages lm ON lm.thread_id = nt.thread_id
+  LEFT JOIN messages_24h m24 ON m24.thread_id = nt.thread_id
+  LEFT JOIN unread_receipts ur ON ur.thread_id = nt.thread_id
+  LEFT JOIN unread_fallback uf ON uf.thread_id = nt.thread_id
   ORDER BY
-    lt.is_pinned DESC,
-    lt.pinned_at DESC NULLS LAST,
-    lt.last_message_at DESC NULLS LAST,
-    lt.created_at DESC,
-    lt.thread_id DESC;
+    nt.is_pinned DESC,
+    nt.pinned_at DESC NULLS LAST,
+    nt.last_message_at DESC NULLS LAST,
+    nt.created_at DESC,
+    nt.thread_id DESC;
 $$;
 
 -- 3. Добавить комментарий
