@@ -689,6 +689,21 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
               }
               return updated;
             });
+            setMessagesFromHook((prev: any[]) =>
+              prev.map((msg) => {
+                const matchesById = String((msg as any)?.id ?? '') === String(event.server_msg_id ?? '');
+                const matchesByClient =
+                  (msg as any)?.client_msg_id && message.client_msg_id && (msg as any).client_msg_id === message.client_msg_id;
+                if (!matchesById && !matchesByClient) {
+                  return msg;
+                }
+                return {
+                  ...msg,
+                  send_error: undefined,
+                  delivery_state: 'sent',
+                };
+              })
+            );
           }
         }
     };
@@ -731,6 +746,25 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                     updated.set(receiptKey, receipt.status || 'delivered');
                     return updated;
                   });
+                  setMessagesFromHook((prev: any[]) =>
+                    prev.map((msg) => {
+                      const matchesById = String((msg as any)?.id ?? '') === String(receipt.message_id ?? '');
+                      if (!matchesById) {
+                        return msg;
+                      }
+                      const deliveryState =
+                        receipt.status === 'read'
+                          ? 'read'
+                          : receipt.status === 'delivered'
+                            ? 'delivered'
+                            : 'sent';
+                      return {
+                        ...msg,
+                        send_error: undefined,
+                        delivery_state: deliveryState,
+                      };
+                    })
+                  );
                 }
             } catch (err) {
               console.error('Error verifying receipt message:', err);
@@ -1973,45 +2007,55 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                             )}
                           </div>
                         )}
-                        {/* Local echo controls: show for pending messages (id === -1) */}
-                        {isMine && msg.id === -1 && (
-                          <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                            <span className={theme === 'light' ? 'text-[11px] text-black/60' : 'text-[11px] text-white/70'}>Sending…</span>
-                            <button
-                              type="button"
-                              className={[
-                                'px-2 py-0.5 rounded border text-[11px] transition',
-                                theme === 'light'
-                                  ? 'bg-black/5 border-black/20 text-black/80 hover:bg-black/10'
-                                  : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15',
-                              ].join(' ')}
-                              onClick={() => {
-                                // Cancel: remove local echo
-                                setMessagesFromHook((prev: any[]) => prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id));
-                              }}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              className={[
-                                'px-2 py-0.5 rounded border text-[11px] transition',
-                                theme === 'light'
-                                  ? 'bg-blue-600/10 border-blue-600/30 text-blue-700 hover:bg-blue-600/15'
-                                  : 'bg-blue-500/20 border-blue-500/30 text-blue-200 hover:bg-blue-500/25',
-                              ].join(' ')}
-                              onClick={() => {
-                                // Retry: remove echo and resend with fresh client id
-                                const echoBody = msg.body || null;
-                                const echoAttachments = Array.isArray(msg.attachments) ? (msg.attachments as any[]) : [];
-                                setMessagesFromHook((prev: any[]) => prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id));
-                                void sendMessageHook(thread!.id, echoBody, echoAttachments);
-                              }}
-                            >
-                              Retry
-                            </button>
-                          </div>
-                        )}
+                          {/* Local echo controls: show for pending messages (id === -1) */}
+                          {isMine && msg.id === -1 && (
+                            <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                              <span className={theme === 'light' ? 'text-[11px] text-black/60' : 'text-[11px] text-white/70'}>
+                                {(msg as any)?.send_error ? 'Failed to send' : 'Sending…'}
+                              </span>
+                              <button
+                                type="button"
+                                className={[
+                                  'px-2 py-0.5 rounded border text-[11px] transition',
+                                  theme === 'light'
+                                    ? 'bg-black/5 border-black/20 text-black/80 hover:bg-black/10'
+                                    : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15',
+                                ].join(' ')}
+                                onClick={() => {
+                                  // Cancel: remove local echo
+                                  setMessagesFromHook((prev: any[]) =>
+                                    prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id)
+                                  );
+                                }}
+                              >
+                                Cancel
+                              </button>
+                              {(msg as any)?.send_error && (
+                                <button
+                                  type="button"
+                                  className={[
+                                    'px-2 py-0.5 rounded border text-[11px] transition',
+                                    theme === 'light'
+                                      ? 'bg-blue-600/10 border-blue-600/30 text-blue-700 hover:bg-blue-600/15'
+                                      : 'bg-blue-500/20 border-blue-500/30 text-blue-200 hover:bg-blue-500/25',
+                                  ].join(' ')}
+                                  onClick={() => {
+                                    // Retry: remove echo and resend with fresh client id
+                                    const echoBody = msg.body || null;
+                                    const echoAttachments = Array.isArray(msg.attachments)
+                                      ? (msg.attachments as any[])
+                                      : [];
+                                    setMessagesFromHook((prev: any[]) =>
+                                      prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id)
+                                    );
+                                    void sendMessageHook(thread!.id, echoBody, echoAttachments);
+                                  }}
+                                >
+                                  Retry
+                                </button>
+                              )}
+                            </div>
+                          )}
                       </div>
                     </div>
                   </div>
