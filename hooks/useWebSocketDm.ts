@@ -286,13 +286,15 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       try {
           const { listMessages } = await import('@/lib/dms');
           
-          // Load initial messages
+          // Always load fresh messages from server when dialog opens
+          // This ensures we get all messages even if dialog was closed
           const initialMessages = await listMessages(normalizedThreadId, {
             limit: initialLimitRef.current,
           });
 
         if (!cancelled) {
           if (initialMessages && initialMessages.length > 0) {
+            // Sort messages chronologically (oldest first)
             const sorted = initialMessages
               .slice()
               .sort((a, b) => {
@@ -305,6 +307,8 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
             const lastMsg = sorted[sorted.length - 1];
             const lastMsgId = lastMsg ? lastMsg.id : null;
             
+            // Always set messages from server, even if cache exists
+            // This ensures we have the latest messages when dialog opens
             setMessagesState(sorted);
             setLastServerMsgId(lastMsgId);
             lastServerMsgIdRef.current = lastMsgId;
@@ -373,6 +377,12 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
         }
       } catch (err) {
         console.error('Error loading initial messages:', err);
+        // If loading fails, still try to set empty state
+        if (!cancelled) {
+          setMessagesState([]);
+          setLastServerMsgId(null);
+          lastServerMsgIdRef.current = null;
+        }
       }
 
       // Fetch participants to determine partner ID for presence/typing fallback
@@ -690,17 +700,22 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
     const cacheKey = `${MESSAGE_CACHE_KEY_PREFIX}${threadId}`;
     cacheKeyRef.current = cacheKey;
 
+    // Only load from cache if messages are not already loaded from server
+    // The loadInitialState function will always load fresh messages from server
+    // Cache is only used as a temporary fallback while server is loading
     if (messages.length > 0 || isHydratedFromCacheRef.current) {
       return;
     }
 
     // Try IndexedDB first, fallback to sessionStorage
+    // This is only a temporary fallback - server will overwrite it
     (async () => {
       try {
         const { getCachedMessages } = await import('@/lib/dm/cache');
         const cached = await getCachedMessages(String(threadId));
         
         if (cached && cached.length > 0) {
+          // Mark as hydrated from cache, but server will overwrite
           isHydratedFromCacheRef.current = true;
           setMessagesState(sortMessagesChronologically(cached));
           return;
@@ -715,6 +730,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
         if (cached) {
           const parsed = JSON.parse(cached) as Message[];
           if (Array.isArray(parsed) && parsed.length > 0) {
+            // Mark as hydrated from cache, but server will overwrite
             isHydratedFromCacheRef.current = true;
             setMessagesState(sortMessagesChronologically(parsed));
           }
