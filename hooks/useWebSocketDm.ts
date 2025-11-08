@@ -149,6 +149,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
   const fallbackPresenceUnsubscribeRef = useRef<(() => void | Promise<void>) | null>(null);
   const isHydratedFromCacheRef = useRef(false);
   const initialLimitRef = useRef(initialLimit);
+  const lastServerMsgIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     initialLimitRef.current = initialLimit;
@@ -270,6 +271,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       setMessagesState([]);
       cacheKeyRef.current = null;
       setLastServerMsgId(null);
+      lastServerMsgIdRef.current = null;
       setPartnerTyping(false);
       setPartnerOnline(null);
       setPartnerId(null);
@@ -283,6 +285,8 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
     const loadInitialState = async () => {
       try {
           const { listMessages } = await import('@/lib/dms');
+          
+          // Load initial messages
           const initialMessages = await listMessages(normalizedThreadId, {
             limit: initialLimitRef.current,
           });
@@ -298,14 +302,73 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
                 return a.id - b.id;
               });
 
-            setMessagesState(sorted);
             const lastMsg = sorted[sorted.length - 1];
-            if (lastMsg) {
-              setLastServerMsgId(lastMsg.id);
+            const lastMsgId = lastMsg ? lastMsg.id : null;
+            
+            setMessagesState(sorted);
+            setLastServerMsgId(lastMsgId);
+            lastServerMsgIdRef.current = lastMsgId;
+            
+            // After loading initial messages, check for missed messages
+            // This handles the case when the chat window was closed and new messages arrived
+            if (lastMsgId) {
+              try {
+                // Load messages after the last loaded message to catch any missed messages
+                // Use direct Supabase query to get messages with ID > lastMsgId
+                const { data: missedData, error: missedError } = await supabase
+                  .from('dms_messages')
+                  .select('*')
+                  .eq('thread_id', normalizedThreadId)
+                  .gt('id', lastMsgId)
+                  .order('id', { ascending: true })
+                  .limit(100); // Load up to 100 missed messages
+                
+                if (!missedError && missedData && missedData.length > 0) {
+                  // Convert to Message format
+                  const missedMessages: Message[] = missedData.map((msg: any) => ({
+                    id: typeof msg.id === 'string' ? parseInt(msg.id, 10) : Number(msg.id),
+                    thread_id: normalizedThreadId,
+                    sender_id: msg.sender_id,
+                    kind: msg.kind || 'text',
+                    body: msg.body,
+                    attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
+                    created_at: msg.created_at,
+                    edited_at: msg.edited_at || null,
+                    deleted_at: msg.deleted_at || null,
+                    sequence_number:
+                      msg.sequence_number === null || msg.sequence_number === undefined
+                        ? null
+                        : typeof msg.sequence_number === 'string'
+                          ? parseInt(msg.sequence_number, 10)
+                          : Number(msg.sequence_number),
+                    client_msg_id: msg.client_msg_id ?? null,
+                    reply_to_message_id: msg.reply_to_message_id 
+                      ? (typeof msg.reply_to_message_id === 'string' 
+                          ? parseInt(msg.reply_to_message_id, 10) 
+                          : Number(msg.reply_to_message_id))
+                      : null,
+                  }));
+                  
+                  // Merge with existing messages
+                  const merged = [...sorted, ...missedMessages];
+                  setMessagesState(merged);
+                  
+                  // Update lastServerMsgId to the newest message
+                  const newestMsg = missedMessages[missedMessages.length - 1];
+                  if (newestMsg) {
+                    setLastServerMsgId(newestMsg.id);
+                    lastServerMsgIdRef.current = newestMsg.id;
+                  }
+                }
+              } catch (missedErr) {
+                console.error('Error loading missed messages:', missedErr);
+                // Continue with initial messages if missed messages load fails
+              }
             }
           } else {
             setMessagesState([]);
             setLastServerMsgId(null);
+            lastServerMsgIdRef.current = null;
           }
         }
       } catch (err) {
@@ -333,7 +396,17 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       }
     };
 
-    void loadInitialState();
+    void loadInitialState().then(() => {
+      // After initial state is loaded, request sync to catch any missed messages
+      // This ensures that if the chat window was closed and new messages arrived,
+      // they will be loaded when the dialog is reopened
+      if (transport === 'websocket' && wsClient.getState() === 'authenticated') {
+        // Request sync with the last loaded message ID from ref
+        // The sync will return any messages after lastServerMsgId
+        const currentLastId = lastServerMsgIdRef.current;
+        wsClient.syncThread(normalizedThreadId, currentLastId);
+      }
+    });
 
     if (transport === 'websocket') {
       wsClient.subscribe(normalizedThreadId);
@@ -366,6 +439,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
             // Simplified deduplication: use only id and sequence_number
             setMessagesState((prev) => addOrUpdateMessage(prev, normalizedMessage));
             setLastServerMsgId(serverMsgId);
+            lastServerMsgIdRef.current = serverMsgId;
           }
         };
 
@@ -476,6 +550,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
 
           if (event.last_server_msg_id !== null) {
             setLastServerMsgId(event.last_server_msg_id);
+            lastServerMsgIdRef.current = event.last_server_msg_id;
           }
         }
       };
@@ -579,6 +654,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
             });
 
             setLastServerMsgId(serverMsgId);
+            lastServerMsgIdRef.current = serverMsgId;
           },
           onTyping: ({ userId, typing }) => {
             if (userId !== currentUserIdRef.current) {
@@ -830,6 +906,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
                 );
               });
               setLastServerMsgId(saved.id);
+              lastServerMsgIdRef.current = saved.id;
               pendingEchoAttemptsRef.current.delete(clientMsgId);
             } catch (fallbackError) {
               if (attempt < MAX_HTTP_FALLBACK_ATTEMPTS) {
@@ -906,6 +983,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       });
 
       setLastServerMsgId(savedMessage.id);
+      lastServerMsgIdRef.current = savedMessage.id;
       // Keep client_msg_id in filter to prevent echo from WebSocket events
       // Don't delete immediately - wait for message_persisted or timeout
 
