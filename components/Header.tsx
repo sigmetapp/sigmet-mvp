@@ -80,7 +80,7 @@ export default function Header() {
         </Link>
 
         {/* SEARCH INPUT - CENTERED (DESKTOP) */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:block">
+        <div className="absolute left-1/2 top-1/2 hidden md:block" style={{ transform: 'translate(calc(-50% - 120px), -50%)', maxWidth: '313px' }}>
           <SearchInput />
         </div>
 
@@ -172,7 +172,7 @@ export default function Header() {
         </nav>
 
         {/* MOBILE SINGLE ROW LAYOUT */}
-        <div className="md:hidden h-14 flex items-center gap-2">
+        <div className="md:hidden h-14 flex items-center gap-1.5">
           {/* Mobile logo + brand */}
           <Link href="/" className="flex items-center gap-2 flex-shrink-0">
             {logo_url ? (
@@ -196,7 +196,9 @@ export default function Header() {
           </Link>
 
           {/* Search inline and flexible */}
-          <SearchInput className="flex-1 min-w-0 w-auto" />
+          <div className="flex-1 min-w-0 overflow-hidden mr-1.5 shrink" style={{ maxWidth: 'calc(100vw - 32px - 180px)' }}>
+            <SearchInput />
+          </div>
 
           {/* Icon nav for Home / Feed / Invite */}
           <div className="flex items-center gap-1 flex-shrink-0">
