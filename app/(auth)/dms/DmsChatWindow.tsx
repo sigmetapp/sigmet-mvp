@@ -1945,47 +1945,72 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                               </span>
                             )}
                             {/* Message status indicators (only for sent messages) */}
-                            {isMine && (
-                              <div className="flex items-center ml-1">
+                              {isMine && (
+                                <div className="flex items-center ml-1">
                                   {(() => {
-                                    const receiptStatus = messageReceipts.get(String(msg.id));
-                                  
-                                  if (receiptStatus === 'read') {
-                                    // Double checkmark — read (blue)
-                                    return (
-                                      <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 16 15"
-                                        width="14"
-                                        height="14"
-                                        className="text-white"
-                                        aria-label="Read"
-                                        title="Read"
-                                        fill="currentColor"
-                                        style={{ minWidth: '14px' }}
-                                      >
-                                        <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
-                                      </svg>
-                                    );
-                                  } else if (receiptStatus === 'delivered') {
-                                    // Single checkmark — delivered (gray)
-                                    return (
-                                      <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 16 16"
-                                        width="14"
-                                        height="14"
-                                        className="text-white/70"
-                                        aria-label="Delivered"
-                                        title="Delivered"
-                                        fill="currentColor"
-                                        style={{ minWidth: '14px' }}
-                                      >
-                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                                      </svg>
-                                    );
-                                  } else {
-                                    // Single checkmark — sent (more transparent)
+                                    const localState = ((msg as any)?.delivery_state ??
+                                      undefined) as 'sent' | 'delivered' | 'read' | 'failed' | undefined;
+                                    const sendError = (msg as any)?.send_error;
+                                    const receiptStatus =
+                                      messageReceipts.get(String(msg.id)) ?? localState ?? 'sent';
+
+                                    if (sendError || receiptStatus === 'failed') {
+                                      return (
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 16 16"
+                                          width="14"
+                                          height="14"
+                                          className="text-red-400"
+                                          aria-label="Send failed"
+                                          title="Send failed"
+                                          fill="currentColor"
+                                          style={{ minWidth: '14px' }}
+                                        >
+                                          <path d="M7.938 2.016a1 1 0 0 1 1.124 0l6.857 4.7a1 1 0 0 1 0 1.664l-6.857 4.7a1 1 0 0 1-1.124 0l-6.857-4.7a1 1 0 0 1 0-1.664l6.857-4.7zM9 6H7v3h2V6zm0 4H7v2h2v-2z" />
+                                        </svg>
+                                      );
+                                    }
+
+                                    if (receiptStatus === 'read') {
+                                      // Double checkmark — read (blue)
+                                      return (
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 16 15"
+                                          width="14"
+                                          height="14"
+                                          className="text-white"
+                                          aria-label="Read"
+                                          title="Read"
+                                          fill="currentColor"
+                                          style={{ minWidth: '14px' }}
+                                        >
+                                          <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
+                                        </svg>
+                                      );
+                                    }
+
+                                    if (receiptStatus === 'delivered') {
+                                      // Single checkmark — delivered (gray)
+                                      return (
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 16 16"
+                                          width="14"
+                                          height="14"
+                                          className="text-white/70"
+                                          aria-label="Delivered"
+                                          title="Delivered"
+                                          fill="currentColor"
+                                          style={{ minWidth: '14px' }}
+                                        >
+                                          <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                                        </svg>
+                                      );
+                                    }
+
+                                    // Default — sent (more transparent)
                                     return (
                                       <svg
                                         xmlns="http://www.w3.org/2000/svg"
@@ -2001,17 +2026,16 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                                         <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
                                       </svg>
                                     );
-                                  }
-                                })()}
-                              </div>
-                            )}
+                                  })()}
+                                </div>
+                              )}
                           </div>
                         )}
-                          {/* Local echo controls: show for pending messages (id === -1) */}
-                          {isMine && msg.id === -1 && (
+                          {/* Local echo controls: show retry UI only when send failed */}
+                          {isMine && msg.id === -1 && (msg as any)?.send_error && (
                             <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
                               <span className={theme === 'light' ? 'text-[11px] text-black/60' : 'text-[11px] text-white/70'}>
-                                {(msg as any)?.send_error ? 'Failed to send' : 'Sending…'}
+                                Failed to send
                               </span>
                               <button
                                 type="button"
@@ -2030,30 +2054,27 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                               >
                                 Cancel
                               </button>
-                              {(msg as any)?.send_error && (
-                                <button
-                                  type="button"
-                                  className={[
-                                    'px-2 py-0.5 rounded border text-[11px] transition',
-                                    theme === 'light'
-                                      ? 'bg-blue-600/10 border-blue-600/30 text-blue-700 hover:bg-blue-600/15'
-                                      : 'bg-blue-500/20 border-blue-500/30 text-blue-200 hover:bg-blue-500/25',
-                                  ].join(' ')}
-                                  onClick={() => {
-                                    // Retry: remove echo and resend with fresh client id
-                                    const echoBody = msg.body || null;
-                                    const echoAttachments = Array.isArray(msg.attachments)
-                                      ? (msg.attachments as any[])
-                                      : [];
-                                    setMessagesFromHook((prev: any[]) =>
-                                      prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id)
-                                    );
-                                    void sendMessageHook(thread!.id, echoBody, echoAttachments);
-                                  }}
-                                >
-                                  Retry
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                className={[
+                                  'px-2 py-0.5 rounded border text-[11px] transition',
+                                  theme === 'light'
+                                    ? 'bg-blue-600/10 border-blue-600/30 text-blue-700 hover:bg-blue-600/15'
+                                    : 'bg-blue-500/20 border-blue-500/30 text-blue-200 hover:bg-blue-500/25',
+                                ].join(' ')}
+                                onClick={() => {
+                                  const echoBody = msg.body || null;
+                                  const echoAttachments = Array.isArray(msg.attachments)
+                                    ? (msg.attachments as any[])
+                                    : [];
+                                  setMessagesFromHook((prev: any[]) =>
+                                    prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id)
+                                  );
+                                  void sendMessageHook(thread!.id, echoBody, echoAttachments);
+                                }}
+                              >
+                                Retry
+                              </button>
                             </div>
                           )}
                       </div>

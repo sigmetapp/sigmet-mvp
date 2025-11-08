@@ -100,7 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .from('dms_message_receipts')
           .update({ status: 'read', updated_at: new Date().toISOString() })
           .eq('user_id', user.id)
-          .eq('status', 'delivered')
+          .neq('status', 'read')
           .in('message_id', idList)
       );
     }
