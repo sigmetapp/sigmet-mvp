@@ -77,13 +77,13 @@ last_read_markers as (
     nt.thread_id,
     nt.last_read_message_id_text,
     (
-      select msg.id
+      select msg.id::bigint
       from public.dms_messages msg
       where msg.thread_id = nt.thread_id
         and msg.id::text = nt.last_read_message_id_text
       order by msg.created_at desc, msg.id desc
       limit 1
-    ) as last_read_message_id_numeric
+    )::bigint as last_read_message_id_numeric
   from normalized_threads nt
 ),
 partners as (
@@ -140,7 +140,7 @@ unread_last_read as (
           -- If last_read_message_id is null, all messages are unread
           lrm.last_read_message_id_numeric is null
           -- Otherwise, count messages with ID greater than last_read_message_id
-          or msg.id > coalesce(lrm.last_read_message_id_numeric, 0)
+          or msg.id::bigint > coalesce(lrm.last_read_message_id_numeric::bigint, 0::bigint)
         )
       ) as unread_count
   from normalized_threads nt
