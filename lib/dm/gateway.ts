@@ -406,6 +406,11 @@ async function handleSendMessage(
       ? JSON.parse(JSON.stringify(attachments))
       : [];
     const messageBody = body || (attachmentsJsonb.length > 0 ? '\u200B' : '');
+      const messageKind = inferMessageKind(attachmentsJsonb);
+      const normalizedClientMsgId =
+        typeof clientMsgId === 'string' && clientMsgId.length > 0
+          ? clientMsgId.slice(0, 128)
+          : null;
     
     // STEP 1: Immediately broadcast message_ack to room (both clients)
     // This happens before DB write for instant feedback
@@ -452,10 +457,107 @@ async function handleSendMessage(
       }
     }
 
-    // NOTE: Legacy dms_messages system is disabled for dual-channel architecture
-    // Messages are only persisted via BullMQ worker to the new 'messages' table
-    // Legacy broadcast is skipped to prevent duplication
-    // If you need backward compatibility, enable this section but ensure proper deduplication
+      // STEP 3: Persist message into legacy dms_messages for immediate availability
+      let persistedMessage: any = null;
+      let persistError: Error | null = null;
+
+      try {
+        const rpcResult = await (serviceClient as any).rpc?.('insert_dms_message', {
+          p_thread_id: threadId,
+          p_sender_id: conn.userId,
+          p_body: messageBody,
+          p_kind: messageKind,
+          p_attachments: attachmentsJsonb,
+          p_client_msg_id: normalizedClientMsgId,
+        });
+
+        if (rpcResult?.data) {
+          persistedMessage = rpcResult.data;
+        } else if (rpcResult?.error) {
+          persistError = rpcResult.error;
+        }
+      } catch (rpcErr: any) {
+        persistError = rpcErr instanceof Error ? rpcErr : new Error(String(rpcErr?.message || rpcErr));
+      }
+
+      if (!persistedMessage) {
+        try {
+          const { data: inserted, error: directErr } = await serviceClient
+            .from('dms_messages')
+            .insert({
+              thread_id: threadId,
+              sender_id: conn.userId,
+              kind: messageKind,
+              body: messageBody,
+              attachments: attachmentsJsonb,
+              client_msg_id: normalizedClientMsgId,
+            })
+            .select('*')
+            .single();
+
+          if (directErr) {
+            throw new Error(directErr.message);
+          }
+          persistedMessage = inserted;
+        } catch (directInsertErr: any) {
+          persistError = directInsertErr instanceof Error
+            ? directInsertErr
+            : new Error(String(directInsertErr?.message || directInsertErr));
+        }
+      }
+
+      if (!persistedMessage) {
+        throw persistError ?? new Error('Failed to persist DM message');
+      }
+
+      if (normalizedClientMsgId && !persistedMessage.client_msg_id) {
+        persistedMessage = {
+          ...persistedMessage,
+          client_msg_id: normalizedClientMsgId,
+        };
+      }
+
+      // Update thread metadata
+      try {
+        await serviceClient
+          .from('dms_threads')
+          .update({
+            last_message_id: persistedMessage.id,
+            last_message_at: persistedMessage.created_at,
+          })
+          .eq('id', threadId);
+      } catch (threadUpdateErr) {
+        gatewayLogger.warn('Thread metadata update warning:', threadUpdateErr);
+      }
+
+      // Create/update receipts for recipients (excluding sender)
+      const recipientIds = participants
+        .map((p: any) => p.user_id as string)
+        .filter((uid: string | undefined) => uid && uid !== conn.userId);
+
+      if (recipientIds.length > 0) {
+        const nowIso = new Date().toISOString();
+        const receiptRows = recipientIds.map((uid) => ({
+          message_id: persistedMessage.id,
+          user_id: uid,
+          status: 'sent' as const,
+          created_at: nowIso,
+          updated_at: nowIso,
+        }));
+
+        try {
+          await (serviceClient.from('dms_message_receipts') as any)
+            .upsert(receiptRows, {
+              onConflict: 'message_id,user_id',
+              ignoreDuplicates: false,
+            });
+        } catch (receiptErr) {
+          gatewayLogger.warn('Receipt upsert warning:', receiptErr);
+        }
+      }
+
+      // Broadcast the freshly persisted message to subscribers
+      deliverMessageToThread(conn, threadId, persistedMessage, normalizedClientMsgId);
 
   } catch (err: any) {
     gatewayLogger.error('Send message error:', err);

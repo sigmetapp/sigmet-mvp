@@ -732,8 +732,11 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
     
     filterTimeoutsRef.current.set(clientMsgId, filterTimeout);
 
-    // Create local-echo message with 'sending' status
-    const localEchoMessage: Message & { delivery_state?: 'sending' | 'failed' | 'sent'; send_error?: string } = {
+    // Create local-echo message with optimistic "sent" status
+    const localEchoMessage: Message & {
+      delivery_state?: 'failed' | 'sent' | 'delivered' | 'read';
+      send_error?: string;
+    } = {
       id: -1, // Temporary ID
       thread_id: normalizedThreadId,
       sender_id: currentUserId,
@@ -744,7 +747,7 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       edited_at: null,
       deleted_at: null,
       client_msg_id: clientMsgId,
-      delivery_state: 'sending',
+      delivery_state: 'sent',
     };
 
     // Add local-echo message immediately (only if not already exists)

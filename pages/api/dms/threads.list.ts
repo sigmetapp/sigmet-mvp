@@ -80,7 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
     // Compute unread counts per thread. Prefer last_read_message_id when available;
-    // otherwise fall back to counting 'delivered' receipts for this user in the thread.
+    // otherwise fall back to counting receipts not yet marked as read for this user.
     const result = [] as any[];
     for (const r of rows || []) {
       const thread = r.thread;
@@ -92,40 +92,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const pinnedAt = r.pinned_at ?? null;
         const lastReadAt = r.last_read_at ?? null;
 
-      if (typeof r.last_read_message_id === 'number') {
-        const lastReadId: number = r.last_read_message_id ?? 0;
-        const { count } = await client
-          .from('dms_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('thread_id', thread.id)
-          .gt('id', lastReadId)
-          .neq('sender_id', user.id);
-        unreadCount = count ?? 0;
-      } else {
-        // Fallback path when last_read_message_id column is missing: count
-        // delivered receipts for this user for messages in this thread.
-        try {
-          const { data: ids } = await client
+        if (typeof r.last_read_message_id === 'number') {
+          const lastReadId: number = r.last_read_message_id ?? 0;
+          const { count } = await client
             .from('dms_messages')
-            .select('id')
+            .select('*', { count: 'exact', head: true })
             .eq('thread_id', thread.id)
-            .limit(1000);
-          const messageIds: number[] = (ids || []).map((x: any) => x.id);
-          if (messageIds.length > 0) {
-            const { count } = await client
-              .from('dms_message_receipts')
-              .select('*', { count: 'exact', head: true })
-              .eq('user_id', user.id)
-              .eq('status', 'delivered')
-              .in('message_id', messageIds);
-            unreadCount = count ?? 0;
-          } else {
+            .gt('id', lastReadId)
+            .neq('sender_id', user.id);
+          unreadCount = count ?? 0;
+        } else {
+          // Fallback path when last_read_message_id column is missing: count
+          // receipts that are still pending (status <> 'read') for this user.
+          try {
+            const { data: ids } = await client
+              .from('dms_messages')
+              .select('id')
+              .eq('thread_id', thread.id)
+              .limit(1000);
+            const messageIds: number[] = (ids || []).map((x: any) => x.id);
+            if (messageIds.length > 0) {
+              const { count } = await client
+                .from('dms_message_receipts')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user.id)
+                .neq('status', 'read')
+                .in('message_id', messageIds);
+              unreadCount = count ?? 0;
+            } else {
+              unreadCount = 0;
+            }
+          } catch {
             unreadCount = 0;
           }
-        } catch {
-          unreadCount = 0;
         }
-      }
 
         result.push({
           thread,
