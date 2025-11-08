@@ -140,7 +140,7 @@ unread_last_read as (
           -- If last_read_message_id is null, all messages are unread
           lrm.last_read_message_id_numeric is null
           -- Otherwise, count messages with ID greater than last_read_message_id
-          or msg.id::bigint > coalesce(lrm.last_read_message_id_numeric::bigint, 0::bigint)
+          or (lrm.last_read_message_id_numeric is not null and msg.id > lrm.last_read_message_id_numeric)
         )
       ) as unread_count
   from normalized_threads nt
