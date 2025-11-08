@@ -218,15 +218,44 @@ function getNextLevel(sw: number, levels: SWLevel[]): SWLevel | null {
   return null;
 }
 
+const CACHE_KEY_SW = 'sw_data_cache';
+const CACHE_KEY_RECENT_ACTIVITY = 'sw_recent_activity_cache';
+const CACHE_KEY_CITY_LEADERS = 'sw_city_leaders_cache';
+const CACHE_KEY_ADMIN = 'sw_admin_cache';
+const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
+function getCachedData<T>(key: string): T | null {
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp > CACHE_TTL) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedData<T>(key: string, data: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
 export default function SWPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
-  const [swData, setSwData] = useState<SWData | null>(null);
+  const [swData, setSwData] = useState<SWData | null>(getCachedData<SWData>(CACHE_KEY_SW));
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState<'overview' | 'factors' | 'levels' | 'breakdown'>('overview');
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(getCachedData<boolean>(CACHE_KEY_ADMIN));
   const [recentActivity, setRecentActivity] = useState<{
     profileComplete: boolean;
     postsCount: number;
@@ -236,7 +265,7 @@ export default function SWPage() {
     totalAcceptedInvites?: number;
     followersCount: number;
     connectionsCount: number;
-  } | null>(null);
+  } | null>(getCachedData(CACHE_KEY_RECENT_ACTIVITY));
   const [swLevels, setSwLevels] = useState<SWLevel[]>(SW_LEVELS); // Start with default levels
   const [cityLeaders, setCityLeaders] = useState<Array<{
     userId: string;
@@ -246,9 +275,15 @@ export default function SWPage() {
     avatarUrl: string | null;
     city: string | null;
     country: string | null;
-  }>>([]);
+  }>>(getCachedData(CACHE_KEY_CITY_LEADERS) || []);
 
   useEffect(() => {
+    // Если есть кэшированные данные, показываем их сразу
+    const hasCachedData = swData || isAdmin !== null;
+    if (hasCachedData) {
+      setLoading(false);
+    }
+
     // Оптимизированная загрузка: получаем auth данные один раз и загружаем все параллельно
     async function loadAllData() {
       try {
@@ -268,7 +303,7 @@ export default function SWPage() {
         }
 
         // Загружаем все данные параллельно
-        const [swData, recentActivityData, cityLeadersData, adminData] = await Promise.allSettled([
+        const [swDataResult, recentActivityData, cityLeadersData, adminData] = await Promise.allSettled([
           // Основные данные SW
           fetch('/api/sw/calculate', {
             headers: { 'Authorization': `Bearer ${token}` },
@@ -291,10 +326,11 @@ export default function SWPage() {
           }),
         ]);
 
-        // Обрабатываем результаты
-        if (swData.status === 'fulfilled') {
-          const data = swData.value;
+        // Обрабатываем результаты и кэшируем
+        if (swDataResult.status === 'fulfilled') {
+          const data = swDataResult.value;
           setSwData(data);
+          setCachedData(CACHE_KEY_SW, data);
           
           // Load SW levels from weights if available
           if (data.weights?.sw_levels) {
@@ -323,21 +359,26 @@ export default function SWPage() {
           }
           setError(null);
         } else {
-          setError(swData.reason?.message || 'Failed to load SW data');
+          setError(swDataResult.reason?.message || 'Failed to load SW data');
         }
 
         if (recentActivityData.status === 'fulfilled' && recentActivityData.value) {
           setRecentActivity(recentActivityData.value);
+          setCachedData(CACHE_KEY_RECENT_ACTIVITY, recentActivityData.value);
         }
 
         if (cityLeadersData.status === 'fulfilled' && cityLeadersData.value) {
-          setCityLeaders(cityLeadersData.value.leaders || []);
+          const leaders = cityLeadersData.value.leaders || [];
+          setCityLeaders(leaders);
+          setCachedData(CACHE_KEY_CITY_LEADERS, leaders);
         }
 
         if (adminData.status === 'fulfilled') {
           setIsAdmin(adminData.value);
+          setCachedData(CACHE_KEY_ADMIN, adminData.value);
         } else {
           setIsAdmin(false);
+          setCachedData(CACHE_KEY_ADMIN, false);
         }
 
         setLoading(false);
@@ -520,7 +561,8 @@ export default function SWPage() {
     }
   }
 
-  if (loading || isAdmin === null) {
+  // Показываем скелетон только если нет кэшированных данных
+  if (loading && !swData && isAdmin === null) {
     return <SWSkeleton />;
   }
 
@@ -548,7 +590,7 @@ export default function SWPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 md:p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-start justify-between animate-fade-in-up">
+      <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">Social Weight (SW)</h1>
           <p className="text-white/70 text-sm mt-2">
@@ -567,14 +609,14 @@ export default function SWPage() {
       </div>
 
       {note && (
-        <div className="card p-3 bg-white/5 animate-fade-in-up animate-stagger-1">
+        <div className="card p-3 bg-white/5">
           <div className="text-white/80 text-sm">{note}</div>
         </div>
       )}
 
       {/* Cache indicator */}
       {cached && (
-        <div className="card p-3 bg-blue-500/10 border border-blue-500/20 animate-fade-in-up animate-stagger-1">
+        <div className="card p-3 bg-blue-500/10 border border-blue-500/20">
           <div className="text-blue-300 text-sm">
             ⚡ Data loaded from cache (updated {cacheAge} seconds ago). Updates occur every 5 minutes.
           </div>
@@ -582,7 +624,7 @@ export default function SWPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-white/10 animate-fade-in-up animate-stagger-2">
+      <div className="flex gap-2 border-b border-white/10">
         <button
           onClick={() => setActiveTab('overview')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
@@ -631,7 +673,7 @@ export default function SWPage() {
       {activeTab === 'overview' && (
         <div className="space-y-4">
           {/* Total SW */}
-          <div className="card p-6 animate-fade-in-up animate-stagger-3">
+          <div className="card p-6">
             <div className="text-center">
               <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
               <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
@@ -645,7 +687,7 @@ export default function SWPage() {
           </div>
 
           {/* Current Level */}
-          <div className="card p-4 animate-fade-in-up animate-stagger-4">
+          <div className="card p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <div className="text-white/60 text-sm mb-1">Current Level</div>
@@ -692,7 +734,7 @@ export default function SWPage() {
 
           {/* Inflation Indicator */}
           {inflationRate && inflationRate < 1 && (
-            <div className="card p-4 bg-yellow-500/10 border border-yellow-500/20 animate-fade-in-up animate-stagger-5">
+            <div className="card p-4 bg-yellow-500/10 border border-yellow-500/20">
               <div className="flex items-start gap-3">
                 <div className="text-yellow-400 text-xl">⚠️</div>
                 <div className="flex-1">
@@ -713,7 +755,7 @@ export default function SWPage() {
           )}
 
           {/* City Leaders */}
-          <div className="card p-4 animate-fade-in-up animate-stagger-6">
+          <div className="card p-4">
             <h3 className="text-lg font-semibold text-white mb-4">🏆 City Leaders</h3>
             {cityLeaders.length > 0 ? (
               <div className="space-y-3">
@@ -727,8 +769,7 @@ export default function SWPage() {
                     <Link
                       key={leader.userId}
                       href={profileUrl}
-                      className={`flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors animate-fade-in-up`}
-                      style={{ animationDelay: `${0.7 + index * 0.1}s` }}
+                      className={`flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors`}
                     >
                       <div className="flex-shrink-0 w-8 text-center">
                         <span className="text-white/60 text-sm font-semibold">#{index + 1}</span>
@@ -766,12 +807,12 @@ export default function SWPage() {
 
       {/* Factors Tab */}
       {activeTab === 'factors' && (
-        <div className="space-y-4 animate-fade-in-up">
+        <div className="space-y-4">
           <div className="card p-4">
             <h2 className="text-lg font-semibold text-white mb-4">How to Increase Your SW</h2>
             <div className="space-y-4">
               {/* Profile Complete - Single action */}
-              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
                 <div className="flex-1">
                   <div className="text-white font-medium mb-2">1. Complete Your Profile</div>
                   <div className="text-white/70 text-sm">
@@ -788,7 +829,7 @@ export default function SWPage() {
               </div>
 
               {/* Growth Directions - Single action (but can have multiple tasks) */}
-              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
                 <div className="flex-1">
                   <div className="text-white font-medium mb-2">2. Complete Growth Directions Tasks</div>
                   <div className="text-white/70 text-sm">
@@ -807,7 +848,7 @@ export default function SWPage() {
               </div>
 
               {/* Posts - Repeatable action */}
-              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
                 <div className="flex-1">
                   <div className="text-white font-medium mb-2">3. Publish Posts</div>
                   <div className="text-white/70 text-sm">
@@ -827,7 +868,7 @@ export default function SWPage() {
               </div>
 
               {/* Comments - Repeatable action */}
-              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
                 <div className="flex-1">
                   <div className="text-white font-medium mb-2">4. Comment</div>
                   <div className="text-white/70 text-sm">
@@ -847,7 +888,7 @@ export default function SWPage() {
               </div>
 
               {/* Connections - Single action (but can have multiple connections) */}
-              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
                 <div className="flex-1">
                   <div className="text-white font-medium mb-2">5. Create Connections</div>
                   <div className="text-white/70 text-sm">
@@ -862,7 +903,7 @@ export default function SWPage() {
               </div>
 
               {/* Followers - Single action (but can have multiple followers) */}
-              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
                 <div className="flex-1">
                   <div className="text-white font-medium mb-2">6. Attract Followers</div>
                   <div className="text-white/70 text-sm">
@@ -877,7 +918,7 @@ export default function SWPage() {
               </div>
 
               {/* Reactions - Repeatable action */}
-              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.7s' }}>
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
                 <div className="flex-1">
                   <div className="text-white font-medium mb-2">7. Get Reactions</div>
                   <div className="text-white/70 text-sm">
@@ -897,7 +938,7 @@ export default function SWPage() {
               </div>
 
               {/* Invites - Repeatable action */}
-              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.8s' }}>
+              <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
                 <div className="flex-1">
                   <div className="text-white font-medium mb-2">8. Invite Friends</div>
                   <div className="text-white/70 text-sm">
@@ -919,7 +960,7 @@ export default function SWPage() {
 
       {/* Levels Tab */}
       {activeTab === 'levels' && (
-        <div className="space-y-3 animate-fade-in-up">
+        <div className="space-y-3">
           <div className="card p-3">
             <h2 className="text-xl font-semibold text-white mb-4">SW Levels & Features</h2>
             <div className="space-y-2">
@@ -931,14 +972,13 @@ export default function SWPage() {
                 return (
                   <div
                     key={level.name}
-                    className={`p-4 rounded-lg border-2 transition-all animate-fade-in-up ${
+                    className={`p-4 rounded-lg border-2 transition-all ${
                       isCurrent
                         ? `${colorScheme.border} ${colorScheme.bgGradient ? `bg-gradient-to-br ${colorScheme.bgGradient}` : colorScheme.bg} ${colorScheme.borderGlow}`
                         : isUnlocked
                         ? `${colorScheme.border} ${colorScheme.bg} opacity-80`
                         : `${colorScheme.border} ${colorScheme.bg} opacity-40`
                     }`}
-                    style={{ animationDelay: `${0.1 + index * 0.1}s` }}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className={`text-xl font-bold ${colorScheme.text}`}>
@@ -971,13 +1011,13 @@ export default function SWPage() {
 
       {/* Breakdown Tab (Admin only) */}
       {activeTab === 'breakdown' && isAdmin && (
-        <div className="space-y-4 animate-fade-in-up">
+        <div className="space-y-4">
           <div className="card p-4 space-y-2">
             <h2 className="text-lg font-semibold text-white mb-2">SW Breakdown (Detailed Calculation)</h2>
             
             <div className="space-y-2">
               {/* Registration */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Registration</div>
                   <div className="text-white/60 text-xs">Account creation</div>
@@ -989,7 +1029,7 @@ export default function SWPage() {
               </div>
 
               {/* Profile Complete */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Profile Complete</div>
                   <div className="text-white/60 text-xs">All profile fields filled</div>
@@ -1001,7 +1041,7 @@ export default function SWPage() {
               </div>
 
               {/* Growth */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Growth Directions</div>
                   <div className="text-white/60 text-xs">{breakdown.growth.description}</div>
@@ -1013,7 +1053,7 @@ export default function SWPage() {
               </div>
 
               {/* Followers */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Followers</div>
                   <div className="text-white/60 text-xs">People following you</div>
@@ -1025,7 +1065,7 @@ export default function SWPage() {
               </div>
 
               {/* Connections */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Connections</div>
                   <div className="text-white/60 text-xs">
@@ -1039,7 +1079,7 @@ export default function SWPage() {
               </div>
 
               {/* Posts */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Posts</div>
                   <div className="text-white/60 text-xs">Published posts</div>
@@ -1051,7 +1091,7 @@ export default function SWPage() {
               </div>
 
               {/* Comments */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Comments</div>
                   <div className="text-white/60 text-xs">Published comments</div>
@@ -1063,7 +1103,7 @@ export default function SWPage() {
               </div>
 
               {/* Reactions */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Reactions</div>
                   <div className="text-white/60 text-xs">Reactions received on your posts</div>
@@ -1075,7 +1115,7 @@ export default function SWPage() {
               </div>
 
               {/* Invites */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Invite People</div>
                   <div className="text-white/60 text-xs">People who joined via your invite code and received 70 pts</div>
@@ -1087,7 +1127,7 @@ export default function SWPage() {
               </div>
 
               {/* Growth Bonus */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Growth Bonus</div>
                   <div className="text-white/60 text-xs">{breakdown.growthBonus?.description || "5% bonus on invited users' growth points"}</div>
