@@ -1059,6 +1059,17 @@ function DmsInner() {
           last_read_message_id: lastReadId,
           last_read_at: new Date().toISOString(),
         }));
+        
+        // Dispatch event for unread count update
+        window.dispatchEvent(
+          new CustomEvent('dm:message-read', {
+            detail: {
+              threadId: partner.thread_id,
+              partnerId: partner.user_id,
+            },
+          })
+        );
+        
         if (!options.silent) {
           setToast({
             message: 'All messages marked as read',

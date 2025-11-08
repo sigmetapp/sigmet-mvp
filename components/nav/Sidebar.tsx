@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import { Trophy, Rss, User, Users, MessageSquare, Sprout, Settings as SettingsIcon } from 'lucide-react';
 import NavItem from './NavItem';
 import { useTheme } from '@/components/ThemeProvider';
+import { useUnreadDmCount } from '@/hooks/useUnreadDmCount';
 
 export type SidebarProps = {
   user: User;
@@ -33,8 +34,7 @@ const adminMenu = [
 export default function Sidebar({ user }: SidebarProps) {
   const { theme } = useTheme();
   const isLight = theme === "light";
-  // Mock badge for now
-  const unreadDM = 0;
+  const { unreadCount: unreadDM } = useUnreadDmCount();
 
   const userEmail = user.email || null;
   const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
