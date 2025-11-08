@@ -198,10 +198,16 @@ export default function PostFeed({
 
   // Directions from growth-directions API
   const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
+  const availableDirectionsRef = useRef<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
   const [myDirections, setMyDirections] = useState<string[]>([]);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'connections' | 'discuss' | 'direction'>( 'all');
   const [loadingDirections, setLoadingDirections] = useState(false);
+
+  // Update ref when directions change
+  useEffect(() => {
+    availableDirectionsRef.current = availableDirections;
+  }, [availableDirections]);
 
   const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'connections' | 'discuss' | 'direction', offset = 0, limit = 50) => {
     if (offset === 0) {
@@ -233,8 +239,8 @@ export default function PostFeed({
         .not('body', 'is', null)
         .not('body', 'eq', '')
         .ilike('body', '%?%');
-    } else if (filterType === 'direction' && directionId && availableDirections.length > 0) {
-      const direction = availableDirections.find((dir) => dir.id === directionId);
+    } else if (filterType === 'direction' && directionId && availableDirectionsRef.current.length > 0) {
+      const direction = availableDirectionsRef.current.find((dir) => dir.id === directionId);
       if (direction) {
         // Filter posts where category matches direction title or slug
         query = query.or(`category.ilike.%${direction.title}%,category.ilike.%${direction.slug}%`);
@@ -305,7 +311,7 @@ export default function PostFeed({
     }
     setLoading(false);
     setLoadingMore(false);
-  }, [availableDirections, filterUserId]);
+  }, [filterUserId]); // Removed availableDirections from dependencies - using ref instead
 
   // Load directions from growth-directions API - only primary (priority) directions
   // Load immediately on mount, in parallel with posts
@@ -370,8 +376,14 @@ export default function PostFeed({
     }
   }, []);
 
-  // page mount - load posts and directions in parallel
+  // Track if initial load has been done
+  const initialLoadDoneRef = useRef(false);
+  
+  // page mount - load posts and directions in parallel (only once)
   useEffect(() => {
+    if (initialLoadDoneRef.current) return; // Prevent duplicate initial loads
+    
+    initialLoadDoneRef.current = true;
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
     // Initial load - load all posts without filter
     const initialLimit = enableLazyLoad ? 10 : 50;
@@ -380,10 +392,25 @@ export default function PostFeed({
     if (showFilters) {
       loadDirections();
     }
-  }, [loadFeed, enableLazyLoad, showFilters, loadDirections]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
-  // Reload feed when active filter or direction changes
+  // Reload feed when active filter or direction changes (but not on initial mount)
+  const prevFilterRef = useRef<{ filter: typeof activeFilter; direction: typeof activeDirection } | null>(null);
   useEffect(() => {
+    // Skip on initial mount - initial load is handled by the first useEffect
+    if (prevFilterRef.current === null) {
+      prevFilterRef.current = { filter: activeFilter, direction: activeDirection };
+      return;
+    }
+    
+    // Only reload if filter or direction actually changed
+    if (prevFilterRef.current.filter === activeFilter && prevFilterRef.current.direction === activeDirection) {
+      return;
+    }
+    
+    prevFilterRef.current = { filter: activeFilter, direction: activeDirection };
+    
     const limit = enableLazyLoad ? 10 : 50;
     if (!showFilters) {
       // If filters are hidden, just load all posts (or filtered by user_id)
@@ -396,14 +423,14 @@ export default function PostFeed({
     } else if (activeFilter === 'discuss') {
       loadFeed(null, 'discuss', 0, limit);
     } else if (activeFilter === 'direction') {
-      if (availableDirections.length > 0) {
+      if (availableDirectionsRef.current.length > 0 && activeDirection) {
         loadFeed(activeDirection, 'direction', 0, limit);
       }
     } else {
       // activeFilter === 'all'
       loadFeed(null, 'all', 0, limit);
     }
-  }, [activeFilter, activeDirection, availableDirections, loadFeed, showFilters, enableLazyLoad]);
+  }, [activeFilter, activeDirection, loadFeed, showFilters, enableLazyLoad]); // Removed availableDirections - using ref in loadFeed
 
   // Lazy load more posts when scrolling to bottom
   useEffect(() => {
