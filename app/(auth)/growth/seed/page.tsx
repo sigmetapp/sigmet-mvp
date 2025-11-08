@@ -97,7 +97,7 @@ function SeedGrowthInner() {
   if (hasData === null) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-6">
-        <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+        <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
           Checking...
         </div>
       </div>
@@ -107,15 +107,15 @@ function SeedGrowthInner() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
       <div className="mb-6">
-        <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' : 'gradient-text'}`}>
+        <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent' : 'gradient-text'}`}>
           Seed Growth Data
         </h1>
-        <p className={`mt-1 text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+        <p className={`mt-1 text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
           Run the seed SQL to populate growth directions and tasks.
         </p>
       </div>
 
-      <div className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? '' : ''}`}>
+      <div className={`card-glow-primary p-4 md:p-6 space-y-4 ${isLight ? '' : ''}`}>
         {hasData ? (
           <div className={`p-4 rounded-xl ${isLight ? 'bg-green-50 border border-green-200' : 'bg-green-500/10 border border-green-500/30'}`}>
             <div className={`font-medium ${isLight ? 'text-green-800' : 'text-green-400'}`}>
@@ -161,7 +161,7 @@ function SeedGrowthInner() {
               {loading ? 'Running seeds...' : 'Run Seeds'}
             </Button>
 
-            <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
               <p>This will:</p>
               <ul className="list-disc list-inside mt-2 space-y-1">
                 <li>Create 12 growth directions (Learning, Career, Finance, etc.)</li>

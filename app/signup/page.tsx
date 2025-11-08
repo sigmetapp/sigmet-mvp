@@ -122,7 +122,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className={isLight ? "bg-telegram-gradient" : "bg-sigmet"} style={{ minHeight: '100vh' }}>
+    <div className={isLight ? "bg-primary-gradient" : "bg-sigmet"} style={{ minHeight: '100vh' }}>
       <Head>
         <title>Sign up | Sigmet</title>
         <meta name="description" content="Create your Sigmet account" />
@@ -131,12 +131,12 @@ export default function SignupPage() {
       <main style={container}>
         <section className="grid">
           <div className="left">
-            <h1 className={`title ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>Create your Sigmet account</h1>
-            <p className={`subtitle ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+            <h1 className={`title ${isLight ? "text-primary-text" : "text-primary-text"}`}>Create your Sigmet account</h1>
+            <p className={`subtitle ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
               Join Sigmet to build your social weight through growth and purpose.
             </p>
 
-            <form onSubmit={handleSubmit} className={`formCard ${isLight ? "telegram-card-glow" : "telegram-card-glow"}`}>
+            <form onSubmit={handleSubmit} className={`formCard ${isLight ? "card-glow-primary" : "card-glow-primary"}`}>
               <div className="formRow">
                 <label htmlFor="fullName" className="label">Full name</label>
                 <input
@@ -228,9 +228,9 @@ export default function SignupPage() {
               </div>
             </form>
 
-            <div className={`tipsCard ${isLight ? "telegram-card-glow" : "telegram-card-glow"}`}>
-              <h3 className={isLight ? "text-telegram-text" : "text-telegram-text"}>Quick tips</h3>
-              <ul className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>
+            <div className={`tipsCard ${isLight ? "card-glow-primary" : "card-glow-primary"}`}>
+              <h3 className={isLight ? "text-primary-text" : "text-primary-text"}>Quick tips</h3>
+              <ul className={isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}>
                 <li>Use a valid email to receive the confirmation link.</li>
                 <li>After confirming, you can complete your profile setup.</li>
                 <li>Choose 3 growth areas to personalize your experience.</li>
@@ -239,14 +239,14 @@ export default function SignupPage() {
           </div>
 
           <div className="right">
-            <div className={`infoCard ${isLight ? "telegram-card-glow" : "telegram-card-glow"}`}>
-              <h3 className={isLight ? "text-telegram-text" : "text-telegram-text"}>Why Sigmet</h3>
-              <ul className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}>
+            <div className={`infoCard ${isLight ? "card-glow-primary" : "card-glow-primary"}`}>
+              <h3 className={isLight ? "text-primary-text" : "text-primary-text"}>Why Sigmet</h3>
+              <ul className={isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}>
                 <li>Communities built on purpose, not popularity.</li>
                 <li>Transparent and fair social weight system.</li>
                 <li>Insightful analytics for creators and members.</li>
               </ul>
-              <div className={`smallNote ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+              <div className={`smallNote ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
                 A verification email will be sent to ensure account security.
               </div>
             </div>

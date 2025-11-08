@@ -42,11 +42,11 @@ export default function Sidebar({ user }: SidebarProps) {
   return (
     <aside className={`flex h-full w-[218px] flex-col border-r backdrop-blur-md transition-colors ${
       isLight
-        ? "border-telegram-blue/15 bg-white/90 text-telegram-text"
-        : "border-telegram-blue/20 bg-[rgba(15,22,35,0.9)] text-telegram-text"
+        ? "border-primary-blue/15 bg-white/90 text-primary-text"
+        : "border-primary-blue/20 bg-[rgba(15,22,35,0.9)] text-primary-text"
     }`}>
       <div className="px-3 py-3">
-        <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Menu</div>
+        <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>Menu</div>
       </div>
       <nav className="px-2">
         <ul className="space-y-1">

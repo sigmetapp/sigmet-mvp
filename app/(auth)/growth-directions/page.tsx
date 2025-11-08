@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import Button from '@/components/Button';
 import { useTheme } from '@/components/ThemeProvider';
 import { resolveDirectionEmoji } from '@/lib/directions';
-import Skeleton from '@/components/Skeleton';
 
 type Direction = {
   id: string;
@@ -169,12 +168,8 @@ function GrowthDirectionsInner() {
   const [resettingAchievements, setResettingAchievements] = useState(false);
 
   useEffect(() => {
-    // Load initial data in parallel for faster page load
-    Promise.all([
-      loadDirections(),
-      checkAdmin(),
-      loadCompletedTasks(),
-    ]).catch(console.error);
+    loadDirections();
+    checkAdmin();
   }, []);
 
   async function checkAdmin() {
@@ -204,7 +199,9 @@ function GrowthDirectionsInner() {
     }
   }, [directions, selectedDirection, tasks]);
 
-  // Removed duplicate loadCompletedTasks - now loaded in initial useEffect
+  useEffect(() => {
+    loadCompletedTasks();
+  }, []);
 
   useEffect(() => {
     setCompletedPage((prev) => {
@@ -594,15 +591,15 @@ function GrowthDirectionsInner() {
     return prioritized.slice(0, 3);
   };
 
-  const focusTaskCard = useCallback((targetId: string) => {
+  function focusTaskCard(targetId: string) {
     const element = document.getElementById(targetId);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setHighlightedTaskId(targetId);
     }
-  }, []);
+  }
 
-  const handleSummaryTaskClick = useCallback((item: TaskSummaryItem) => {
+  function handleSummaryTaskClick(item: TaskSummaryItem) {
     setPinnedTask(item);
     if (item.directionId !== selectedDirection) {
       setFocusTask(item);
@@ -611,7 +608,7 @@ function GrowthDirectionsInner() {
     }
 
     setFocusTask(item);
-  }, [selectedDirection]);
+  }
 
   async function toggleDirection(directionId: string) {
     if (toggling.has(directionId)) return;
@@ -1160,36 +1157,21 @@ function GrowthDirectionsInner() {
     }
   }
 
-  // Memoize computed values for better performance
-  const currentDirection = useMemo(() => 
-    directions.find((d) => d.id === selectedDirection),
-    [directions, selectedDirection]
-  );
+  const currentDirection = directions.find((d) => d.id === selectedDirection);
 
-  const selectedPrimaryDirections = useMemo(() => 
-    directions.filter((d) => d.isSelected && d.isPrimary),
-    [directions]
-  );
+  const selectedPrimaryDirections = directions.filter((d) => d.isSelected && d.isPrimary);
   const selectedPrimaryCount = selectedPrimaryDirections.length;
   const primaryLimitReached = selectedPrimaryCount >= 3;
-  
-  const displayedHabits = useMemo(() => getDisplayedTasks(tasks.habits, 'habit'), [tasks.habits]);
-  const displayedGoals = useMemo(() => getDisplayedTasks(tasks.goals, 'goal'), [tasks.goals]);
+  const displayedHabits = getDisplayedTasks(tasks.habits, 'habit');
+  const displayedGoals = getDisplayedTasks(tasks.goals, 'goal');
   const extraHabits = Math.max(0, tasks.habits.length - displayedHabits.length);
   const extraGoals = Math.max(0, tasks.goals.length - displayedGoals.length);
   const totalHabits = tasks.habits.length;
   const totalGoals = tasks.goals.length;
-  
-  const totalCompletedPages = useMemo(() => 
-    Math.ceil(completedTasks.length / COMPLETED_PAGE_SIZE) || 1,
-    [completedTasks.length]
-  );
-  const paginatedCompletedTasks = useMemo(() => 
-    completedTasks.slice(
-      completedPage * COMPLETED_PAGE_SIZE,
-      completedPage * COMPLETED_PAGE_SIZE + COMPLETED_PAGE_SIZE
-    ),
-    [completedTasks, completedPage]
+  const totalCompletedPages = Math.ceil(completedTasks.length / COMPLETED_PAGE_SIZE) || 1;
+  const paginatedCompletedTasks = completedTasks.slice(
+    completedPage * COMPLETED_PAGE_SIZE,
+    completedPage * COMPLETED_PAGE_SIZE + COMPLETED_PAGE_SIZE
   );
   const completedRangeStart = completedTasks.length === 0 ? 0 : completedPage * COMPLETED_PAGE_SIZE + 1;
   const completedRangeEnd = completedTasks.length === 0
@@ -1199,19 +1181,10 @@ function GrowthDirectionsInner() {
   const renderSummaryTaskList = (list: TaskSummaryItem[]) => {
     if (loadingSummary) {
       return (
-        <div className="min-h-[120px] space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="card p-2">
-              <div className="flex items-center gap-3">
-                <Skeleton variant="circular" width={24} height={24} />
-                <div className="flex-1 space-y-1">
-                  <Skeleton width="70%" height={14} />
-                  <Skeleton width="50%" height={12} />
-                </div>
-                <Skeleton width={60} height={20} className="rounded-full" />
-              </div>
-            </div>
-          ))}
+        <div className="min-h-[120px] flex items-center">
+          <p className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+            Loading...
+          </p>
         </div>
       );
     }
@@ -1219,7 +1192,7 @@ function GrowthDirectionsInner() {
     if (list.length === 0) {
       return (
         <div className="min-h-[120px] flex items-center">
-          <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+          <p className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
             No cards in work yet
           </p>
         </div>
@@ -1234,27 +1207,27 @@ function GrowthDirectionsInner() {
               key={`${item.directionId}-${item.id}-${item.type}`}
               type="button"
               onClick={() => handleSummaryTaskClick(item)}
-              className={`card w-full text-left flex items-center gap-3 p-2 transition relative hover:scale-[1.02] ${
-                item.directionIsPrimary ? 'ring-2 ring-telegram-blue/30' : ''
-              }`}
+              className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition relative ${
+                isLight ? 'bg-primary-bg-secondary hover:bg-primary-blue/10' : 'bg-white/5 hover:bg-white/10'
+              } ${item.directionIsPrimary ? 'ring-2 ring-primary-blue/30' : ''}`}
             >
               {item.directionIsPrimary && (
-                <div className="absolute top-0 right-0 w-2 h-2 bg-telegram-blue rounded-full"></div>
+                <div className="absolute top-0 right-0 w-2 h-2 bg-primary-blue rounded-full"></div>
               )}
               <span className="text-lg">
                 {resolveDirectionEmoji(item.directionSlug)}
               </span>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <p className={`text-sm font-medium truncate ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   {item.title}
                 </p>
-                <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                <p className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                   {item.type === 'habit'
                     ? `Habit${item.period ? ` - ${toTitleCase(item.period)}` : ''}`
                     : 'Goal'}
                   {` - ${item.directionTitle}`}
                 </p>
-                <p className={`text-xs font-semibold mt-1 flex items-center gap-1 ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
+                <p className={`text-xs font-semibold mt-1 flex items-center gap-1 ${isLight ? 'text-primary-blue' : 'text-primary-blue-light'}`}>
                   <span aria-hidden="true">{String.fromCodePoint(0x1F3C6)}</span>
                   {formatPoints(item.basePoints)} pts
                 </p>
@@ -1276,15 +1249,15 @@ function GrowthDirectionsInner() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 animate-fade-in-up">
+    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
       {/* Header */}
-      <div className="mb-6 md:mb-8 animate-fade-in-up animate-stagger-1">
+      <div className="mb-6 md:mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+            <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
               Growth Directions
             </h1>
-            <p className={`mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            <p className={`mt-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
               Select directions and activate tasks to track your growth.
             </p>
           </div>
@@ -1326,49 +1299,27 @@ function GrowthDirectionsInner() {
 
 
       {/* Completed Tasks & Total Points Section */}
-      {loading ? (
-        <div className="card p-4 md:p-6 mb-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-            <div className="space-y-2">
-              <Skeleton width="200px" height={24} />
-              <Skeleton width="150px" height={16} />
-            </div>
-            <Skeleton width="150px" height={80} className="rounded-2xl" />
-          </div>
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex items-center gap-3 p-3">
-                <Skeleton variant="circular" width={36} height={36} />
-                <div className="flex-1 space-y-2">
-                  <Skeleton width="60%" height={16} />
-                  <Skeleton width="40%" height={12} />
-                </div>
-                <Skeleton width={80} height={20} />
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="card p-4 md:p-6 mb-6 animate-fade-in-up animate-stagger-2">
+      {!loading && (
+        <div className={`p-4 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-primary-bg-secondary border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>
-              <h2 className={`font-semibold text-base mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              <h2 className={`font-semibold text-base mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 {String.fromCodePoint(0x1F389)} Completed Tasks & Points
               </h2>
-              <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <p className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                 Track your achievements and earned points
               </p>
             </div>
             <div className={`relative inline-flex items-center justify-center px-6 py-4 rounded-2xl ${
               isLight 
-                ? 'bg-gradient-to-r from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/20' 
-                : 'bg-gradient-to-r from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/30'
+                ? 'bg-gradient-to-r from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/20' 
+                : 'bg-gradient-to-r from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/30'
             }`}>
               <div className="text-center">
-                <div className={`text-xs uppercase tracking-wider mb-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                <div className={`text-xs uppercase tracking-wider mb-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                   Total Points
                 </div>
-                <div className={`text-3xl font-bold bg-gradient-to-r ${isLight ? 'from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' : 'from-telegram-blue-light to-telegram-blue bg-clip-text text-transparent'}`}>
+                <div className={`text-3xl font-bold bg-gradient-to-r ${isLight ? 'from-primary-blue to-primary-blue-light bg-clip-text text-transparent' : 'from-primary-blue-light to-primary-blue bg-clip-text text-transparent'}`}>
                   {totalPoints.toLocaleString('en-US')}
                 </div>
               </div>
@@ -1376,31 +1327,14 @@ function GrowthDirectionsInner() {
           </div>
 
           {loadingCompleted ? (
-            <div className="space-y-3">
-              {/* Table header skeleton */}
-              <div className="flex items-center gap-3 pb-2 border-b border-telegram-blue/10">
-                <Skeleton width="30%" height={14} />
-                <Skeleton width="15%" height={14} />
-                <Skeleton width="20%" height={14} />
-                <Skeleton width="20%" height={14} />
-                <Skeleton width="15%" height={14} />
+            <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+              <div className="inline-flex items-center gap-2">
+                <div className="w-5 h-5 border-2 border-primary-blue border-t-transparent rounded-full animate-spin"></div>
+                <span>Loading completed tasks...</span>
               </div>
-              {/* Table rows skeleton */}
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex items-center gap-3 py-2 border-b border-telegram-blue/5">
-                  <div className="flex items-center gap-2 w-[30%]">
-                    <Skeleton variant="circular" width={36} height={36} />
-                    <Skeleton width="70%" height={16} />
-                  </div>
-                  <Skeleton width="15%" height={24} className="rounded-full" />
-                  <Skeleton width="20%" height={14} />
-                  <Skeleton width="20%" height={14} />
-                  <Skeleton width="15%" height={16} />
-                </div>
-              ))}
             </div>
           ) : completedTasks.length === 0 ? (
-            <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
               <div className="text-4xl mb-3">{String.fromCodePoint(0x1F4ED)}</div>
               <p className="text-sm font-medium">No completed tasks yet</p>
               <p className="text-xs mt-1 opacity-70">Complete your first goal to see it here!</p>
@@ -1410,20 +1344,20 @@ function GrowthDirectionsInner() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className={`border-b ${isLight ? 'border-telegram-blue/10' : 'border-telegram-blue/20'}`}>
-                      <th className={`py-2 px-3 text-[11px] font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    <tr className={`border-b ${isLight ? 'border-primary-blue/10' : 'border-primary-blue/20'}`}>
+                      <th className={`py-2 px-3 text-[11px] font-semibold uppercase tracking-wider ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                         Task
                       </th>
-                      <th className={`py-2 px-3 text-[11px] font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      <th className={`py-2 px-3 text-[11px] font-semibold uppercase tracking-wider ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                         Type
                       </th>
-                      <th className={`py-2 px-3 text-[11px] font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      <th className={`py-2 px-3 text-[11px] font-semibold uppercase tracking-wider ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                         Direction
                       </th>
-                      <th className={`py-2 px-3 text-[11px] font-semibold uppercase tracking-wider ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      <th className={`py-2 px-3 text-[11px] font-semibold uppercase tracking-wider ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                         Completed
                       </th>
-                      <th className={`py-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-right ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      <th className={`py-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-right ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                         Points
                       </th>
                     </tr>
@@ -1434,9 +1368,9 @@ function GrowthDirectionsInner() {
                         key={task.id}
                         className={`text-xs ${
                           isLight
-                            ? 'hover:bg-telegram-blue/5 border-b border-telegram-blue/5'
+                            ? 'hover:bg-primary-blue/5 border-b border-primary-blue/5'
                             : 'hover:bg-white/5 border-b border-white/5'
-                        }`}
+                        } ${index % 2 === 0 ? (isLight ? 'bg-primary-bg-secondary/40' : 'bg-white/5') : ''}`}
                       >
                         <td className="py-2 px-3 align-middle">
                           <div className="flex items-center gap-2">
@@ -1450,7 +1384,7 @@ function GrowthDirectionsInner() {
                               </span>
                             </div>
                             <div>
-                              <div className={`font-semibold text-sm leading-tight ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                              <div className={`font-semibold text-sm leading-tight ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                                 {task.title}
                               </div>
                             </div>
@@ -1467,10 +1401,10 @@ function GrowthDirectionsInner() {
                             {task.taskType === 'habit' ? 'Habit' : 'Goal'}
                           </span>
                         </td>
-                        <td className={`py-2 px-3 align-middle text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        <td className={`py-2 px-3 align-middle text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           {task.direction.title}
                         </td>
-                        <td className={`py-2 px-3 align-middle text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        <td className={`py-2 px-3 align-middle text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           {task.completedAt ? (
                             <div className="flex flex-col leading-tight">
                               <span className="font-medium text-[11px]">{new Date(task.completedAt).toLocaleDateString('en-US', {
@@ -1490,11 +1424,11 @@ function GrowthDirectionsInner() {
                         </td>
                         <td className="py-2 px-3 align-middle">
                           <div className="flex flex-col items-end leading-tight">
-                            <div className={`text-sm font-semibold ${isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'}`}>
+                            <div className={`text-sm font-semibold ${isLight ? 'text-primary-blue' : 'text-primary-blue-light'}`}>
                               {task.pointsAwarded.toLocaleString('en-US')}
                             </div>
                             {task.pointsAwarded !== task.basePoints && (
-                              <div className={`text-[10px] ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                              <div className={`text-[10px] ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                 <span className="opacity-70">base: {task.basePoints.toLocaleString('en-US')}</span>
                               </div>
                             )}
@@ -1507,7 +1441,7 @@ function GrowthDirectionsInner() {
               </div>
               {completedTasks.length > COMPLETED_PAGE_SIZE && (
                 <div className="flex flex-wrap items-center justify-between gap-3 mt-3 text-xs">
-                  <span className={`${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                  <span className={`${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                     Showing {completedRangeStart}-{completedRangeEnd} of {completedTasks.length}
                   </span>
                   <div className="flex items-center gap-2">
@@ -1519,13 +1453,13 @@ function GrowthDirectionsInner() {
                         completedPage === 0
                           ? 'opacity-40 cursor-not-allowed'
                           : isLight
-                          ? 'border-telegram-blue/40 text-telegram-blue hover:bg-telegram-blue/10'
-                          : 'border-telegram-blue/40 text-telegram-blue-light hover:bg-telegram-blue/15'
+                          ? 'border-primary-blue/40 text-primary-blue hover:bg-primary-blue/10'
+                          : 'border-primary-blue/40 text-primary-blue-light hover:bg-primary-blue/15'
                       }`}
                     >
                       Prev
                     </button>
-                    <span className={`text-[11px] font-medium ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    <span className={`text-[11px] font-medium ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                       Page {completedPage + 1} / {totalCompletedPages}
                     </span>
                     <button
@@ -1536,8 +1470,8 @@ function GrowthDirectionsInner() {
                         completedPage >= totalCompletedPages - 1
                           ? 'opacity-40 cursor-not-allowed'
                           : isLight
-                          ? 'border-telegram-blue/40 text-telegram-blue hover:bg-telegram-blue/10'
-                          : 'border-telegram-blue/40 text-telegram-blue-light hover:bg-telegram-blue/15'
+                          ? 'border-primary-blue/40 text-primary-blue hover:bg-primary-blue/10'
+                          : 'border-primary-blue/40 text-primary-blue-light hover:bg-primary-blue/15'
                       }`}
                     >
                       Next
@@ -1551,80 +1485,15 @@ function GrowthDirectionsInner() {
       )}
 
       {loading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Directions List Skeleton */}
-          <div className="lg:col-span-1 space-y-4">
-            <div className="card p-4">
-              <Skeleton width="100px" height={20} className="mb-3" />
-              <div className="space-y-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="card p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 space-y-2">
-                        <Skeleton width="70%" height={16} />
-                        <Skeleton width="50%" height={12} />
-                      </div>
-                      <Skeleton width={60} height={24} className="rounded-full" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Tasks View Skeleton */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="card p-4 mb-6">
-              <Skeleton width="200px" height={20} className="mb-2" />
-              <Skeleton width="150px" height={16} />
-            </div>
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-              {/* Habits Skeleton */}
-              <section className="space-y-4">
-                <Skeleton width="100px" height={20} />
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="card p-4 md:p-6 space-y-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Skeleton width="60%" height={18} />
-                        <Skeleton width={80} height={24} className="rounded-full" />
-                      </div>
-                      <Skeleton width="100%" height={16} />
-                      <Skeleton width="80%" height={16} />
-                      <Skeleton width="120px" height={14} />
-                    </div>
-                    <Skeleton width="100%" height={40} className="rounded-lg" />
-                  </div>
-                ))}
-              </section>
-
-              {/* Goals Skeleton */}
-              <section className="space-y-4">
-                <Skeleton width="100px" height={20} />
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="card p-4 md:p-6 space-y-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Skeleton width="60%" height={18} />
-                        <Skeleton width={80} height={24} className="rounded-full" />
-                      </div>
-                      <Skeleton width="100%" height={16} />
-                      <Skeleton width="80%" height={16} />
-                      <Skeleton width="120px" height={14} />
-                    </div>
-                    <Skeleton width="100%" height={40} className="rounded-lg" />
-                  </div>
-                ))}
-              </section>
-            </div>
-          </div>
+        <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+          Loading...
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Directions List */}
-          <div className="lg:col-span-1 space-y-4 animate-fade-in-up animate-stagger-3">
-            <div className="card p-4">
-              <h2 className={`font-semibold mb-3 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+          <div className="lg:col-span-1 space-y-4">
+            <div className={`p-4 rounded-lg border ${isLight ? 'bg-primary-bg-secondary border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+              <h2 className={`font-semibold mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Directions
               </h2>
               <div className="space-y-2">
@@ -1663,11 +1532,11 @@ function GrowthDirectionsInner() {
                       } ${
                         isSelected
                           ? isLight
-                            ? 'bg-telegram-blue text-white'
-                            : 'bg-telegram-blue text-white'
+                            ? 'bg-primary-blue text-white'
+                            : 'bg-primary-blue text-white'
                           : isLight
-                          ? 'border border-telegram-blue/20 hover:bg-telegram-blue/10'
-                          : 'border border-telegram-blue/30 hover:bg-telegram-blue/15'
+                          ? 'border border-primary-blue/20 hover:bg-primary-blue/10'
+                          : 'border border-primary-blue/30 hover:bg-primary-blue/15'
                       }`}
                       onClick={() => {
                         if (!isInDevelopment) {
@@ -1679,7 +1548,7 @@ function GrowthDirectionsInner() {
                         <div className="flex items-center gap-2">
                           <div>
                             <span className="font-medium text-sm">{dir.title}</span>
-                            <div className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-white/70' : isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                            <div className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-white/70' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                               {isInDevelopment ? 'In development' : dir.isSelected ? 'Priority direction' : 'Available'}
                             </div>
                           </div>
@@ -1705,15 +1574,15 @@ function GrowthDirectionsInner() {
                               : dir.isSelected
                               ? 'bg-white/20 text-white'
                               : isLight
-                              ? 'border border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                              : 'border border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                              ? 'border border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10'
+                              : 'border border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/15'
                           } ${(disableSelection || isInDevelopment) && !dir.isSelected ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           {buttonLabel}
                         </button>
                       </div>
                       {dir.stats.swPoints > 0 && (
-                        <div className={`mt-2 text-xs ${isSelected ? 'text-white/80' : isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        <div className={`mt-2 text-xs ${isSelected ? 'text-white/80' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           {dir.stats.swPoints} SW points
                         </div>
                       )}
@@ -1725,16 +1594,16 @@ function GrowthDirectionsInner() {
           </div>
 
           {/* Tasks View */}
-          <div className="lg:col-span-2 space-y-6 animate-fade-in-up animate-stagger-4">
+          <div className="lg:col-span-2 space-y-6">
             {selectedDirection ? (
               <>
-                  <div className="card p-4 mb-6">
+                  <div className={`p-4 rounded-lg border mb-6 ${isLight ? 'bg-primary-bg-secondary border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
                     <div className="flex items-center gap-3 mb-4">
                       <div>
-                        <h2 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <h2 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           {currentDirection?.title}
                         </h2>
-                        <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        <p className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           {currentDirection?.stats.activeHabits} habits, {currentDirection?.stats.activeGoals} goals active
                         </p>
                       </div>
@@ -1742,61 +1611,25 @@ function GrowthDirectionsInner() {
                   </div>
 
                 {loadingTasks ? (
-                  <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-                    {/* Habits Skeleton */}
-                    <section className="space-y-4">
-                      <Skeleton width="100px" height={20} />
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="card p-4 md:p-6 space-y-4">
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <Skeleton width="60%" height={18} />
-                              <Skeleton width={80} height={24} className="rounded-full" />
-                            </div>
-                            <Skeleton width="100%" height={16} />
-                            <Skeleton width="80%" height={16} />
-                            <Skeleton width="120px" height={14} />
-                          </div>
-                          <Skeleton width="100%" height={40} className="rounded-lg" />
-                        </div>
-                      ))}
-                    </section>
-
-                    {/* Goals Skeleton */}
-                    <section className="space-y-4">
-                      <Skeleton width="100px" height={20} />
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="card p-4 md:p-6 space-y-4">
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <Skeleton width="60%" height={18} />
-                              <Skeleton width={80} height={24} className="rounded-full" />
-                            </div>
-                            <Skeleton width="100%" height={16} />
-                            <Skeleton width="80%" height={16} />
-                            <Skeleton width="120px" height={14} />
-                          </div>
-                          <Skeleton width="100%" height={40} className="rounded-lg" />
-                        </div>
-                      ))}
-                    </section>
+                  <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                    Loading tasks...
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                     {/* Habits */}
                     <section className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           Habits ({totalHabits})
                         </h3>
                         {extraHabits > 0 && (
-                          <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                          <span className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                             +{extraHabits} more available
                           </span>
                         )}
                       </div>
                       {displayedHabits.length === 0 ? (
-                        <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        <div className={`text-center py-8 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           No habits available
                         </div>
                       ) : (
@@ -1811,15 +1644,15 @@ function GrowthDirectionsInner() {
                             <div
                               key={habit.id}
                               id={elementId}
-                              className={`card p-4 md:p-6 space-y-4 transition-all duration-300 hover:scale-[1.02] ${
-                                isHighlighted ? 'ring-2 ring-telegram-blue scale-[1.02]' : ''
-                              }`}
+                              className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
+                                isHighlighted ? 'ring-2 ring-primary-blue' : ''
+                              } ${isLight ? 'bg-primary-bg-secondary border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
                                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                                     <div className="flex items-center gap-2">
-                                      <h4 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                                      <h4 className={`font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                                         {habit.title}
                                       </h4>
                                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -1835,38 +1668,38 @@ function GrowthDirectionsInner() {
                                     <span
                                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                                         isLight
-                                          ? 'bg-telegram-blue/15 text-telegram-blue'
-                                          : 'bg-telegram-blue/20 text-telegram-blue-light'
+                                          ? 'bg-primary-blue/15 text-primary-blue'
+                                          : 'bg-primary-blue/20 text-primary-blue-light'
                                       }`}
                                     >
                                       <span aria-hidden="true">{String.fromCodePoint(0x1F3C6)}</span>
                                       {formatPoints(habit.base_points)} pts
                                     </span>
                                   </div>
-                                  <p className={`text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                                  <p className={`text-sm mb-2 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                     {habit.description}
                                   </p>
-                                  <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                                  <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                     Earn {formatPoints(habit.base_points)} pts per check-in
                                   </div>
                                 </div>
                               </div>
 
                               {isActive && habit.userTask && (
-                                <div className="card grid grid-cols-2 gap-4 p-3">
+                                <div className={`grid grid-cols-2 gap-4 p-3 rounded-xl ${isLight ? 'bg-primary-bg-secondary' : 'bg-white/5'}`}>
                                   <div>
-                                    <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                                    <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                       Current Streak
                                     </div>
-                                    <div className={`text-lg font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                                    <div className={`text-lg font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                                       {`${String.fromCodePoint(0x1F525)} ${habit.userTask.current_streak}`}
                                     </div>
                                   </div>
                                   <div>
-                                    <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                                    <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                       Total Check-ins
                                     </div>
-                                    <div className={`text-lg font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                                    <div className={`text-lg font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                                       {habit.userTask.total_checkins}
                                     </div>
                                   </div>
@@ -1912,17 +1745,17 @@ function GrowthDirectionsInner() {
                     {/* Goals */}
                     <section className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           Goals ({totalGoals})
                         </h3>
                         {extraGoals > 0 && (
-                          <span className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                          <span className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                             +{extraGoals} more available
                           </span>
                         )}
                       </div>
                       {displayedGoals.length === 0 ? (
-                        <div className={`text-center py-8 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        <div className={`text-center py-8 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           No goals available
                         </div>
                       ) : (
@@ -1938,15 +1771,15 @@ function GrowthDirectionsInner() {
                             <div
                               key={goal.id}
                               id={elementId}
-                              className={`card p-4 md:p-6 space-y-4 transition-all duration-300 hover:scale-[1.02] ${
-                                isHighlighted ? 'ring-2 ring-telegram-blue scale-[1.02]' : ''
-                              }`}
+                              className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
+                                isHighlighted ? 'ring-2 ring-primary-blue' : ''
+                              } ${isLight ? 'bg-primary-bg-secondary border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
                                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                                     <div className="flex items-center gap-2">
-                                      <h4 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                                      <h4 className={`font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                                         {goal.title}
                                       </h4>
                                       {isCompleted && (
@@ -1963,18 +1796,18 @@ function GrowthDirectionsInner() {
                                     <span
                                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                                         isLight
-                                          ? 'bg-telegram-blue/15 text-telegram-blue'
-                                          : 'bg-telegram-blue/20 text-telegram-blue-light'
+                                          ? 'bg-primary-blue/15 text-primary-blue'
+                                          : 'bg-primary-blue/20 text-primary-blue-light'
                                       }`}
                                     >
                                       <span aria-hidden="true">{String.fromCodePoint(0x1F3C6)}</span>
                                       {formatPoints(goal.base_points)} pts
                                     </span>
                                   </div>
-                                  <p className={`text-sm mb-2 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                                  <p className={`text-sm mb-2 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                     {goal.description}
                                   </p>
-                                  <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                                  <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                     Earn {formatPoints(goal.base_points)} pts when completed
                                   </div>
                                 </div>
@@ -2034,7 +1867,7 @@ function GrowthDirectionsInner() {
                 )}
               </>
             ) : (
-              <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                 Select a direction to view tasks
               </div>
             )}
@@ -2049,14 +1882,14 @@ function GrowthDirectionsInner() {
             className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingCompletePost && !completing.has(showCompleteModal.userTaskId) && setShowCompleteModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/30 bg-white' : 'bg-gradient-to-br from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 space-y-2 shadow-2xl`}>
+          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 space-y-2 shadow-2xl`}>
             <div className="flex items-center justify-between">
-              <h3 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Complete Goal & Publish
               </h3>
               <button
                 onClick={() => !publishingCompletePost && !completing.has(showCompleteModal.userTaskId) && setShowCompleteModal(null)}
-                className={`transition ${isLight ? 'text-telegram-text-secondary hover:text-telegram-blue' : 'text-telegram-text-secondary hover:text-telegram-blue-light'}`}
+                className={`transition ${isLight ? 'text-primary-text-secondary hover:text-primary-blue' : 'text-primary-text-secondary hover:text-primary-blue-light'}`}
                 aria-label="Close"
               >
                 ?
@@ -2064,21 +1897,21 @@ function GrowthDirectionsInner() {
             </div>
             
             {/* Task Info Display */}
-            <div className={`p-2 rounded-lg ${isLight ? 'bg-telegram-blue/10 border border-telegram-blue/20' : 'bg-telegram-blue/15 border border-telegram-blue/30'}`}>
-              <div className={`text-[10px] font-medium mb-0.5 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            <div className={`p-2 rounded-lg ${isLight ? 'bg-primary-blue/10 border border-primary-blue/20' : 'bg-primary-blue/15 border border-primary-blue/30'}`}>
+              <div className={`text-[10px] font-medium mb-0.5 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                 Goal Information
               </div>
-              <div className={`font-semibold text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              <div className={`font-semibold text-sm ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 {showCompleteModal.task.title}
               </div>
-              <div className={`text-xs mt-0.5 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <div className={`text-xs mt-0.5 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                 {showCompleteModal.task.description}
               </div>
             </div>
 
             <div className="space-y-2">
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Post Content
                 </label>
                 <div className="relative">
@@ -2087,7 +1920,7 @@ function GrowthDirectionsInner() {
                     onChange={(e) => setCompleteForm((prev) => ({ ...prev, body: e.target.value }))}
                     placeholder="Share your achievement and thoughts about completing this goal..."
                     rows={6}
-                    className={`input w-full pr-10 ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
+                    className={`input w-full pr-10 ${isLight ? 'placeholder-primary-text-secondary/60' : 'placeholder-primary-text-secondary/50'}`}
                   />
                   <div className="absolute bottom-2 right-2">
                     <input
@@ -2110,8 +1943,8 @@ function GrowthDirectionsInner() {
                       htmlFor="complete-media-input"
                       className={`inline-flex items-center px-2 py-1.5 rounded-lg border text-xs cursor-pointer transition ${
                         isLight
-                          ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10 bg-white'
-                          : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15 bg-[rgba(15,22,35,0.98)]'
+                          ? 'border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10 bg-white'
+                          : 'border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/15 bg-[rgba(15,22,35,0.98)]'
                       }`}
                       title="Attach photo or video"
                     >
@@ -2119,7 +1952,7 @@ function GrowthDirectionsInner() {
                     </label>
                   </div>
                   {(completeForm.image || completeForm.video) && (
-                    <div className={`mt-1 text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    <div className={`mt-1 text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                       {completeForm.image ? completeForm.image.name : completeForm.video?.name}
                     </div>
                   )}
@@ -2127,11 +1960,11 @@ function GrowthDirectionsInner() {
               </div>
 
               <div>
-                <label className={`block text-xs font-medium mb-0.5 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <label className={`block text-xs font-medium mb-0.5 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Category (auto)
                 </label>
-                <div className={`p-1.5 rounded-lg ${isLight ? 'bg-telegram-blue/10 border border-telegram-blue/20' : 'bg-telegram-blue/15 border border-telegram-blue/30'}`}>
-                  <span className={`text-xs ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <div className={`p-1.5 rounded-lg ${isLight ? 'bg-primary-blue/10 border border-primary-blue/20' : 'bg-primary-blue/15 border border-primary-blue/30'}`}>
+                  <span className={`text-xs ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                     {(() => {
                       const taskDirection = directions.find((d) => d.id === showCompleteModal.task.direction_id);
                       return taskDirection ? `${resolveDirectionEmoji(taskDirection.slug, taskDirection.emoji)} ${taskDirection.title}` : 'Not specified';
@@ -2141,7 +1974,7 @@ function GrowthDirectionsInner() {
               </div>
 
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Reactions
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2166,11 +1999,11 @@ function GrowthDirectionsInner() {
                         className={`px-3 py-1.5 rounded-lg text-sm border transition ${
                           isSelected
                             ? isLight
-                              ? 'bg-telegram-blue text-white border-telegram-blue shadow-md'
-                              : 'bg-telegram-blue text-white border-telegram-blue shadow-md'
+                              ? 'bg-primary-blue text-white border-primary-blue shadow-md'
+                              : 'bg-primary-blue text-white border-primary-blue shadow-md'
                             : isLight
-                            ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                            : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                            ? 'border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10'
+                            : 'border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/15'
                         }`}
                       >
                         <span className="mr-1">{reaction.emoji}</span>
@@ -2212,14 +2045,14 @@ function GrowthDirectionsInner() {
             className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingPost && setShowCheckInModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-telegram-blue/10 to-telegram-blue-light/10 border-2 border-telegram-blue/30 bg-white' : 'bg-gradient-to-br from-telegram-blue/20 to-telegram-blue-light/20 border-2 border-telegram-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 space-y-2 shadow-2xl`}>
+          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 space-y-2 shadow-2xl`}>
             <div className="flex items-center justify-between">
-              <h3 className={`font-semibold text-base ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Create Check-in Post
               </h3>
               <button
                 onClick={() => !publishingPost && setShowCheckInModal(null)}
-                className={`transition ${isLight ? 'text-telegram-text-secondary hover:text-telegram-blue' : 'text-telegram-text-secondary hover:text-telegram-blue-light'}`}
+                className={`transition ${isLight ? 'text-primary-text-secondary hover:text-primary-blue' : 'text-primary-text-secondary hover:text-primary-blue-light'}`}
                 aria-label="Close"
               >
                 ?
@@ -2227,21 +2060,21 @@ function GrowthDirectionsInner() {
             </div>
             
             {/* Task Info Display */}
-            <div className={`p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}>
-              <div className={`text-[10px] font-medium mb-0.5 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            <div className={`p-2 rounded-lg ${isLight ? 'bg-primary-bg-secondary' : 'bg-white/5'}`}>
+              <div className={`text-[10px] font-medium mb-0.5 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                 Task Information
               </div>
-              <div className={`font-semibold text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+              <div className={`font-semibold text-sm ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 {showCheckInModal.task.title}
               </div>
-              <div className={`text-xs mt-0.5 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+              <div className={`text-xs mt-0.5 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                 {showCheckInModal.task.description}
               </div>
             </div>
 
             <div className="space-y-2">
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Post Content
                 </label>
                 <div className="relative">
@@ -2250,7 +2083,7 @@ function GrowthDirectionsInner() {
                     onChange={(e) => setCheckInPostForm((prev) => ({ ...prev, body: e.target.value }))}
                     placeholder="Add your thoughts about this check-in..."
                     rows={6}
-                    className={`input w-full pr-10 ${isLight ? 'placeholder-telegram-text-secondary/60' : 'placeholder-telegram-text-secondary/50'}`}
+                    className={`input w-full pr-10 ${isLight ? 'placeholder-primary-text-secondary/60' : 'placeholder-primary-text-secondary/50'}`}
                   />
                   <div className="absolute bottom-2 right-2">
                     <input
@@ -2273,8 +2106,8 @@ function GrowthDirectionsInner() {
                       htmlFor="checkin-media-input"
                       className={`inline-flex items-center px-2 py-1.5 rounded-lg border text-xs cursor-pointer transition ${
                         isLight
-                          ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10 bg-white'
-                          : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15 bg-[rgba(15,22,35,0.98)]'
+                          ? 'border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10 bg-white'
+                          : 'border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/15 bg-[rgba(15,22,35,0.98)]'
                       }`}
                       title="Attach photo or video"
                     >
@@ -2282,7 +2115,7 @@ function GrowthDirectionsInner() {
                     </label>
                   </div>
                   {(checkInPostForm.image || checkInPostForm.video) && (
-                    <div className={`mt-1 text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    <div className={`mt-1 text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                       {checkInPostForm.image ? checkInPostForm.image.name : checkInPostForm.video?.name}
                     </div>
                   )}
@@ -2290,11 +2123,11 @@ function GrowthDirectionsInner() {
               </div>
               
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Category (automatically set)
                 </label>
-                <div className={`p-2 rounded-lg ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}>
-                  <span className={`text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <div className={`p-2 rounded-lg ${isLight ? 'bg-primary-bg-secondary' : 'bg-white/5'}`}>
+                  <span className={`text-sm ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                     {(() => {
                       const taskDirection = directions.find((d) => d.id === showCheckInModal.task.direction_id);
                       return taskDirection ? `${resolveDirectionEmoji(taskDirection.slug, taskDirection.emoji)} ${taskDirection.title}` : 'Not specified';
@@ -2304,7 +2137,7 @@ function GrowthDirectionsInner() {
               </div>
 
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Reactions
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2329,11 +2162,11 @@ function GrowthDirectionsInner() {
                         className={`px-3 py-1.5 rounded-lg text-sm border transition ${
                           isSelected
                             ? isLight
-                              ? 'bg-telegram-blue text-white border-telegram-blue'
-                              : 'bg-telegram-blue text-white border-telegram-blue'
+                              ? 'bg-primary-blue text-white border-primary-blue'
+                              : 'bg-primary-blue text-white border-primary-blue'
                             : isLight
-                            ? 'border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                            : 'border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                            ? 'border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10'
+                            : 'border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/15'
                         }`}
                       >
                         <span className="mr-1">{reaction.emoji}</span>

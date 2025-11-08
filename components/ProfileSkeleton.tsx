@@ -14,7 +14,7 @@ export default function ProfileSkeleton() {
   return (
     <div className={cn(
       'max-w-2xl mx-auto px-0 md:px-4 py-4 md:p-4',
-      'telegram-card-glow p-4 md:p-5 space-y-6'
+      'card-glow-primary p-4 md:p-5 space-y-6'
     )}>
       {/* Header section */}
       <div className="flex flex-col md:flex-row items-center md:items-start gap-4">

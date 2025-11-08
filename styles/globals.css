@@ -9,15 +9,15 @@
   --accent: #7affc0;
   --bg: #0b1220;
   --text: #a8b3c7;
-  /* Telegram colors */
-  --telegram-blue: #3390EC;
-  --telegram-blue-light: #5BA8F0;
-  --telegram-blue-dark: #2B7ED6;
-  --telegram-bg: #FFFFFF;
-  --telegram-bg-secondary: #F1F1F1;
-  --telegram-text: #000000;
-  --telegram-text-secondary: #707579;
-  --telegram-hover: #F0F0F0;
+  /* Primary colors */
+  --primary-blue: #3390EC;
+  --primary-blue-light: #5BA8F0;
+  --primary-blue-dark: #2B7ED6;
+  --primary-bg: #FFFFFF;
+  --primary-bg-secondary: #F1F1F1;
+  --primary-text: #000000;
+  --primary-text-secondary: #707579;
+  --primary-hover: #F0F0F0;
   --app-header-height: 56px;
 }
 
@@ -33,7 +33,7 @@ html, body, #__next { height: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
-  /* Telegram-style fonts */
+  /* System fonts */
   font-family: -apple-system, BlinkSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
@@ -205,25 +205,25 @@ html.theme-light h6 {
   color: #000000;
 }
 
-/* Telegram text colors */
-.text-telegram-text {
+/* Primary text colors */
+.text-primary-text {
   color: #E5EDF7;
 }
 
-.text-telegram-text-secondary {
+.text-primary-text-secondary {
   color: #A8B5C7;
 }
 
-html.theme-light .text-telegram-text {
+html.theme-light .text-primary-text {
   color: #000000;
 }
 
-html.theme-light .text-telegram-text-secondary {
+html.theme-light .text-primary-text-secondary {
   color: #707579;
 }
 
 /* Theme toggle button */
-.telegram-theme-toggle {
+.theme-toggle {
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -239,24 +239,24 @@ html.theme-light .text-telegram-text-secondary {
   box-shadow: 0 2px 12px rgba(51, 144, 236, 0.1);
 }
 
-.telegram-theme-toggle:hover {
+.theme-toggle:hover {
   background: rgba(31, 41, 55, 0.95);
   border-color: rgba(51, 144, 236, 0.35);
   box-shadow: 0 4px 16px rgba(51, 144, 236, 0.2);
   transform: scale(1.05);
 }
 
-.telegram-theme-toggle:active {
+.theme-toggle:active {
   transform: scale(0.95);
 }
 
-html.theme-light .telegram-theme-toggle {
+html.theme-light .theme-toggle {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(51, 144, 236, 0.15);
   box-shadow: 0 2px 12px rgba(51, 144, 236, 0.08);
 }
 
-html.theme-light .telegram-theme-toggle:hover {
+html.theme-light .theme-toggle:hover {
   background: rgba(255, 255, 255, 0.95);
   border-color: rgba(51, 144, 236, 0.25);
   box-shadow: 0 4px 16px rgba(51, 144, 236, 0.15);
@@ -270,17 +270,17 @@ html.theme-light .telegram-theme-toggle:hover {
   color: transparent;
 }
 
-/* Telegram-style classes */
+/* Primary-style classes */
 /* Dark theme (default) */
-.bg-telegram-gradient {
+.bg-primary-gradient {
   background: linear-gradient(180deg, #0F1623 0%, #1A2332 100%);
 }
 
-html.theme-light .bg-telegram-gradient {
+html.theme-light .bg-primary-gradient {
   background: linear-gradient(180deg, #E5F2FF 0%, #FFFFFF 100%);
 }
 
-.telegram-card-glow {
+.card-glow-primary {
   position: relative;
   background: rgba(31, 41, 55, 0.8);
   border: 1px solid rgba(51, 144, 236, 0.2);
@@ -290,7 +290,7 @@ html.theme-light .bg-telegram-gradient {
   backdrop-filter: blur(10px);
 }
 
-.telegram-card-glow::before {
+.card-glow-primary::before {
   content: "";
   position: absolute;
   inset: -2px;
@@ -302,30 +302,30 @@ html.theme-light .bg-telegram-gradient {
   z-index: -1;
 }
 
-.telegram-card-glow:hover {
+.card-glow-primary:hover {
   border-color: rgba(51, 144, 236, 0.35);
   box-shadow: 0 8px 24px rgba(51, 144, 236, 0.2), 0 0 0 1px rgba(51, 144, 236, 0.15);
   transform: translateY(-2px);
   background: rgba(31, 41, 55, 0.9);
 }
 
-.telegram-card-glow:hover::before {
+.card-glow-primary:hover::before {
   opacity: 1;
 }
 
-html.theme-light .telegram-card-glow {
+html.theme-light .card-glow-primary {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(51, 144, 236, 0.15);
   box-shadow: 0 2px 12px rgba(51, 144, 236, 0.08), 0 0 0 1px rgba(51, 144, 236, 0.05);
 }
 
-html.theme-light .telegram-card-glow:hover {
+html.theme-light .card-glow-primary:hover {
   border-color: rgba(51, 144, 236, 0.25);
   box-shadow: 0 8px 24px rgba(51, 144, 236, 0.15), 0 0 0 1px rgba(51, 144, 236, 0.1);
   background: rgba(255, 255, 255, 0.95);
 }
 
-.telegram-card-feature {
+.card-feature {
   position: relative;
   background: rgba(60, 75, 100, 0.9);
   border: 1px solid rgba(51, 144, 236, 0.15);
@@ -336,7 +336,7 @@ html.theme-light .telegram-card-glow:hover {
   backdrop-filter: blur(10px);
 }
 
-.telegram-card-feature::after {
+.card-feature::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -348,28 +348,28 @@ html.theme-light .telegram-card-glow:hover {
   z-index: 0;
 }
 
-.telegram-card-feature:hover {
+.card-feature:hover {
   border-color: rgba(51, 144, 236, 0.3);
   box-shadow: 0 8px 32px rgba(51, 144, 236, 0.25), 0 4px 16px rgba(51, 144, 236, 0.15);
   transform: translateY(-4px) scale(1.02);
   background: rgba(68, 85, 110, 0.95);
 }
 
-.telegram-card-feature:hover::after {
+.card-feature:hover::after {
   opacity: 1;
 }
 
-.telegram-card-feature > * {
+.card-feature > * {
   position: relative;
   z-index: 1;
 }
 
-html.theme-light .telegram-card-feature {
+html.theme-light .card-feature {
   background: rgba(255, 255, 255, 0.75);
   border-color: rgba(51, 144, 236, 0.12);
 }
 
-html.theme-light .telegram-card-feature:hover {
+html.theme-light .card-feature:hover {
   border-color: rgba(51, 144, 236, 0.25);
   box-shadow: 0 8px 32px rgba(51, 144, 236, 0.18), 0 4px 16px rgba(51, 144, 236, 0.12);
   background: rgba(255, 255, 255, 0.9);

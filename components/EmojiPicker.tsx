@@ -16,7 +16,7 @@ type Props = {
 
 const VARIANT_STYLES: Record<NonNullable<Props['variant']>, string> = {
   light:
-    'border border-telegram-blue/30 text-telegram-blue bg-white/70 hover:bg-white transition-colors shadow-sm',
+    'border border-primary-blue/30 text-primary-blue bg-white/70 hover:bg-white transition-colors shadow-sm',
   dark:
     'border border-white/15 text-white/90 bg-white/5 hover:bg-white/10 transition-colors',
 };
@@ -131,7 +131,7 @@ export default function EmojiPicker({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`h-10 w-10 rounded-2xl flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-telegram-blue/40 ${triggerClasses}`}
+        className={`h-10 w-10 rounded-2xl flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-blue/40 ${triggerClasses}`}
         title="Add emoji"
         aria-haspopup="dialog"
         aria-expanded={isOpen}

@@ -8,7 +8,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isLight = theme === "light";
 
   return (
-    <div className={`relative min-h-[100dvh] ${isLight ? "bg-telegram-gradient" : "bg-sigmet"}`}>
+    <div className={`relative min-h-[100dvh] ${isLight ? "bg-primary-gradient" : "bg-sigmet"}`}>
       {/* background overlay pattern */}
       <div 
         aria-hidden 

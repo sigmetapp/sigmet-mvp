@@ -494,7 +494,7 @@ export default function SWPage() {
           onClick={() => setActiveTab('overview')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'overview'
-              ? 'text-white border-b-2 border-telegram-blue'
+              ? 'text-white border-b-2 border-primary-blue'
               : 'text-white/60 hover:text-white/80'
           }`}
         >
@@ -504,7 +504,7 @@ export default function SWPage() {
           onClick={() => setActiveTab('factors')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'factors'
-              ? 'text-white border-b-2 border-telegram-blue'
+              ? 'text-white border-b-2 border-primary-blue'
               : 'text-white/60 hover:text-white/80'
           }`}
         >
@@ -514,7 +514,7 @@ export default function SWPage() {
           onClick={() => setActiveTab('levels')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'levels'
-              ? 'text-white border-b-2 border-telegram-blue'
+              ? 'text-white border-b-2 border-primary-blue'
               : 'text-white/60 hover:text-white/80'
           }`}
         >
@@ -525,7 +525,7 @@ export default function SWPage() {
             onClick={() => setActiveTab('breakdown')}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === 'breakdown'
-                ? 'text-white border-b-2 border-telegram-blue'
+                ? 'text-white border-b-2 border-primary-blue'
                 : 'text-white/60 hover:text-white/80'
             }`}
           >

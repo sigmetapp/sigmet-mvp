@@ -136,8 +136,8 @@ function TicketsInner() {
             placeholder="Brief description of the issue"
             className={`w-full rounded-xl border px-4 py-2 outline-none transition ${
               isLight
-                ? 'border-black/10 bg-white placeholder-black/40 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/20'
-                : 'border-white/10 bg-white/5 placeholder-white/40 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/30'
+                ? 'border-black/10 bg-white placeholder-black/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/20'
+                : 'border-white/10 bg-white/5 placeholder-white/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/30'
             }`}
             required
           />
@@ -154,8 +154,8 @@ function TicketsInner() {
             rows={6}
             className={`w-full rounded-xl border px-4 py-2 outline-none transition resize-none ${
               isLight
-                ? 'border-black/10 bg-white placeholder-black/40 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/20'
-                : 'border-white/10 bg-white/5 placeholder-white/40 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/30'
+                ? 'border-black/10 bg-white placeholder-black/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/20'
+                : 'border-white/10 bg-white/5 placeholder-white/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/30'
             }`}
             required
           />
@@ -166,8 +166,8 @@ function TicketsInner() {
           disabled={submitting}
           className={`px-6 py-2.5 rounded-xl font-medium transition ${
             isLight
-              ? 'bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]'
-              : 'bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]'
+              ? 'bg-primary-blue text-white hover:bg-primary-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]'
+              : 'bg-primary-blue text-white hover:bg-primary-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]'
           } disabled:opacity-60`}
         >
           {submitting ? 'Submitting...' : 'Submit Ticket'}
@@ -230,12 +230,12 @@ function TicketsInner() {
                   <div
                     className={`rounded-lg border p-3 mt-2 ${
                       isLight
-                        ? 'border-telegram-blue/20 bg-telegram-blue/5'
-                        : 'border-telegram-blue/30 bg-telegram-blue/10'
+                        ? 'border-primary-blue/20 bg-primary-blue/5'
+                        : 'border-primary-blue/30 bg-primary-blue/10'
                     }`}
                   >
                     <div className={`text-xs font-medium mb-1 ${
-                      isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'
+                      isLight ? 'text-primary-blue' : 'text-primary-blue-light'
                     }`}>
                       Admin Response:
                     </div>

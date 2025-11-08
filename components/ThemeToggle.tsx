@@ -7,7 +7,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="telegram-theme-toggle"
+      className="theme-toggle"
       aria-label="Toggle theme"
       title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
     >

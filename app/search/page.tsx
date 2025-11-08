@@ -114,7 +114,7 @@ function SearchPageContent() {
       {/* Page header */}
       <div className="mb-6 md:mb-8">
         <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight mb-4 ${
-          isLight ? "bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent" : "gradient-text"
+          isLight ? "bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent" : "gradient-text"
         }`}>
           Search
         </h1>
@@ -124,7 +124,7 @@ function SearchPageContent() {
           <div className="relative">
             <Search
               className={`absolute left-3 top-1/2 -translate-y-1/2 ${
-                isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
               }`}
               size={20}
             />
@@ -136,8 +136,8 @@ function SearchPageContent() {
               placeholder="Search people, posts, cities, countries..."
               className={`w-full pl-10 pr-4 py-3 rounded-lg border transition ${
                 isLight
-                  ? "bg-white border-telegram-blue/20 text-telegram-text placeholder:text-telegram-text-secondary focus:border-telegram-blue focus:outline-none focus:ring-2 focus:ring-telegram-blue/20"
-                  : "bg-[rgba(255,255,255,0.05)] border-telegram-blue/30 text-telegram-text placeholder:text-telegram-text-secondary focus:border-telegram-blue focus:outline-none focus:ring-2 focus:ring-telegram-blue/30"
+                  ? "bg-white border-primary-blue/20 text-primary-text placeholder:text-primary-text-secondary focus:border-primary-blue focus:outline-none focus:ring-2 focus:ring-primary-blue/20"
+                  : "bg-[rgba(255,255,255,0.05)] border-primary-blue/30 text-primary-text placeholder:text-primary-text-secondary focus:border-primary-blue focus:outline-none focus:ring-2 focus:ring-primary-blue/30"
               }`}
             />
           </div>
@@ -146,7 +146,7 @@ function SearchPageContent() {
 
       {/* Tabs */}
       {query && (
-        <div className="mb-6 flex flex-wrap gap-2 border-b border-telegram-blue/10 pb-2">
+        <div className="mb-6 flex flex-wrap gap-2 border-b border-primary-blue/10 pb-2">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -156,11 +156,11 @@ function SearchPageContent() {
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition relative ${
                   isActive
                     ? isLight
-                      ? "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                      : "bg-telegram-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                      ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                      : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
                     : isLight
-                    ? "text-telegram-text-secondary hover:text-telegram-blue hover:bg-telegram-blue/10"
-                    : "text-telegram-text-secondary hover:text-telegram-blue-light hover:bg-telegram-blue/15"
+                    ? "text-primary-text-secondary hover:text-primary-blue hover:bg-primary-blue/10"
+                    : "text-primary-text-secondary hover:text-primary-blue-light hover:bg-primary-blue/15"
                 }`}
               >
                 {tab.label}
@@ -169,8 +169,8 @@ function SearchPageContent() {
                     isActive
                       ? "bg-white/20"
                       : isLight
-                      ? "bg-telegram-blue/10 text-telegram-blue"
-                      : "bg-telegram-blue/20 text-telegram-blue-light"
+                      ? "bg-primary-blue/10 text-primary-blue"
+                      : "bg-primary-blue/20 text-primary-blue-light"
                   }`}>
                     {tab.count}
                   </span>
@@ -184,7 +184,7 @@ function SearchPageContent() {
       {/* Results */}
       {!query && (
         <div className={`text-center py-12 ${
-          isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+          isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
         }`}>
           <Search size={48} className="mx-auto mb-4 opacity-50" />
           <p className="text-lg">Enter a search query to find people, posts, cities, and countries</p>
@@ -193,7 +193,7 @@ function SearchPageContent() {
 
       {query && query.length < 2 && (
         <div className={`text-center py-12 ${
-          isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+          isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
         }`}>
           <p>Please enter at least 2 characters to search</p>
         </div>
@@ -201,7 +201,7 @@ function SearchPageContent() {
 
       {query && query.length >= 2 && isLoading && (
         <div className={`text-center py-12 ${
-          isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+          isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
         }`}>
           <p>Searching...</p>
         </div>
@@ -214,11 +214,11 @@ function SearchPageContent() {
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <Users
-                  className={isLight ? "text-telegram-blue" : "text-telegram-blue-light"}
+                  className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
                   size={20}
                 />
                 <h2 className={`text-xl font-semibold ${
-                  isLight ? "text-telegram-text" : "text-telegram-text"
+                  isLight ? "text-primary-text" : "text-primary-text"
                 }`}>
                   People ({filteredResults.people.length})
                 </h2>
@@ -230,8 +230,8 @@ function SearchPageContent() {
                     href={`/u/${person.username || person.user_id}`}
                     className={`p-4 rounded-lg border transition ${
                       isLight
-                        ? "bg-white border-telegram-blue/20 hover:border-telegram-blue hover:shadow-md"
-                        : "bg-[rgba(255,255,255,0.03)] border-telegram-blue/30 hover:border-telegram-blue hover:bg-[rgba(255,255,255,0.05)]"
+                        ? "bg-white border-primary-blue/20 hover:border-primary-blue hover:shadow-md"
+                        : "bg-[rgba(255,255,255,0.03)] border-primary-blue/30 hover:border-primary-blue hover:bg-[rgba(255,255,255,0.05)]"
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -244,27 +244,27 @@ function SearchPageContent() {
                         />
                       ) : (
                         <div className={`w-12 h-12 rounded-full grid place-items-center ${
-                          isLight ? "bg-telegram-blue/10 text-telegram-blue" : "bg-telegram-blue/20 text-telegram-blue-light"
+                          isLight ? "bg-primary-blue/10 text-primary-blue" : "bg-primary-blue/20 text-primary-blue-light"
                         }`}>
                           <User size={24} />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <div className={`font-medium truncate ${
-                          isLight ? "text-telegram-text" : "text-telegram-text"
+                          isLight ? "text-primary-text" : "text-primary-text"
                         }`}>
                           {person.full_name || person.username || "Anonymous"}
                         </div>
                         {person.username && person.full_name && (
                           <div className={`text-sm truncate ${
-                            isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                            isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                           }`}>
                             @{person.username}
                           </div>
                         )}
                         {person.country && (
                           <div className={`text-xs mt-1 flex items-center gap-1 ${
-                            isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                            isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                           }`}>
                             <MapPin size={12} />
                             {person.country}
@@ -283,11 +283,11 @@ function SearchPageContent() {
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <MessageSquare
-                  className={isLight ? "text-telegram-blue" : "text-telegram-blue-light"}
+                  className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
                   size={20}
                 />
                 <h2 className={`text-xl font-semibold ${
-                  isLight ? "text-telegram-text" : "text-telegram-text"
+                  isLight ? "text-primary-text" : "text-primary-text"
                 }`}>
                   Posts ({filteredResults.posts.length})
                 </h2>
@@ -299,12 +299,12 @@ function SearchPageContent() {
                     href={`/post/${post.id}`}
                     className={`block p-4 rounded-lg border transition ${
                       isLight
-                        ? "bg-white border-telegram-blue/20 hover:border-telegram-blue hover:shadow-md"
-                        : "bg-[rgba(255,255,255,0.03)] border-telegram-blue/30 hover:border-telegram-blue hover:bg-[rgba(255,255,255,0.05)]"
+                        ? "bg-white border-primary-blue/20 hover:border-primary-blue hover:shadow-md"
+                        : "bg-[rgba(255,255,255,0.03)] border-primary-blue/30 hover:border-primary-blue hover:bg-[rgba(255,255,255,0.05)]"
                     }`}
                   >
                     <div className={`mb-3 line-clamp-3 ${
-                      isLight ? "text-telegram-text" : "text-telegram-text"
+                      isLight ? "text-primary-text" : "text-primary-text"
                     }`}>
                       {post.text}
                     </div>
@@ -318,19 +318,19 @@ function SearchPageContent() {
                         />
                       ) : (
                         <div className={`w-6 h-6 rounded-full grid place-items-center ${
-                          isLight ? "bg-telegram-blue/10 text-telegram-blue" : "bg-telegram-blue/20 text-telegram-blue-light"
+                          isLight ? "bg-primary-blue/10 text-primary-blue" : "bg-primary-blue/20 text-primary-blue-light"
                         }`}>
                           <User size={12} />
                         </div>
                       )}
                       <div className={`text-sm ${
-                        isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                        isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                       }`}>
                         {post.profiles?.full_name || post.profiles?.username || "Anonymous"}
                       </div>
                       <FileText
                         className={`ml-auto ${
-                          isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                          isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                         }`}
                         size={16}
                       />
@@ -346,11 +346,11 @@ function SearchPageContent() {
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <MapPin
-                  className={isLight ? "text-telegram-blue" : "text-telegram-blue-light"}
+                  className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
                   size={20}
                 />
                 <h2 className={`text-xl font-semibold ${
-                  isLight ? "text-telegram-text" : "text-telegram-text"
+                  isLight ? "text-primary-text" : "text-primary-text"
                 }`}>
                   Cities ({filteredResults.cities.length})
                 </h2>
@@ -362,24 +362,24 @@ function SearchPageContent() {
                     href={`/search?q=${encodeURIComponent(item.city)}&type=city`}
                     className={`p-4 rounded-lg border transition ${
                       isLight
-                        ? "bg-white border-telegram-blue/20 hover:border-telegram-blue hover:shadow-md"
-                        : "bg-[rgba(255,255,255,0.03)] border-telegram-blue/30 hover:border-telegram-blue hover:bg-[rgba(255,255,255,0.05)]"
+                        ? "bg-white border-primary-blue/20 hover:border-primary-blue hover:shadow-md"
+                        : "bg-[rgba(255,255,255,0.03)] border-primary-blue/30 hover:border-primary-blue hover:bg-[rgba(255,255,255,0.05)]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <MapPin
-                          className={isLight ? "text-telegram-blue" : "text-telegram-blue-light"}
+                          className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
                           size={18}
                         />
                         <span className={`font-medium ${
-                          isLight ? "text-telegram-text" : "text-telegram-text"
+                          isLight ? "text-primary-text" : "text-primary-text"
                         }`}>
                           {item.city}
                         </span>
                       </div>
                       <span className={`text-sm ${
-                        isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                        isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                       }`}>
                         {item.count} {item.count === 1 ? "person" : "people"}
                       </span>
@@ -395,11 +395,11 @@ function SearchPageContent() {
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <MapPin
-                  className={isLight ? "text-telegram-blue" : "text-telegram-blue-light"}
+                  className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
                   size={20}
                 />
                 <h2 className={`text-xl font-semibold ${
-                  isLight ? "text-telegram-text" : "text-telegram-text"
+                  isLight ? "text-primary-text" : "text-primary-text"
                 }`}>
                   Countries ({filteredResults.countries.length})
                 </h2>
@@ -411,24 +411,24 @@ function SearchPageContent() {
                     href={`/search?q=${encodeURIComponent(item.country)}&type=country`}
                     className={`p-4 rounded-lg border transition ${
                       isLight
-                        ? "bg-white border-telegram-blue/20 hover:border-telegram-blue hover:shadow-md"
-                        : "bg-[rgba(255,255,255,0.03)] border-telegram-blue/30 hover:border-telegram-blue hover:bg-[rgba(255,255,255,0.05)]"
+                        ? "bg-white border-primary-blue/20 hover:border-primary-blue hover:shadow-md"
+                        : "bg-[rgba(255,255,255,0.03)] border-primary-blue/30 hover:border-primary-blue hover:bg-[rgba(255,255,255,0.05)]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <MapPin
-                          className={isLight ? "text-telegram-blue" : "text-telegram-blue-light"}
+                          className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
                           size={18}
                         />
                         <span className={`font-medium ${
-                          isLight ? "text-telegram-text" : "text-telegram-text"
+                          isLight ? "text-primary-text" : "text-primary-text"
                         }`}>
                           {item.country}
                         </span>
                       </div>
                       <span className={`text-sm ${
-                        isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                        isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                       }`}>
                         {item.count} {item.count === 1 ? "person" : "people"}
                       </span>
@@ -446,7 +446,7 @@ function SearchPageContent() {
             filteredResults.cities.length === 0 &&
             filteredResults.countries.length === 0 && (
               <div className={`text-center py-12 ${
-                isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
               }`}>
                 <Search size={48} className="mx-auto mb-4 opacity-50" />
                 <p className="text-lg">No results found for &quot;{query}&quot;</p>

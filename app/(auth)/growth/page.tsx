@@ -126,10 +126,10 @@ function GrowthInner() {
     <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
       {/* Header */}
       <div className="mb-6 md:mb-8">
-        <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' : 'gradient-text'}`}>
+        <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent' : 'gradient-text'}`}>
           My Growth
         </h1>
-        <p className={`mt-1 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+        <p className={`mt-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
           Track your progress across 12 areas of growth.
         </p>
       </div>
@@ -146,11 +146,11 @@ function GrowthInner() {
               className={`px-3 py-1.5 rounded-full text-sm transition border ${
                 active
                   ? isLight
-                    ? 'bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]'
-                    : 'bg-telegram-blue text-white border-telegram-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]'
+                    ? 'bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]'
+                    : 'bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.3)]'
                   : isLight
-                  ? 'text-telegram-text-secondary border-telegram-blue/20 hover:bg-telegram-blue/10 hover:text-telegram-blue'
-                  : 'text-telegram-text-secondary border-telegram-blue/30 hover:bg-telegram-blue/15 hover:text-telegram-blue-light'
+                  ? 'text-primary-text-secondary border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
+                  : 'text-primary-text-secondary border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
               }`}
             >
               {label}
@@ -161,7 +161,7 @@ function GrowthInner() {
 
       {/* Directions Grid */}
       {loading ? (
-        <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+        <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
           Loading?
         </div>
       ) : (
@@ -173,7 +173,7 @@ function GrowthInner() {
             return (
               <div
                 key={dir.id}
-                className={`telegram-card-glow p-4 space-y-3 hover:scale-[1.02] transition-transform ${isLight ? '' : ''}`}
+                className={`card-glow-primary p-4 space-y-3 hover:scale-[1.02] transition-transform ${isLight ? '' : ''}`}
               >
                 {/* Header */}
                 <div className="flex items-start justify-between">
@@ -181,7 +181,7 @@ function GrowthInner() {
                     <span className="text-2xl" aria-hidden>
                       {resolveDirectionEmoji(dir.slug, dir.emoji)}
                     </span>
-                    <h3 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                    <h3 className={`font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                       {dir.title}
                     </h3>
                   </div>
@@ -191,11 +191,11 @@ function GrowthInner() {
                     className={`px-2 py-1 rounded-full text-xs font-medium transition ${
                       dir.isSelected
                         ? isLight
-                          ? 'bg-telegram-blue text-white'
-                          : 'bg-telegram-blue text-white'
+                          ? 'bg-primary-blue text-white'
+                          : 'bg-primary-blue text-white'
                         : isLight
-                        ? 'border border-telegram-blue/30 text-telegram-blue hover:bg-telegram-blue/10'
-                        : 'border border-telegram-blue/30 text-telegram-blue-light hover:bg-telegram-blue/15'
+                        ? 'border border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10'
+                        : 'border border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/15'
                     }`}
                   >
                     {isToggling ? '?' : dir.isSelected ? 'Selected' : 'Add'}
@@ -205,13 +205,13 @@ function GrowthInner() {
                 {/* Progress Bar */}
                 {dir.stats.swPoints > 0 && (
                   <div className="space-y-1">
-                    <div className={`flex justify-between text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                    <div className={`flex justify-between text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                       <span>SW Points</span>
                       <span>{dir.stats.swPoints}</span>
                     </div>
-                    <div className={`h-2 rounded-full overflow-hidden ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/10'}`}>
+                    <div className={`h-2 rounded-full overflow-hidden ${isLight ? 'bg-primary-bg-secondary' : 'bg-white/10'}`}>
                       <div
-                        className="h-full bg-telegram-blue transition-all duration-300"
+                        className="h-full bg-primary-blue transition-all duration-300"
                         style={{ width: `${progress}%` }}
                       />
                     </div>
@@ -219,7 +219,7 @@ function GrowthInner() {
                 )}
 
                 {/* Stats */}
-                <div className={`flex items-center justify-between text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                <div className={`flex items-center justify-between text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                   <div className="flex gap-3">
                     <span>
                       {dir.stats.activeHabits} habit{dir.stats.activeHabits !== 1 ? 's' : ''}

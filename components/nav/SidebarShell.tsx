@@ -12,7 +12,7 @@ export default function SidebarShell({ user, children }: { user: User; children:
 
   return (
     <div className={`min-h-screen w-full transition-colors ${
-      isLight ? "bg-telegram-gradient text-telegram-text" : "bg-sigmet text-telegram-text"
+      isLight ? "bg-primary-gradient text-primary-text" : "bg-sigmet text-primary-text"
     }`}>
       {/* Mobile top bar removed */}
 
@@ -28,7 +28,7 @@ export default function SidebarShell({ user, children }: { user: User; children:
         <main
           data-scroll-container="true"
           className={`min-h-screen flex-1 overflow-y-auto px-4 pt-4 pb-24 lg:pb-6 lg:px-8 lg:py-6 lg:pt-6 transition-colors relative z-0 ${
-          isLight ? "text-telegram-text" : "text-telegram-text"
+          isLight ? "text-primary-text" : "text-primary-text"
           }`}
         >
           {children}

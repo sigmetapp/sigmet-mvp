@@ -109,8 +109,8 @@ function AdminUsersInner() {
             disabled={loadingUsers}
             className={`px-4 py-2 rounded-xl font-medium transition ${
               isLight
-                ? 'bg-telegram-blue text-white hover:bg-telegram-blue-dark'
-                : 'bg-telegram-blue text-white hover:bg-telegram-blue-dark'
+                ? 'bg-primary-blue text-white hover:bg-primary-blue-dark'
+                : 'bg-primary-blue text-white hover:bg-primary-blue-dark'
             } disabled:opacity-60`}
           >
             {loadingUsers ? 'Loading...' : 'Load last 30 users'}
@@ -132,7 +132,7 @@ function AdminUsersInner() {
                         <Link
                           href={`/u/${usernames[u.id]}`}
                           className={`font-medium hover:underline ${
-                            isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'
+                            isLight ? 'text-primary-blue' : 'text-primary-blue-light'
                           }`}
                           title="Open profile"
                         >

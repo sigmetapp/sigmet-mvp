@@ -133,13 +133,13 @@ export default function LoginClient() {
     <div className="min-h-[70vh] flex items-center justify-center">
       <div className={`w-full max-w-md rounded-3xl border backdrop-blur-md p-6 md:p-8 transition-all ${
         isLight
-          ? "border-telegram-blue/20 bg-white/80 shadow-[0_8px_40px_rgba(51,144,236,0.15)]"
-          : "border-telegram-blue/30 bg-[rgba(31,41,55,0.8)] shadow-[0_8px_40px_rgba(0,0,0,0.4)]"
+          ? "border-primary-blue/20 bg-white/80 shadow-[0_8px_40px_rgba(51,144,236,0.15)]"
+          : "border-primary-blue/30 bg-[rgba(31,41,55,0.8)] shadow-[0_8px_40px_rgba(0,0,0,0.4)]"
       }`}>
-        <h1 className={`text-2xl font-semibold mb-1 ${isLight ? "text-telegram-text" : "text-telegram-text"}`}>
+        <h1 className={`text-2xl font-semibold mb-1 ${isLight ? "text-primary-text" : "text-primary-text"}`}>
           {mode === 'login' ? 'Log in' : 'Sign up'}
         </h1>
-        <p className={`text-sm mb-6 ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>
+        <p className={`text-sm mb-6 ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
           {mode === 'login'
             ? 'Welcome back! Enter your credentials below.'
             : 'Create your account using email and password.'}
@@ -147,19 +147,19 @@ export default function LoginClient() {
 
         <form onSubmit={handleAuth} className="space-y-4">
           <label className="block">
-            <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Email</span>
+            <span className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>Email</span>
             <input
               type="email"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={`input mt-1 w-full px-3 py-2 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+              className={`input mt-1 w-full px-3 py-2 ${isLight ? "placeholder-primary-text-secondary/60" : "placeholder-primary-text-secondary/50"}`}
               placeholder="you@example.com"
             />
           </label>
 
           <label className="block">
-            <span className={`text-sm ${isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}`}>Password</span>
+            <span className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>Password</span>
             <div className="mt-1 relative">
               <input
                 type={showPwd ? 'text' : 'password'}
@@ -168,14 +168,14 @@ export default function LoginClient() {
                 }
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={`input w-full px-3 py-2 pr-10 ${isLight ? "placeholder-telegram-text-secondary/60" : "placeholder-telegram-text-secondary/50"}`}
+                className={`input w-full px-3 py-2 pr-10 ${isLight ? "placeholder-primary-text-secondary/60" : "placeholder-primary-text-secondary/50"}`}
                 placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPwd((s) => !s)}
                 className={`absolute right-2 top-1/2 -translate-y-1/2 transition-colors ${
-                  isLight ? "text-telegram-text-secondary hover:text-telegram-blue" : "text-telegram-text-secondary hover:text-telegram-blue-light"
+                  isLight ? "text-primary-text-secondary hover:text-primary-blue" : "text-primary-text-secondary hover:text-primary-blue-light"
                 }`}
                 aria-label="Toggle password visibility"
               >
@@ -185,7 +185,7 @@ export default function LoginClient() {
           </label>
 
           {error && <div className={`text-sm ${isLight ? "text-red-600" : "text-red-400"}`}>{error}</div>}
-          {notice && <div className={`text-sm ${isLight ? "text-telegram-blue" : "text-telegram-blue-light"}`}>{notice}</div>}
+          {notice && <div className={`text-sm ${isLight ? "text-primary-blue" : "text-primary-blue-light"}`}>{notice}</div>}
 
           <Button type="submit" disabled={loading} variant="primary" className="w-full">
             {loading

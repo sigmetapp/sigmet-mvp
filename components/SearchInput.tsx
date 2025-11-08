@@ -198,15 +198,15 @@ export default function SearchInput({ className = "" }: { className?: string }) 
             ref={modalRef}
             className={`relative z-[101] w-full max-w-md rounded-xl shadow-2xl ${
               isLight
-                ? "bg-white border border-telegram-blue/20"
-                : "bg-[rgba(15,22,35,0.98)] border border-telegram-blue/30 backdrop-blur-md"
+                ? "bg-white border border-primary-blue/20"
+                : "bg-[rgba(15,22,35,0.98)] border border-primary-blue/30 backdrop-blur-md"
             }`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal header with close button */}
-            <div className="flex items-center justify-between p-4 border-b border-telegram-blue/20">
+            <div className="flex items-center justify-between p-4 border-b border-primary-blue/20">
               <h2 className={`text-lg font-semibold ${
-                isLight ? "text-telegram-text" : "text-telegram-text"
+                isLight ? "text-primary-text" : "text-primary-text"
               }`}>
                 Search
               </h2>
@@ -214,8 +214,8 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                 onClick={handleCloseModal}
                 className={`p-2 rounded-lg transition ${
                   isLight
-                    ? "text-telegram-text-secondary hover:bg-telegram-blue/10"
-                    : "text-telegram-text-secondary hover:bg-white/10"
+                    ? "text-primary-text-secondary hover:bg-primary-blue/10"
+                    : "text-primary-text-secondary hover:bg-white/10"
                 }`}
                 aria-label="Close search"
               >
@@ -234,7 +234,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
               <div className="relative mb-4">
                 <Search
                   className={`absolute left-3 top-1/2 -translate-y-1/2 ${
-                    isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                    isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                   }`}
                   size={20}
                 />
@@ -255,8 +255,8 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                   autoFocus
                   className={`w-full pl-10 pr-10 py-3 text-base rounded-lg border transition ${
                     isLight
-                      ? "bg-white border-telegram-blue/20 text-telegram-text placeholder:text-telegram-text-secondary focus:border-telegram-blue focus:outline-none focus:ring-2 focus:ring-telegram-blue/20"
-                      : "bg-[rgba(255,255,255,0.05)] border-telegram-blue/30 text-telegram-text placeholder:text-telegram-text-secondary focus:border-telegram-blue focus:outline-none focus:ring-2 focus:ring-telegram-blue/30"
+                      ? "bg-white border-primary-blue/20 text-primary-text placeholder:text-primary-text-secondary focus:border-primary-blue focus:outline-none focus:ring-2 focus:ring-primary-blue/20"
+                      : "bg-[rgba(255,255,255,0.05)] border-primary-blue/30 text-primary-text placeholder:text-primary-text-secondary focus:border-primary-blue focus:outline-none focus:ring-2 focus:ring-primary-blue/30"
                   }`}
                   style={{ fontSize: '16px' }} // Prevent zoom on mobile
                 />
@@ -266,8 +266,8 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                     onClick={handleClear}
                     className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded ${
                       isLight
-                        ? "text-telegram-text-secondary hover:bg-telegram-blue/10"
-                        : "text-telegram-text-secondary hover:bg-white/10"
+                        ? "text-primary-text-secondary hover:bg-primary-blue/10"
+                        : "text-primary-text-secondary hover:bg-white/10"
                     }`}
                     aria-label="Clear search"
                   >
@@ -283,11 +283,11 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                 className={`w-full py-3 px-4 rounded-lg font-medium transition ${
                   query.trim()
                     ? isLight
-                      ? "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                      : "bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                      ? "bg-primary-blue text-white hover:bg-primary-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                      : "bg-primary-blue text-white hover:bg-primary-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
                     : isLight
-                    ? "bg-telegram-blue/20 text-telegram-text-secondary cursor-not-allowed"
-                    : "bg-telegram-blue/20 text-telegram-text-secondary cursor-not-allowed"
+                    ? "bg-primary-blue/20 text-primary-text-secondary cursor-not-allowed"
+                    : "bg-primary-blue/20 text-primary-text-secondary cursor-not-allowed"
                 }`}
               >
                 Search
@@ -295,16 +295,16 @@ export default function SearchInput({ className = "" }: { className?: string }) 
             </form>
             {/* Results in modal */}
             {isOpen && query.length >= 2 && (
-              <div className="max-h-[300px] overflow-y-auto border-t border-telegram-blue/20">
+              <div className="max-h-[300px] overflow-y-auto border-t border-primary-blue/20">
                 {isLoading ? (
                   <div className={`px-4 py-3 text-sm ${
-                    isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                    isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                   }`}>
                     Searching...
                   </div>
                 ) : !hasResults ? (
                   <div className={`px-4 py-3 text-sm ${
-                    isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                    isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                   }`}>
                     No results found
                   </div>
@@ -314,7 +314,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                     {results.people.length > 0 && (
                       <div>
                         <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider ${
-                          isLight ? "text-telegram-text-secondary bg-telegram-blue/5" : "text-telegram-text-secondary bg-telegram-blue/10"
+                          isLight ? "text-primary-text-secondary bg-primary-blue/5" : "text-primary-text-secondary bg-primary-blue/10"
                         }`}>
                           People
                         </div>
@@ -328,7 +328,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                               setQuery("");
                             }}
                             className={`flex items-center gap-3 px-4 py-3 hover:bg-opacity-50 transition ${
-                              isLight ? "hover:bg-telegram-blue/10" : "hover:bg-white/5"
+                              isLight ? "hover:bg-primary-blue/10" : "hover:bg-white/5"
                             }`}
                           >
                             {person.avatar_url ? (
@@ -340,20 +340,20 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                               />
                             ) : (
                               <div className={`w-10 h-10 rounded-full grid place-items-center ${
-                                isLight ? "bg-telegram-blue/10 text-telegram-blue" : "bg-telegram-blue/20 text-telegram-blue-light"
+                                isLight ? "bg-primary-blue/10 text-primary-blue" : "bg-primary-blue/20 text-primary-blue-light"
                               }`}>
                                 <User size={20} />
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className={`text-base font-medium truncate ${
-                                isLight ? "text-telegram-text" : "text-telegram-text"
+                                isLight ? "text-primary-text" : "text-primary-text"
                               }`}>
                                 {person.full_name || person.username || "Anonymous"}
                               </div>
                               {person.username && person.full_name && (
                                 <div className={`text-sm truncate ${
-                                  isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                                  isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                                 }`}>
                                   @{person.username}
                                 </div>
@@ -368,7 +368,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                     {results.posts.length > 0 && (
                       <div>
                         <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider ${
-                          isLight ? "text-telegram-text-secondary bg-telegram-blue/5" : "text-telegram-text-secondary bg-telegram-blue/10"
+                          isLight ? "text-primary-text-secondary bg-primary-blue/5" : "text-primary-text-secondary bg-primary-blue/10"
                         }`}>
                           Posts
                         </div>
@@ -382,16 +382,16 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                               setQuery("");
                             }}
                             className={`block px-4 py-3 hover:bg-opacity-50 transition ${
-                              isLight ? "hover:bg-telegram-blue/10" : "hover:bg-white/5"
+                              isLight ? "hover:bg-primary-blue/10" : "hover:bg-white/5"
                             }`}
                           >
                             <div className={`text-base line-clamp-2 mb-1 ${
-                              isLight ? "text-telegram-text" : "text-telegram-text"
+                              isLight ? "text-primary-text" : "text-primary-text"
                             }`}>
                               {post.text}
                             </div>
                             <div className={`text-sm flex items-center gap-2 ${
-                              isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                              isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                             }`}>
                               <FileText size={14} />
                               {post.profiles?.full_name || post.profiles?.username || "Anonymous"}
@@ -405,7 +405,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                     {results.cities.length > 0 && (
                       <div>
                         <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider ${
-                          isLight ? "text-telegram-text-secondary bg-telegram-blue/5" : "text-telegram-text-secondary bg-telegram-blue/10"
+                          isLight ? "text-primary-text-secondary bg-primary-blue/5" : "text-primary-text-secondary bg-primary-blue/10"
                         }`}>
                           Cities
                         </div>
@@ -419,20 +419,20 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                               setQuery("");
                             }}
                             className={`flex items-center gap-3 px-4 py-3 hover:bg-opacity-50 transition ${
-                              isLight ? "hover:bg-telegram-blue/10" : "hover:bg-white/5"
+                              isLight ? "hover:bg-primary-blue/10" : "hover:bg-white/5"
                             }`}
                           >
                             <MapPin
-                              className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}
+                              className={isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}
                               size={18}
                             />
                             <div className={`text-base ${
-                              isLight ? "text-telegram-text" : "text-telegram-text"
+                              isLight ? "text-primary-text" : "text-primary-text"
                             }`}>
                               {item.city}
                             </div>
                             <div className={`text-sm ml-auto ${
-                              isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                              isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                             }`}>
                               {item.count}
                             </div>
@@ -445,7 +445,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                     {results.countries.length > 0 && (
                       <div>
                         <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider ${
-                          isLight ? "text-telegram-text-secondary bg-telegram-blue/5" : "text-telegram-text-secondary bg-telegram-blue/10"
+                          isLight ? "text-primary-text-secondary bg-primary-blue/5" : "text-primary-text-secondary bg-primary-blue/10"
                         }`}>
                           Countries
                         </div>
@@ -459,20 +459,20 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                               setQuery("");
                             }}
                             className={`flex items-center gap-3 px-4 py-3 hover:bg-opacity-50 transition ${
-                              isLight ? "hover:bg-telegram-blue/10" : "hover:bg-white/5"
+                              isLight ? "hover:bg-primary-blue/10" : "hover:bg-white/5"
                             }`}
                           >
                             <MapPin
-                              className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}
+                              className={isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}
                               size={18}
                             />
                             <div className={`text-base ${
-                              isLight ? "text-telegram-text" : "text-telegram-text"
+                              isLight ? "text-primary-text" : "text-primary-text"
                             }`}>
                               {item.country}
                             </div>
                             <div className={`text-sm ml-auto ${
-                              isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                              isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                             }`}>
                               {item.count}
                             </div>
@@ -483,7 +483,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
 
                     {/* View All Results */}
                     <div className={`border-t ${
-                      isLight ? "border-telegram-blue/10" : "border-telegram-blue/20"
+                      isLight ? "border-primary-blue/10" : "border-primary-blue/20"
                     }`}>
                       <Link
                         href={`/search?q=${encodeURIComponent(query)}`}
@@ -494,8 +494,8 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                         }}
                         className={`block px-4 py-3 text-base text-center font-medium transition ${
                           isLight
-                            ? "text-telegram-blue hover:bg-telegram-blue/10"
-                            : "text-telegram-blue-light hover:bg-telegram-blue/20"
+                            ? "text-primary-blue hover:bg-primary-blue/10"
+                            : "text-primary-blue-light hover:bg-primary-blue/20"
                         }`}
                       >
                         View all results
@@ -514,7 +514,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
         <div className="relative">
           <Search
             className={`absolute left-3 top-1/2 -translate-y-1/2 ${
-              isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+              isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
             }`}
             size={18}
           />
@@ -539,8 +539,8 @@ export default function SearchInput({ className = "" }: { className?: string }) 
             placeholder="Search people, posts, cities..."
             className={`w-full pl-10 pr-10 py-2 rounded-lg text-sm border transition ${
               isLight
-                ? "bg-white/90 border-telegram-blue/20 text-telegram-text placeholder:text-telegram-text-secondary focus:border-telegram-blue focus:outline-none focus:ring-2 focus:ring-telegram-blue/20"
-                : "bg-[rgba(255,255,255,0.05)] border-telegram-blue/30 text-telegram-text placeholder:text-telegram-text-secondary focus:border-telegram-blue focus:outline-none focus:ring-2 focus:ring-telegram-blue/30"
+                ? "bg-white/90 border-primary-blue/20 text-primary-text placeholder:text-primary-text-secondary focus:border-primary-blue focus:outline-none focus:ring-2 focus:ring-primary-blue/20"
+                : "bg-[rgba(255,255,255,0.05)] border-primary-blue/30 text-primary-text placeholder:text-primary-text-secondary focus:border-primary-blue focus:outline-none focus:ring-2 focus:ring-primary-blue/30"
             }`}
             style={{ fontSize: '16px' }} // Prevent zoom on mobile
           />
@@ -549,8 +549,8 @@ export default function SearchInput({ className = "" }: { className?: string }) 
               onClick={handleClear}
               className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded ${
                 isLight
-                  ? "text-telegram-text-secondary hover:bg-telegram-blue/10"
-                  : "text-telegram-text-secondary hover:bg-white/10"
+                  ? "text-primary-text-secondary hover:bg-primary-blue/10"
+                  : "text-primary-text-secondary hover:bg-white/10"
               }`}
               aria-label="Clear search"
             >
@@ -564,19 +564,19 @@ export default function SearchInput({ className = "" }: { className?: string }) 
         <div
           className={`absolute z-50 mt-2 w-full rounded-lg border shadow-lg overflow-hidden ${
             isLight
-              ? "bg-white border-telegram-blue/20"
-              : "bg-[rgba(15,22,35,0.95)] backdrop-blur-md border-telegram-blue/30"
+              ? "bg-white border-primary-blue/20"
+              : "bg-[rgba(15,22,35,0.95)] backdrop-blur-md border-primary-blue/30"
           }`}
         >
           {isLoading ? (
             <div className={`px-4 py-3 text-sm ${
-              isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+              isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
             }`}>
               Searching...
             </div>
           ) : !hasResults ? (
             <div className={`px-4 py-3 text-sm ${
-              isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+              isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
             }`}>
               No results found
             </div>
@@ -586,7 +586,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
               {results.people.length > 0 && (
                 <div>
                   <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider ${
-                    isLight ? "text-telegram-text-secondary bg-telegram-blue/5" : "text-telegram-text-secondary bg-telegram-blue/10"
+                    isLight ? "text-primary-text-secondary bg-primary-blue/5" : "text-primary-text-secondary bg-primary-blue/10"
                   }`}>
                     People
                   </div>
@@ -599,7 +599,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                         setQuery("");
                       }}
                       className={`flex items-center gap-3 px-4 py-2 hover:bg-opacity-50 transition ${
-                        isLight ? "hover:bg-telegram-blue/10" : "hover:bg-white/5"
+                        isLight ? "hover:bg-primary-blue/10" : "hover:bg-white/5"
                       }`}
                     >
                       {person.avatar_url ? (
@@ -611,20 +611,20 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                         />
                       ) : (
                         <div className={`w-8 h-8 rounded-full grid place-items-center ${
-                          isLight ? "bg-telegram-blue/10 text-telegram-blue" : "bg-telegram-blue/20 text-telegram-blue-light"
+                          isLight ? "bg-primary-blue/10 text-primary-blue" : "bg-primary-blue/20 text-primary-blue-light"
                         }`}>
                           <User size={16} />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <div className={`text-sm font-medium truncate ${
-                          isLight ? "text-telegram-text" : "text-telegram-text"
+                          isLight ? "text-primary-text" : "text-primary-text"
                         }`}>
                           {person.full_name || person.username || "Anonymous"}
                         </div>
                         {person.username && person.full_name && (
                           <div className={`text-xs truncate ${
-                            isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                            isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                           }`}>
                             @{person.username}
                           </div>
@@ -639,7 +639,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
               {results.posts.length > 0 && (
                 <div>
                   <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider ${
-                    isLight ? "text-telegram-text-secondary bg-telegram-blue/5" : "text-telegram-text-secondary bg-telegram-blue/10"
+                    isLight ? "text-primary-text-secondary bg-primary-blue/5" : "text-primary-text-secondary bg-primary-blue/10"
                   }`}>
                     Posts
                   </div>
@@ -652,16 +652,16 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                         setQuery("");
                       }}
                       className={`block px-4 py-2 hover:bg-opacity-50 transition ${
-                        isLight ? "hover:bg-telegram-blue/10" : "hover:bg-white/5"
+                        isLight ? "hover:bg-primary-blue/10" : "hover:bg-white/5"
                       }`}
                     >
                       <div className={`text-sm line-clamp-2 mb-1 ${
-                        isLight ? "text-telegram-text" : "text-telegram-text"
+                        isLight ? "text-primary-text" : "text-primary-text"
                       }`}>
                         {post.text}
                       </div>
                       <div className={`text-xs flex items-center gap-2 ${
-                        isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                        isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                       }`}>
                         <FileText size={12} />
                         {post.profiles?.full_name || post.profiles?.username || "Anonymous"}
@@ -675,7 +675,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
               {results.cities.length > 0 && (
                 <div>
                   <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider ${
-                    isLight ? "text-telegram-text-secondary bg-telegram-blue/5" : "text-telegram-text-secondary bg-telegram-blue/10"
+                    isLight ? "text-primary-text-secondary bg-primary-blue/5" : "text-primary-text-secondary bg-primary-blue/10"
                   }`}>
                     Cities
                   </div>
@@ -688,20 +688,20 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                         setQuery("");
                       }}
                       className={`flex items-center gap-3 px-4 py-2 hover:bg-opacity-50 transition ${
-                        isLight ? "hover:bg-telegram-blue/10" : "hover:bg-white/5"
+                        isLight ? "hover:bg-primary-blue/10" : "hover:bg-white/5"
                       }`}
                     >
                       <MapPin
-                        className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}
+                        className={isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}
                         size={16}
                       />
                       <div className={`text-sm ${
-                        isLight ? "text-telegram-text" : "text-telegram-text"
+                        isLight ? "text-primary-text" : "text-primary-text"
                       }`}>
                         {item.city}
                       </div>
                       <div className={`text-xs ml-auto ${
-                        isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                        isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                       }`}>
                         {item.count}
                       </div>
@@ -714,7 +714,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
               {results.countries.length > 0 && (
                 <div>
                   <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wider ${
-                    isLight ? "text-telegram-text-secondary bg-telegram-blue/5" : "text-telegram-text-secondary bg-telegram-blue/10"
+                    isLight ? "text-primary-text-secondary bg-primary-blue/5" : "text-primary-text-secondary bg-primary-blue/10"
                   }`}>
                     Countries
                   </div>
@@ -727,20 +727,20 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                         setQuery("");
                       }}
                       className={`flex items-center gap-3 px-4 py-2 hover:bg-opacity-50 transition ${
-                        isLight ? "hover:bg-telegram-blue/10" : "hover:bg-white/5"
+                        isLight ? "hover:bg-primary-blue/10" : "hover:bg-white/5"
                       }`}
                     >
                       <MapPin
-                        className={isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"}
+                        className={isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}
                         size={16}
                       />
                       <div className={`text-sm ${
-                        isLight ? "text-telegram-text" : "text-telegram-text"
+                        isLight ? "text-primary-text" : "text-primary-text"
                       }`}>
                         {item.country}
                       </div>
                       <div className={`text-xs ml-auto ${
-                        isLight ? "text-telegram-text-secondary" : "text-telegram-text-secondary"
+                        isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
                       }`}>
                         {item.count}
                       </div>
@@ -751,7 +751,7 @@ export default function SearchInput({ className = "" }: { className?: string }) 
 
               {/* View All Results */}
               <div className={`border-t ${
-                isLight ? "border-telegram-blue/10" : "border-telegram-blue/20"
+                isLight ? "border-primary-blue/10" : "border-primary-blue/20"
               }`}>
                 <Link
                   href={`/search?q=${encodeURIComponent(query)}`}
@@ -761,8 +761,8 @@ export default function SearchInput({ className = "" }: { className?: string }) 
                   }}
                   className={`block px-4 py-2 text-sm text-center font-medium transition ${
                     isLight
-                      ? "text-telegram-blue hover:bg-telegram-blue/10"
-                      : "text-telegram-blue-light hover:bg-telegram-blue/20"
+                      ? "text-primary-blue hover:bg-primary-blue/10"
+                      : "text-primary-blue-light hover:bg-primary-blue/20"
                   }`}
                 >
                   View all results

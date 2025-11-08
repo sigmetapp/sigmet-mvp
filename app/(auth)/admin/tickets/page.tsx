@@ -287,8 +287,8 @@ function AdminTicketsInner() {
             disabled={loading}
             className={`px-4 py-2 rounded-xl font-medium transition ${
               isLight
-                ? 'bg-telegram-blue text-white hover:bg-telegram-blue-dark'
-                : 'bg-telegram-blue text-white hover:bg-telegram-blue-dark'
+                ? 'bg-primary-blue text-white hover:bg-primary-blue-dark'
+                : 'bg-primary-blue text-white hover:bg-primary-blue-dark'
             } disabled:opacity-60`}
           >
             {loading ? 'Loading...' : 'Refresh'}
@@ -384,7 +384,7 @@ function AdminTicketsInner() {
                           <Link
                             href={`/u/${ticket.user_username}`}
                             className={`hover:underline ${
-                              isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'
+                              isLight ? 'text-primary-blue' : 'text-primary-blue-light'
                             }`}
                           >
                             {getUserDisplayName(ticket)}
@@ -415,8 +415,8 @@ function AdminTicketsInner() {
                           onClick={() => openTicket(ticket)}
                           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                             isLight
-                              ? 'bg-telegram-blue text-white hover:bg-telegram-blue-dark'
-                              : 'bg-telegram-blue text-white hover:bg-telegram-blue-dark'
+                              ? 'bg-primary-blue text-white hover:bg-primary-blue-dark'
+                              : 'bg-primary-blue text-white hover:bg-primary-blue-dark'
                           }`}
                         >
                           Open
@@ -461,7 +461,7 @@ function AdminTicketsInner() {
                       <Link
                         href={`/u/${selectedTicket.user_username}`}
                         className={`hover:underline ${
-                          isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'
+                          isLight ? 'text-primary-blue' : 'text-primary-blue-light'
                         }`}
                       >
                         {getUserDisplayName(selectedTicket)}
@@ -495,7 +495,7 @@ function AdminTicketsInner() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`text-sm break-all hover:underline ${
-                      isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'
+                      isLight ? 'text-primary-blue' : 'text-primary-blue-light'
                     }`}
                   >
                     {selectedTicket.post_url}
@@ -574,8 +574,8 @@ function AdminTicketsInner() {
                       className={`rounded-lg border p-4 ${
                         msg.is_admin
                           ? isLight
-                            ? 'border-telegram-blue/30 bg-telegram-blue/5'
-                            : 'border-telegram-blue/30 bg-telegram-blue/10'
+                            ? 'border-primary-blue/30 bg-primary-blue/5'
+                            : 'border-primary-blue/30 bg-primary-blue/10'
                           : isLight
                           ? 'border-black/10 bg-black/5'
                           : 'border-white/10 bg-white/5'
@@ -583,7 +583,7 @@ function AdminTicketsInner() {
                     >
                       <div className={`text-xs mb-2 ${
                         msg.is_admin
-                          ? isLight ? 'text-telegram-blue' : 'text-telegram-blue-light'
+                          ? isLight ? 'text-primary-blue' : 'text-primary-blue-light'
                           : isLight ? 'text-black/60' : 'text-white/60'
                       }`}>
                         {msg.is_admin ? 'Admin' : 'User'} ? {new Date(msg.created_at).toLocaleString()}
@@ -615,8 +615,8 @@ function AdminTicketsInner() {
                   rows={3}
                   className={`w-full rounded-xl border px-4 py-2 outline-none transition resize-none ${
                     isLight
-                      ? 'border-black/10 bg-white placeholder-black/40 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/20'
-                      : 'border-white/10 bg-white/5 placeholder-white/40 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/30'
+                      ? 'border-black/10 bg-white placeholder-black/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/20'
+                      : 'border-white/10 bg-white/5 placeholder-white/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/30'
                   }`}
                 />
                 <input
@@ -649,8 +649,8 @@ function AdminTicketsInner() {
                     disabled={sendingMessage}
                     className={`ml-auto px-6 py-2.5 rounded-xl font-medium transition ${
                       isLight
-                        ? 'bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]'
-                        : 'bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]'
+                        ? 'bg-primary-blue text-white hover:bg-primary-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]'
+                        : 'bg-primary-blue text-white hover:bg-primary-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]'
                     } disabled:opacity-60`}
                   >
                     {sendingMessage ? 'Sending...' : 'Send Message'}
@@ -673,8 +673,8 @@ function AdminTicketsInner() {
                   onChange={(e) => setStatus(e.target.value)}
                   className={`w-full rounded-xl border px-4 py-2 outline-none transition ${
                     isLight
-                      ? 'border-black/10 bg-white text-black focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/20'
-                      : 'border-white/10 bg-white/5 text-white focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/30'
+                      ? 'border-black/10 bg-white text-black focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/20'
+                      : 'border-white/10 bg-white/5 text-white focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/30'
                   }`}
                   style={isLight ? {} : { colorScheme: 'dark' }}
                 >
@@ -701,8 +701,8 @@ function AdminTicketsInner() {
                   rows={6}
                   className={`w-full rounded-xl border px-4 py-2 outline-none transition resize-none ${
                     isLight
-                      ? 'border-black/10 bg-white placeholder-black/40 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/20'
-                      : 'border-white/10 bg-white/5 placeholder-white/40 focus:border-telegram-blue focus:ring-2 focus:ring-telegram-blue/30'
+                      ? 'border-black/10 bg-white placeholder-black/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/20'
+                      : 'border-white/10 bg-white/5 placeholder-white/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/30'
                   }`}
                 />
               </div>
@@ -713,8 +713,8 @@ function AdminTicketsInner() {
                   disabled={saving}
                   className={`px-6 py-2.5 rounded-xl font-medium transition ${
                     isLight
-                      ? 'bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]'
-                      : 'bg-telegram-blue text-white hover:bg-telegram-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]'
+                      ? 'bg-primary-blue text-white hover:bg-primary-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.25)]'
+                      : 'bg-primary-blue text-white hover:bg-primary-blue-dark shadow-[0_2px_8px_rgba(51,144,236,0.3)]'
                   } disabled:opacity-60`}
                 >
                   {saving ? 'Saving...' : 'Save Changes'}

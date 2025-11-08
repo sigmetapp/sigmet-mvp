@@ -291,7 +291,7 @@ function DirectionDetailInner() {
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+        <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
           Loading?
         </div>
       </div>
@@ -306,14 +306,14 @@ function DirectionDetailInner() {
     <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
       {/* Header */}
       <div className="mb-6 md:mb-8">
-        <Link href="/growth" className={`text-sm mb-2 inline-block ${isLight ? 'text-telegram-blue hover:text-telegram-blue-dark' : 'text-telegram-blue-light hover:text-telegram-blue'}`}>
+        <Link href="/growth" className={`text-sm mb-2 inline-block ${isLight ? 'text-primary-blue hover:text-primary-blue-dark' : 'text-primary-blue-light hover:text-primary-blue'}`}>
           ? Back to Growth
         </Link>
         <div className="flex items-center gap-3">
           <span className="text-4xl">
             {resolveDirectionEmoji(direction.slug, direction.emoji)}
           </span>
-          <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'bg-gradient-to-r from-telegram-blue to-telegram-blue-light bg-clip-text text-transparent' : 'gradient-text'}`}>
+          <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent' : 'gradient-text'}`}>
             {direction.title}
           </h1>
         </div>
@@ -331,11 +331,11 @@ function DirectionDetailInner() {
               className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
                 active
                   ? isLight
-                    ? 'border-telegram-blue text-telegram-blue'
-                    : 'border-telegram-blue-light text-telegram-blue-light'
+                    ? 'border-primary-blue text-primary-blue'
+                    : 'border-primary-blue-light text-primary-blue-light'
                   : isLight
-                  ? 'border-transparent text-telegram-text-secondary hover:text-telegram-blue'
-                  : 'border-transparent text-telegram-text-secondary hover:text-telegram-blue-light'
+                  ? 'border-transparent text-primary-text-secondary hover:text-primary-blue'
+                  : 'border-transparent text-primary-text-secondary hover:text-primary-blue-light'
               }`}
             >
               {label}
@@ -348,7 +348,7 @@ function DirectionDetailInner() {
       {activeTab === 'habits' && (
         <div className="space-y-4">
           {habits.length === 0 ? (
-            <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
               No habits available
             </div>
           ) : (
@@ -360,12 +360,12 @@ function DirectionDetailInner() {
               return (
                 <div
                   key={habit.id}
-                  className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? '' : ''}`}
+                  className={`card-glow-primary p-4 md:p-6 space-y-4 ${isLight ? '' : ''}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <h3 className={`font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           {habit.title}
                         </h3>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -378,46 +378,46 @@ function DirectionDetailInner() {
                           {habit.period?.charAt(0).toUpperCase() + habit.period.slice(1)}
                         </span>
                       </div>
-                      <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      <p className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                         {habit.description}
                       </p>
-                      <div className={`mt-2 text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      <div className={`mt-2 text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                         {habit.base_points} points per check-in
                       </div>
                     </div>
                   </div>
 
                   {isActive && habit.userTask && (
-                    <div className={`grid grid-cols-2 gap-4 p-3 rounded-xl ${isLight ? 'bg-telegram-bg-secondary' : 'bg-white/5'}`}>
+                    <div className={`grid grid-cols-2 gap-4 p-3 rounded-xl ${isLight ? 'bg-primary-bg-secondary' : 'bg-white/5'}`}>
                       <div>
-                        <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           Current Streak
                         </div>
-                        <div className={`text-lg font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <div className={`text-lg font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           ?? {habit.userTask.current_streak}
                         </div>
                       </div>
                       <div>
-                        <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           Longest Streak
                         </div>
-                        <div className={`text-lg font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <div className={`text-lg font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           {habit.userTask.longest_streak}
                         </div>
                       </div>
                       <div>
-                        <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           Total Check-ins
                         </div>
-                        <div className={`text-lg font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <div className={`text-lg font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           {habit.userTask.total_checkins}
                         </div>
                       </div>
                       <div>
-                        <div className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                        <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           Last Done
                         </div>
-                        <div className={`text-sm ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           {habit.lastChecked
                             ? new Date(habit.lastChecked).toLocaleDateString()
                             : 'Never'}
@@ -466,7 +466,7 @@ function DirectionDetailInner() {
       {activeTab === 'goals' && (
         <div className="space-y-4">
           {goals.length === 0 ? (
-            <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+            <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
               No goals available
             </div>
           ) : (
@@ -479,12 +479,12 @@ function DirectionDetailInner() {
               return (
                 <div
                   key={goal.id}
-                  className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? '' : ''}`}
+                  className={`card-glow-primary p-4 md:p-6 space-y-4 ${isLight ? '' : ''}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className={`font-semibold ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                        <h3 className={`font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           {goal.title}
                         </h3>
                         {isCompleted && (
@@ -498,10 +498,10 @@ function DirectionDetailInner() {
                           </span>
                         )}
                       </div>
-                      <p className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      <p className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                         {goal.description}
                       </p>
-                      <div className={`mt-2 text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+                      <div className={`mt-2 text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                         {goal.base_points} points
                       </div>
                     </div>
@@ -540,11 +540,11 @@ function DirectionDetailInner() {
       )}
 
       {activeTab === 'overview' && (
-        <div className={`telegram-card-glow p-4 md:p-6 space-y-4 ${isLight ? '' : ''}`}>
-          <h2 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+        <div className={`card-glow-primary p-4 md:p-6 space-y-4 ${isLight ? '' : ''}`}>
+          <h2 className={`font-semibold text-lg ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
             Overview
           </h2>
-          <div className={`text-sm ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
+          <div className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
             Overview stats and charts coming soon
           </div>
         </div>
@@ -558,12 +558,12 @@ function DirectionDetailInner() {
             onClick={() => setShowCompleteModal(null)}
           />
           <div className={`relative z-10 w-full max-w-md mx-4 ${isLight ? 'bg-white' : 'bg-[rgba(15,22,35,0.95)]'} rounded-2xl p-6 space-y-4`}>
-            <h3 className={`font-semibold text-lg ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+            <h3 className={`font-semibold text-lg ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
               Complete Goal
             </h3>
             <div className="space-y-3">
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Proof URL (optional)
                 </label>
                 <input
@@ -575,7 +575,7 @@ function DirectionDetailInner() {
                 />
               </div>
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-telegram-text' : 'text-telegram-text'}`}>
+                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Note (optional)
                 </label>
                 <textarea
