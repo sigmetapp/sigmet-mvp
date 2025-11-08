@@ -581,23 +581,24 @@ function DmsInner() {
   }, [searchParams, currentUserId, persistCache]);
 
   useEffect(() => {
-    if (partners.length === 0) {
-      setSelectedPartnerId(null);
-      return;
-    }
-
+    // Only set selected partner from query parameter, don't auto-select first partner
     const partnerIdFromQuery = searchParams.get('partnerId');
     if (partnerIdFromQuery && partners.some((p) => p.user_id === partnerIdFromQuery)) {
       setSelectedPartnerId(partnerIdFromQuery);
       return;
     }
 
-    setSelectedPartnerId((prev) => {
-      if (prev && partners.some((p) => p.user_id === prev)) {
-        return prev;
-      }
-      return partners[0]?.user_id ?? null;
-    });
+    // If no query parameter and partners list changed, clear selection
+    if (!partnerIdFromQuery) {
+      setSelectedPartnerId((prev) => {
+        // Keep current selection if it still exists in partners list
+        if (prev && partners.some((p) => p.user_id === prev)) {
+          return prev;
+        }
+        // Otherwise, clear selection (don't auto-select first)
+        return null;
+      });
+    }
   }, [partners, searchParams]);
 
   useEffect(() => {
@@ -1103,13 +1104,9 @@ function DmsInner() {
     [applyPartnerUpdate]
   );
 
-  useEffect(() => {
-    if (!selectedPartnerId) return;
-    const partner = flatPartners.find((item) => item.user_id === selectedPartnerId);
-    if (partner && partner.unread_count > 0 && !markReadInFlightRef.current.has(partner.user_id)) {
-      void markPartnerAsRead(partner, { silent: true });
-    }
-  }, [selectedPartnerId, flatPartners, markPartnerAsRead]);
+  // Don't automatically mark messages as read when selecting a partner
+  // Messages will be marked as read when the chat window is opened and messages are loaded
+  // This is handled in DmsChatWindow.tsx
 
   const showEmptyState =
     !loadingInitial && !error && !hasResults && !isSearching && partners.length === 0;

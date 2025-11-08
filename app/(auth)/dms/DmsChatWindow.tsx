@@ -883,12 +883,14 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           }
           
           // Mark all messages as read when thread is opened and messages are loaded
+          // This ensures that when user opens a chat, all visible messages are marked as read
           if (sorted.length > 0 && currentUserId && partnerId) {
             const lastMessage = sorted[sorted.length - 1];
             // Only mark as read if there are messages from partner
             const hasPartnerMessages = sorted.some(m => m.sender_id === partnerId && m.sender_id !== currentUserId);
             if (hasPartnerMessages && lastMessage) {
-              // Mark all messages up to the last one as read
+              // Mark all messages up to the last one as read immediately
+              // This ensures that on page refresh, these messages won't be unread
               fetch('/api/dms/messages.read', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -901,7 +903,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
               });
             }
           }
-        }, 300);
+        }, 100);
 
         setHasMoreHistory(sorted.length === INITIAL_MESSAGE_LIMIT);
         
@@ -1181,10 +1183,13 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       initialScrollDoneRef.current = true;
       
       // Mark all messages as read when initially scrolling to bottom
+      // This ensures that when user opens a chat, all visible messages are marked as read
       const lastMessage = messages[messages.length - 1];
       if (lastMessage) {
         const hasPartnerMessages = messages.some(m => m.sender_id === partnerId && m.sender_id !== currentUserId);
         if (hasPartnerMessages) {
+          // Mark all messages as read immediately when chat is opened
+          // This ensures that on page refresh, these messages won't be unread
           fetch('/api/dms/messages.read', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
