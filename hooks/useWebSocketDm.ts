@@ -51,8 +51,9 @@ function sortMessagesChronologically(messages: Message[]): Message[] {
 }
 
 /**
- * Simplified message deduplication using only id and sequence_number
+ * Simplified message deduplication using id, sequence_number, and client_msg_id
  * Replaces existing message if found by id, otherwise adds new message
+ * Handles local-echo messages (id === -1) by checking client_msg_id
  */
 function addOrUpdateMessage(messages: Message[], newMessage: Message): Message[] {
   // Check if message already exists by id (primary key)
@@ -65,8 +66,24 @@ function addOrUpdateMessage(messages: Message[], newMessage: Message): Message[]
     return sortMessagesChronologically(updated);
   }
   
-  // Check if we have a local-echo message (id === -1) with same sequence_number
-  // This handles the case where local-echo needs to be replaced with real message
+  // Check if we have a local-echo message (id === -1) that needs to be replaced
+  // Check by client_msg_id first (most reliable for local-echo)
+  if (newMessage.id !== -1 && newMessage.client_msg_id) {
+    const localEchoIndex = messages.findIndex(m => 
+      m.id === -1 && 
+      (m as any).client_msg_id === newMessage.client_msg_id &&
+      m.thread_id === newMessage.thread_id
+    );
+    
+    if (localEchoIndex !== -1) {
+      // Replace local-echo with real message
+      const updated = [...messages];
+      updated[localEchoIndex] = newMessage;
+      return sortMessagesChronologically(updated);
+    }
+  }
+  
+  // Fallback: Check by sequence_number if client_msg_id not available
   if (newMessage.id !== -1 && newMessage.sequence_number !== null) {
     const localEchoIndex = messages.findIndex(m => 
       m.id === -1 && 
@@ -79,6 +96,20 @@ function addOrUpdateMessage(messages: Message[], newMessage: Message): Message[]
       const updated = [...messages];
       updated[localEchoIndex] = newMessage;
       return sortMessagesChronologically(updated);
+    }
+  }
+  
+  // Check if message with same client_msg_id already exists (avoid duplicates from WebSocket echo)
+  if (newMessage.client_msg_id) {
+    const duplicateIndex = messages.findIndex(m => 
+      m.id !== -1 && 
+      (m as any).client_msg_id === newMessage.client_msg_id &&
+      m.thread_id === newMessage.thread_id
+    );
+    
+    if (duplicateIndex !== -1) {
+      // Message already exists, don't add duplicate
+      return messages;
     }
   }
   
@@ -572,18 +603,35 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       return;
     }
 
-    try {
-      const cached = window.sessionStorage.getItem(cacheKey);
-      if (cached) {
-        const parsed = JSON.parse(cached) as Message[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
+    // Try IndexedDB first, fallback to sessionStorage
+    (async () => {
+      try {
+        const { getCachedMessages } = await import('@/lib/dm/cache');
+        const cached = await getCachedMessages(String(threadId));
+        
+        if (cached && cached.length > 0) {
           isHydratedFromCacheRef.current = true;
-          setMessagesState(sortMessagesChronologically(parsed));
+          setMessagesState(sortMessagesChronologically(cached));
+          return;
         }
+      } catch (error) {
+        console.warn('Failed to hydrate from IndexedDB, trying sessionStorage:', error);
       }
-    } catch (error) {
-      console.warn('Failed to hydrate DM messages cache', error);
-    }
+
+      // Fallback to sessionStorage
+      try {
+        const cached = window.sessionStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached) as Message[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            isHydratedFromCacheRef.current = true;
+            setMessagesState(sortMessagesChronologically(parsed));
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to hydrate DM messages cache', error);
+      }
+    })();
   }, [threadId, messages.length]);
 
   useEffect(() => {
@@ -599,15 +647,30 @@ export function useWebSocketDm(threadId: ThreadId | null, options: UseWebSocketD
       return;
     }
 
-    try {
-      const trimmed =
-        messages.length > MESSAGE_CACHE_LIMIT
-          ? messages.slice(-MESSAGE_CACHE_LIMIT)
-          : messages;
-      window.sessionStorage.setItem(cacheKey, JSON.stringify(trimmed));
-    } catch (error) {
-      console.warn('Failed to persist DM messages cache', error);
-    }
+    // Cache to IndexedDB (async, non-blocking)
+    (async () => {
+      try {
+        const { cacheMessages } = await import('@/lib/dm/cache');
+        const trimmed =
+          messages.length > MESSAGE_CACHE_LIMIT
+            ? messages.slice(-MESSAGE_CACHE_LIMIT)
+            : messages;
+        await cacheMessages(String(threadId), trimmed);
+      } catch (error) {
+        console.warn('Failed to cache messages in IndexedDB, using sessionStorage:', error);
+        
+        // Fallback to sessionStorage
+        try {
+          const trimmed =
+            messages.length > MESSAGE_CACHE_LIMIT
+              ? messages.slice(-MESSAGE_CACHE_LIMIT)
+              : messages;
+          window.sessionStorage.setItem(cacheKey, JSON.stringify(trimmed));
+        } catch (sessionError) {
+          console.warn('Failed to persist DM messages cache', sessionError);
+        }
+      }
+    })();
   }, [messages, threadId]);
 
   // Presence subscription (Supabase realtime presence channels)
