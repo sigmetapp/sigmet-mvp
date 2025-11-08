@@ -660,11 +660,12 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             
             if (message) {
               // This receipt is for a message sent by current user
+              const receiptKey = String(event.message_id);
+              const newStatus = (event.status as 'sent' | 'delivered' | 'read') || 'delivered';
+              console.log('[DM] Receipt updated via WebSocket ack:', receiptKey, 'status:', newStatus);
               setMessageReceipts((prev) => {
                 const updated = new Map(prev);
-                const receiptKey = String(event.message_id);
-                // The status should be 'delivered' or 'read' from the partner
-                updated.set(receiptKey, event.status || 'delivered');
+                updated.set(receiptKey, newStatus);
                 return updated;
               });
             }
@@ -740,10 +741,12 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
               
                 if (message) {
                   // This receipt is for a message sent by current user
+                  const receiptKey = String(receipt.message_id);
+                  const newStatus = (receipt.status as 'sent' | 'delivered' | 'read') || 'delivered';
+                  console.log('[DM] Receipt updated via Supabase Realtime:', receiptKey, 'status:', newStatus);
                   setMessageReceipts((prev) => {
                     const updated = new Map(prev);
-                    const receiptKey = String(receipt.message_id);
-                    updated.set(receiptKey, receipt.status || 'delivered');
+                    updated.set(receiptKey, newStatus);
                     return updated;
                   });
                   setMessagesFromHook((prev: any[]) =>
@@ -780,6 +783,60 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       void supabase.removeChannel(receiptsChannel);
     };
   }, [thread?.id, currentUserId, partnerId]);
+
+  // Periodically refresh receipts to ensure UI is up-to-date
+  useEffect(() => {
+    if (!thread?.id || !currentUserId || !partnerId) return;
+    
+    const refreshReceipts = async () => {
+      try {
+        // Get message IDs of messages sent by current user
+        const myMessageIds = messages
+          .filter((m) => m.sender_id === currentUserId && m.id !== -1)
+          .map((m) => Number(m.id))
+          .filter((id) => !Number.isNaN(id));
+        
+        if (myMessageIds.length === 0) return;
+        
+        // Load receipts where partner is the recipient
+        const { data: receipts } = await supabase
+          .from('dms_message_receipts')
+          .select('message_id, status')
+          .in('message_id', myMessageIds)
+          .eq('user_id', partnerId);
+        
+        if (receipts) {
+          setMessageReceipts((prev) => {
+            const updated = new Map(prev);
+            let hasChanges = false;
+            for (const receipt of receipts) {
+              const messageId = String(receipt.message_id);
+              const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
+              const currentStatus = updated.get(messageId);
+              if (currentStatus !== status) {
+                updated.set(messageId, status);
+                hasChanges = true;
+                if (status === 'read') {
+                  console.log('[DM] Refreshed read receipt for message:', messageId);
+                }
+              }
+            }
+            return hasChanges ? updated : prev;
+          });
+        }
+      } catch (err) {
+        console.error('Error refreshing receipts:', err);
+      }
+    };
+    
+    // Refresh immediately
+    void refreshReceipts();
+    
+    // Refresh every 5 seconds to catch any missed updates
+    const interval = setInterval(refreshReceipts, 5000);
+    
+    return () => clearInterval(interval);
+  }, [thread?.id, currentUserId, partnerId, messages]);
 
   // Get or create thread and load messages
   useEffect(() => {
@@ -866,9 +923,15 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 const receiptsMap = new Map<string, 'sent' | 'delivered' | 'read'>();
                 for (const receipt of receipts) {
                   const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
-                  receiptsMap.set(String(receipt.message_id), status);
+                  const messageId = String(receipt.message_id);
+                  receiptsMap.set(messageId, status);
+                  // Debug log
+                  if (status === 'read') {
+                    console.log('[DM] Loaded read receipt for message:', messageId, 'status:', status);
+                  }
                 }
                 setMessageReceipts(receiptsMap);
+                console.log('[DM] Loaded receipts:', Array.from(receiptsMap.entries()));
               }
             }
           } catch (err) {
@@ -2251,8 +2314,12 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                                       );
                                     }
                                     
-                                    // Read status
-                                    if (receiptStatus === 'read') {
+                                    // Read status - check both receiptStatus and deliveryState
+                                    // Also check if message was read by checking if it's not from partner and was acknowledged
+                                    const isRead = receiptStatus === 'read' || 
+                                                  (deliveryState === 'read' && msg.id !== -1);
+                                    
+                                    if (isRead) {
                                       // Double checkmark — read (blue/white)
                                       return (
                                         <svg
@@ -2269,7 +2336,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                                           <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
                                         </svg>
                                       );
-                                    } else if (receiptStatus === 'delivered') {
+                                    } else if (receiptStatus === 'delivered' || deliveryState === 'delivered') {
                                       // Double checkmark — delivered (gray)
                                       return (
                                         <svg
