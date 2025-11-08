@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 type ProgressiveImageProps = {
   src: string;
@@ -69,25 +68,7 @@ export default function ProgressiveImage({
     setCurrentSrc(optimizedSrc);
     setImageLoaded(false);
     setImageError(false);
-    
-    // Preload image if priority is set
-    if (priority && optimizedSrc && !optimizedSrc.startsWith('data:') && typeof document !== 'undefined') {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'image';
-      link.href = optimizedSrc;
-      if ('fetchPriority' in link) {
-        (link as any).fetchPriority = 'high';
-      }
-      document.head.appendChild(link);
-      
-      return () => {
-        if (document.head.contains(link)) {
-          document.head.removeChild(link);
-        }
-      };
-    }
-  }, [src, width, height, priority]);
+  }, [src, width, height]);
 
   const handleLoad = () => {
     setImageLoaded(true);
@@ -101,7 +82,7 @@ export default function ProgressiveImage({
 
   const imageClassName = [
     className,
-    'transition-opacity duration-300',
+    'transition-opacity duration-200',
     imageLoaded ? 'opacity-100' : 'opacity-0',
     objectFit === 'cover' && 'object-cover',
     objectFit === 'contain' && 'object-contain',
@@ -113,7 +94,7 @@ export default function ProgressiveImage({
     .join(' ');
 
   const placeholderClassName = [
-    'absolute inset-0 transition-opacity duration-500',
+    'absolute inset-0 transition-opacity duration-200',
     imageLoaded ? 'opacity-0' : 'opacity-100',
     'blur-sm',
     'bg-slate-200 dark:bg-slate-700',
@@ -149,21 +130,14 @@ export default function ProgressiveImage({
   return (
     <div className="relative overflow-hidden" style={{ width, height }}>
       {/* Blur placeholder */}
-      {placeholder === 'blur' && (
-        <AnimatePresence>
-          {!imageLoaded && (
-            <motion.img
-              src={defaultBlurDataURL}
-              alt=""
-              className={placeholderClassName}
-              style={{ width, height }}
-              aria-hidden="true"
-              initial={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            />
-          )}
-        </AnimatePresence>
+      {placeholder === 'blur' && !imageLoaded && (
+        <img
+          src={defaultBlurDataURL}
+          alt=""
+          className={placeholderClassName}
+          style={{ width, height }}
+          aria-hidden="true"
+        />
       )}
 
       {/* Actual image */}
@@ -179,16 +153,10 @@ export default function ProgressiveImage({
         loading={priority ? 'eager' : 'lazy'}
         decoding="async"
         sizes={sizes || (width ? `${width}px` : undefined)}
-        {...(priority && { fetchPriority: 'high' as const })}
+        fetchPriority={priority ? 'high' : 'auto'}
         {...rest}
       />
 
-      {/* Loading spinner (optional, shown while loading) */}
-      {!imageLoaded && !imageError && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 dark:border-slate-600 dark:border-t-slate-300" />
-        </div>
-      )}
     </div>
   );
 }
