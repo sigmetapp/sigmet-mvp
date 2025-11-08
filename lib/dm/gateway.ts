@@ -18,6 +18,7 @@ import type { DeliveryStatus, GatewayBroker, GatewayBrokerEvent } from './broker
 import { inferMessageKind } from './messageKind';
 import { broadcastDmMessage } from './realtimeServer';
 import { getMessageQueue } from './messageQueue';
+import { incrementCounter, setGauge, recordTimer } from './metrics';
 
 // Connection state
 interface Connection {
@@ -31,7 +32,7 @@ interface Connection {
 type GatewayOptions = {
   broker?: GatewayBroker | null;
   logger?: Pick<Console, 'log' | 'error' | 'warn'>;
-  redis?: { host?: string; port?: number; password?: string };
+  redis?: { host?: string; port?: number; password?: string; url?: string };
 };
 
 const gatewayInstanceId = randomUUID();
@@ -101,6 +102,13 @@ const connections = new Map<WebSocket, Connection>();
 const userConnections = new Map<string, Set<WebSocket>>();
 const threadSubscribers = new Map<ThreadId, Set<WebSocket>>();
 
+// Update connection metrics
+function updateConnectionMetrics(): void {
+  setGauge('dm.connections', connections.size);
+  setGauge('dm.connections.authenticated', Array.from(connections.values()).filter(c => c.userId).length);
+  setGauge('dm.threads.subscribed', threadSubscribers.size);
+}
+
 // Send message to WebSocket
 function send(ws: WebSocket, event: GatewayEvent) {
   if (ws.readyState === WebSocket.OPEN) {
@@ -137,32 +145,51 @@ async function publishBrokerEvent(event: Omit<GatewayBrokerEvent, 'origin'>): Pr
     return;
   }
 
+  const startTime = Date.now();
   try {
     const payload = { ...event, origin: gatewayInstanceId } as GatewayBrokerEvent;
     await activeBroker.publish(payload);
+    
+    // Record success metrics
+    const latency = Date.now() - startTime;
+    recordTimer('dm.broker.publish.latency', latency, { kind: event.kind });
+    incrementCounter('dm.broker.events.published', { kind: event.kind });
   } catch (error) {
     gatewayLogger.error('Gateway broker publish error:', error);
+    
+    // Record error metrics
+    const latency = Date.now() - startTime;
+    recordTimer('dm.broker.publish.latency', latency, { kind: event.kind, error: 'true' });
+    incrementCounter('dm.broker.events.publish_failed', { kind: event.kind });
+    incrementCounter('dm.errors', { type: 'broker_publish' });
   }
 }
 
 async function handleBrokerEvent(event: GatewayBrokerEvent): Promise<void> {
-  if (event.origin === gatewayInstanceId) {
-    return;
-  }
+        if (event.origin === gatewayInstanceId) {
+          return;
+        }
 
-  switch (event.kind) {
-    case 'message': {
-      const normalized = normalizeMessageRow(event.message);
-      const serverMsgId = Number(event.server_msg_id);
-      broadcastToThread(event.thread_id, {
-        type: 'message',
-        thread_id: event.thread_id,
-        message: normalized,
-        server_msg_id: serverMsgId,
-        sequence_number: event.sequence_number ?? (normalized?.sequence_number ?? null),
-      });
-      break;
-    }
+        // Record broker event received
+        incrementCounter('dm.broker.events.received', { kind: event.kind });
+
+        switch (event.kind) {
+          case 'message': {
+            const normalized = normalizeMessageRow(event.message);
+            const serverMsgId = Number(event.server_msg_id);
+            
+            // Record message received from broker
+            incrementCounter('dm.messages.received', { thread_id: String(event.thread_id), source: 'broker' });
+            
+            broadcastToThread(event.thread_id, {
+              type: 'message',
+              thread_id: event.thread_id,
+              message: normalized,
+              server_msg_id: serverMsgId,
+              sequence_number: event.sequence_number ?? (normalized?.sequence_number ?? null),
+            });
+            break;
+          }
     case 'ack': {
       broadcastToThread(event.thread_id, {
         type: 'ack',
@@ -323,25 +350,53 @@ function broadcastToThread(threadId: ThreadId, event: GatewayEvent, exclude?: We
   if (!subscribers) return;
 
   const message = JSON.stringify(event);
+  let sentCount = 0;
+  const startTime = Date.now();
+
   for (const ws of subscribers) {
     if (ws !== exclude && ws.readyState === WebSocket.OPEN) {
-      ws.send(message);
+      try {
+        ws.send(message);
+        sentCount++;
+      } catch (error) {
+        console.error('Error sending message to WebSocket:', error);
+        incrementCounter('dm.errors', { type: 'websocket_send' });
+      }
     }
+  }
+
+  // Record metrics
+  if (sentCount > 0) {
+    incrementCounter('dm.messages.broadcast', { thread_id: String(threadId) });
+    const latency = Date.now() - startTime;
+    recordTimer('dm.broadcast.latency', latency, { thread_id: String(threadId) });
   }
 }
 
 // Authenticate user from token
 async function authenticate(token: string): Promise<{ userId: string } | null> {
+  const startTime = Date.now();
   try {
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     
     const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return null;
     
+    const latency = Date.now() - startTime;
+    recordTimer('dm.auth.latency', latency);
+    
+    if (error || !user) {
+      incrementCounter('dm.auth.failed');
+      return null;
+    }
+    
+    incrementCounter('dm.auth.success');
     return { userId: user.id };
-  } catch {
+  } catch (error) {
+    const latency = Date.now() - startTime;
+    recordTimer('dm.auth.latency', latency);
+    incrementCounter('dm.auth.failed', { error: 'exception' });
     return null;
   }
 }
@@ -354,7 +409,9 @@ async function handleSendMessage(
   attachments: unknown[],
   clientMsgId: string
 ) {
+  const startTime = Date.now();
   try {
+    incrementCounter('dm.messages.send.attempted', { thread_id: String(threadId) });
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
@@ -457,8 +514,19 @@ async function handleSendMessage(
     // Legacy broadcast is skipped to prevent duplication
     // If you need backward compatibility, enable this section but ensure proper deduplication
 
+    // Record success metrics
+    const latency = Date.now() - startTime;
+    recordTimer('dm.message.send.latency', latency, { thread_id: String(threadId) });
+    incrementCounter('dm.messages.send.success', { thread_id: String(threadId) });
+
   } catch (err: any) {
     gatewayLogger.error('Send message error:', err);
+    
+    // Record error metrics
+    const latency = Date.now() - startTime;
+    recordTimer('dm.message.send.latency', latency, { thread_id: String(threadId), error: 'true' });
+    incrementCounter('dm.messages.send.failed', { thread_id: String(threadId), error: err?.code || 'unknown' });
+    incrementCounter('dm.errors', { type: 'send_message', thread_id: String(threadId) });
     
     // Use centralized error handling
     const { handleDmError } = require('./errorHandler');
@@ -658,6 +726,10 @@ function subscribeToThread(conn: Connection, threadId: ThreadId) {
     threadSubscribers.set(threadId, subscribers);
   }
   subscribers.add(conn.ws);
+  
+  // Update metrics
+  updateConnectionMetrics();
+  incrementCounter('dm.threads.subscribed', { thread_id: String(threadId) });
 }
 
 // Unsubscribe from thread
@@ -671,6 +743,10 @@ function unsubscribeFromThread(conn: Connection, threadId: ThreadId) {
       threadSubscribers.delete(threadId);
     }
   }
+  
+  // Update metrics
+  updateConnectionMetrics();
+  incrementCounter('dm.threads.unsubscribed', { thread_id: String(threadId) });
 }
 
 // Handle WebSocket message
@@ -701,8 +777,13 @@ async function handleMessage(conn: Connection, data: string) {
           }
           userConns.add(conn.ws);
           
+          // Update metrics
+          updateConnectionMetrics();
+          incrementCounter('dm.connections.authenticated');
+          
           send(conn.ws, { type: 'connected' });
         } else {
+          incrementCounter('dm.connections.auth_failed');
           send(conn.ws, { type: 'error', error: 'Authentication failed', code: 'AUTH_FAILED' });
         }
         break;
@@ -786,6 +867,10 @@ function cleanupConnection(ws: WebSocket) {
   }
 
   connections.delete(ws);
+  
+  // Update metrics
+  updateConnectionMetrics();
+  incrementCounter('dm.connections.closed');
 }
 
 // Initialize WebSocket server
@@ -796,6 +881,43 @@ export function initGateway(server: HTTPServer, options: GatewayOptions = {}) {
   if (options.redis) {
     messageQueue = getMessageQueue(options.redis);
     gatewayLogger.log('Message queue initialized');
+  }
+
+  // Initialize Redis broker if Redis config provided
+  if (options.redis && !options.broker) {
+    (async () => {
+      try {
+        // Try to create Redis broker
+        const Redis = (await import('ioredis')).default;
+        const redisUrl = options.redis.url || 
+          (options.redis.host && options.redis.port 
+            ? `redis://${options.redis.password ? `:${options.redis.password}@` : ''}${options.redis.host}:${options.redis.port}`
+            : process.env.REDIS_URL);
+        
+        if (redisUrl) {
+          const redisClient = new Redis(redisUrl, {
+            maxRetriesPerRequest: null,
+            lazyConnect: true,
+          });
+          
+          await redisClient.connect();
+          
+          const { createRedisBroker } = await import('./broker');
+          const broker = createRedisBroker(redisClient, {
+            stream: 'dm:events',
+            group: 'gateway',
+            consumer: `gateway-${gatewayInstanceId}`,
+            blockMs: 1000,
+            batchSize: 50,
+          });
+          
+          attachBroker(broker);
+          gatewayLogger.log('Redis broker initialized');
+        }
+      } catch (error) {
+        gatewayLogger.warn('Failed to initialize Redis broker, continuing without it:', error);
+      }
+    })();
   }
 
   if (options.broker) {
@@ -814,9 +936,10 @@ export function initGateway(server: HTTPServer, options: GatewayOptions = {}) {
     };
 
     connections.set(ws, conn);
-
-    // Send connection confirmation
-    send(ws, { type: 'connected' });
+    
+    // Update metrics
+    updateConnectionMetrics();
+    incrementCounter('dm.connections.opened');
 
     // Handle messages
     ws.on('message', (data: Buffer) => {
@@ -851,6 +974,23 @@ export function initGateway(server: HTTPServer, options: GatewayOptions = {}) {
   });
 
   gatewayLogger.log('WebSocket gateway initialized on /api/ws', { id: gatewayInstanceId });
+  
+  // Initialize metrics
+  updateConnectionMetrics();
+  
+  // Periodic metrics update (every 30 seconds)
+  const metricsInterval = setInterval(() => {
+    updateConnectionMetrics();
+  }, 30000);
+  
+  // Cleanup on server shutdown
+  process.on('SIGTERM', () => {
+    clearInterval(metricsInterval);
+  });
+  process.on('SIGINT', () => {
+    clearInterval(metricsInterval);
+  });
+  
   return wss;
 }
 
