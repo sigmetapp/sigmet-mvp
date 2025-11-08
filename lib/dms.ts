@@ -39,6 +39,7 @@ export type Message = {
   deleted_at: string | null;
   sequence_number?: number | null;
   client_msg_id?: string | null;
+  reply_to_message_id?: number | null;
 };
 
 /**
@@ -301,6 +302,11 @@ export async function listMessages(
           : Number(msg.sequence_number),
     client_msg_id: msg.client_msg_id ?? null,
     attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
+    reply_to_message_id: msg.reply_to_message_id 
+      ? (typeof msg.reply_to_message_id === 'string' 
+          ? parseInt(msg.reply_to_message_id, 10) 
+          : Number(msg.reply_to_message_id))
+      : null,
   }));
 
   return messagesWithNormalizedIds as Message[];
@@ -315,7 +321,8 @@ export async function sendMessage(
   threadId: ThreadId,
   body: string | null,
   attachments: unknown[] = [],
-  clientMsgId?: string | null
+  clientMsgId?: string | null,
+  replyToMessageId?: number | null
 ): Promise<Message> {
   const normalizedThreadId = assertThreadId(threadId, 'Invalid thread_id');
 
@@ -347,6 +354,7 @@ export async function sendMessage(
       body: body || null, // API endpoint will handle empty body with attachments (uses zero-width space)
       attachments: attachments.length > 0 ? attachments : [],
       client_msg_id: clientMsgId ?? null,
+      reply_to_message_id: replyToMessageId ?? null,
     }),
   });
 
@@ -374,5 +382,10 @@ export async function sendMessage(
           : Number(message.sequence_number),
     client_msg_id: (message.client_msg_id ?? clientMsgId ?? null) as string | null,
     attachments: Array.isArray(message.attachments) ? message.attachments : [],
+    reply_to_message_id: message.reply_to_message_id 
+      ? (typeof message.reply_to_message_id === 'string' 
+          ? parseInt(message.reply_to_message_id, 10) 
+          : Number(message.reply_to_message_id))
+      : null,
   } as Message;
 }

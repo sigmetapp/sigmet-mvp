@@ -660,11 +660,12 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             
             if (message) {
               // This receipt is for a message sent by current user
+              const receiptKey = String(event.message_id);
+              const newStatus = (event.status as 'sent' | 'delivered' | 'read') || 'delivered';
+              console.log('[DM] Receipt updated via WebSocket ack:', receiptKey, 'status:', newStatus);
               setMessageReceipts((prev) => {
                 const updated = new Map(prev);
-                const receiptKey = String(event.message_id);
-                // The status should be 'delivered' or 'read' from the partner
-                updated.set(receiptKey, event.status || 'delivered');
+                updated.set(receiptKey, newStatus);
                 return updated;
               });
             }
@@ -740,10 +741,12 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
               
                 if (message) {
                   // This receipt is for a message sent by current user
+                  const receiptKey = String(receipt.message_id);
+                  const newStatus = (receipt.status as 'sent' | 'delivered' | 'read') || 'delivered';
+                  console.log('[DM] Receipt updated via Supabase Realtime:', receiptKey, 'status:', newStatus);
                   setMessageReceipts((prev) => {
                     const updated = new Map(prev);
-                    const receiptKey = String(receipt.message_id);
-                    updated.set(receiptKey, receipt.status || 'delivered');
+                    updated.set(receiptKey, newStatus);
                     return updated;
                   });
                   setMessagesFromHook((prev: any[]) =>
@@ -780,6 +783,60 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       void supabase.removeChannel(receiptsChannel);
     };
   }, [thread?.id, currentUserId, partnerId]);
+
+  // Periodically refresh receipts to ensure UI is up-to-date
+  useEffect(() => {
+    if (!thread?.id || !currentUserId || !partnerId) return;
+    
+    const refreshReceipts = async () => {
+      try {
+        // Get message IDs of messages sent by current user
+        const myMessageIds = messages
+          .filter((m) => m.sender_id === currentUserId && m.id !== -1)
+          .map((m) => Number(m.id))
+          .filter((id) => !Number.isNaN(id));
+        
+        if (myMessageIds.length === 0) return;
+        
+        // Load receipts where partner is the recipient
+        const { data: receipts } = await supabase
+          .from('dms_message_receipts')
+          .select('message_id, status')
+          .in('message_id', myMessageIds)
+          .eq('user_id', partnerId);
+        
+        if (receipts) {
+          setMessageReceipts((prev) => {
+            const updated = new Map(prev);
+            let hasChanges = false;
+            for (const receipt of receipts) {
+              const messageId = String(receipt.message_id);
+              const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
+              const currentStatus = updated.get(messageId);
+              if (currentStatus !== status) {
+                updated.set(messageId, status);
+                hasChanges = true;
+                if (status === 'read') {
+                  console.log('[DM] Refreshed read receipt for message:', messageId);
+                }
+              }
+            }
+            return hasChanges ? updated : prev;
+          });
+        }
+      } catch (err) {
+        console.error('Error refreshing receipts:', err);
+      }
+    };
+    
+    // Refresh immediately
+    void refreshReceipts();
+    
+    // Refresh every 5 seconds to catch any missed updates
+    const interval = setInterval(refreshReceipts, 5000);
+    
+    return () => clearInterval(interval);
+  }, [thread?.id, currentUserId, partnerId, messages]);
 
   // Get or create thread and load messages
   useEffect(() => {
@@ -866,9 +923,15 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 const receiptsMap = new Map<string, 'sent' | 'delivered' | 'read'>();
                 for (const receipt of receipts) {
                   const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
-                  receiptsMap.set(String(receipt.message_id), status);
+                  const messageId = String(receipt.message_id);
+                  receiptsMap.set(messageId, status);
+                  // Debug log
+                  if (status === 'read') {
+                    console.log('[DM] Loaded read receipt for message:', messageId, 'status:', status);
+                  }
                 }
                 setMessageReceipts(receiptsMap);
+                console.log('[DM] Loaded receipts:', Array.from(receiptsMap.entries()));
               }
             }
           } catch (err) {
@@ -1652,9 +1715,21 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         playSendConfirmation();
         return;
       }
-      await sendMessageHook(threadId, messageBody, annotateDocumentVersions(attachments, messages) as unknown[]);
+      // Get reply_to_message_id if replying
+      const replyToMessageId = replyingTo?.id || null;
+      
+      // Use sendMessage from lib/dms to support reply_to_message_id
+      const { sendMessage: sendMessageLib } = await import('@/lib/dms');
+      await sendMessageLib(
+        threadId, 
+        messageBody, 
+        annotateDocumentVersions(attachments, messages) as unknown[],
+        undefined, // client_msg_id - will be generated by hook
+        replyToMessageId
+      );
 
       setMessageText('');
+      setReplyingTo(null); // Clear reply after sending
       setSelectedFiles((prev) => {
         prev.forEach((entry) => {
           if (entry.previewUrl) {
@@ -1788,7 +1863,9 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         if (cancelled) return;
         const item = queue[i];
         try {
-          await sendMessageHook(thread.id, item.body, annotateDocumentVersions(item.attachments, messages) as unknown[]);
+          // Use sendMessage from lib/dms to support reply_to_message_id
+          const { sendMessage: sendMessageLib } = await import('@/lib/dms');
+          await sendMessageLib(thread.id, item.body, annotateDocumentVersions(item.attachments, messages) as unknown[], undefined, null);
           setOutbox((prev) => prev.slice(1));
           await new Promise((r) => setTimeout(r, 150));
         } catch (err) {
@@ -2075,16 +2152,14 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 !prevMsg ||
                 formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
               
-              // Group messages from same sender within 5 minutes
+              // Group messages from same sender within 5 minutes (for avatar display only)
               const isGroupedWithPrev = prevMsg && 
                 prevMsg.sender_id === msg.sender_id &&
                 new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() < 5 * 60 * 1000;
               
-              // Show time only if minute is different from previous message
-              const showTime = !isGroupedWithPrev || 
-                !prevMsg ||
-                new Date(prevMsg.created_at).getMinutes() !== new Date(msg.created_at).getMinutes() ||
-                formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
+              // Always show time and status for all messages
+              // This ensures users can see when each message was sent and its delivery status
+              const showTime = true;
 
               const isSearchMatch =
                 searchQuery.trim().length > 0 && (msg.body || '').toLowerCase().includes(searchQuery.trim().toLowerCase());
@@ -2140,11 +2215,62 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                         isMine ? 'items-end' : 'items-start'
                       }`}
                     >
-                      {replyingTo?.id === msg.id && (
-                        <div className={`text-xs text-white/60 mb-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 max-w-full ${isMine ? 'text-right' : 'text-left'}`}>
-                          Replying to: {msg.body?.substring(0, 50)}{msg.body && msg.body.length > 50 ? '...' : ''}
-                        </div>
-                      )}
+                      {/* Reply quote - show if message has reply_to_message_id */}
+                      {msg.reply_to_message_id && (() => {
+                        const repliedToMessage = messages.find(m => m.id === msg.reply_to_message_id);
+                        if (!repliedToMessage) return null;
+                        const repliedToIsMine = repliedToMessage.sender_id === currentUserId;
+                        return (
+                          <div 
+                            className={`text-xs mb-1.5 px-2 py-1.5 rounded-lg border max-w-full cursor-pointer hover:opacity-80 transition ${
+                              isMine 
+                                ? 'bg-white/10 border-white/20 text-white/80' 
+                                : 'bg-white/5 border-white/10 text-white/60'
+                            }`}
+                            onClick={() => {
+                              // Scroll to the quoted message
+                              const node = messageNodeMap.current.get(repliedToMessage.id);
+                              if (node && scrollRef.current) {
+                                node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                                // Highlight the message briefly
+                                node.style.backgroundColor = 'rgba(59, 130, 246, 0.3)';
+                                setTimeout(() => {
+                                  node.style.backgroundColor = '';
+                                }, 2000);
+                              }
+                            }}
+                            title="Click to scroll to quoted message"
+                          >
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                className="h-3 w-3" 
+                                fill="none" 
+                                viewBox="0 0 24 24" 
+                                stroke="currentColor"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                              </svg>
+                              <span className="font-medium">
+                                {repliedToIsMine ? 'You' : (partnerProfile?.full_name || partnerProfile?.username || 'User')}
+                              </span>
+                            </div>
+                            <div className="text-[11px] truncate">
+                              {repliedToMessage.deleted_at ? (
+                                <span className="italic text-white/40">Message deleted</span>
+                              ) : repliedToMessage.body ? (
+                                repliedToMessage.body.length > 60 
+                                  ? repliedToMessage.body.substring(0, 60) + '...'
+                                  : repliedToMessage.body
+                              ) : repliedToMessage.attachments && Array.isArray(repliedToMessage.attachments) && repliedToMessage.attachments.length > 0 ? (
+                                <span className="text-white/50">📎 Attachment</span>
+                              ) : (
+                                <span className="text-white/40">Empty message</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       
                       <div
                         className={`relative px-4 py-2.5 rounded-2xl transition-all message-enter ${
@@ -2193,18 +2319,18 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                           null // Only show attachments if no text
                         ) : null}
                         
-                        {showTime && (
-                          <div className={`flex items-center gap-2 mt-1.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                            <span className="text-[10px] text-white/60">
-                              {formatTime(msg.created_at)}
+                        {/* Always show time and status for all messages */}
+                        <div className={`flex items-center gap-2 mt-1.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                          <span className="text-[10px] text-white/60">
+                            {formatTime(msg.created_at)}
+                          </span>
+                          {msg.edited_at && (
+                            <span className="text-[10px] text-white/50 italic">
+                              edited
                             </span>
-                            {msg.edited_at && (
-                              <span className="text-[10px] text-white/50 italic">
-                                edited
-                              </span>
-                            )}
-                            {/* Message status indicators (only for sent messages) */}
-                            {isMine && (
+                          )}
+                          {/* Message status indicators (always show for sent messages) */}
+                          {isMine && (
                               <div className="flex items-center ml-1">
                                   {(() => {
                                     // Check for local-echo message status first
@@ -2251,8 +2377,12 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                                       );
                                     }
                                     
-                                    // Read status
-                                    if (receiptStatus === 'read') {
+                                    // Read status - check both receiptStatus and deliveryState
+                                    // Also check if message was read by checking if it's not from partner and was acknowledged
+                                    const isRead = receiptStatus === 'read' || 
+                                                  (deliveryState === 'read' && msg.id !== -1);
+                                    
+                                    if (isRead) {
                                       // Double checkmark — read (blue/white)
                                       return (
                                         <svg
@@ -2269,7 +2399,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                                           <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
                                         </svg>
                                       );
-                                    } else if (receiptStatus === 'delivered') {
+                                    } else if (receiptStatus === 'delivered' || deliveryState === 'delivered') {
                                       // Double checkmark — delivered (gray)
                                       return (
                                         <svg
@@ -2325,7 +2455,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                               </div>
                             )}
                           </div>
-                        )}
                           {/* Local echo controls: show for pending messages (id === -1) */}
                           {isMine && msg.id === -1 && (
                             <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
