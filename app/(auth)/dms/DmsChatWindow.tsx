@@ -127,7 +127,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [messageReceipts, setMessageReceipts] = useState<Map<string, 'sent' | 'delivered' | 'read'>>(new Map());
-  const [selectedMessages, setSelectedMessages] = useState<Set<number>>(new Set());
   
   // Theme
   const { theme } = useTheme();
@@ -2202,26 +2201,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                       }
                     }}
                   >
-                    {/* Checkbox for message selection - always show for all messages */}
-                    <input
-                      type="checkbox"
-                      checked={selectedMessages.has(msg.id)}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        setSelectedMessages((prev) => {
-                          const next = new Set(prev);
-                          if (e.target.checked) {
-                            next.add(msg.id);
-                          } else {
-                            next.delete(msg.id);
-                          }
-                          return next;
-                        });
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-4 w-4 rounded border-white/20 bg-white/10 text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer flex-shrink-0 mt-2"
-                      aria-label={`Select message ${msg.id}`}
-                    />
                     {!isMine && !isGroupedWithPrev && (
                       <img
                         src={partnerProfile?.avatar_url || AVATAR_FALLBACK}
@@ -2229,16 +2208,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                         className="h-8 w-8 rounded-full object-cover border border-white/10 flex-shrink-0"
                       />
                     )}
-                    {!isMine && isGroupedWithPrev && (
-                      <div className="w-8 flex items-center justify-center">
-                        {/* Spacer for grouped messages */}
-                      </div>
-                    )}
-                    {isMine && (
-                      <div className="w-4 flex-shrink-0">
-                        {/* Spacer for my messages to align checkbox */}
-                      </div>
-                    )}
+                    {!isMine && isGroupedWithPrev && <div className="w-8" />}
                     
                     <div
                       className={`max-w-[78%] flex flex-col ${
