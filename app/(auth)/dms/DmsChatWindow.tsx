@@ -1031,12 +1031,37 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         // If user is at bottom, auto-read and keep stickiness. Otherwise, accumulate counter.
         if (thread?.id) {
           if (isAtBottom) {
+            // Mark message as read via API to update receipts
             acknowledgeMessage(lastMessage.id, thread.id, 'read');
-              setMessageReceipts((prev) => {
-                const updated = new Map(prev);
-                updated.set(String(lastMessage.id), 'read');
-                return updated;
-              });
+            fetch('/api/dms/messages.read', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                thread_id: String(thread.id),
+                up_to_message_id: String(lastMessage.id),
+              }),
+            })
+            .then((response) => {
+              if (response.ok) {
+                // Dispatch event to update unread count in partner list
+                window.dispatchEvent(
+                  new CustomEvent('dm:message-read', {
+                    detail: {
+                      threadId: String(thread.id),
+                      partnerId: partnerId,
+                    },
+                  })
+                );
+              }
+            })
+            .catch((err) => {
+              console.error('Error marking message as read:', err);
+            });
+            setMessageReceipts((prev) => {
+              const updated = new Map(prev);
+              updated.set(String(lastMessage.id), 'read');
+              return updated;
+            });
           } else {
             setNewMessagesCount((c) => c + 1);
           }

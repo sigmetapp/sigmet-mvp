@@ -130,52 +130,100 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (idList.length > 0) {
-      // Update existing receipts to 'read' status
-      await execOrFetch(
-        client
-          .from('dms_message_receipts')
-          .update({ status: 'read', updated_at: new Date().toISOString() })
-          .eq('user_id', user.id)
-          .in('message_id', idList)
-      );
+      try {
+        // Update existing receipts to 'read' status
+        const updateResult = await execOrFetch(
+          client
+            .from('dms_message_receipts')
+            .update({ status: 'read', updated_at: new Date().toISOString() })
+            .eq('user_id', user.id)
+            .in('message_id', idList)
+        );
+        
+        if (updateResult.error) {
+          console.error('Error updating receipts:', updateResult.error);
+        }
+      } catch (updateErr: any) {
+        console.error('Error updating receipts:', updateErr);
+      }
 
       // Create receipts with 'read' status for messages that don't have receipts yet
-      // Use upsert to handle both insert and update
-      const receiptsToUpsert = idList.map((msgId) => ({
-        message_id: msgId,
-        user_id: user.id,
-        status: 'read' as const,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
+      // First, get messages that don't have receipts
+      try {
+        const { data: existingReceipts, error: selectErr } = await execOrFetch(
+          client
+            .from('dms_message_receipts')
+            .select('message_id')
+            .eq('user_id', user.id)
+            .in('message_id', idList)
+        );
 
-      if (receiptsToUpsert.length > 0) {
-        try {
-          await execOrFetch(
-            client
-              .from('dms_message_receipts')
-              .upsert(receiptsToUpsert, {
-                onConflict: 'message_id,user_id',
-                ignoreDuplicates: false,
-              })
-          );
-        } catch (upsertErr: any) {
-          // If upsert fails, try insert with onConflict
-          console.warn('Upsert failed, trying insert with onConflict:', upsertErr);
+        if (selectErr) {
+          console.error('Error selecting existing receipts:', selectErr);
+        }
+
+        const existingMessageIds = new Set(
+          (existingReceipts || []).map((r: any) => {
+            const id = typeof r.message_id === 'string' ? Number.parseInt(r.message_id, 10) : Number(r.message_id);
+            return Number.isNaN(id) ? null : id;
+          }).filter((id): id is number => id !== null)
+        );
+
+        const messagesWithoutReceipts = idList.filter((msgId) => !existingMessageIds.has(msgId));
+
+        if (messagesWithoutReceipts.length > 0) {
+          const receiptsToInsert = messagesWithoutReceipts.map((msgId) => ({
+            message_id: msgId,
+            user_id: user.id,
+            status: 'read' as const,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }));
+
           try {
-            for (const receipt of receiptsToUpsert) {
-              await execOrFetch(
-                client
-                  .from('dms_message_receipts')
-                  .insert(receipt)
-                  .onConflict('message_id,user_id')
-                  .merge({ status: 'read', updated_at: new Date().toISOString() })
-              );
+            const insertResult = await execOrFetch(
+              client
+                .from('dms_message_receipts')
+                .insert(receiptsToInsert)
+            );
+            
+            if (insertResult.error) {
+              console.error('Error inserting receipts:', insertResult.error);
+              // Try one by one if batch insert fails
+              for (const receipt of receiptsToInsert) {
+                try {
+                  await execOrFetch(
+                    client
+                      .from('dms_message_receipts')
+                      .insert(receipt)
+                      .onConflict('message_id,user_id')
+                      .merge({ status: 'read', updated_at: new Date().toISOString() })
+                  );
+                } catch (singleErr: any) {
+                  console.error('Error creating single receipt:', singleErr, receipt);
+                }
+              }
             }
-          } catch (insertErr) {
+          } catch (insertErr: any) {
             console.error('Error creating receipts:', insertErr);
+            // Try one by one if batch insert fails
+            for (const receipt of receiptsToInsert) {
+              try {
+                await execOrFetch(
+                  client
+                    .from('dms_message_receipts')
+                    .insert(receipt)
+                    .onConflict('message_id,user_id')
+                    .merge({ status: 'read', updated_at: new Date().toISOString() })
+                );
+              } catch (singleErr: any) {
+                console.error('Error creating single receipt:', singleErr, receipt);
+              }
+            }
           }
         }
+      } catch (err: any) {
+        console.error('Error processing receipts:', err);
       }
     }
 

@@ -119,11 +119,11 @@ unread_receipts as (
     count(*) filter (where coalesce(r.status, 'sent') <> 'read') as unread_count
   from public.dms_message_receipts r
   join public.dms_messages msg
-    on msg.id = r.message_id
+    on msg.id::bigint = r.message_id::bigint
   join normalized_threads nt on nt.thread_id = msg.thread_id
-  where r.user_id::uuid = p_user_id
+  where r.user_id = p_user_id
     and msg.deleted_at is null
-    and msg.sender_id::uuid <> p_user_id
+    and msg.sender_id <> p_user_id
   group by msg.thread_id
 ),
 unread_fallback as (
@@ -134,12 +134,12 @@ unread_fallback as (
   join public.dms_messages msg
     on msg.thread_id = nt.thread_id
   where msg.deleted_at is null
-    and msg.sender_id::uuid <> p_user_id
+    and msg.sender_id <> p_user_id
     and not exists (
       select 1
       from public.dms_message_receipts r
-      where r.message_id = msg.id
-        and r.user_id::uuid = p_user_id
+      where r.message_id::bigint = msg.id::bigint
+        and r.user_id = p_user_id
         and r.status = 'read'
     )
   group by nt.thread_id
