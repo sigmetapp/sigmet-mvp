@@ -34,7 +34,7 @@ const adminMenu = [
 export default function Sidebar({ user }: SidebarProps) {
   const { theme } = useTheme();
   const isLight = theme === "light";
-  const { unreadCount: unreadDM } = useUnreadDmCount();
+  const { unreadCount: unreadDM, refresh: refreshUnreadCount } = useUnreadDmCount();
 
   const userEmail = user.email || null;
   const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
@@ -46,7 +46,18 @@ export default function Sidebar({ user }: SidebarProps) {
         : "border-primary-blue/20 bg-[rgba(15,22,35,0.9)] text-primary-text"
     }`}>
       <div className="px-3 py-3">
-        <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>Menu</div>
+        <div className="flex items-center justify-between">
+          <div className={`text-xs font-semibold tracking-wide px-2 py-1 ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>Menu</div>
+          {unreadDM > 0 && (
+            <button
+              onClick={() => refreshUnreadCount()}
+              className="text-xs px-2 py-1 rounded bg-white/10 text-white/70 hover:bg-white/15 transition"
+              title="Обновить счетчик непрочитанных"
+            >
+              🔄
+            </button>
+          )}
+        </div>
       </div>
       <nav className="px-2">
         <ul className="space-y-1">

@@ -151,5 +151,34 @@ export function useUnreadDmCount() {
     };
   }, [currentUserId]);
 
-  return { unreadCount, isLoading };
+  // Expose refresh function for manual updates
+  const refresh = () => {
+    if (!currentUserId) return;
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await fetch('/api/dms/partners.list?limit=100&offset=0');
+        if (!response.ok) {
+          throw new Error('Failed to fetch partners');
+        }
+
+        const data = await response.json();
+        if (!data.ok || !Array.isArray(data.partners)) {
+          throw new Error('Invalid response');
+        }
+
+        const total = data.partners.reduce((sum: number, partner: { unread_count?: number }) => {
+          const count = typeof partner.unread_count === 'number' ? partner.unread_count : 0;
+          return sum + count;
+        }, 0);
+
+        console.log('[useUnreadDmCount] Manual refresh - Total unread:', total);
+        setUnreadCount(total);
+      } catch (err) {
+        console.error('Error fetching unread count:', err);
+      }
+    };
+    void fetchUnreadCount();
+  };
+
+  return { unreadCount, isLoading, refresh };
 }
