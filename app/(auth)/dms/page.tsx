@@ -440,6 +440,17 @@ function DmsInner() {
 
           const incoming = (payload.partners ?? []).map((item) => normalizePartner(item));
 
+        // Debug: log unread counts
+        if (incoming.length > 0) {
+          const totalUnread = incoming.reduce((sum, p) => sum + (p.unread_count || 0), 0);
+          console.log('[DM] Partners loaded:', incoming.length, 'Total unread:', totalUnread);
+          incoming.forEach((p) => {
+            if (p.unread_count > 0) {
+              console.log('[DM] Partner:', p.user_id, 'unread:', p.unread_count, 'last_read_at:', p.last_read_at, 'last_read_message_id:', p.last_read_message_id);
+            }
+          });
+        }
+
         const nextPagination = {
           offset: payload.pagination?.nextOffset ?? fetchOffset + incoming.length,
           hasMore: payload.pagination?.hasMore ?? false,
@@ -1025,8 +1036,8 @@ function DmsInner() {
         }
         return;
       }
-      const upToId = Number(partner.last_message_id);
-      if (!Number.isFinite(upToId)) return;
+      const upToId = String(partner.last_message_id || '');
+      if (!upToId) return;
       if (markReadInFlightRef.current.has(partner.user_id)) {
         return;
       }
@@ -1059,6 +1070,17 @@ function DmsInner() {
           last_read_message_id: lastReadId,
           last_read_at: new Date().toISOString(),
         }));
+        
+        // Dispatch event for unread count update
+        window.dispatchEvent(
+          new CustomEvent('dm:message-read', {
+            detail: {
+              threadId: partner.thread_id,
+              partnerId: partner.user_id,
+            },
+          })
+        );
+        
         if (!options.silent) {
           setToast({
             message: 'All messages marked as read',
@@ -1084,7 +1106,7 @@ function DmsInner() {
   useEffect(() => {
     if (!selectedPartnerId) return;
     const partner = flatPartners.find((item) => item.user_id === selectedPartnerId);
-    if (partner && partner.unread_count > 0) {
+    if (partner && partner.unread_count > 0 && !markReadInFlightRef.current.has(partner.user_id)) {
       void markPartnerAsRead(partner, { silent: true });
     }
   }, [selectedPartnerId, flatPartners, markPartnerAsRead]);

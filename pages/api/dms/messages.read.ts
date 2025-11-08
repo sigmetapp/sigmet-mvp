@@ -19,9 +19,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return null;
       }
     })();
-    const upTo = Number(req.body?.up_to_message_id);
+    const upTo = String(req.body?.up_to_message_id || '');
 
-    if (!threadId || !upTo || Number.isNaN(upTo)) {
+    if (!threadId || !upTo) {
       return res.status(400).json({ ok: false, error: 'Invalid input' });
     }
 
@@ -55,20 +55,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Ensure up_to is a message in this thread
     const { data: msgCheck } = await client
       .from('dms_messages')
-      .select('id')
+      .select('id, created_at')
       .eq('thread_id', threadId)
       .eq('id', upTo)
       .maybeSingle();
     if (!msgCheck) return res.status(400).json({ ok: false, error: 'up_to_message_id not in thread' });
 
-    const prev = participant.last_read_message_id ?? 0;
-    const nextId = upTo > prev ? upTo : prev;
+    const prev = participant.last_read_message_id ? String(participant.last_read_message_id) : null;
+    const nextId = upTo;
 
-    if (nextId > prev) {
+    if (nextId !== prev) {
       try {
         await client
           .from('dms_thread_participants')
-          .update({ last_read_message_id: nextId, last_read_at: new Date().toISOString() })
+          .update({ 
+            last_read_message_id: nextId, 
+            last_read_at: msgCheck.created_at || new Date().toISOString() 
+          })
           .eq('thread_id', threadId)
           .eq('user_id', user.id);
       } catch {
@@ -82,11 +85,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .from('dms_messages')
         .select('id')
         .eq('thread_id', threadId)
-        .lte('id', nextId)
+        .lte('created_at', msgCheck.created_at || new Date().toISOString())
         .limit(1000)
     );
 
-    let idList: number[] = (ids || []).map((x: any) => x.id);
+    let idList: string[] = (ids || []).map((x: any) => String(x.id));
     if (idList.length === 0) {
       // Fallback for test doubles that may not return rows: include the up-to id directly
       idList = [nextId];
