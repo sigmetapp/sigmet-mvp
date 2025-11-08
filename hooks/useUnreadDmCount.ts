@@ -51,6 +51,11 @@ export function useUnreadDmCount() {
           return sum + count;
         }, 0);
 
+        console.log('[useUnreadDmCount] Total unread:', total, 'Partners:', data.partners.length);
+        data.partners.forEach((p: any) => {
+          console.log('[useUnreadDmCount] Partner:', p.user_id, 'unread:', p.unread_count, 'last_read_at:', p.last_read_at, 'last_read_message_id:', p.last_read_message_id);
+        });
+
         setUnreadCount(total);
         setIsLoading(false);
       } catch (err) {
