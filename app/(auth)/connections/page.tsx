@@ -7,6 +7,7 @@ import Button from "@/components/Button";
 import { RequireAuth } from "@/components/RequireAuth";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
 import Skeleton from "@/components/Skeleton";
+import { resolveAvatarUrl } from "@/lib/utils";
 
 type SimpleProfile = {
   user_id: string;
@@ -57,7 +58,7 @@ const ConnectionItem = memo(function ConnectionItem({
 }) {
   const displayName = profile?.full_name || profile?.username || connection.userId.slice(0, 8);
   const username = profile?.username || connection.userId.slice(0, 8);
-  const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+  const avatar = resolveAvatarUrl(profile?.avatar_url) ?? AVATAR_FALLBACK;
   const profileUrl = username ? `/u/${username}` : `/u/${connection.userId}`;
   const dmUrl = `/dms?partnerId=${encodeURIComponent(connection.userId)}`;
 
@@ -126,7 +127,7 @@ const FollowItem = memo(function FollowItem({
 }) {
   const displayName = profile?.full_name || profile?.username || userId.slice(0, 8);
   const username = profile?.username || userId.slice(0, 8);
-  const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+  const avatar = resolveAvatarUrl(profile?.avatar_url) ?? AVATAR_FALLBACK;
   const profileUrl = username ? `/u/${username}` : `/u/${userId}`;
 
   return (
@@ -183,7 +184,7 @@ const RecommendedItem = memo(function RecommendedItem({
 }) {
   const displayName = profile?.full_name || profile?.username || rec.userId.slice(0, 8);
   const username = profile?.username || rec.userId.slice(0, 8);
-  const avatar = profile?.avatar_url || AVATAR_FALLBACK;
+  const avatar = resolveAvatarUrl(profile?.avatar_url) ?? AVATAR_FALLBACK;
   const profileUrl = username ? `/u/${username}` : `/u/${rec.userId}`;
   const dmUrl = `/dms?partnerId=${encodeURIComponent(rec.userId)}`;
   const reasonText = rec.reason === 'connection' 

@@ -9,6 +9,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import DmsChatWindow from '../DmsChatWindow';
 import ProgressiveImage from '@/components/ProgressiveImage';
 import DmChatLoading from './loading';
+import { resolveAvatarUrl } from '@/lib/utils';
 
 export default function DmPage() {
   return (
@@ -143,7 +144,7 @@ function DmPageInner() {
                 {partners.map((p) => {
                   const name =
                     p.full_name || p.username || p.user_id.slice(0, 8);
-                  const avatar = p.avatar_url || AVATAR_FALLBACK;
+                const avatar = resolveAvatarUrl(p.avatar_url) ?? AVATAR_FALLBACK;
                   const isSelected = partnerId === p.user_id;
 
                   return (

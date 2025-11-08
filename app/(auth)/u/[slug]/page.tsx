@@ -10,6 +10,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { resolveDirectionEmoji } from '@/lib/directions';
 import { useTheme } from '@/components/ThemeProvider';
 import PostFeed from '@/components/PostFeed';
+import { resolveAvatarUrl } from '@/lib/utils';
 
 type Profile = {
   user_id: string;
@@ -893,7 +894,7 @@ export default function PublicProfilePage() {
                   if (loadingSW || totalSW === null) {
                     return (
                       <img
-                        src={profile.avatar_url || AVATAR_FALLBACK}
+                        src={resolveAvatarUrl(profile.avatar_url) ?? AVATAR_FALLBACK}
                         alt="avatar"
                         className="h-40 w-40 rounded-full object-cover border border-white/10 animate-fade-in-scale"
                       />
@@ -970,7 +971,7 @@ export default function PublicProfilePage() {
                         />
                       </svg>
                       <img
-                        src={profile.avatar_url || AVATAR_FALLBACK}
+                        src={resolveAvatarUrl(profile.avatar_url) ?? AVATAR_FALLBACK}
                         alt="avatar"
                         className="h-40 w-40 rounded-full object-cover border border-white/10 relative z-10 animate-fade-in-scale"
                         style={{ animationDelay: '0.1s' }}
@@ -1786,7 +1787,7 @@ function RecentSocialItem({ event }: { event: { kind: 'in' | 'out'; otherUserId:
     })();
   }, [event.otherUserId]);
   const u = profile?.username || event.otherUserId.slice(0, 8);
-  const avatar = profile?.avatar_url ||
+  const avatar = resolveAvatarUrl(profile?.avatar_url) ??
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><rect width='100%' height='100%' fill='%23222'/></svg>";
   return (
     <li className="flex items-center gap-3 px-3 py-2 text-sm">
@@ -1833,7 +1834,7 @@ function HistoryRow({
     })();
   }, [item.author_id]);
   const u = user?.username || (item.author_id ? item.author_id.slice(0, 8) : 'Anon');
-  const avatar = user?.avatar_url ||
+  const avatar = resolveAvatarUrl(user?.avatar_url) ??
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><rect width='100%' height='100%' fill='%23222'/></svg>";
   
   const getFieldLabel = (field: string) => {

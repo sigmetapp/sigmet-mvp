@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { resolveAvatarUrl } from '@/lib/utils';
 
 type User = {
   user_id: string;
@@ -199,16 +200,22 @@ export default function MentionInput({
                     : 'hover:bg-white/50 dark:hover:bg-slate-700/50'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  {user.avatar_url ? (
-                    <img
-                      src={user.avatar_url}
-                      alt=""
-                      className="h-8 w-8 rounded-full object-cover border border-white/10"
-                    />
-                  ) : (
-                    <div className="h-8 w-8 rounded-full bg-slate-300 dark:bg-slate-600 border border-white/10" />
-                  )}
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const avatarSrc = resolveAvatarUrl(user.avatar_url);
+                      if (avatarSrc) {
+                        return (
+                          <img
+                            src={avatarSrc}
+                            alt=""
+                            className="h-8 w-8 rounded-full object-cover border border-white/10"
+                          />
+                        );
+                      }
+                      return (
+                        <div className="h-8 w-8 rounded-full bg-slate-300 dark:bg-slate-600 border border-white/10" />
+                      );
+                    })()}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-slate-900 dark:text-white truncate">
                       {displayName}

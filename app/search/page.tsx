@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Search, User, MapPin, FileText, Users, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "@/components/ThemeProvider";
+import { resolveAvatarUrl } from "@/lib/utils";
 
 interface SearchResult {
   people: Array<{
@@ -40,6 +41,8 @@ function SearchPageContent() {
   const router = useRouter();
   const { theme } = useTheme();
   const isLight = theme === "light";
+  const AVATAR_FALLBACK =
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
 
   const query = searchParams.get("q") || "";
   const type = searchParams.get("type") || "all";
@@ -223,32 +226,38 @@ function SearchPageContent() {
                   People ({filteredResults.people.length})
                 </h2>
               </div>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredResults.people.map((person) => (
-                  <Link
-                    key={person.user_id}
-                    href={`/u/${person.username || person.user_id}`}
-                    className={`p-4 rounded-lg border transition ${
-                      isLight
-                        ? "bg-white border-primary-blue/20 hover:border-primary-blue hover:shadow-md"
-                        : "bg-[rgba(255,255,255,0.03)] border-primary-blue/30 hover:border-primary-blue hover:bg-[rgba(255,255,255,0.05)]"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {person.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={person.avatar_url}
-                          alt={person.full_name || person.username || "User"}
-                          className="w-12 h-12 rounded-full"
-                        />
-                      ) : (
-                        <div className={`w-12 h-12 rounded-full grid place-items-center ${
-                          isLight ? "bg-primary-blue/10 text-primary-blue" : "bg-primary-blue/20 text-primary-blue-light"
-                        }`}>
-                          <User size={24} />
-                        </div>
-                      )}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredResults.people.map((person) => {
+                    const avatarSrc = resolveAvatarUrl(person.avatar_url);
+                    return (
+                      <Link
+                        key={person.user_id}
+                        href={`/u/${person.username || person.user_id}`}
+                        className={`p-4 rounded-lg border transition ${
+                          isLight
+                            ? "bg-white border-primary-blue/20 hover:border-primary-blue hover:shadow-md"
+                            : "bg-[rgba(255,255,255,0.03)] border-primary-blue/30 hover:border-primary-blue hover:bg-[rgba(255,255,255,0.05)]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {avatarSrc ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={avatarSrc}
+                              alt={person.full_name || person.username || "User"}
+                              className="w-12 h-12 rounded-full"
+                            />
+                          ) : (
+                            <div
+                              className={`w-12 h-12 rounded-full grid place-items-center ${
+                                isLight
+                                  ? "bg-primary-blue/10 text-primary-blue"
+                                  : "bg-primary-blue/20 text-primary-blue-light"
+                              }`}
+                            >
+                              <User size={24} />
+                            </div>
+                          )}
                       <div className="flex-1 min-w-0">
                         <div className={`font-medium truncate ${
                           isLight ? "text-primary-text" : "text-primary-text"
@@ -271,9 +280,10 @@ function SearchPageContent() {
                           </div>
                         )}
                       </div>
-                    </div>
-                  </Link>
-                ))}
+                        </div>
+                      </Link>
+                    );
+                  })}
               </div>
             </section>
           )}
@@ -292,51 +302,62 @@ function SearchPageContent() {
                   Posts ({filteredResults.posts.length})
                 </h2>
               </div>
-              <div className="space-y-4">
-                {filteredResults.posts.map((post) => (
-                  <Link
-                    key={post.id}
-                    href={`/post/${post.id}`}
-                    className={`block p-4 rounded-lg border transition ${
-                      isLight
-                        ? "bg-white border-primary-blue/20 hover:border-primary-blue hover:shadow-md"
-                        : "bg-[rgba(255,255,255,0.03)] border-primary-blue/30 hover:border-primary-blue hover:bg-[rgba(255,255,255,0.05)]"
-                    }`}
-                  >
-                    <div className={`mb-3 line-clamp-3 ${
-                      isLight ? "text-primary-text" : "text-primary-text"
-                    }`}>
-                      {post.text}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {post.profiles?.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={post.profiles.avatar_url}
-                          alt={post.profiles.full_name || post.profiles.username || "User"}
-                          className="w-6 h-6 rounded-full"
-                        />
-                      ) : (
-                        <div className={`w-6 h-6 rounded-full grid place-items-center ${
-                          isLight ? "bg-primary-blue/10 text-primary-blue" : "bg-primary-blue/20 text-primary-blue-light"
-                        }`}>
-                          <User size={12} />
-                        </div>
-                      )}
-                      <div className={`text-sm ${
-                        isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
-                      }`}>
-                        {post.profiles?.full_name || post.profiles?.username || "Anonymous"}
-                      </div>
-                      <FileText
-                        className={`ml-auto ${
-                          isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
+                <div className="space-y-4">
+                  {filteredResults.posts.map((post) => {
+                    const avatarSrc = resolveAvatarUrl(post.profiles?.avatar_url ?? null);
+                    return (
+                      <Link
+                        key={post.id}
+                        href={`/post/${post.id}`}
+                        className={`block p-4 rounded-lg border transition ${
+                          isLight
+                            ? "bg-white border-primary-blue/20 hover:border-primary-blue hover:shadow-md"
+                            : "bg-[rgba(255,255,255,0.03)] border-primary-blue/30 hover:border-primary-blue hover:bg-[rgba(255,255,255,0.05)]"
                         }`}
-                        size={16}
-                      />
+                      >
+                        <div
+                          className={`mb-3 line-clamp-3 ${
+                            isLight ? "text-primary-text" : "text-primary-text"
+                          }`}
+                        >
+                          {post.text}
+                        </div>
+                          <div className="flex items-center gap-2">
+                          {avatarSrc ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={avatarSrc}
+                              alt={post.profiles?.full_name || post.profiles?.username || "User"}
+                              className="w-6 h-6 rounded-full"
+                            />
+                          ) : (
+                            <div
+                              className={`w-6 h-6 rounded-full grid place-items-center ${
+                                isLight
+                                  ? "bg-primary-blue/10 text-primary-blue"
+                                  : "bg-primary-blue/20 text-primary-blue-light"
+                              }`}
+                            >
+                              <User size={12} />
+                            </div>
+                          )}
+                          <div
+                            className={`text-sm ${
+                              isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
+                            }`}
+                          >
+                            {post.profiles?.full_name || post.profiles?.username || "Anonymous"}
+                          </div>
+                          <FileText
+                            className={`ml-auto ${
+                              isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"
+                            }`}
+                            size={16}
+                          />
                     </div>
-                  </Link>
-                ))}
+                      </Link>
+                    );
+                  })}
               </div>
             </section>
           )}

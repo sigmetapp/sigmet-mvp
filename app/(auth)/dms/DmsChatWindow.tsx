@@ -10,6 +10,7 @@ import { uploadAttachment, type DmAttachment, resolveAttachmentUrl } from '@/lib
 import { assertThreadId } from '@/lib/dm/threadId';
 import { useTheme } from '@/components/ThemeProvider';
 import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
+import { resolveAvatarUrl } from '@/lib/utils';
 
 const INITIAL_MESSAGE_LIMIT = 30;
 const HISTORY_PAGE_LIMIT = 30;
@@ -1977,7 +1978,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const partnerName = partnerProfile?.full_name ||
     partnerProfile?.username || 
     partnerId.slice(0, 8);
-  const partnerAvatar = partnerProfile?.avatar_url || AVATAR_FALLBACK;
+  const partnerAvatar = resolveAvatarUrl(partnerProfile?.avatar_url) ?? AVATAR_FALLBACK;
 
   const showStatusPreference = partnerProfile?.show_online_status !== false;
   let statusLabel: string | null = null;
@@ -2203,7 +2204,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   >
                     {!isMine && !isGroupedWithPrev && (
                       <img
-                        src={partnerProfile?.avatar_url || AVATAR_FALLBACK}
+                        src={resolveAvatarUrl(partnerProfile?.avatar_url) ?? AVATAR_FALLBACK}
                         alt=""
                         className="h-8 w-8 rounded-full object-cover border border-white/10 flex-shrink-0"
                       />
@@ -2515,7 +2516,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             {partnerTyping && (
               <div className="flex gap-2 justify-start">
                 <img
-                  src={partnerProfile?.avatar_url || AVATAR_FALLBACK}
+                  src={resolveAvatarUrl(partnerProfile?.avatar_url) ?? AVATAR_FALLBACK}
                   alt=""
                   className="h-8 w-8 rounded-full object-cover border border-white/10 flex-shrink-0"
                 />
