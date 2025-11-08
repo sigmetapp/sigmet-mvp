@@ -1263,7 +1263,7 @@ export default function PostFeed({
                         size="sm"
                         alt="avatar"
                         href={`/u/${encodeURIComponent(profile?.username || p.user_id || '')}`}
-                        priority={index < 5}
+                        priority={true}
                       />
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
