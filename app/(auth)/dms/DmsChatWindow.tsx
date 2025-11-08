@@ -2152,16 +2152,14 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 !prevMsg ||
                 formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
               
-              // Group messages from same sender within 5 minutes
+              // Group messages from same sender within 5 minutes (for avatar display only)
               const isGroupedWithPrev = prevMsg && 
                 prevMsg.sender_id === msg.sender_id &&
                 new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() < 5 * 60 * 1000;
               
-              // Show time only if minute is different from previous message
-              const showTime = !isGroupedWithPrev || 
-                !prevMsg ||
-                new Date(prevMsg.created_at).getMinutes() !== new Date(msg.created_at).getMinutes() ||
-                formatDate(prevMsg.created_at) !== formatDate(msg.created_at);
+              // Always show time and status for all messages
+              // This ensures users can see when each message was sent and its delivery status
+              const showTime = true;
 
               const isSearchMatch =
                 searchQuery.trim().length > 0 && (msg.body || '').toLowerCase().includes(searchQuery.trim().toLowerCase());
@@ -2321,18 +2319,18 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                           null // Only show attachments if no text
                         ) : null}
                         
-                        {showTime && (
-                          <div className={`flex items-center gap-2 mt-1.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                            <span className="text-[10px] text-white/60">
-                              {formatTime(msg.created_at)}
+                        {/* Always show time and status for all messages */}
+                        <div className={`flex items-center gap-2 mt-1.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                          <span className="text-[10px] text-white/60">
+                            {formatTime(msg.created_at)}
+                          </span>
+                          {msg.edited_at && (
+                            <span className="text-[10px] text-white/50 italic">
+                              edited
                             </span>
-                            {msg.edited_at && (
-                              <span className="text-[10px] text-white/50 italic">
-                                edited
-                              </span>
-                            )}
-                            {/* Message status indicators (only for sent messages) */}
-                            {isMine && (
+                          )}
+                          {/* Message status indicators (always show for sent messages) */}
+                          {isMine && (
                               <div className="flex items-center ml-1">
                                   {(() => {
                                     // Check for local-echo message status first
@@ -2457,7 +2455,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                               </div>
                             )}
                           </div>
-                        )}
                           {/* Local echo controls: show for pending messages (id === -1) */}
                           {isMine && msg.id === -1 && (
                             <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
