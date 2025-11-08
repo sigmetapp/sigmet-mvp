@@ -43,7 +43,7 @@ with ranked_threads as (
     tp.mute_until,
     coalesce(tp.is_pinned, false) as is_pinned,
     tp.pinned_at,
-    tp.last_read_message_id,
+    tp.last_read_message_id::bigint as last_read_message_id,
     tp.last_read_at,
     t.created_at,
     t.last_message_id,
@@ -118,7 +118,7 @@ unread as (
     and m.sender_id <> p_user_id
     and (
       lt.last_read_message_id is null
-      or m.id > (lt.last_read_message_id::bigint)
+      or (m.id::bigint) > lt.last_read_message_id
     )
   group by m.thread_id
 )
