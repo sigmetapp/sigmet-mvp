@@ -119,7 +119,8 @@ unread as (
         and msg.sender_id <> p_user_id
         and (
           lt.last_read_message_id is null
-          or cast(msg.id as bigint) > cast(lt.last_read_message_id as bigint)
+          or lt.last_read_at is null
+          or msg.created_at > lt.last_read_at
         )
     ) as unread_count
   from limited_threads lt
