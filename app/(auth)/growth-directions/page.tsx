@@ -6,6 +6,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import Button from '@/components/Button';
 import { useTheme } from '@/components/ThemeProvider';
 import { resolveDirectionEmoji } from '@/lib/directions';
+import Skeleton from '@/components/Skeleton';
 
 type Direction = {
   id: string;
@@ -1198,10 +1199,19 @@ function GrowthDirectionsInner() {
   const renderSummaryTaskList = (list: TaskSummaryItem[]) => {
     if (loadingSummary) {
       return (
-        <div className="min-h-[120px] flex items-center">
-          <p className={`text-xs ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-            Loading...
-          </p>
+        <div className="min-h-[120px] space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="card p-2">
+              <div className="flex items-center gap-3">
+                <Skeleton variant="circular" width={24} height={24} />
+                <div className="flex-1 space-y-1">
+                  <Skeleton width="70%" height={14} />
+                  <Skeleton width="50%" height={12} />
+                </div>
+                <Skeleton width={60} height={20} className="rounded-full" />
+              </div>
+            </div>
+          ))}
         </div>
       );
     }
@@ -1316,7 +1326,29 @@ function GrowthDirectionsInner() {
 
 
       {/* Completed Tasks & Total Points Section */}
-      {!loading && (
+      {loading ? (
+        <div className="card p-4 md:p-6 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+            <div className="space-y-2">
+              <Skeleton width="200px" height={24} />
+              <Skeleton width="150px" height={16} />
+            </div>
+            <Skeleton width="150px" height={80} className="rounded-2xl" />
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center gap-3 p-3">
+                <Skeleton variant="circular" width={36} height={36} />
+                <div className="flex-1 space-y-2">
+                  <Skeleton width="60%" height={16} />
+                  <Skeleton width="40%" height={12} />
+                </div>
+                <Skeleton width={80} height={20} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
         <div className="card p-4 md:p-6 mb-6 animate-fade-in-up animate-stagger-2">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>
@@ -1344,11 +1376,28 @@ function GrowthDirectionsInner() {
           </div>
 
           {loadingCompleted ? (
-            <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-              <div className="inline-flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-telegram-blue border-t-transparent rounded-full animate-spin"></div>
-                <span>Loading completed tasks...</span>
+            <div className="space-y-3">
+              {/* Table header skeleton */}
+              <div className="flex items-center gap-3 pb-2 border-b border-telegram-blue/10">
+                <Skeleton width="30%" height={14} />
+                <Skeleton width="15%" height={14} />
+                <Skeleton width="20%" height={14} />
+                <Skeleton width="20%" height={14} />
+                <Skeleton width="15%" height={14} />
               </div>
+              {/* Table rows skeleton */}
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-3 py-2 border-b border-telegram-blue/5">
+                  <div className="flex items-center gap-2 w-[30%]">
+                    <Skeleton variant="circular" width={36} height={36} />
+                    <Skeleton width="70%" height={16} />
+                  </div>
+                  <Skeleton width="15%" height={24} className="rounded-full" />
+                  <Skeleton width="20%" height={14} />
+                  <Skeleton width="20%" height={14} />
+                  <Skeleton width="15%" height={16} />
+                </div>
+              ))}
             </div>
           ) : completedTasks.length === 0 ? (
             <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
@@ -1502,8 +1551,73 @@ function GrowthDirectionsInner() {
       )}
 
       {loading ? (
-        <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-          Loading...
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Directions List Skeleton */}
+          <div className="lg:col-span-1 space-y-4">
+            <div className="card p-4">
+              <Skeleton width="100px" height={20} className="mb-3" />
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="card p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 space-y-2">
+                        <Skeleton width="70%" height={16} />
+                        <Skeleton width="50%" height={12} />
+                      </div>
+                      <Skeleton width={60} height={24} className="rounded-full" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Tasks View Skeleton */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="card p-4 mb-6">
+              <Skeleton width="200px" height={20} className="mb-2" />
+              <Skeleton width="150px" height={16} />
+            </div>
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+              {/* Habits Skeleton */}
+              <section className="space-y-4">
+                <Skeleton width="100px" height={20} />
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="card p-4 md:p-6 space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Skeleton width="60%" height={18} />
+                        <Skeleton width={80} height={24} className="rounded-full" />
+                      </div>
+                      <Skeleton width="100%" height={16} />
+                      <Skeleton width="80%" height={16} />
+                      <Skeleton width="120px" height={14} />
+                    </div>
+                    <Skeleton width="100%" height={40} className="rounded-lg" />
+                  </div>
+                ))}
+              </section>
+
+              {/* Goals Skeleton */}
+              <section className="space-y-4">
+                <Skeleton width="100px" height={20} />
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="card p-4 md:p-6 space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Skeleton width="60%" height={18} />
+                        <Skeleton width={80} height={24} className="rounded-full" />
+                      </div>
+                      <Skeleton width="100%" height={16} />
+                      <Skeleton width="80%" height={16} />
+                      <Skeleton width="120px" height={14} />
+                    </div>
+                    <Skeleton width="100%" height={40} className="rounded-lg" />
+                  </div>
+                ))}
+              </section>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1628,8 +1742,44 @@ function GrowthDirectionsInner() {
                   </div>
 
                 {loadingTasks ? (
-                  <div className={`text-center py-12 ${isLight ? 'text-telegram-text-secondary' : 'text-telegram-text-secondary'}`}>
-                    Loading tasks...
+                  <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+                    {/* Habits Skeleton */}
+                    <section className="space-y-4">
+                      <Skeleton width="100px" height={20} />
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="card p-4 md:p-6 space-y-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Skeleton width="60%" height={18} />
+                              <Skeleton width={80} height={24} className="rounded-full" />
+                            </div>
+                            <Skeleton width="100%" height={16} />
+                            <Skeleton width="80%" height={16} />
+                            <Skeleton width="120px" height={14} />
+                          </div>
+                          <Skeleton width="100%" height={40} className="rounded-lg" />
+                        </div>
+                      ))}
+                    </section>
+
+                    {/* Goals Skeleton */}
+                    <section className="space-y-4">
+                      <Skeleton width="100px" height={20} />
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="card p-4 md:p-6 space-y-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Skeleton width="60%" height={18} />
+                              <Skeleton width={80} height={24} className="rounded-full" />
+                            </div>
+                            <Skeleton width="100%" height={16} />
+                            <Skeleton width="80%" height={16} />
+                            <Skeleton width="120px" height={14} />
+                          </div>
+                          <Skeleton width="100%" height={40} className="rounded-lg" />
+                        </div>
+                      ))}
+                    </section>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
