@@ -1060,9 +1060,6 @@ function DmsInner() {
           last_read_at: new Date().toISOString(),
         }));
         
-        // Refetch partners to update unread counts
-        void fetchPartners({ reset: true });
-        
         // Dispatch event for unread count update
         window.dispatchEvent(
           new CustomEvent('dm:message-read', {
@@ -1098,7 +1095,7 @@ function DmsInner() {
   useEffect(() => {
     if (!selectedPartnerId) return;
     const partner = flatPartners.find((item) => item.user_id === selectedPartnerId);
-    if (partner && partner.unread_count > 0) {
+    if (partner && partner.unread_count > 0 && !markReadInFlightRef.current.has(partner.user_id)) {
       void markPartnerAsRead(partner, { silent: true });
     }
   }, [selectedPartnerId, flatPartners, markPartnerAsRead]);
