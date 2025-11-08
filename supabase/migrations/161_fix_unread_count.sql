@@ -113,13 +113,13 @@ unread as (
     lt.thread_id,
     (
       select count(*)
-      from public.dms_messages m
-      where m.thread_id = lt.thread_id
-        and m.deleted_at is null
-        and m.sender_id <> p_user_id
+      from public.dms_messages msg
+      where msg.thread_id = lt.thread_id
+        and msg.deleted_at is null
+        and msg.sender_id <> p_user_id
         and (
           lt.last_read_message_id is null
-          or m.id > lt.last_read_message_id
+          or cast(msg.id as bigint) > cast(lt.last_read_message_id as bigint)
         )
     ) as unread_count
   from limited_threads lt
