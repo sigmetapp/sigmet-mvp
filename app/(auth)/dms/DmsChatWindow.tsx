@@ -2358,30 +2358,62 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
 
       {/* Reply preview */}
       {replyingTo && (
-        <div className="px-4 py-2 border-t border-white/10 bg-white/5 flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="text-xs text-white/60 mb-1">Replying to:</div>
-            <div className="text-sm text-white/90 truncate">
-              {replyingTo.body?.substring(0, 100)}{replyingTo.body && replyingTo.body.length > 100 ? '...' : ''}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setReplyingTo(null)}
-            className="text-white/60 hover:text-white/90 transition ml-2"
-            title="Cancel reply"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
+        <div className="px-4 py-2 border-t border-white/10 bg-white/5">
+          <div className="flex items-start gap-2">
+            <div 
+              className="flex-1 min-w-0 cursor-pointer hover:bg-white/5 rounded-lg p-1 -m-1 transition"
+              onClick={() => {
+                // Scroll to the quoted message
+                const node = messageNodeMap.current.get(replyingTo.id);
+                if (node && scrollRef.current) {
+                  node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                  // Highlight the message briefly
+                  node.style.backgroundColor = 'rgba(59, 130, 246, 0.3)';
+                  setTimeout(() => {
+                    node.style.backgroundColor = '';
+                  }, 2000);
+                }
+              }}
+              title="Click to scroll to quoted message"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+              <div className="text-xs text-white/60 mb-1.5">Replying to:</div>
+              <div className="border-l-2 border-white/20 pl-3 py-1.5 bg-white/5 rounded-r-lg">
+                <div className="text-xs text-white/50 mb-0.5">
+                  {replyingTo.sender_id === currentUserId ? 'You' : (partnerProfile?.full_name || partnerProfile?.username || 'User')}
+                </div>
+                {replyingTo.deleted_at ? (
+                  <div className="text-sm text-white/50 italic">Message deleted</div>
+                ) : replyingTo.body ? (
+                  <div className="text-sm text-white/90 whitespace-pre-wrap break-words">
+                    {replyingTo.body.length > 150 ? replyingTo.body.substring(0, 150) + '...' : replyingTo.body}
+                  </div>
+                ) : replyingTo.attachments && Array.isArray(replyingTo.attachments) && replyingTo.attachments.length > 0 ? (
+                  <div className="text-sm text-white/90">
+                    {getAttachmentIcon((replyingTo.attachments[0] as any)?.type)} Attachment
+                  </div>
+                ) : (
+                  <div className="text-sm text-white/50 italic">Empty message</div>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              className="text-white/60 hover:text-white/90 transition ml-2 flex-shrink-0"
+              title="Cancel reply"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
