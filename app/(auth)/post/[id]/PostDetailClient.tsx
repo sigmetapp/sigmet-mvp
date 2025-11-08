@@ -15,6 +15,7 @@ import { formatTextWithMentions, hasMentions } from '@/lib/formatText';
 import AvatarWithBadge from '@/components/AvatarWithBadge';
 import ViewsChart from '@/components/ViewsChart';
 import PostReportModal from '@/components/PostReportModal';
+import PostDetailSkeleton from '@/components/PostDetailSkeleton';
 
 type PostRecord = {
   id: number;
@@ -159,7 +160,29 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   useEffect(() => {
     setPost(initialPost.post);
     setAuthorProfile(initialPost.authorProfile);
+    setEditDraft(initialPost.post.body ?? '');
   }, [initialPost]);
+
+  // Load SW score for author only once when component mounts
+  useEffect(() => {
+    if (initialPost.post.user_id) {
+      (async () => {
+        try {
+          const { data: swData } = await supabase
+            .from('sw_scores')
+            .select('total')
+            .eq('user_id', initialPost.post.user_id)
+            .maybeSingle();
+          if (swData) {
+            setAuthorSWScore((swData.total as number) || 0);
+          }
+        } catch {
+          // SW scores table may not exist
+          setAuthorSWScore(0);
+        }
+      })();
+    }
+  }, [initialPost.post.user_id]);
 
   const loadPost = useCallback(async () => {
     setLoadingPost(true);
@@ -203,10 +226,6 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
     setLoadingPost(false);
   }, [postId]);
-
-  useEffect(() => {
-    loadPost();
-  }, [loadPost]);
 
   const loadReactions = useCallback(async () => {
     const { data, error } = await supabase
@@ -273,13 +292,10 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     setGrowthStatuses(uniqueStatuses);
   }, [postId]);
 
+  // Load reactions and growth statuses in parallel
   useEffect(() => {
-    loadGrowthStatuses();
-  }, [loadGrowthStatuses]);
-
-  useEffect(() => {
-    loadReactions();
-  }, [loadReactions]);
+    Promise.all([loadReactions(), loadGrowthStatuses()]);
+  }, [loadReactions, loadGrowthStatuses]);
 
   const loadComments = useCallback(async () => {
     setCommentsLoading(true);
@@ -308,41 +324,41 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       )
     );
     if (userIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, username, avatar_url')
-        .in('user_id', userIds);
-      if (profiles) {
+      // Load profiles and SW scores in parallel
+      const [profilesResult, swScoresResult] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('user_id, username, avatar_url')
+          .in('user_id', userIds),
+        supabase
+          .from('sw_scores')
+          .select('user_id, total')
+          .in('user_id', userIds)
+          .catch(() => ({ data: null, error: null })), // Gracefully handle if table doesn't exist
+      ]);
+
+      // Process profiles
+      if (profilesResult.data) {
         const map: Record<string, Profile> = {};
-        for (const row of profiles as Array<{ user_id: string; username: string | null; avatar_url: string | null }>) {
+        for (const row of profilesResult.data as Array<{ user_id: string; username: string | null; avatar_url: string | null }>) {
           map[row.user_id] = { username: row.username ?? null, avatar_url: row.avatar_url ?? null };
         }
         setCommenterProfiles(map);
       }
 
-      // Load SW scores for commenters
-      try {
-        const { data: swData } = await supabase
-          .from('sw_scores')
-          .select('user_id, total')
-          .in('user_id', userIds);
-        if (swData) {
-          const swMap: Record<string, number> = {};
-          for (const row of swData as Array<{ user_id: string; total: number }>) {
-            swMap[row.user_id] = row.total || 0;
-          }
-          setCommenterSWScores(swMap);
-        } else {
-          // If no SW data, set empty map
-          setCommenterSWScores({});
+      // Process SW scores
+      if (swScoresResult.data) {
+        const swMap: Record<string, number> = {};
+        for (const row of swScoresResult.data as Array<{ user_id: string; total: number }>) {
+          swMap[row.user_id] = row.total || 0;
         }
-      } catch (error) {
-        // SW scores table may not exist
-        console.error('Error loading SW scores for commenters:', error);
+        setCommenterSWScores(swMap);
+      } else {
         setCommenterSWScores({});
       }
     } else {
-      // If no userIds, set empty map
+      // If no userIds, set empty maps
+      setCommenterProfiles({});
       setCommenterSWScores({});
     }
 
@@ -895,6 +911,8 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   alt="Post media"
                   className="w-full object-cover"
                   loading="lazy"
+                  decoding="async"
+                  fetchPriority="high"
                 />
               )}
               {post.video_url && (
@@ -992,7 +1010,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           {postError}
         </div>
       ) : loadingPost ? (
-        <div className="h-48 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+        <PostDetailSkeleton />
       ) : (
         <article className="space-y-3">
           {editing ? (
