@@ -68,7 +68,17 @@ limited_threads as (
 ),
 normalized_threads as (
   select
-    lt.*,
+    lt.thread_id::bigint as thread_id,
+    lt.notifications_muted,
+    lt.mute_until,
+    lt.is_pinned,
+    lt.pinned_at,
+    lt.last_read_message_id,
+    lt.last_read_at,
+    lt.created_at,
+    lt.last_message_id,
+    lt.last_message_at,
+    lt.rn,
     lt.last_read_message_id::text as last_read_message_id_text
   from limited_threads lt
 ),
@@ -77,13 +87,13 @@ last_read_markers as (
     nt.thread_id,
     nt.last_read_message_id_text,
     (
-      select msg.id::bigint
+      select msg.id
       from public.dms_messages msg
       where msg.thread_id = nt.thread_id
         and msg.id::text = nt.last_read_message_id_text
       order by msg.created_at desc, msg.id desc
       limit 1
-    )::bigint as last_read_message_id_numeric
+    ) as last_read_message_id_numeric
   from normalized_threads nt
 ),
 partners as (
