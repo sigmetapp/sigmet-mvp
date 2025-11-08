@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import Button from '@/components/Button';
@@ -567,7 +567,7 @@ function GrowthDirectionsInner() {
     }
   }
 
-  const getDisplayedTasks = (list: Task[], type: Task['task_type']) => {
+  const getDisplayedTasks = useCallback((list: Task[], type: Task['task_type']) => {
     const targetId =
       pinnedTask && pinnedTask.type === type && pinnedTask.directionId === selectedDirection
         ? pinnedTask.id
@@ -589,7 +589,7 @@ function GrowthDirectionsInner() {
     ];
 
     return prioritized.slice(0, 3);
-  };
+  }, [pinnedTask, selectedDirection]);
 
   function focusTaskCard(targetId: string) {
     const element = document.getElementById(targetId);
@@ -1157,26 +1157,26 @@ function GrowthDirectionsInner() {
     }
   }
 
-  const currentDirection = directions.find((d) => d.id === selectedDirection);
+  const currentDirection = useMemo(() => directions.find((d) => d.id === selectedDirection), [directions, selectedDirection]);
 
-  const selectedPrimaryDirections = directions.filter((d) => d.isSelected && d.isPrimary);
-  const selectedPrimaryCount = selectedPrimaryDirections.length;
-  const primaryLimitReached = selectedPrimaryCount >= 3;
-  const displayedHabits = getDisplayedTasks(tasks.habits, 'habit');
-  const displayedGoals = getDisplayedTasks(tasks.goals, 'goal');
-  const extraHabits = Math.max(0, tasks.habits.length - displayedHabits.length);
-  const extraGoals = Math.max(0, tasks.goals.length - displayedGoals.length);
-  const totalHabits = tasks.habits.length;
-  const totalGoals = tasks.goals.length;
-  const totalCompletedPages = Math.ceil(completedTasks.length / COMPLETED_PAGE_SIZE) || 1;
-  const paginatedCompletedTasks = completedTasks.slice(
+  const selectedPrimaryDirections = useMemo(() => directions.filter((d) => d.isSelected && d.isPrimary), [directions]);
+  const selectedPrimaryCount = useMemo(() => selectedPrimaryDirections.length, [selectedPrimaryDirections]);
+  const primaryLimitReached = useMemo(() => selectedPrimaryCount >= 3, [selectedPrimaryCount]);
+  const displayedHabits = useMemo(() => getDisplayedTasks(tasks.habits, 'habit'), [tasks.habits, getDisplayedTasks]);
+  const displayedGoals = useMemo(() => getDisplayedTasks(tasks.goals, 'goal'), [tasks.goals, getDisplayedTasks]);
+  const extraHabits = useMemo(() => Math.max(0, tasks.habits.length - displayedHabits.length), [tasks.habits.length, displayedHabits.length]);
+  const extraGoals = useMemo(() => Math.max(0, tasks.goals.length - displayedGoals.length), [tasks.goals.length, displayedGoals.length]);
+  const totalHabits = useMemo(() => tasks.habits.length, [tasks.habits.length]);
+  const totalGoals = useMemo(() => tasks.goals.length, [tasks.goals.length]);
+  const totalCompletedPages = useMemo(() => Math.ceil(completedTasks.length / COMPLETED_PAGE_SIZE) || 1, [completedTasks.length]);
+  const paginatedCompletedTasks = useMemo(() => completedTasks.slice(
     completedPage * COMPLETED_PAGE_SIZE,
     completedPage * COMPLETED_PAGE_SIZE + COMPLETED_PAGE_SIZE
-  );
-  const completedRangeStart = completedTasks.length === 0 ? 0 : completedPage * COMPLETED_PAGE_SIZE + 1;
-  const completedRangeEnd = completedTasks.length === 0
+  ), [completedTasks, completedPage]);
+  const completedRangeStart = useMemo(() => completedTasks.length === 0 ? 0 : completedPage * COMPLETED_PAGE_SIZE + 1, [completedTasks.length, completedPage]);
+  const completedRangeEnd = useMemo(() => completedTasks.length === 0
     ? 0
-    : Math.min(completedTasks.length, completedPage * COMPLETED_PAGE_SIZE + paginatedCompletedTasks.length);
+    : Math.min(completedTasks.length, completedPage * COMPLETED_PAGE_SIZE + paginatedCompletedTasks.length), [completedTasks.length, completedPage, paginatedCompletedTasks.length]);
 
   const renderSummaryTaskList = (list: TaskSummaryItem[]) => {
     if (loadingSummary) {
@@ -1208,7 +1208,7 @@ function GrowthDirectionsInner() {
               type="button"
               onClick={() => handleSummaryTaskClick(item)}
               className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition relative ${
-                isLight ? 'bg-primary-bg-secondary hover:bg-primary-blue/10' : 'bg-white/5 hover:bg-white/10'
+                isLight ? 'bg-gray-50 hover:bg-primary-blue/10' : 'bg-white/5 hover:bg-white/10'
               } ${item.directionIsPrimary ? 'ring-2 ring-primary-blue/30' : ''}`}
             >
               {item.directionIsPrimary && (
@@ -1249,7 +1249,7 @@ function GrowthDirectionsInner() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 transition-opacity duration-300">
       {/* Header */}
       <div className="mb-6 md:mb-8">
         <div className="flex items-center justify-between">
@@ -1300,7 +1300,7 @@ function GrowthDirectionsInner() {
 
       {/* Completed Tasks & Total Points Section */}
       {!loading && (
-        <div className={`p-4 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-primary-bg-secondary border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+        <div className={`p-4 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>
               <h2 className={`font-semibold text-base mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
@@ -1370,7 +1370,7 @@ function GrowthDirectionsInner() {
                           isLight
                             ? 'hover:bg-primary-blue/5 border-b border-primary-blue/5'
                             : 'hover:bg-white/5 border-b border-white/5'
-                        } ${index % 2 === 0 ? (isLight ? 'bg-primary-bg-secondary/40' : 'bg-white/5') : ''}`}
+                        } ${index % 2 === 0 ? (isLight ? 'bg-gray-50/40' : 'bg-white/5') : ''}`}
                       >
                         <td className="py-2 px-3 align-middle">
                           <div className="flex items-center gap-2">
@@ -1485,14 +1485,49 @@ function GrowthDirectionsInner() {
       )}
 
       {loading ? (
-        <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-          Loading...
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
+          {/* Directions List Skeleton */}
+          <div className="lg:col-span-1">
+            <div className={`p-4 rounded-lg border ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+              <div className={`h-6 w-24 mb-3 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
+              <div className="space-y-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className={`p-3 rounded-xl border ${isLight ? 'bg-white border-primary-blue/20' : 'bg-white/5 border-primary-blue/30'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className={`h-4 w-32 mb-2 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
+                        <div className={`h-3 w-20 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
+                      </div>
+                      <div className={`h-6 w-16 rounded-full ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Tasks View Skeleton */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className={`p-4 rounded-lg border ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+              <div className={`h-6 w-40 mb-2 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
+              <div className={`h-4 w-32 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
+            </div>
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className={`p-4 md:p-6 space-y-4 rounded-lg border ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+                  <div className={`h-5 w-3/4 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
+                  <div className={`h-4 w-full rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
+                  <div className={`h-4 w-2/3 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
+                  <div className={`h-10 w-full rounded-lg ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Directions List */}
           <div className="lg:col-span-1 space-y-4">
-            <div className={`p-4 rounded-lg border ${isLight ? 'bg-primary-bg-secondary border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+            <div className={`p-4 rounded-lg border ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
               <h2 className={`font-semibold mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Directions
               </h2>
@@ -1597,7 +1632,7 @@ function GrowthDirectionsInner() {
           <div className="lg:col-span-2 space-y-6">
             {selectedDirection ? (
               <>
-                  <div className={`p-4 rounded-lg border mb-6 ${isLight ? 'bg-primary-bg-secondary border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+                  <div className={`p-4 rounded-lg border mb-6 ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
                     <div className="flex items-center gap-3 mb-4">
                       <div>
                         <h2 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
@@ -1615,7 +1650,7 @@ function GrowthDirectionsInner() {
                     Loading tasks...
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 animate-fade-in">
                     {/* Habits */}
                     <section className="space-y-4">
                       <div className="flex items-center justify-between">
@@ -1646,7 +1681,7 @@ function GrowthDirectionsInner() {
                               id={elementId}
                               className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
                                 isHighlighted ? 'ring-2 ring-primary-blue' : ''
-                              } ${isLight ? 'bg-primary-bg-secondary border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
+                              } ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -1686,7 +1721,7 @@ function GrowthDirectionsInner() {
                               </div>
 
                               {isActive && habit.userTask && (
-                                <div className={`grid grid-cols-2 gap-4 p-3 rounded-xl ${isLight ? 'bg-primary-bg-secondary' : 'bg-white/5'}`}>
+                                <div className={`grid grid-cols-2 gap-4 p-3 rounded-xl ${isLight ? 'bg-gray-50' : 'bg-white/5'}`}>
                                   <div>
                                     <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                       Current Streak
@@ -1773,7 +1808,7 @@ function GrowthDirectionsInner() {
                               id={elementId}
                               className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
                                 isHighlighted ? 'ring-2 ring-primary-blue' : ''
-                              } ${isLight ? 'bg-primary-bg-secondary border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
+                              } ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -2060,7 +2095,7 @@ function GrowthDirectionsInner() {
             </div>
             
             {/* Task Info Display */}
-            <div className={`p-2 rounded-lg ${isLight ? 'bg-primary-bg-secondary' : 'bg-white/5'}`}>
+            <div className={`p-2 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-white/5'}`}>
               <div className={`text-[10px] font-medium mb-0.5 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                 Task Information
               </div>
@@ -2126,7 +2161,7 @@ function GrowthDirectionsInner() {
                 <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Category (automatically set)
                 </label>
-                <div className={`p-2 rounded-lg ${isLight ? 'bg-primary-bg-secondary' : 'bg-white/5'}`}>
+                <div className={`p-2 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-white/5'}`}>
                   <span className={`text-sm ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                     {(() => {
                       const taskDirection = directions.find((d) => d.id === showCheckInModal.task.direction_id);
