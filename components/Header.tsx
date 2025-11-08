@@ -80,12 +80,12 @@ export default function Header() {
         </Link>
 
         {/* SEARCH INPUT - CENTERED (DESKTOP) */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:block" style={{ maxWidth: 'min(313px, calc(50% - 220px))' }}>
+        <div className="absolute left-1/2 top-1/2 hidden md:block" style={{ transform: 'translate(calc(-50% - 120px), -50%)', maxWidth: '313px' }}>
           <SearchInput />
         </div>
 
         {/* DESKTOP NAV */}
-        <nav className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-1 flex-shrink-0 max-w-[400px]">
+        <nav className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-1 flex-shrink-0">
           {navLinks.map((l) => {
             const active = pathname === l.href;
             const isExternal = l.href.startsWith("http");
