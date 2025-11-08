@@ -68,17 +68,7 @@ limited_threads as (
 ),
 normalized_threads as (
   select
-    lt.thread_id::bigint as thread_id,
-    lt.notifications_muted,
-    lt.mute_until,
-    lt.is_pinned,
-    lt.pinned_at,
-    lt.last_read_message_id,
-    lt.last_read_at,
-    lt.created_at,
-    lt.last_message_id,
-    lt.last_message_at,
-    lt.rn,
+    lt.*,
     lt.last_read_message_id::text as last_read_message_id_text
   from limited_threads lt
 ),
