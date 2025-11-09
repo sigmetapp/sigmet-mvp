@@ -34,6 +34,13 @@ function sortMessages(messages: Message[]): Message[] {
 
 function mergeMessage(existing: Message, incoming: Message): Message {
   const next: Message = { ...existing, ...incoming };
+  // Preserve reply information - prefer existing if both exist, otherwise use incoming
+  if (existing.replyToMessage || incoming.replyToMessage) {
+    next.replyToMessage = incoming.replyToMessage ?? existing.replyToMessage;
+  }
+  if (existing.replyToMessageId || incoming.replyToMessageId) {
+    next.replyToMessageId = incoming.replyToMessageId ?? existing.replyToMessageId;
+  }
   if (existing.status && incoming.status) {
     const existingPriority = STATUS_PRIORITY[existing.status] ?? -1;
     const incomingPriority = STATUS_PRIORITY[incoming.status] ?? -1;
@@ -127,6 +134,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ...normalizedPatch,
         id: normalizedPatch.id ?? target.id,
         status: nextStatus,
+        // Preserve reply information if not explicitly updated
+        replyToMessage: normalizedPatch.replyToMessage ?? target.replyToMessage,
+        replyToMessageId: normalizedPatch.replyToMessageId ?? target.replyToMessageId,
       };
 
       const nextMessages = messages.filter((_, idx) => idx !== index);

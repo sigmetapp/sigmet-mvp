@@ -158,24 +158,37 @@ export function useSendMessage({
 
         // Fetch reply message if exists (use passed value or fetch from DB)
         let finalReplyToMessage: Message['replyToMessage'] = replyToMessage;
-        if (data.reply_to_message_id && !finalReplyToMessage) {
-          const { data: replyData } = await supabase
-            .from('dms_messages')
-            .select('id, sender_id, body, created_at')
-            .eq('id', data.reply_to_message_id)
-            .single();
-          
-          if (replyData) {
-            finalReplyToMessage = {
-              id: String(replyData.id),
-              senderId: replyData.sender_id,
-              text: replyData.body ?? '',
-              createdAt: replyData.created_at,
-            };
+        if (data.reply_to_message_id) {
+          // Always fetch from DB to ensure we have the latest data
+          // But use passed value if available (for optimistic updates)
+          if (!finalReplyToMessage) {
+            const { data: replyData } = await supabase
+              .from('dms_messages')
+              .select('id, sender_id, body, created_at')
+              .eq('id', data.reply_to_message_id)
+              .single();
+            
+            if (replyData) {
+              finalReplyToMessage = {
+                id: String(replyData.id),
+                senderId: replyData.sender_id,
+                text: replyData.body ?? '',
+                createdAt: replyData.created_at,
+              };
+            }
           }
         }
 
         const serverId = String(data.id);
+        
+        // Log for debugging
+        console.log('[useSendMessage] Updating message:', {
+          tempId,
+          serverId,
+          replyToMessageId: data.reply_to_message_id,
+          finalReplyToMessage,
+        });
+        
         updateMessage(dialogId, tempId, {
           id: serverId,
           createdAt: data.created_at,
