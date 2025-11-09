@@ -1296,6 +1296,58 @@ function DmsInner() {
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 min-w-0">
                                   <div className="text-sm font-medium text-white truncate">{name}</div>
+                                  <button
+                                    type="button"
+                                    aria-label={partner.is_pinned ? 'Unpin' : 'Pin'}
+                                    title={partner.is_pinned ? 'Unpin' : 'Pin'}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void handleTogglePin(partner);
+                                    }}
+                                    className="rounded-md bg-white/10 p-1 text-white/70 hover:bg-white/15 inline-flex items-center shrink-0"
+                                  >
+                                    {/* Pin icon */}
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 24 24"
+                                      fill="currentColor"
+                                      className="h-3.5 w-3.5"
+                                    >
+                                      <path d="M14.7 4.8l4.5 4.5c.3.3.3.8 0 1.1l-2.1 2.1c-.2.2-.3.5-.2.8l.5 2.3c.1.5-.4 1-.9.9l-2.3-.5c-.3-.1-.6 0-.8.2l-2.1 2.1c-.3.3-.8.3-1.1 0L5.8 14.7c-.3-.3-.3-.8 0-1.1l2.1-2.1c.2-.2.3-.5.2-.8l-.5-2.3c-.1-.5.4-1 .9-.9l2.3.5c.3.1.6 0 .8-.2l2.1-2.1c.3-.3.8-.3 1.1 0z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={partner.notifications_muted ? 'Unmute' : 'Mute'}
+                                    title={partner.notifications_muted ? 'Unmute' : 'Mute'}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void handleToggleMute(partner);
+                                    }}
+                                    className="rounded-md bg-white/10 p-1 text-white/70 hover:bg-white/15 inline-flex items-center shrink-0"
+                                  >
+                                    {/* Bell/Mute icon */}
+                                    {partner.notifications_muted ? (
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                        className="h-3.5 w-3.5"
+                                      >
+                                        <path d="M18 8a6 6 0 10-9.33 5H5l-.94.34a1 1 0 00.32 1.94H20a1 1 0 00.32-1.94L19 13h-1.67A5.98 5.98 0 0018 8zm-6 13a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                                        <path d="M4 4l16 16" stroke="currentColor" strokeWidth="2" />
+                                      </svg>
+                                    ) : (
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                        className="h-3.5 w-3.5"
+                                      >
+                                        <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9zm-6 13a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                                      </svg>
+                                    )}
+                                  </button>
                                 </div>
                                 <div className="text-xs text-white/60 flex items-center gap-1 truncate">
                                   {previewMeta.icon && <span aria-hidden="true">{previewMeta.icon}</span>}
@@ -1310,68 +1362,6 @@ function DmsInner() {
                                     theme === 'light' ? 'text-black/50' : 'text-white/45',
                                   ].join(' ')}>{timestampLabel}</div>
                                 )}
-                              </div>
-
-                              {/* Actions row */}
-                              <div className="col-span-full mt-2 flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  aria-label={partner.is_pinned ? 'Unpin' : 'Pin'}
-                                  title={partner.is_pinned ? 'Unpin' : 'Pin'}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void handleTogglePin(partner);
-                                  }}
-                                  className="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/15 inline-flex items-center gap-1"
-                                >
-                                  {/* Pin icon */}
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    viewBox="0 0 24 24"
-                                    fill="currentColor"
-                                    className="h-4 w-4"
-                                  >
-                                    <path d="M14.7 4.8l4.5 4.5c.3.3.3.8 0 1.1l-2.1 2.1c-.2.2-.3.5-.2.8l.5 2.3c.1.5-.4 1-.9.9l-2.3-.5c-.3-.1-.6 0-.8.2l-2.1 2.1c-.3.3-.8.3-1.1 0L5.8 14.7c-.3-.3-.3-.8 0-1.1l2.1-2.1c.2-.2.3-.5.2-.8l-.5-2.3c-.1-.5.4-1 .9-.9l2.3.5c.3.1.6 0 .8-.2l2.1-2.1c.3-.3.8-.3 1.1 0z" />
-                                  </svg>
-                                  <span className="hidden md:inline">
-                                    {partner.is_pinned ? 'Unpin' : 'Pin'}
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  aria-label={partner.notifications_muted ? 'Unmute' : 'Mute'}
-                                  title={partner.notifications_muted ? 'Unmute' : 'Mute'}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void handleToggleMute(partner);
-                                  }}
-                                  className="rounded-md bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/15 inline-flex items-center gap-1"
-                                >
-                                  {/* Bell/Mute icon */}
-                                  {partner.notifications_muted ? (
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      viewBox="0 0 24 24"
-                                      fill="currentColor"
-                                      className="h-4 w-4"
-                                    >
-                                      <path d="M18 8a6 6 0 10-9.33 5H5l-.94.34a1 1 0 00.32 1.94H20a1 1 0 00.32-1.94L19 13h-1.67A5.98 5.98 0 0018 8zm-6 13a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                                      <path d="M4 4l16 16" stroke="currentColor" strokeWidth="2" />
-                                    </svg>
-                                  ) : (
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      viewBox="0 0 24 24"
-                                      fill="currentColor"
-                                      className="h-4 w-4"
-                                    >
-                                      <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9zm-6 13a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                                    </svg>
-                                  )}
-                                  <span className="hidden md:inline">
-                                    {partner.notifications_muted ? 'Unmute' : 'Mute'}
-                                  </span>
-                                </button>
                               </div>
                             </div>
                           );
