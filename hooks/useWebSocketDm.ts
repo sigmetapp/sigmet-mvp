@@ -329,7 +329,8 @@ export function useWebSocketDm(
       try {
         // Always load fresh messages from server when dialog opens
         // This ensures we get all messages even if dialog was closed
-        // First, get the newest message ID to check if there are any messages
+        
+        // Step 1: Get the newest message ID in the database
         let newestMessageId: number | null = null;
         try {
           const { data: newestMsg, error: newestError } = await supabase
@@ -350,159 +351,244 @@ export function useWebSocketDm(
           console.warn("Error getting newest message ID:", err);
         }
 
-        // Load initial batch of messages (newest first from API)
-        const { listMessages } = await import("@/lib/dms");
-        const initialMessages = await listMessages(normalizedThreadId, {
-          limit: initialLimitRef.current,
-        });
-
         if (!cancelled) {
-          if (initialMessages && initialMessages.length > 0) {
-            // Sort messages chronologically (oldest first)
-            const sorted = initialMessages.slice().sort((a, b) => {
-              const timeA = new Date(a.created_at).getTime();
-              const timeB = new Date(b.created_at).getTime();
-              if (timeA !== timeB) return timeA - timeB;
-              return a.id - b.id;
-            });
+          // Step 2: Load all messages from the database
+          // We load all messages to ensure we don't miss any, especially if dialog was closed
+          let allMessages: Message[] = [];
+          
+          try {
+            // Load all messages (or at least a large batch) to ensure we get everything
+            // Supabase has a default limit of 1000 rows, so we'll load in chunks if needed
+            // Start by loading the most recent messages first
+            const MAX_BATCH_SIZE = 1000; // Supabase default limit
+            let allData: any[] = [];
+            let hasMore = true;
+            let lastId: number | null = null;
+            
+            // First, try to load all messages at once (up to MAX_BATCH_SIZE)
+            let query = supabase
+              .from("dms_messages")
+              .select("*")
+              .eq("thread_id", normalizedThreadId)
+              .order("id", { ascending: false }) // Load newest first
+              .limit(MAX_BATCH_SIZE);
 
-            const lastMsg = sorted[sorted.length - 1];
-            const lastMsgId = lastMsg ? lastMsg.id : null;
+            let { data: batchData, error: allError } = await query;
 
-            // Always check for messages after the last loaded message
-            // This ensures we get ALL messages that were sent while dialog was closed
-            let allMessages = sorted;
-
-            // If we have a newest message ID and it's greater than the last loaded message,
-            // or if we don't have newestMessageId but want to be safe, load all messages after lastMsgId
-            if (lastMsgId) {
-              try {
-                // Load ALL messages after the last loaded message
-                // This ensures we get all messages that were sent while dialog was closed
-                const { data: missedData, error: missedError } = await supabase
-                  .from("dms_messages")
-                  .select("*")
-                  .eq("thread_id", normalizedThreadId)
-                  .gt("id", lastMsgId)
-                  .order("id", { ascending: true });
-
-                if (!missedError && missedData && missedData.length > 0) {
-                  // Convert to Message format
-                  const missedMessages: Message[] = missedData.map(
-                    (msg: any) => ({
-                      id:
-                        typeof msg.id === "string"
-                          ? parseInt(msg.id, 10)
-                          : Number(msg.id),
-                      thread_id: normalizedThreadId,
-                      sender_id: msg.sender_id,
-                      kind: msg.kind || "text",
-                      body: msg.body,
-                      attachments: Array.isArray(msg.attachments)
-                        ? msg.attachments
-                        : [],
-                      created_at: msg.created_at,
-                      edited_at: msg.edited_at || null,
-                      deleted_at: msg.deleted_at || null,
-                      sequence_number:
-                        msg.sequence_number === null ||
-                        msg.sequence_number === undefined
-                          ? null
-                          : typeof msg.sequence_number === "string"
-                            ? parseInt(msg.sequence_number, 10)
-                            : Number(msg.sequence_number),
-                      client_msg_id: msg.client_msg_id ?? null,
-                      reply_to_message_id: msg.reply_to_message_id
-                        ? typeof msg.reply_to_message_id === "string"
-                          ? parseInt(msg.reply_to_message_id, 10)
-                          : Number(msg.reply_to_message_id)
-                        : null,
-                    }),
-                  );
-
-                  // Merge with existing messages
-                  allMessages = [...sorted, ...missedMessages];
-                }
-              } catch (missedErr) {
-                console.error("Error loading missed messages:", missedErr);
-                // Continue with initial messages if missed messages load fails
+            if (!allError && batchData && batchData.length > 0) {
+              // Reverse to get chronological order (oldest first)
+              allData = batchData.reverse();
+              
+              // If we got MAX_BATCH_SIZE messages, there might be more
+              // But for initial load, we'll take the most recent ones
+              // Older messages can be loaded via pagination if needed
+              if (batchData.length === MAX_BATCH_SIZE) {
+                // We got the maximum, so we'll only show the most recent ones
+                // This is fine for initial load - older messages can be loaded via scroll
+                console.log(`Loaded ${batchData.length} messages (max batch size reached)`);
               }
+            } else if (allError) {
+              console.error("Error loading messages:", allError);
             }
 
-            // Always set messages from server, even if cache exists
-            // This ensures we have the latest messages when dialog opens
-            setMessagesState(allMessages);
+            if (allData.length > 0) {
+              // Convert to Message format
+              allMessages = allData.map((msg: any) => ({
+                id:
+                  typeof msg.id === "string"
+                    ? parseInt(msg.id, 10)
+                    : Number(msg.id),
+                thread_id: normalizedThreadId,
+                sender_id: msg.sender_id,
+                kind: msg.kind || "text",
+                body: msg.body,
+                attachments: Array.isArray(msg.attachments)
+                  ? msg.attachments
+                  : [],
+                created_at: msg.created_at,
+                edited_at: msg.edited_at || null,
+                deleted_at: msg.deleted_at || null,
+                sequence_number:
+                  msg.sequence_number === null ||
+                  msg.sequence_number === undefined
+                    ? null
+                    : typeof msg.sequence_number === "string"
+                      ? parseInt(msg.sequence_number, 10)
+                      : Number(msg.sequence_number),
+                client_msg_id: msg.client_msg_id ?? null,
+                reply_to_message_id: msg.reply_to_message_id
+                  ? typeof msg.reply_to_message_id === "string"
+                    ? parseInt(msg.reply_to_message_id, 10)
+                    : Number(msg.reply_to_message_id)
+                  : null,
+              }));
 
-            // Update lastServerMsgId to the newest message
-            const finalLastMsg = allMessages[allMessages.length - 1];
-            const finalLastMsgId = finalLastMsg ? finalLastMsg.id : (newestMessageId || lastMsgId);
-            setLastServerMsgId(finalLastMsgId);
-            lastServerMsgIdRef.current = finalLastMsgId;
-          } else {
-            // No messages found, but still check if there are any messages
-            // This handles the case when listMessages returns empty but there are actually messages
-            if (newestMessageId !== null) {
-              try {
-                // Load all messages if we know there are messages but listMessages returned empty
-                const { data: allData, error: allError } = await supabase
-                  .from("dms_messages")
-                  .select("*")
-                  .eq("thread_id", normalizedThreadId)
-                  .order("id", { ascending: true })
-                  .limit(initialLimitRef.current * 2); // Load more to be safe
+              // Verify we have the newest message
+              // If newestMessageId exists and we don't have it, we might be missing messages
+              if (newestMessageId !== null) {
+                const hasNewestMessage = allMessages.some(msg => msg.id === newestMessageId);
+                if (!hasNewestMessage) {
+                  console.warn("Newest message ID not found in loaded messages. newestMessageId:", newestMessageId, "loaded count:", allMessages.length);
+                  
+                  // Try to load messages after the last loaded one
+                  const lastLoadedId = allMessages.length > 0 ? allMessages[allMessages.length - 1].id : null;
+                  if (lastLoadedId && lastLoadedId < newestMessageId) {
+                    try {
+                      const { data: missingData, error: missingError } = await supabase
+                        .from("dms_messages")
+                        .select("*")
+                        .eq("thread_id", normalizedThreadId)
+                        .gt("id", lastLoadedId)
+                        .lte("id", newestMessageId)
+                        .order("id", { ascending: true });
 
-                if (!allError && allData && allData.length > 0) {
-                  const allMessages: Message[] = allData.map((msg: any) => ({
-                    id:
-                      typeof msg.id === "string"
-                        ? parseInt(msg.id, 10)
-                        : Number(msg.id),
-                    thread_id: normalizedThreadId,
-                    sender_id: msg.sender_id,
-                    kind: msg.kind || "text",
-                    body: msg.body,
-                    attachments: Array.isArray(msg.attachments)
-                      ? msg.attachments
-                      : [],
-                    created_at: msg.created_at,
-                    edited_at: msg.edited_at || null,
-                    deleted_at: msg.deleted_at || null,
-                    sequence_number:
-                      msg.sequence_number === null ||
-                      msg.sequence_number === undefined
-                        ? null
-                        : typeof msg.sequence_number === "string"
-                          ? parseInt(msg.sequence_number, 10)
-                          : Number(msg.sequence_number),
-                    client_msg_id: msg.client_msg_id ?? null,
-                    reply_to_message_id: msg.reply_to_message_id
-                      ? typeof msg.reply_to_message_id === "string"
-                        ? parseInt(msg.reply_to_message_id, 10)
-                        : Number(msg.reply_to_message_id)
-                      : null,
-                  }));
+                      if (!missingError && missingData && missingData.length > 0) {
+                        const missingMessages: Message[] = missingData.map((msg: any) => ({
+                          id: typeof msg.id === "string" ? parseInt(msg.id, 10) : Number(msg.id),
+                          thread_id: normalizedThreadId,
+                          sender_id: msg.sender_id,
+                          kind: msg.kind || "text",
+                          body: msg.body,
+                          attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
+                          created_at: msg.created_at,
+                          edited_at: msg.edited_at || null,
+                          deleted_at: msg.deleted_at || null,
+                          sequence_number: msg.sequence_number === null || msg.sequence_number === undefined
+                            ? null
+                            : typeof msg.sequence_number === "string"
+                              ? parseInt(msg.sequence_number, 10)
+                              : Number(msg.sequence_number),
+                          client_msg_id: msg.client_msg_id ?? null,
+                          reply_to_message_id: msg.reply_to_message_id
+                            ? typeof msg.reply_to_message_id === "string"
+                              ? parseInt(msg.reply_to_message_id, 10)
+                              : Number(msg.reply_to_message_id)
+                            : null,
+                        }));
 
-                  setMessagesState(allMessages);
-                  const finalLastMsg = allMessages[allMessages.length - 1];
-                  const finalLastMsgId = finalLastMsg ? finalLastMsg.id : newestMessageId;
-                  setLastServerMsgId(finalLastMsgId);
-                  lastServerMsgIdRef.current = finalLastMsgId;
-                } else {
-                  setMessagesState([]);
-                  setLastServerMsgId(newestMessageId);
-                  lastServerMsgIdRef.current = newestMessageId;
+                        // Merge missing messages
+                        allMessages = [...allMessages, ...missingMessages];
+                        console.log("Loaded", missingMessages.length, "missing messages");
+                      }
+                    } catch (missingErr) {
+                      console.error("Error loading missing messages:", missingErr);
+                    }
+                  }
                 }
-              } catch (allErr) {
-                console.error("Error loading all messages:", allErr);
-                setMessagesState([]);
-                setLastServerMsgId(newestMessageId);
-                lastServerMsgIdRef.current = newestMessageId;
+              }
+
+              // If we have too many messages, take only the most recent ones
+              // But keep them in chronological order (oldest first)
+              // We want to show the most recent messages, so we take the last N
+              if (allMessages.length > initialLimitRef.current * 2) {
+                // Take the last N messages (most recent)
+                allMessages = allMessages.slice(-initialLimitRef.current * 2);
               }
             } else {
-              setMessagesState([]);
-              setLastServerMsgId(null);
-              lastServerMsgIdRef.current = null;
+              // No messages found in direct query
+              // This could mean:
+              // 1. There are no messages
+              // 2. RLS is blocking access (but RLS is disabled, so unlikely)
+              // 3. There's a permission issue
+              console.log("No messages found in direct query for thread:", normalizedThreadId);
             }
+          } catch (loadErr) {
+            console.error("Error loading all messages directly:", loadErr);
+            
+            // Fallback: try using listMessages API
+            try {
+              const { listMessages } = await import("@/lib/dms");
+              const initialMessages = await listMessages(normalizedThreadId, {
+                limit: initialLimitRef.current,
+              });
+
+              if (initialMessages && initialMessages.length > 0) {
+                // Sort messages chronologically (oldest first)
+                allMessages = initialMessages.slice().sort((a, b) => {
+                  const timeA = new Date(a.created_at).getTime();
+                  const timeB = new Date(b.created_at).getTime();
+                  if (timeA !== timeB) return timeA - timeB;
+                  return a.id - b.id;
+                });
+
+                // Check if there are more messages after the last loaded one
+                const lastMsg = allMessages[allMessages.length - 1];
+                const lastMsgId = lastMsg ? lastMsg.id : null;
+
+                if (lastMsgId && newestMessageId && newestMessageId > lastMsgId) {
+                  // Load all messages after the last loaded message
+                  try {
+                    const { data: missedData, error: missedError } = await supabase
+                      .from("dms_messages")
+                      .select("*")
+                      .eq("thread_id", normalizedThreadId)
+                      .gt("id", lastMsgId)
+                      .order("id", { ascending: true });
+
+                    if (!missedError && missedData && missedData.length > 0) {
+                      const missedMessages: Message[] = missedData.map((msg: any) => ({
+                        id:
+                          typeof msg.id === "string"
+                            ? parseInt(msg.id, 10)
+                            : Number(msg.id),
+                        thread_id: normalizedThreadId,
+                        sender_id: msg.sender_id,
+                        kind: msg.kind || "text",
+                        body: msg.body,
+                        attachments: Array.isArray(msg.attachments)
+                          ? msg.attachments
+                          : [],
+                        created_at: msg.created_at,
+                        edited_at: msg.edited_at || null,
+                        deleted_at: msg.deleted_at || null,
+                        sequence_number:
+                          msg.sequence_number === null ||
+                          msg.sequence_number === undefined
+                            ? null
+                            : typeof msg.sequence_number === "string"
+                              ? parseInt(msg.sequence_number, 10)
+                              : Number(msg.sequence_number),
+                        client_msg_id: msg.client_msg_id ?? null,
+                        reply_to_message_id: msg.reply_to_message_id
+                          ? typeof msg.reply_to_message_id === "string"
+                            ? parseInt(msg.reply_to_message_id, 10)
+                            : Number(msg.reply_to_message_id)
+                          : null,
+                      }));
+
+                      // Merge with existing messages
+                      allMessages = [...allMessages, ...missedMessages];
+                    }
+                  } catch (missedErr) {
+                    console.error("Error loading missed messages:", missedErr);
+                  }
+                }
+              }
+            } catch (apiErr) {
+              console.error("Error loading messages via API:", apiErr);
+            }
+          }
+
+          // Always set messages from server, even if cache exists
+          // This ensures we have the latest messages when dialog opens
+          setMessagesState(allMessages);
+
+          // Update lastServerMsgId to the newest message
+          if (allMessages.length > 0) {
+            const finalLastMsg = allMessages[allMessages.length - 1];
+            const finalLastMsgId = finalLastMsg.id;
+            setLastServerMsgId(finalLastMsgId);
+            lastServerMsgIdRef.current = finalLastMsgId;
+          } else if (newestMessageId !== null) {
+            // No messages loaded but we know there's a newest message
+            // This might indicate an RLS issue or permission problem
+            console.warn("No messages loaded but newestMessageId exists:", newestMessageId);
+            setLastServerMsgId(newestMessageId);
+            lastServerMsgIdRef.current = newestMessageId;
+          } else {
+            setMessagesState([]);
+            setLastServerMsgId(null);
+            lastServerMsgIdRef.current = null;
           }
         }
       } catch (err) {
