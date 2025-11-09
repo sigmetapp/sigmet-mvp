@@ -78,34 +78,109 @@ export default function AlertPage() {
 
       console.log('Found notifications (simple):', simpleData?.length || 0);
 
-      // Now try with joins
-      const { data, error } = await supabase
+      // Load notifications with related data
+      // First, get all notifications
+      const { data: notificationsData, error: notificationsError } = await supabase
         .from('notifications')
-        .select(`
-          *,
-          actor:profiles!notifications_actor_id_fkey(user_id, username, full_name, avatar_url),
-          post:posts!notifications_post_id_fkey(id, text, author_id),
-          comment:comments!notifications_comment_id_fkey(id, text, post_id, author_id),
-          trust_feedback:trust_feedback!notifications_trust_feedback_id_fkey(id, value, comment, author_id)
-        `)
+        .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (error) {
-        console.error('Error loading notifications with joins:', error);
-        // If joins fail, use simple data
+      if (notificationsError) {
+        console.error('Error loading notifications:', notificationsError);
         setNotifications(simpleData || []);
         const unread = (simpleData || []).filter(n => !n.read_at).length;
         setUnreadCount(unread);
         return;
       }
 
-      console.log('Found notifications (with joins):', data?.length || 0);
-      setNotifications(data || []);
+      if (!notificationsData || notificationsData.length === 0) {
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
+
+      // Get all unique actor IDs
+      const actorIds = notificationsData
+        .map(n => n.actor_id)
+        .filter((id): id is string => id !== null)
+        .filter((id, index, self) => self.indexOf(id) === index);
+
+      // Get all unique post IDs
+      const postIds = notificationsData
+        .map(n => n.post_id)
+        .filter((id): id is number => id !== null)
+        .filter((id, index, self) => self.indexOf(id) === index);
+
+      // Get all unique comment IDs
+      const commentIds = notificationsData
+        .map(n => n.comment_id)
+        .filter((id): id is string => id !== null)
+        .filter((id, index, self) => self.indexOf(id) === index);
+
+      // Get all unique trust feedback IDs
+      const trustFeedbackIds = notificationsData
+        .map(n => n.trust_feedback_id)
+        .filter((id): id is number => id !== null)
+        .filter((id, index, self) => self.indexOf(id) === index);
+
+      // Load all related data in parallel
+      const [actorsData, postsData, commentsData, trustFeedbackData] = await Promise.all([
+        actorIds.length > 0
+          ? supabase
+              .from('profiles')
+              .select('user_id, username, full_name, avatar_url')
+              .in('user_id', actorIds)
+          : Promise.resolve({ data: [] }),
+        postIds.length > 0
+          ? supabase
+              .from('posts')
+              .select('id, text, author_id')
+              .in('id', postIds)
+          : Promise.resolve({ data: [] }),
+        commentIds.length > 0
+          ? supabase
+              .from('comments')
+              .select('id, text, post_id, author_id')
+              .in('id', commentIds)
+          : Promise.resolve({ data: [] }),
+        trustFeedbackIds.length > 0
+          ? supabase
+              .from('trust_feedback')
+              .select('id, value, comment, author_id')
+              .in('id', trustFeedbackIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      // Create maps for quick lookup
+      const actorsMap = new Map(
+        (actorsData.data || []).map(a => [a.user_id, a])
+      );
+      const postsMap = new Map(
+        (postsData.data || []).map(p => [p.id, p])
+      );
+      const commentsMap = new Map(
+        (commentsData.data || []).map(c => [c.id, c])
+      );
+      const trustFeedbackMap = new Map(
+        (trustFeedbackData.data || []).map(tf => [tf.id, tf])
+      );
+
+      // Enrich notifications with related data
+      const enrichedNotifications = notificationsData.map(n => ({
+        ...n,
+        actor: n.actor_id ? actorsMap.get(n.actor_id) : undefined,
+        post: n.post_id ? postsMap.get(n.post_id) : undefined,
+        comment: n.comment_id ? commentsMap.get(n.comment_id) : undefined,
+        trust_feedback: n.trust_feedback_id ? trustFeedbackMap.get(n.trust_feedback_id) : undefined,
+      }));
+
+      console.log('Found notifications (enriched):', enrichedNotifications.length);
+      setNotifications(enrichedNotifications);
 
       // Count unread
-      const unread = (data || []).filter(n => !n.read_at).length;
+      const unread = enrichedNotifications.filter(n => !n.read_at).length;
       setUnreadCount(unread);
     } catch (err: any) {
       console.error('Error loading notifications:', err);
@@ -177,7 +252,23 @@ export default function AlertPage() {
   };
 
   const getNotificationText = (notification: Notification) => {
-    const actorName = notification.actor?.full_name || notification.actor?.username || 'Someone';
+    // Try to get actor name from different sources
+    let actorName = 'Someone';
+    
+    if (notification.actor) {
+      // Prefer full_name, then username
+      if (notification.actor.full_name && notification.actor.full_name.trim()) {
+        actorName = notification.actor.full_name;
+      } else if (notification.actor.username && notification.actor.username.trim()) {
+        actorName = notification.actor.username;
+      }
+    }
+    
+    // If actor is not loaded, try to load it separately
+    if (actorName === 'Someone' && notification.actor_id) {
+      // This will be handled by the query, but we can add a fallback
+      console.log('Actor not loaded for notification:', notification.id, 'actor_id:', notification.actor_id);
+    }
     
     switch (notification.type) {
       case 'mention_in_post':
