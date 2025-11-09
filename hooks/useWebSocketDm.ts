@@ -370,6 +370,16 @@ export function useWebSocketDm(
                     : Number(msg.reply_to_message_id)
                   : null,
               }));
+              
+              // Log messages with reply_to_message_id
+              const messagesWithReply = messages.filter(m => m.reply_to_message_id);
+              if (messagesWithReply.length > 0) {
+                console.log('[useWebSocketDm] Loaded messages with reply:', messagesWithReply.map(m => ({
+                  messageId: m.id,
+                  replyToMessageId: m.reply_to_message_id,
+                  messageBody: m.body,
+                })));
+              }
 
               // Reverse to get chronological order (oldest first, newest last)
               // This way newest messages are at the bottom and we scroll to them
@@ -497,6 +507,14 @@ export function useWebSocketDm(
                 : Number(message.reply_to_message_id)
               : null,
           };
+          
+          if (normalizedMessage.reply_to_message_id) {
+            console.log('[useWebSocketDm] Received message with reply:', {
+              messageId: normalizedMessage.id,
+              replyToMessageId: normalizedMessage.reply_to_message_id,
+              messageBody: normalizedMessage.body,
+            });
+          }
 
           if (clientMsgIdFromServer) {
             const watchdog = pendingEchoTimeoutsRef.current.get(
@@ -821,6 +839,14 @@ export function useWebSocketDm(
                     : Number(row.reply_to_message_id)
                   : null,
               };
+              
+              if (normalizedMessage.reply_to_message_id) {
+                console.log('[useWebSocketDm] Realtime message with reply:', {
+                  messageId: normalizedMessage.id,
+                  replyToMessageId: normalizedMessage.reply_to_message_id,
+                  messageBody: normalizedMessage.body,
+                });
+              }
 
               setMessagesState((prev) => {
                 if (change.type === "DELETE") {
