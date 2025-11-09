@@ -290,6 +290,18 @@ export async function listMessages(
     throw new Error(messagesError.message);
   }
 
+  if (process.env.NODE_ENV !== 'production') {
+    console.info(
+      '[dms.listMessages] raw',
+      (messages ?? []).slice(-5).map((msg: any) => ({
+        id: msg?.id ?? null,
+        typeofId: typeof msg?.id,
+        created_at: msg?.created_at ?? null,
+        body: msg?.body ?? null,
+      }))
+    );
+  }
+
   const messagesWithNormalizedIds = (messages || []).map((msg: any) => ({
     ...msg,
     id: typeof msg.id === 'string' ? parseInt(msg.id, 10) : Number(msg.id),
