@@ -12,7 +12,7 @@ interface Notification {
   type: 'mention_in_post' | 'comment_on_post' | 'reaction_on_post' | 'comment_on_comment' | 'subscription' | 'trust_flow_entry';
   actor_id: string | null;
   post_id: number | null;
-  comment_id: string | null;
+  comment_id: number | null;
   trust_feedback_id: number | null;
   read_at: string | null;
   created_at: string;

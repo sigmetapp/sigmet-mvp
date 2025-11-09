@@ -8,10 +8,10 @@ import { Sun, Moon, Home, Rss, UserPlus, Bell } from "lucide-react";
 import SearchInput from "@/components/SearchInput";
 
 const navLinks = [
-  { href: "/", label: "Home" },
-  { href: "/feed", label: "Feed" },
-  { href: "/alert", label: "Alert" },
-  { href: "/invite", label: "Invite" },
+  { href: "/", label: "Home", icon: Home },
+  { href: "/feed", label: "Feed", icon: Rss },
+  { href: "/alert", label: "Alert", icon: Bell },
+  { href: "/invite", label: "Invite", icon: UserPlus },
 ];
 
 export default function Header() {
@@ -119,14 +119,15 @@ export default function Header() {
           {navLinks.map((l) => {
             const active = pathname === l.href;
             const isExternal = l.href.startsWith("http");
-            const className = `px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+            const IconComponent = l.icon;
+            const className = `h-9 w-9 grid place-items-center rounded-lg border transition ${
               active
                 ? isLight
-                  ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                  : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                  ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-primary-blue"
+                  : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)] border-primary-blue"
                 : isLight
-                ? "text-primary-text-secondary hover:text-primary-blue hover:bg-primary-blue/10"
-                : "text-primary-text-secondary hover:text-primary-blue-light hover:bg-primary-blue/15"
+                ? "border-primary-blue/20 text-primary-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue"
+                : "border-primary-blue/30 text-primary-text-secondary hover:bg-primary-blue/20 hover:text-primary-blue-light"
             }`;
             return isExternal ? (
               <a
@@ -135,16 +136,18 @@ export default function Header() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className={className}
+                aria-label={l.label}
               >
-                {l.label}
+                <IconComponent size={18} />
               </a>
             ) : (
               <Link
                 key={l.href}
                 href={l.href}
                 className={className}
+                aria-label={l.label}
               >
-                {l.label}
+                <IconComponent size={18} />
               </Link>
             );
           })}
