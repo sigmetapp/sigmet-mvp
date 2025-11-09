@@ -159,12 +159,9 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const wsSendMessage = sendMessageHook;
   
   // Local state
-  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [messageReceipts, setMessageReceipts] = useState<Map<string, 'sent' | 'delivered' | 'read'>>(new Map());
-  // Cache for reply messages loaded from database
-  const [replyMessagesCache, setReplyMessagesCache] = useState<Map<string | number, Message>>(new Map());
   
   // Theme
   const { theme } = useTheme();
@@ -777,93 +774,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       clearInterval(pollInterval);
     };
   }, [partnerProfile?.user_id, partnerProfile?.show_online_status, applyOnlineStatus]);
-
-  // Load reply messages that are not found in the messages array
-  useEffect(() => {
-    if (!thread?.id || !messages.length) return;
-
-    // Find all reply_to_message_id values that are not in the messages array
-    const missingReplyIds = new Set<string | number>();
-    for (const msg of messages) {
-      if (msg.reply_to_message_id && 
-          msg.reply_to_message_id !== 0 && 
-          msg.reply_to_message_id !== '0' &&
-          !replyMessagesCache.has(String(msg.reply_to_message_id)) &&
-          !replyMessagesCache.has(msg.reply_to_message_id) &&
-          !messages.find(m => {
-            if (typeof m.id === 'string' && typeof msg.reply_to_message_id === 'string') {
-              return m.id === msg.reply_to_message_id;
-            } else if (typeof m.id === 'number' && typeof msg.reply_to_message_id === 'number') {
-              return m.id === msg.reply_to_message_id;
-            } else if (typeof m.id === 'string' && typeof msg.reply_to_message_id === 'number') {
-              return m.id === String(msg.reply_to_message_id);
-            } else if (typeof m.id === 'number' && typeof msg.reply_to_message_id === 'string') {
-              const parsed = parseInt(msg.reply_to_message_id, 10);
-              if (!isNaN(parsed) && parsed > 0) {
-                return m.id === parsed;
-              }
-              return m.id === msg.reply_to_message_id;
-            }
-            return false;
-          })) {
-        missingReplyIds.add(msg.reply_to_message_id);
-      }
-    }
-
-    if (missingReplyIds.size === 0) return;
-
-    // Load missing reply messages from database
-    (async () => {
-      try {
-        const ids = Array.from(missingReplyIds);
-        const { data, error } = await supabase
-          .from('dms_messages')
-          .select('*')
-          .in('id', ids)
-          .eq('thread_id', thread.id);
-
-        if (error) {
-          console.error('[DmsChatWindow] Error loading reply messages:', error);
-          return;
-        }
-
-        if (data && data.length > 0) {
-          const loadedMessages: Message[] = data.map((row: any) => ({
-            id: row.id,
-            thread_id: row.thread_id,
-            sender_id: row.sender_id,
-            kind: row.kind,
-            body: row.body,
-            attachments: row.attachments || [],
-            created_at: row.created_at,
-            edited_at: row.edited_at,
-            deleted_at: row.deleted_at,
-            sequence_number: row.sequence_number,
-            client_msg_id: row.client_msg_id,
-            reply_to_message_id: row.reply_to_message_id,
-          }));
-
-          // Add to cache
-          setReplyMessagesCache(prev => {
-            const newCache = new Map(prev);
-            for (const loadedMsg of loadedMessages) {
-              newCache.set(String(loadedMsg.id), loadedMsg);
-              newCache.set(loadedMsg.id, loadedMsg);
-            }
-            return newCache;
-          });
-
-          // Add to messages array if they belong to this thread
-          const messagesToAdd = loadedMessages.filter(m => m.thread_id === thread.id);
-          if (messagesToAdd.length > 0) {
-            setMessagesFromHook(prev => mergeMessages(prev, messagesToAdd));
-          }
-        }
-      } catch (err) {
-        console.error('[DmsChatWindow] Error loading reply messages:', err);
-      }
-    })();
-  }, [messages, thread?.id, replyMessagesCache, setMessagesFromHook]);
 
   const updateMessageReceiptStatus = useCallback(
     (
@@ -2004,7 +1914,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     const textToSend = messageText.trim();
     const filesToSend = selectedFiles;
 
-    setReplyingTo(null);
     setSending(true);
 
     const hasAttachments = filesToSend.length > 0;
@@ -2101,90 +2010,16 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         playSendConfirmation();
         return;
       }
-      // Get reply_to_message_id if replying
-      // Validate that replyingTo.id is a valid message ID (not temporary/local echo)
-      // Note: id can be either number (bigint) or string (UUID) depending on database schema
-      let replyToMessageId: number | string | null = null;
-      if (replyingTo?.id) {
-        // Skip temporary IDs (local echo messages have id === -1)
-        if (replyingTo.id === -1 || replyingTo.id === '-1') {
-          console.warn('[DmsChatWindow] Cannot reply to temporary message, skipping reply');
-          replyToMessageId = null;
-        } else {
-          // Verify that the message exists in the current thread and is not deleted
-          const repliedToMessage = messages.find(m => {
-            // Compare IDs - handle both string and number types
-            if (typeof m.id === 'string' && typeof replyingTo.id === 'string') {
-              return m.id === replyingTo.id;
-            } else if (typeof m.id === 'number' && typeof replyingTo.id === 'number') {
-              return m.id === replyingTo.id;
-            } else if (typeof m.id === 'string' && typeof replyingTo.id === 'number') {
-              return m.id === String(replyingTo.id);
-            } else if (typeof m.id === 'number' && typeof replyingTo.id === 'string') {
-              // Try to parse string as number, or compare as string
-              const parsed = parseInt(replyingTo.id, 10);
-              if (!isNaN(parsed) && parsed > 0) {
-                return m.id === parsed;
-              }
-              return false;
-            }
-            return false;
-          });
-          
-          if (repliedToMessage && !repliedToMessage.deleted_at && repliedToMessage.thread_id === threadId) {
-            // Use the ID as-is (can be number or string/UUID)
-            // If it's a string that looks like a number, convert to number for consistency
-            if (typeof replyingTo.id === 'string') {
-              const parsed = parseInt(replyingTo.id, 10);
-              if (!isNaN(parsed) && parsed > 0 && String(parsed) === replyingTo.id) {
-                // It's a numeric string, use as number
-                replyToMessageId = parsed;
-              } else {
-                // It's a UUID or non-numeric string, use as string
-                replyToMessageId = replyingTo.id;
-              }
-            } else {
-              // It's already a number
-              replyToMessageId = replyingTo.id;
-            }
-          } else {
-            console.warn('[DmsChatWindow] Reply message not found in thread or deleted:', {
-              messageId: replyingTo.id,
-              found: !!repliedToMessage,
-              deleted: repliedToMessage?.deleted_at,
-              threadId: repliedToMessage?.thread_id,
-              currentThreadId: threadId,
-            });
-            replyToMessageId = null;
-          }
-        }
-      }
-      
-      console.log('[DmsChatWindow] Sending message with reply:', {
-        replyToMessageId,
-        replyingToText: replyingTo?.body,
-        replyingToId: replyingTo?.id,
-        threadId,
-      });
-      
-      // Use sendMessage from lib/dms to support reply_to_message_id
+      // Use sendMessage from lib/dms
       const { sendMessage: sendMessageLib } = await import('@/lib/dms');
-      const sentMessage = await sendMessageLib(
+      await sendMessageLib(
         threadId, 
         messageBody, 
         annotateDocumentVersions(attachments, messages) as unknown[],
-        undefined, // client_msg_id - will be generated by hook
-        replyToMessageId
+        undefined // client_msg_id - will be generated by hook
       );
-      
-      console.log('[DmsChatWindow] Message sent:', {
-        messageId: sentMessage.id,
-        replyToMessageId: sentMessage.reply_to_message_id,
-        hasReplyToMessageId: !!sentMessage.reply_to_message_id,
-      });
 
       setMessageText('');
-      setReplyingTo(null); // Clear reply after sending
       setSelectedFiles((prev) => {
         prev.forEach((entry) => {
           if (entry.previewUrl) {
@@ -2318,9 +2153,9 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         if (cancelled) return;
         const item = queue[i];
         try {
-          // Use sendMessage from lib/dms to support reply_to_message_id
+          // Use sendMessage from lib/dms
           const { sendMessage: sendMessageLib } = await import('@/lib/dms');
-          await sendMessageLib(thread.id, item.body, annotateDocumentVersions(item.attachments, messages) as unknown[], undefined, null);
+          await sendMessageLib(thread.id, item.body, annotateDocumentVersions(item.attachments, messages) as unknown[], undefined);
           setOutbox((prev) => prev.slice(1));
           await new Promise((r) => setTimeout(r, 150));
         } catch (err) {
@@ -2648,13 +2483,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
 
                   <div
                     className={`group flex gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      const msgToReply = messages.find((m) => m.id === msg.id);
-                      if (msgToReply && !msg.deleted_at) {
-                        setReplyingTo(msgToReply);
-                      }
-                    }}
                   >
                     {!isMine && !isGroupedWithPrev && (
                       <img
@@ -2670,102 +2498,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                         isMine ? 'items-end' : 'items-start'
                       }`}
                     >
-                      {/* Reply quote - show if message has reply_to_message_id */}
-                      {msg.reply_to_message_id && msg.reply_to_message_id !== 0 && msg.reply_to_message_id !== '0' && (() => {
-                        // First try to find in messages array
-                        let repliedToMessage = messages.find(m => {
-                          // Compare IDs - handle both string and number types
-                          if (typeof m.id === 'string' && typeof msg.reply_to_message_id === 'string') {
-                            return m.id === msg.reply_to_message_id;
-                          } else if (typeof m.id === 'number' && typeof msg.reply_to_message_id === 'number') {
-                            return m.id === msg.reply_to_message_id;
-                          } else if (typeof m.id === 'string' && typeof msg.reply_to_message_id === 'number') {
-                            return m.id === String(msg.reply_to_message_id);
-                          } else if (typeof m.id === 'number' && typeof msg.reply_to_message_id === 'string') {
-                            const parsed = parseInt(msg.reply_to_message_id, 10);
-                            if (!isNaN(parsed) && parsed > 0) {
-                              return m.id === parsed;
-                            }
-                            return m.id === msg.reply_to_message_id;
-                          }
-                          return false;
-                        });
-                        
-                        // If not found, try cache
-                        if (!repliedToMessage) {
-                          const cacheKey = String(msg.reply_to_message_id);
-                          repliedToMessage = replyMessagesCache.get(cacheKey) || replyMessagesCache.get(msg.reply_to_message_id) || null;
-                        }
-                        
-                        // If still not found, return null (will be loaded by useEffect)
-                        if (!repliedToMessage) {
-                          console.warn('[DmsChatWindow] Reply message not found in messages array or cache:', {
-                            messageId: msg.id,
-                            replyToMessageId: msg.reply_to_message_id,
-                            availableMessageIds: messages.map(m => m.id).slice(0, 10),
-                            totalMessages: messages.length,
-                          });
-                          return null;
-                        }
-                        
-                        console.log('[DmsChatWindow] Displaying reply:', {
-                          messageId: msg.id,
-                          replyToMessageId: msg.reply_to_message_id,
-                          repliedToMessageText: repliedToMessage.body,
-                        });
-                        const repliedToIsMine = repliedToMessage.sender_id === currentUserId;
-                        return (
-                          <div 
-                            className={`text-xs mb-1.5 px-2 py-1.5 rounded-lg border max-w-full cursor-pointer hover:opacity-80 transition ${
-                              isMine 
-                                ? 'bg-white/10 border-white/20 text-white/80' 
-                                : 'bg-white/5 border-white/10 text-white/60'
-                            }`}
-                            onClick={() => {
-                              // Scroll to the quoted message
-                              const node = messageNodeMap.current.get(repliedToMessage.id);
-                              if (node && scrollRef.current) {
-                                node.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                                // Highlight the message briefly
-                                node.style.backgroundColor = 'rgba(59, 130, 246, 0.3)';
-                                setTimeout(() => {
-                                  node.style.backgroundColor = '';
-                                }, 2000);
-                              }
-                            }}
-                            title="Click to scroll to quoted message"
-                          >
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                              <svg 
-                                xmlns="http://www.w3.org/2000/svg" 
-                                className="h-3 w-3" 
-                                fill="none" 
-                                viewBox="0 0 24 24" 
-                                stroke="currentColor"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                              </svg>
-                              <span className="font-medium">
-                                {repliedToIsMine ? 'You' : (partnerProfile?.full_name || partnerProfile?.username || 'User')}
-                              </span>
-                            </div>
-                            <div className="text-[11px] truncate">
-                              {repliedToMessage.deleted_at ? (
-                                <span className="italic text-white/40">Message deleted</span>
-                              ) : repliedToMessage.body ? (
-                                repliedToMessage.body.length > 60 
-                                  ? repliedToMessage.body.substring(0, 60) + '...'
-                                  : repliedToMessage.body
-                              ) : repliedToMessage.attachments && Array.isArray(repliedToMessage.attachments) && repliedToMessage.attachments.length > 0 ? (
-                                <span className="text-white/50">📎 Attachment</span>
-                              ) : (
-                                <span className="text-white/40">Empty message</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      
                       <div
                         className={`relative px-4 py-2.5 rounded-2xl transition-all message-enter ${
                           isMine
@@ -2773,26 +2505,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                             : 'bg-white/10 text-white rounded-bl-sm border border-white/20 shadow-md'
                         }`}
                       >
-                        {/* Hover actions */}
-                        <div
-                          className={`absolute top-1 ${isMine ? 'right-2' : 'left-2'} z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition`}
-                          style={{ pointerEvents: 'auto' }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => setReplyingTo(msg)}
-                            className={[
-                              'px-1.5 py-0.5 rounded border text-[11px] transition shadow-sm backdrop-blur-sm',
-                              theme === 'light'
-                                ? 'bg-white/80 border-black/10 text-black hover:bg-white'
-                                : 'bg-white/10 border-white/20 text-white/90 hover:bg-white/15',
-                            ].join(' ')}
-                            title="Reply"
-                          >
-                            Reply
-                          </button>
-                          {/* Edit/Delete disabled */}
-                        </div>
                         {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
                           <div className="mb-2 space-y-2">
                             {(msg.attachments as any[]).map((att: any, attIdx: number) => (
@@ -3188,67 +2900,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           </div>
         )}
 
-      {/* Reply preview */}
-      {replyingTo && (
-        <div className="px-4 py-2 border-t border-white/10 bg-white/5">
-          <div className="flex items-start gap-2">
-            <div 
-              className="flex-1 min-w-0 cursor-pointer hover:bg-white/5 rounded-lg p-1 -m-1 transition"
-              onClick={() => {
-                // Scroll to the quoted message
-                const node = messageNodeMap.current.get(replyingTo.id);
-                if (node && scrollRef.current) {
-                  node.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                  // Highlight the message briefly
-                  node.style.backgroundColor = 'rgba(59, 130, 246, 0.3)';
-                  setTimeout(() => {
-                    node.style.backgroundColor = '';
-                  }, 2000);
-                }
-              }}
-              title="Click to scroll to quoted message"
-            >
-              <div className="text-xs text-white/60 mb-1.5">Replying to:</div>
-              <div className="border-l-2 border-white/20 pl-3 py-1.5 bg-white/5 rounded-r-lg">
-                <div className="text-xs text-white/50 mb-0.5">
-                  {replyingTo.sender_id === currentUserId ? 'You' : (partnerProfile?.full_name || partnerProfile?.username || 'User')}
-                </div>
-                {replyingTo.deleted_at ? (
-                  <div className="text-sm text-white/50 italic">Message deleted</div>
-                ) : replyingTo.body ? (
-                  <div className="text-sm text-white/90 whitespace-pre-wrap break-words">
-                    {replyingTo.body.length > 150 ? replyingTo.body.substring(0, 150) + '...' : replyingTo.body}
-                  </div>
-                ) : replyingTo.attachments && Array.isArray(replyingTo.attachments) && replyingTo.attachments.length > 0 ? (
-                  <div className="text-sm text-white/90">
-                    {getAttachmentIcon((replyingTo.attachments[0] as any)?.type)} Attachment
-                  </div>
-                ) : (
-                  <div className="text-sm text-white/50 italic">Empty message</div>
-                )}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setReplyingTo(null)}
-              className="text-white/60 hover:text-white/90 transition ml-2 flex-shrink-0"
-              title="Cancel reply"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-white/10 pb-[calc(env(safe-area-inset-bottom)+12px)]">
       <div
@@ -3302,7 +2953,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 void handleSend();
               }
             }}
-            placeholder={replyingTo ? "Reply to message..." : "Type a message..."}
+            placeholder="Type a message..."
             disabled={uploadingAttachments || isOffline}
             rows={1}
             style={{
