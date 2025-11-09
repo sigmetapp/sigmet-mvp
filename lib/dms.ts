@@ -236,7 +236,6 @@ export async function getOrCreateThread(
  */
 export type ListMessagesOptions = {
   limit?: number;
-  beforeId?: number | null;
 };
 
 export async function listMessages(
@@ -271,18 +270,13 @@ export async function listMessages(
     throw new Error('Forbidden');
   }
 
-  const { limit = 50, beforeId = null } = options;
+  const { limit = 50 } = options;
 
-  let query = supabase
+  const { data: messages, error: messagesError } = await supabase
     .from('dms_messages')
     .select('*')
-    .eq('thread_id', normalizedThreadId);
-
-  if (beforeId !== null && beforeId !== undefined) {
-    query = query.lt('id', beforeId);
-  }
-
-  const { data: messages, error: messagesError } = await query
+    .eq('thread_id', normalizedThreadId)
+    .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(Math.min(50, Math.max(1, limit)));
 
