@@ -1,0 +1,299 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+import { useChat } from '@/hooks/useChat';
+import { useSendMessage } from '@/hooks/useSendMessage';
+import { MessageItem } from '@/components/chat/MessageItem';
+import { markDelivered, markRead } from '@/lib/receipts';
+import {
+  leaveDmChannel,
+  sendDeliveredReceipt,
+  sendReadReceipt,
+  subscribeToReceipts,
+} from '@/lib/realtime';
+
+type ChatViewProps = {
+  dialogId: string;
+  currentUserId: string;
+  otherUserId: string;
+};
+
+const READ_FLUSH_DELAY = 320;
+
+export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatViewProps) {
+  const {
+    messages,
+    isBootstrapped,
+    isLoading,
+    error,
+    hasMore,
+    loadOlder,
+  } = useChat(dialogId, {
+    currentUserId,
+    otherUserId,
+  });
+
+  const { sendMessage, isSending } = useSendMessage({
+    dialogId,
+    currentUserId,
+    otherUserId,
+  });
+
+  const [draft, setDraft] = useState('');
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const deliveredRef = useRef<Set<string>>(new Set());
+  const readRef = useRef<Set<string>>(new Set());
+  const pendingReadRef = useRef<Set<string>>(new Set());
+  const flushTimeoutRef = useRef<number | null>(null);
+  const receiptsChannelRef = useRef<RealtimeChannel | null>(null);
+
+  const flushRead = useCallback(async () => {
+    const ids = Array.from(pendingReadRef.current);
+    if (ids.length === 0) {
+      return;
+    }
+
+    pendingReadRef.current.clear();
+    const timestamp = new Date().toISOString();
+
+    try {
+      await markRead(ids, currentUserId);
+      await sendReadReceipt(dialogId, {
+        messageIds: ids,
+        toUserId: otherUserId,
+        readAt: timestamp,
+      });
+      ids.forEach((id) => readRef.current.add(id));
+    } catch (err) {
+      console.error('[ChatView] Failed to mark messages as read', err);
+    }
+  }, [currentUserId, dialogId, otherUserId]);
+
+  const scheduleReadFlush = useCallback(
+    (immediate = false) => {
+      if (flushTimeoutRef.current) {
+        clearTimeout(flushTimeoutRef.current);
+        flushTimeoutRef.current = null;
+      }
+
+      if (immediate) {
+        flushTimeoutRef.current = window.setTimeout(() => {
+          void flushRead();
+          flushTimeoutRef.current = null;
+        }, 0);
+        return;
+      }
+
+      flushTimeoutRef.current = window.setTimeout(() => {
+        void flushRead();
+        flushTimeoutRef.current = null;
+      }, READ_FLUSH_DELAY);
+    },
+    [flushRead]
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    subscribeToReceipts(dialogId, currentUserId)
+      .then((channel) => {
+        if (!mounted) {
+          void leaveDmChannel(dialogId);
+          return;
+        }
+        receiptsChannelRef.current = channel;
+      })
+      .catch((err) => console.error('[ChatView] Failed to subscribe receipts channel', err));
+
+    const handleFocus = () => {
+      scheduleReadFlush(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      if (flushTimeoutRef.current) {
+        clearTimeout(flushTimeoutRef.current);
+        flushTimeoutRef.current = null;
+      }
+      pendingReadRef.current.clear();
+      deliveredRef.current.clear();
+      readRef.current.clear();
+      void leaveDmChannel(dialogId);
+      receiptsChannelRef.current = null;
+    };
+  }, [dialogId, currentUserId, scheduleReadFlush]);
+
+  useEffect(() => {
+    if (!messages.length) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    for (const message of messages) {
+      if (message.senderId === currentUserId) {
+        continue;
+      }
+
+      if (!deliveredRef.current.has(message.id)) {
+        deliveredRef.current.add(message.id);
+        void markDelivered(message.id, currentUserId).catch((err) =>
+          console.error('[ChatView] Failed to mark delivered', err)
+        );
+        void sendDeliveredReceipt(dialogId, {
+          messageId: message.id,
+          toUserId: message.senderId,
+          deliveredAt: now,
+        }).catch((err) =>
+          console.error('[ChatView] Failed to broadcast delivered receipt', err)
+        );
+      }
+
+      if (!readRef.current.has(message.id)) {
+        pendingReadRef.current.add(message.id);
+      }
+    }
+
+    scheduleReadFlush();
+  }, [messages, currentUserId, dialogId, scheduleReadFlush]);
+
+  useEffect(() => {
+    if (!messagesEndRef.current || !isAtBottom) {
+      return;
+    }
+    messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isAtBottom]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const nearBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      setIsAtBottom(nearBottom);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!loadMoreSentinelRef.current || !isBootstrapped || !hasMore) {
+      return;
+    }
+
+    const sentinel = loadMoreSentinelRef.current;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          void loadOlder();
+        }
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: '120px',
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isBootstrapped, hasMore, loadOlder]);
+
+  const handleSend = useCallback(async () => {
+    if (!draft.trim()) return;
+    const text = draft.trim();
+    try {
+      setDraft('');
+      await sendMessage(text);
+    } catch (err) {
+      console.error('[ChatView] Failed to send message', err);
+      setDraft(text); // restore draft on failure
+    }
+  }, [draft, sendMessage]);
+
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        void handleSend();
+      }
+    },
+    [handleSend]
+  );
+
+  if (isLoading && !isBootstrapped) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-white/60 text-sm">Loading messages…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-red-400 text-sm">Error: {error}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-2"
+      >
+        <div ref={loadMoreSentinelRef} className="h-1" />
+        {messages.map((message) => {
+          const isOwn = message.senderId === currentUserId;
+          return (
+            <MessageItem
+              key={message.id}
+              message={message}
+              isOwn={isOwn}
+            />
+          );
+        })}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="border-t border-white/10 px-4 py-3">
+        <div className="flex gap-2">
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a message…"
+            disabled={isSending}
+            className="flex-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            rows={1}
+            style={{ minHeight: '40px', maxHeight: '120px' }}
+          />
+          <button
+            type="button"
+            onClick={() => void handleSend()}
+            disabled={!draft.trim() || isSending}
+            className="px-6 py-2 rounded-lg bg-blue-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-600 transition"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

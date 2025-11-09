@@ -29,7 +29,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!membership) return res.status(403).json({ ok: false, error: 'Forbidden' });
 
-    const before = req.query.before ? Number(req.query.before) : undefined;
     const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 50));
 
     // Include per-message receipts so the client can compute sent/delivered/read
@@ -39,12 +38,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .from('dms_messages')
       .select('*, receipts:dms_message_receipts(user_id, status, updated_at)')
       .eq('thread_id', threadId)
+      .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(limit);
-
-    if (before && !Number.isNaN(before)) {
-      q = q.lt('id', before);
-    }
 
     const { data: messages, error } = await q;
     if (error) return res.status(400).json({ ok: false, error: error.message });

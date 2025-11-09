@@ -48,7 +48,7 @@ function compareMessages(a: Message, b: Message): number {
   const timeA = new Date(a.created_at).getTime();
   const timeB = new Date(b.created_at).getTime();
   if (timeA !== timeB) return timeA - timeB;
-  return a.id - b.id;
+  return String(a.id).localeCompare(String(b.id));
 }
 
 function sortMessagesChronologically(rawMessages: Message[]): Message[] {
@@ -60,12 +60,12 @@ function mergeMessages(existing: Message[], additions: Message[]): Message[] {
     return existing;
   }
 
-  const byId = new Map<number, Message>();
+  const byId = new Map<string, Message>();
   for (const msg of existing) {
-    byId.set(msg.id, msg);
+    byId.set(String(msg.id), msg);
   }
   for (const msg of additions) {
-    byId.set(msg.id, msg);
+    byId.set(String(msg.id), msg);
   }
 
   return sortMessagesChronologically(Array.from(byId.values()));
@@ -90,8 +90,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [daysStreak, setDaysStreak] = useState<number>(0);
   
   const audioContextRef = useRef<AudioContext | null>(null);
-  const lastMessageIdRef = useRef<number | null>(null);
-  const oldestMessageIdRef = useRef<number | null>(null);
+  const lastMessageIdRef = useRef<string | null>(null);
+  const oldestMessageIdRef = useRef<string | null>(null);
 
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
@@ -795,8 +795,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         // Get message IDs of messages sent by current user
         const myMessageIds = messages
           .filter((m) => m.sender_id === currentUserId && m.id !== -1)
-          .map((m) => Number(m.id))
-          .filter((id) => !Number.isNaN(id));
+          .map((m) => String(m.id))
+          .filter((id) => id && id !== '-1');
         
         if (myMessageIds.length === 0) return;
         
@@ -887,6 +887,14 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         let messagesData;
         try {
           messagesData = await listMessages(threadId, { limit: INITIAL_MESSAGE_LIMIT });
+          console.info(
+            '[DM] listMessages raw',
+            (messagesData || []).slice(-5).map((msg: any) => ({
+              id: msg?.id ?? null,
+              created_at: msg?.created_at ?? null,
+              body: msg?.body ?? null
+            }))
+          );
         } catch (msgErr: any) {
           console.error('Error in listMessages:', msgErr, 'threadId:', threadId);
           // Continue without messages if we can't load them, but thread is valid
@@ -896,7 +904,20 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
 
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
         const sorted = sortMessagesChronologically(messagesData);
-        oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
+        setMessagesFromHook(sorted);
+        oldestMessageIdRef.current = sorted.length > 0 ? String(sorted[0].id) : null;
+        
+        const first = sorted[0];
+        const last = sorted[sorted.length - 1];
+        console.info('[DM] Bootstrap messages', {
+          threadId,
+          count: sorted.length,
+          oldestId: first ? first.id : null,
+          oldestAt: first ? first.created_at : null,
+          newestId: last ? last.id : null,
+          newestAt: last ? last.created_at : null,
+          newestText: last ? (last.body ?? (last as any).text ?? null) : null,
+        });
         
         // Load message receipts for messages sent by current user (to show partner's read status)
         if (sorted.length > 0 && currentUserId && partnerId) {
@@ -905,15 +926,14 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             const myMessageIds = sorted
               .filter((m) => m.sender_id === currentUserId)
               .map((m) => String(m.id));
-            const supabaseMessageIds = myMessageIds.map((id) => {
-              if (/^\d+$/.test(id)) {
+            const numericMessageIds = myMessageIds.filter((id) => /^\d+$/.test(id));
+            
+            if (numericMessageIds.length > 0) {
+              const supabaseMessageIds = numericMessageIds.map((id) => {
                 const numeric = Number(id);
                 return Number.isSafeInteger(numeric) ? numeric : id;
-              }
-              return id;
-            });
+              });
             
-            if (supabaseMessageIds.length > 0) {
               // Load receipts where partner is the recipient (user_id = partnerId)
               const { data: receipts } = await supabase
                 .from('dms_message_receipts')
@@ -950,44 +970,55 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           
           // Mark all messages as read when thread is opened and messages are loaded
           // This ensures that when user opens a chat, all visible messages are marked as read
-          if (sorted.length > 0 && currentUserId && partnerId && threadId) {
-            const lastMessage = sorted[sorted.length - 1];
-            // Mark all messages as read when opening chat, regardless of sender
-            // This ensures that on page refresh, these messages won't be unread
-            if (lastMessage) {
-              // Mark all messages up to the last one as read immediately
-              fetch('/api/dms/messages.read', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  thread_id: String(threadId),
-                  up_to_message_id: String(lastMessage.id),
-                }),
-              })
+          const newestMessage = sorted[sorted.length - 1] ?? null;
+          const messageId =
+            newestMessage && newestMessage.id !== undefined && newestMessage.id !== null
+              ? String(newestMessage.id)
+              : '';
+          const shouldMarkRead =
+            messageId &&
+            messageId !== '-1' &&
+            currentUserId &&
+            partnerId &&
+            threadId;
+
+          if (shouldMarkRead) {
+            fetch('/api/dms/messages.read', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                thread_id: String(threadId),
+                up_to_message_id: messageId,
+              }),
+            })
               .then((response) => {
                 if (response.ok) {
-                  // Dispatch event to update unread count in partner list
                   window.dispatchEvent(
                     new CustomEvent('dm:message-read', {
                       detail: {
                         threadId: String(threadId),
-                        partnerId: partnerId,
+                        partnerId,
                       },
                     })
                   );
                 } else {
-                  // Log error response for debugging
-                  response.json().then((data) => {
-                    console.error('Error marking messages as read on thread open:', data);
-                  }).catch(() => {
-                    console.error('Error marking messages as read on thread open:', response.status, response.statusText);
-                  });
+                  response
+                    .json()
+                    .then((data) => {
+                      console.error('Error marking messages as read on thread open:', data);
+                    })
+                    .catch(() => {
+                      console.error(
+                        'Error marking messages as read on thread open:',
+                        response.status,
+                        response.statusText
+                      );
+                    });
                 }
               })
               .catch((err) => {
                 console.error('Error marking messages as read on thread open:', err);
               });
-            }
           }
         }, 100);
 
@@ -1063,7 +1094,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     if (messages.length > 0 && !lastMessageIdRef.current) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg) {
-        lastMessageIdRef.current = lastMsg.id;
+        lastMessageIdRef.current = String(lastMsg.id);
       }
     }
   }, [messages.length]);
@@ -1081,12 +1112,13 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage) return;
 
-    const isNewMessage = lastMessage.id !== lastMessageIdRef.current;
+    const lastMessageId = String(lastMessage.id);
+    const isNewMessage = lastMessageId !== lastMessageIdRef.current;
     const isFromPartner = lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId;
 
     if (isNewMessage) {
       const prevLastId = lastMessageIdRef.current;
-      lastMessageIdRef.current = lastMessage.id;
+      lastMessageIdRef.current = lastMessageId;
 
       if (prevLastId === null) {
         return;
@@ -1192,7 +1224,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       return;
     }
 
-    const currentOldest = oldestMessageIdRef.current ?? messages[0]?.id ?? null;
+    const currentOldest = oldestMessageIdRef.current ?? (messages[0]?.id ? String(messages[0]?.id) : null) ?? null;
     if (!currentOldest) {
       setHasMoreHistory(false);
       return;
@@ -1215,7 +1247,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       }
 
       // Update oldest message ID
-      oldestMessageIdRef.current = olderMessages[0]?.id ?? oldestMessageIdRef.current;
+      oldestMessageIdRef.current = olderMessages[0]?.id ? String(olderMessages[0]?.id) : oldestMessageIdRef.current;
 
       // Restore scroll position after loading older messages
       requestAnimationFrame(() => {
