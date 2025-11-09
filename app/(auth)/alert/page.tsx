@@ -233,22 +233,44 @@ export default function AlertPage() {
     }
   };
 
-  const getNotificationIcon = (type: Notification['type']) => {
-    switch (type) {
-      case 'mention_in_post':
-        return <AtSign size={18} />;
-      case 'comment_on_post':
-      case 'comment_on_comment':
-        return <MessageSquare size={18} />;
-      case 'reaction_on_post':
-        return <Heart size={18} />;
-      case 'subscription':
-        return <UserPlus size={18} />;
-      case 'trust_flow_entry':
-        return <Shield size={18} />;
-      default:
-        return <Bell size={18} />;
+  const getNotificationIcon = (type: Notification['type'], actor?: Notification['actor']) => {
+    const icon = (() => {
+      switch (type) {
+        case 'mention_in_post':
+          return <AtSign size={18} />;
+        case 'comment_on_post':
+        case 'comment_on_comment':
+          return <MessageSquare size={18} />;
+        case 'reaction_on_post':
+          return <Heart size={18} />;
+        case 'subscription':
+          return <UserPlus size={18} />;
+        case 'trust_flow_entry':
+          return <Shield size={18} />;
+        default:
+          return <Bell size={18} />;
+      }
+    })();
+
+    // If actor has avatar, show it with icon overlay
+    if (actor?.avatar_url) {
+      return (
+        <div className="relative w-full h-full">
+          <img
+            src={actor.avatar_url}
+            alt={actor.full_name || actor.username || 'User'}
+            className="w-full h-full rounded-full object-cover ring-2 ring-gray-700/50"
+          />
+          <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-gray-800 dark:bg-gray-900 border-2 border-gray-800 dark:border-gray-900 flex items-center justify-center text-white shadow-lg z-10">
+            <div className="scale-[0.7]">
+              {icon}
+            </div>
+          </div>
+        </div>
+      );
     }
+
+    return icon;
   };
 
   const getNotificationText = (notification: Notification) => {
@@ -295,11 +317,12 @@ export default function AlertPage() {
     if (notification.comment_id && notification.comment?.post_id) {
       return `/post/${notification.comment.post_id}`;
     }
-    if (notification.trust_feedback_id && notification.actor_id) {
-      return `/profile/${notification.actor_id}`;
-    }
+    // For profile links, use username if available, otherwise use user_id
     if (notification.actor_id) {
-      return `/profile/${notification.actor_id}`;
+      if (notification.actor?.username) {
+        return `/u/${notification.actor.username}`;
+      }
+      return `/u/${notification.actor_id}`;
     }
     return null;
   };
@@ -375,10 +398,12 @@ export default function AlertPage() {
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`flex-shrink-0 w-10 h-10 rounded-full grid place-items-center ${
-                      isUnread ? 'bg-primary-blue/20 text-primary-blue' : 'bg-gray-700 text-gray-400'
+                    <div className={`flex-shrink-0 w-10 h-10 rounded-full ${
+                      notification.actor?.avatar_url 
+                        ? '' 
+                        : `grid place-items-center ${isUnread ? 'bg-primary-blue/20 text-primary-blue' : 'bg-gray-700 text-gray-400'}`
                     }`}>
-                      {getNotificationIcon(notification.type)}
+                      {getNotificationIcon(notification.type, notification.actor)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
