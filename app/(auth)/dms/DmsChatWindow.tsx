@@ -899,6 +899,19 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         setMessagesFromHook(sorted);
         oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
         
+        if (process.env.NODE_ENV !== 'production') {
+          const first = sorted[0];
+          const last = sorted[sorted.length - 1];
+          console.info('[DM] Bootstrap messages', {
+            threadId,
+            count: sorted.length,
+            oldestId: first ? first.id : null,
+            oldestAt: first ? first.created_at : null,
+            newestId: last ? last.id : null,
+            newestAt: last ? last.created_at : null,
+          });
+        }
+        
         // Load message receipts for messages sent by current user (to show partner's read status)
         if (sorted.length > 0 && currentUserId && partnerId) {
           try {
