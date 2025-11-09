@@ -1,7 +1,10 @@
 -- Create notifications table for user alerts
 begin;
 
-create table if not exists public.notifications (
+-- Drop table if exists to handle type changes
+drop table if exists public.notifications cascade;
+
+create table public.notifications (
   id bigserial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
   type text not null check (type in (
