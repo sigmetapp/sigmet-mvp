@@ -183,13 +183,30 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
     if (!container) return;
 
     const handleScroll = () => {
+      // Prevent scroll if flag is set (during focus)
+      if (preventScrollRef.current) {
+        return;
+      }
+      
       const nearBottom =
         container.scrollHeight - container.scrollTop - container.clientHeight < 100;
       setIsAtBottom(nearBottom);
     };
 
+    // Also prevent window scroll during focus
+    const handleWindowScroll = () => {
+      if (preventScrollRef.current) {
+        window.scrollTo(0, window.scrollY);
+      }
+    };
+
     container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleWindowScroll, { passive: false });
+    
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', handleWindowScroll);
+    };
   }, []);
 
   useEffect(() => {
@@ -265,9 +282,8 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
   const handleReply = useCallback((message: Message) => {
     setReplyingTo(message);
     // Focus the textarea
-    const textarea = document.querySelector('textarea');
-    if (textarea) {
-      textarea.focus();
+    if (textareaRef.current) {
+      textareaRef.current.focus();
     }
   }, []);
 
@@ -284,6 +300,40 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
     },
     [handleSend]
   );
+
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const preventScrollRef = useRef(false);
+
+  const handleTextareaFocus = useCallback((event: React.FocusEvent<HTMLTextAreaElement>) => {
+    // Prevent mobile browsers from auto-scrolling the textarea into the center
+    // Keep the input at the bottom of the screen
+    const textarea = event.target;
+    textareaRef.current = textarea;
+    
+    // Store current scroll positions
+    const scrollY = window.scrollY;
+    const scrollX = window.scrollX;
+    const container = scrollContainerRef.current;
+    const containerScrollTop = container?.scrollTop ?? 0;
+    
+    // Set flag to prevent scrolling
+    preventScrollRef.current = true;
+    
+    // Prevent default scroll behavior by restoring positions
+    const restoreScroll = () => {
+      window.scrollTo(scrollX, scrollY);
+      if (container) {
+        container.scrollTop = containerScrollTop;
+      }
+      preventScrollRef.current = false;
+    };
+    
+    // Restore immediately and after a short delay to catch any delayed scrolls
+    restoreScroll();
+    setTimeout(restoreScroll, 10);
+    setTimeout(restoreScroll, 50);
+    setTimeout(restoreScroll, 100);
+  }, []);
 
   if (isLoading && !isBootstrapped) {
     return (
@@ -347,14 +397,23 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
 
         <div className="flex gap-2">
           <textarea
+            ref={textareaRef}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={handleTextareaFocus}
             placeholder={replyingTo ? "Type your reply…" : "Type a message…"}
             disabled={isSending}
             className="flex-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
             rows={1}
-            style={{ minHeight: '40px', maxHeight: '120px' }}
+            style={{ 
+              minHeight: '40px', 
+              maxHeight: '120px',
+              scrollMargin: '0',
+              scrollMarginBlock: '0',
+              scrollPadding: '0',
+              scrollPaddingBlock: '0'
+            }}
           />
           <button
             type="button"
