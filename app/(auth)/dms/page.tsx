@@ -1136,7 +1136,7 @@ function DmsInner() {
           duration={2500}
         />
       )}
-      <div className={["w-full md:w-80 flex-shrink-0 min-h-0", selectedPartnerId ? "hidden md:block" : "block"].join(" ") }>
+      <div className={["w-full md:w-[170px] flex-shrink-0 min-h-0", selectedPartnerId ? "hidden md:block" : "block"].join(" ") }>
           <div className="card card-glow h-full flex flex-col">
             <div className="px-4 py-4 border-b border-white/10 space-y-3">
               <div className="flex items-center justify-between gap-2">
