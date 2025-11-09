@@ -41,8 +41,10 @@ type Profile = {
 type CommentRecord = {
   id: number;
   post_id: number;
-  user_id: string | null;
-  body: string | null;
+  user_id?: string | null;
+  author_id?: string | null;
+  body?: string | null;
+  text?: string | null;
   media_url: string | null;
   parent_id: number | null;
   created_at: string;
@@ -309,13 +311,27 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       .order('created_at', { ascending: true });
 
     if (error) {
+      console.error('Failed to load comments:', error);
       setCommentsError('Failed to load comments.');
       setComments([]);
       setCommentsLoading(false);
       return;
     }
 
-    const list = data ?? [];
+    // Log the data to debug structure
+    if (data && data.length > 0) {
+      console.log('Comments data sample:', data[0]);
+      console.log('Total comments loaded:', data.length);
+    } else {
+      console.log('No comments found for post:', postId);
+    }
+
+    // Normalize the data to handle both schema versions
+    const list = (data ?? []).map((comment: any) => ({
+      ...comment,
+      user_id: comment.user_id ?? comment.author_id ?? null,
+      body: comment.body ?? comment.text ?? null,
+    }));
     setComments(list);
 
     const userIds = Array.from(
@@ -332,11 +348,17 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           .from('profiles')
           .select('user_id, username, avatar_url')
           .in('user_id', userIds),
-        supabase
-          .from('sw_scores')
-          .select('user_id, total')
-          .in('user_id', userIds)
-          .catch(() => ({ data: null, error: null })), // Gracefully handle if table doesn't exist
+        (async () => {
+          try {
+            return await supabase
+              .from('sw_scores')
+              .select('user_id, total')
+              .in('user_id', userIds);
+          } catch {
+            // Gracefully handle if table doesn't exist
+            return { data: null, error: null };
+          }
+        })(),
       ]);
 
       // Process profiles
@@ -454,12 +476,26 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         if (!value) return;
         setReplySubmitting((prev) => ({ ...prev, [parentId]: true }));
         try {
-          const { error } = await supabase.from('comments').insert({
+          // Try user_id first, fallback to author_id if user_id doesn't work
+          let insertData: any = {
             post_id: postId,
-            user_id: uid,
             body: value,
             parent_id: parentId,
-          });
+            user_id: uid,
+          };
+          let { error } = await supabase.from('comments').insert(insertData);
+          
+          // If user_id fails, try author_id instead
+          if (error && error.message?.includes('user_id')) {
+            insertData = {
+              post_id: postId,
+              text: value,
+              parent_id: parentId,
+              author_id: uid,
+            };
+            const retryResult = await supabase.from('comments').insert(insertData);
+            error = retryResult.error;
+          }
           if (error) throw error;
           setReplyInput((prev) => ({ ...prev, [parentId]: '' }));
           setReplyOpen((prev) => ({ ...prev, [parentId]: false }));
@@ -475,11 +511,24 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         if (!value) return;
         setCommentSubmitting(true);
         try {
-          const { error } = await supabase.from('comments').insert({
+          // Try user_id first, fallback to author_id if user_id doesn't work
+          let insertData: any = {
             post_id: postId,
-            user_id: uid,
             body: value,
-          });
+            user_id: uid,
+          };
+          let { error } = await supabase.from('comments').insert(insertData);
+          
+          // If user_id fails, try author_id instead
+          if (error && error.message?.includes('user_id')) {
+            insertData = {
+              post_id: postId,
+              text: value,
+              author_id: uid,
+            };
+            const retryResult = await supabase.from('comments').insert(insertData);
+            error = retryResult.error;
+          }
           if (error) throw error;
           setCommentInput('');
           await loadComments();
@@ -593,11 +642,12 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       const key = (parentId ?? 'root') as number | 'root';
       const list = commentsByParent[key] || [];
       return list.map((comment) => {
-        const profile = comment.user_id ? commenterProfiles[comment.user_id] : undefined;
-        const username = profile?.username || (comment.user_id ? comment.user_id.slice(0, 8) : 'Anon');
+        const commentUserId = comment.user_id ?? null;
+        const profile = commentUserId ? commenterProfiles[commentUserId] : undefined;
+        const username = profile?.username || (commentUserId ? commentUserId.slice(0, 8) : 'Anon');
         const avatar = resolveAvatarUrl(profile?.avatar_url) ?? AVATAR_FALLBACK;
-        const swScore = comment.user_id ? (commenterSWScores[comment.user_id] ?? 0) : 0;
-        const profileUrl = comment.user_id ? (profile?.username ? `/u/${profile.username}` : `/u/${comment.user_id}`) : undefined;
+        const swScore = commentUserId ? (commenterSWScores[commentUserId] ?? 0) : 0;
+        const profileUrl = commentUserId ? (profile?.username ? `/u/${profile.username}` : `/u/${commentUserId}`) : undefined;
 
         return (
           <div key={comment.id} className={`mt-4 ${depth === 0 ? '' : 'ml-4 border-l border-slate-200 dark:border-slate-700 pl-4'}`}>
@@ -627,9 +677,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   Reply
                 </Button>
               </div>
-              {comment.body && (
+              {(comment.body ?? comment.text) && (
                 <p className={`mt-3 whitespace-pre-wrap text-sm ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
-                  {formatTextWithMentions(comment.body)}
+                  {formatTextWithMentions(comment.body ?? comment.text ?? '')}
                 </p>
               )}
               {comment.media_url && (
