@@ -22,7 +22,7 @@ import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
-import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag } from "lucide-react";
+import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag, UserPlus, HelpCircle } from "lucide-react";
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
@@ -1111,7 +1111,7 @@ export default function PostFeed({
             setActiveFilter('connections');
             setActiveDirection(null);
           }}
-          className={`px-3 py-1.5 rounded-full text-sm transition border ${
+          className={`px-3 py-1.5 rounded-full text-sm transition border flex items-center justify-center ${
             activeFilter === 'connections'
               ? isLight
                 ? "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
@@ -1120,15 +1120,16 @@ export default function PostFeed({
               ? "text-primary-text-secondary border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue"
               : "text-primary-text-secondary border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light"
           }`}
+          title="Connections"
         >
-          Connections
+          <UserPlus size={18} />
         </button>
         <button
           onClick={() => {
             setActiveFilter('discuss');
             setActiveDirection(null);
           }}
-          className={`px-3 py-1.5 rounded-full text-sm transition border ${
+          className={`px-3 py-1.5 rounded-full text-sm transition border flex items-center justify-center ${
             activeFilter === 'discuss'
               ? isLight
                 ? "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
@@ -1137,15 +1138,15 @@ export default function PostFeed({
               ? "text-primary-text-secondary border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue"
               : "text-primary-text-secondary border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light"
           }`}
+          title="Discuss"
         >
-          {DISCUSS_EMOJI} Discuss
+          <HelpCircle size={18} />
         </button>
         {myDirections.length > 0 && availableDirections.length > 0 && myDirections.map((id) => {
           const meta = availableDirections.find((a) => a.id === id);
           const slug = meta ? meta.slug : '';
           const emoji = meta ? meta.emoji : resolveDirectionEmoji(slug, null);
           const title = meta ? meta.title : id;
-          const label = `${emoji} ${title}`;
           const active = activeFilter === 'direction' && activeDirection === id;
           return (
             <button
@@ -1161,7 +1162,7 @@ export default function PostFeed({
                   setActiveDirection(id);
                 }
               }}
-              className={`px-3 py-1.5 rounded-full text-sm transition border ${
+              className={`px-3 py-1.5 rounded-full text-sm transition border flex items-center justify-center ${
                 active
                   ? isLight
                     ? "bg-primary-blue text-white border-primary-blue shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
@@ -1170,14 +1171,15 @@ export default function PostFeed({
                   ? "text-primary-text-secondary border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue"
                   : "text-primary-text-secondary border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light"
               }`}
+              title={title}
             >
-              {label}
+              <span className="text-lg leading-none" aria-hidden="true">{emoji}</span>
             </button>
           );
         })}
       </div>
     );
-  }, [showFilters, activeFilter, activeDirection, myDirections, availableDirections, isLight, DISCUSS_EMOJI]);
+  }, [showFilters, activeFilter, activeDirection, myDirections, availableDirections, isLight]);
 
   // Render filters externally if requested
   useEffect(() => {
