@@ -127,6 +127,10 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [sending, setSending] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<SelectedAttachment[]>([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
+  const [lightboxImages, setLightboxImages] = useState<Array<{ url: string; alt: string }>>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [isDragActive, setIsDragActive] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
@@ -350,9 +354,11 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   }
 
   // Attachment preview component
-  function AttachmentPreview({ attachment }: { attachment: DmAttachment }) {
+  function AttachmentPreview({ attachment, allAttachments, attachmentIndex }: { attachment: DmAttachment; allAttachments?: DmAttachment[]; attachmentIndex?: number }) {
     const [url, setUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const [error, setError] = useState(false);
 
     const attachmentKey = useMemo(() => {
       if (!attachment) return 'null';
@@ -379,6 +385,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
 
       let cancelled = false;
       setLoading(true);
+      setError(false);
+      setImageLoaded(false);
 
       (async () => {
         try {
@@ -390,6 +398,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           console.error('Error loading attachment:', err);
           if (!cancelled) {
             setUrl(null);
+            setError(true);
           }
         } finally {
           if (!cancelled) {
@@ -403,42 +412,126 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       };
     }, [stableAttachment, attachmentKey]);
 
+    const handleImageClick = useCallback(async () => {
+      if (!url || stableAttachment.type !== 'image') return;
+      
+      // Collect all image attachments for gallery
+      const imageAttachments = allAttachments?.filter(att => att.type === 'image') || [attachment];
+      
+      // Resolve URLs for all images
+      const imageUrls = await Promise.all(
+        imageAttachments.map(async (att) => {
+          try {
+            const resolvedUrl = await resolveAttachmentUrl(att, 3600);
+            return {
+              url: resolvedUrl,
+              alt: att.originalName ?? (att as any)?.original_name ?? 'Image'
+            };
+          } catch (err) {
+            console.error('Error resolving attachment URL for gallery:', err);
+            return {
+              url: url, // Fallback to current URL
+              alt: att.originalName ?? (att as any)?.original_name ?? 'Image'
+            };
+          }
+        })
+      );
+      
+      const currentIndex = imageAttachments.findIndex(att => 
+        att.path === stableAttachment.path || 
+        (att as any)?.storagePath === (stableAttachment as any)?.storagePath ||
+        att.url === stableAttachment.url
+      );
+      
+      setLightboxImages(imageUrls);
+      setLightboxIndex(currentIndex >= 0 ? currentIndex : (attachmentIndex ?? 0));
+      setLightboxImage({ url, alt: stableAttachment.originalName ?? (stableAttachment as any)?.original_name ?? 'Image' });
+      setLightboxOpen(true);
+    }, [url, stableAttachment, allAttachments, attachmentIndex]);
+
     if (loading) {
       return (
-        <div className="w-48 h-48 bg-white/5 rounded-lg flex items-center justify-center border border-white/10">
-          <div className="text-white/40 text-xs">Loading...</div>
+        <div className="relative w-64 h-64 bg-gradient-to-br from-white/5 to-white/10 rounded-xl flex items-center justify-center border border-white/10 overflow-hidden">
+          <div className="absolute inset-0 bg-white/5 animate-pulse" />
+          <div className="relative z-10 flex flex-col items-center gap-2">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+            <div className="text-white/40 text-xs">Loading...</div>
+          </div>
         </div>
       );
     }
 
     if (stableAttachment.type === 'image' && url) {
       return (
-        <img
-          src={url}
-          alt="Attachment"
-          className="max-w-[280px] max-h-[280px] rounded-lg object-cover border border-white/10"
-        />
+        <div className="relative group">
+          <button
+            type="button"
+            onClick={handleImageClick}
+            className="relative block w-full max-w-[320px] rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-200 hover:shadow-lg hover:shadow-white/10 cursor-pointer bg-white/5"
+          >
+            {!imageLoaded && (
+              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-white/10 animate-pulse flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+              </div>
+            )}
+            <img
+              src={url}
+              alt={stableAttachment.originalName ?? (stableAttachment as any)?.original_name ?? 'Image'}
+              className={`w-full h-auto max-h-[400px] object-cover transition-opacity duration-300 ${
+                imageLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
+              onLoad={() => setImageLoaded(true)}
+              onError={() => {
+                setError(true);
+                setImageLoaded(false);
+              }}
+              loading="lazy"
+            />
+            {error && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/5">
+                <div className="text-white/40 text-xs">Failed to load image</div>
+              </div>
+            )}
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-8 h-8 text-white/80"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+              </svg>
+            </div>
+          </button>
+        </div>
       );
     }
 
     if (stableAttachment.type === 'video' && url) {
       return (
-        <div className="relative max-w-[280px] max-h-[280px] rounded-lg overflow-hidden border border-white/10 bg-black/20">
+        <div className="relative max-w-[320px] rounded-xl overflow-hidden border border-white/10 bg-black/20 group hover:border-white/20 transition-all duration-200">
           <video
             src={url}
             controls
             preload="metadata"
             playsInline
-            className="max-w-full max-h-full"
+            className="w-full max-h-[400px] object-contain"
           />
         </div>
       );
     }
 
-    if (!url) {
+    if (!url || error) {
       return (
-        <div className="px-3 py-2 bg-white/5 rounded-lg border border-white/10 text-xs text-white/60 max-w-[320px]">
-          Unable to load document preview.
+        <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/10 text-xs text-white/60 max-w-[320px]">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Unable to load preview.
+          </div>
         </div>
       );
     }
@@ -446,30 +539,34 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     const displayName =
       stableAttachment.originalName ?? (stableAttachment as any)?.original_name ?? 'Document';
     return (
-      <div className="px-3 py-3 bg-white/5 rounded-lg border border-white/10 max-w-[320px] text-sm text-white/80">
+      <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/10 max-w-[320px] text-sm text-white/80 hover:bg-white/10 transition-colors duration-200">
         <div className="flex items-start gap-3">
-          <span className="text-2xl leading-none" role="img" aria-hidden="true">
+          <span className="text-2xl leading-none flex-shrink-0" role="img" aria-hidden="true">
             {getAttachmentIcon(stableAttachment.type)}
           </span>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="font-medium truncate">{displayName}</div>
               {stableAttachment.version && (
-                <span className="text-[11px] px-1.5 py-0.5 rounded bg-white/10 border border-white/20">
+                <span className="text-[11px] px-1.5 py-0.5 rounded bg-white/10 border border-white/20 shrink-0">
                   v{stableAttachment.version}
                 </span>
               )}
             </div>
-            <div className="text-[11px] text-white/50">
+            <div className="text-[11px] text-white/50 mt-0.5">
               {formatFileSize(stableAttachment.size ?? (stableAttachment as any)?.size)}
             </div>
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
               <a
                 href={url || '#'}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/10 border border-white/20 hover:bg-white/15 transition text-xs"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 border border-white/20 hover:bg-white/15 transition text-xs"
+                onClick={(e) => e.stopPropagation()}
               >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
                 Download
               </a>
               {stableAttachment.mime === 'application/pdf' && url && (
@@ -477,8 +574,12 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   href={url}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/10 border border-white/20 hover:bg-white/15 transition text-xs"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 border border-white/20 hover:bg-white/15 transition text-xs"
+                  onClick={(e) => e.stopPropagation()}
                 >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
                   Open
                 </a>
               )}
@@ -486,7 +587,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           </div>
         </div>
         {stableAttachment.mime === 'application/pdf' && url && (
-          <div className="mt-3 border border-white/10 rounded-md overflow-hidden">
+          <div className="mt-3 border border-white/10 rounded-lg overflow-hidden">
             <iframe
               src={url}
               title={displayName}
@@ -2498,7 +2599,12 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                         {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
                           <div className="mb-2 space-y-2">
                             {(msg.attachments as any[]).map((att: any, attIdx: number) => (
-                              <AttachmentPreview key={attIdx} attachment={att} />
+                              <AttachmentPreview 
+                                key={attIdx} 
+                                attachment={att} 
+                                allAttachments={msg.attachments as DmAttachment[]}
+                                attachmentIndex={attIdx}
+                              />
                             ))}
                           </div>
                         )}
@@ -2809,7 +2915,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             <div className="flex flex-col gap-2">
               {selectedFiles.map((item) => {
                 const { file, status, progress, previewUrl } = item;
-                const icon = file.type.startsWith('image/')
+                const isImage = file.type.startsWith('image/');
+                const icon = isImage
                   ? null
                   : file.type.startsWith('video/')
                   ? '\uD83C\uDFA5'
@@ -2820,10 +2927,12 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 return (
                   <div
                     key={item.id}
-                    className="relative flex items-center gap-3 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm"
+                    className="relative flex items-center gap-3 px-3 py-2.5 bg-white/10 border border-white/20 rounded-xl text-sm hover:bg-white/15 transition-colors group"
                   >
-                    <div className="h-10 w-10 flex-shrink-0 rounded-md overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center">
-                      {previewUrl ? (
+                    <div className={`${isImage ? 'h-16 w-16' : 'h-10 w-10'} flex-shrink-0 rounded-lg overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center`}>
+                      {previewUrl && isImage ? (
+                        <img src={previewUrl} alt={file.name} className="h-full w-full object-cover" />
+                      ) : previewUrl ? (
                         <img src={previewUrl} alt={file.name} className="h-full w-full object-cover" />
                       ) : (
                         <span className="text-base" role="img" aria-hidden="true">
@@ -2833,19 +2942,22 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-white/90 truncate">{file.name}</span>
+                        <span className="text-white/90 truncate font-medium">{file.name}</span>
                         <span className="text-[11px] text-white/50 shrink-0">{formatFileSize(file.size)}</span>
                       </div>
                       {status === 'uploading' && (
-                        <div className="mt-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-cyan-400 transition-all"
+                            className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-300 rounded-full"
                             style={{ width: `${Math.min(100, Math.round(progress))}%` }}
                           />
                         </div>
                       )}
                       {status === 'error' && (
-                        <div className="mt-1 text-xs text-red-300">
+                        <div className="mt-1 text-xs text-red-300 flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
                           {item.error || 'Failed to upload'}
                         </div>
                       )}
@@ -3042,6 +3154,140 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Lightbox Modal for Image Viewing */}
+      {lightboxOpen && lightboxImage && (
+        <LightboxModal
+          images={lightboxImages}
+          currentIndex={lightboxIndex}
+          onClose={() => setLightboxOpen(false)}
+          onNavigate={(index) => setLightboxIndex(index)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Lightbox Modal Component
+function LightboxModal({
+  images,
+  currentIndex,
+  onClose,
+  onNavigate,
+}: {
+  images: Array<{ url: string; alt: string }>;
+  currentIndex: number;
+  onClose: () => void;
+  onNavigate: (index: number) => void;
+}) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      } else if (e.key === 'ArrowLeft' && images.length > 1) {
+        e.preventDefault();
+        onNavigate(currentIndex > 0 ? currentIndex - 1 : images.length - 1);
+      } else if (e.key === 'ArrowRight' && images.length > 1) {
+        e.preventDefault();
+        onNavigate(currentIndex < images.length - 1 ? currentIndex + 1 : 0);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden'; // Prevent body scroll
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [currentIndex, images.length, onClose, onNavigate]);
+
+  const currentImage = images[currentIndex];
+
+  if (!currentImage) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white backdrop-blur-sm"
+        aria-label="Close"
+      >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      {/* Navigation buttons */}
+      {images.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onNavigate(currentIndex > 0 ? currentIndex - 1 : images.length - 1);
+            }}
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white backdrop-blur-sm"
+            aria-label="Previous image"
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onNavigate(currentIndex < images.length - 1 ? currentIndex + 1 : 0);
+            }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white backdrop-blur-sm"
+            aria-label="Next image"
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </>
+      )}
+
+      {/* Image counter */}
+      {images.length > 1 && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm text-white text-sm font-medium">
+          {currentIndex + 1} / {images.length}
+        </div>
+      )}
+
+      {/* Image container */}
+      <div
+        className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <img
+          src={currentImage.url}
+          alt={currentImage.alt}
+          className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-opacity duration-300"
+          style={{ imageRendering: 'high-quality' }}
+          loading="eager"
+        />
+      </div>
+
+      {/* Download button */}
+      <a
+        href={currentImage.url}
+        download
+        onClick={(e) => e.stopPropagation()}
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white flex items-center gap-2 backdrop-blur-sm"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Download
+      </a>
     </div>
   );
 }
