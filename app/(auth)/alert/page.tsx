@@ -151,19 +151,19 @@ export default function AlertPage() {
     
     switch (notification.type) {
       case 'mention_in_post':
-        return `${actorName} упомянул(а) вас в посте`;
+        return `${actorName} mentioned you in a post`;
       case 'comment_on_post':
-        return `${actorName} прокомментировал(а) ваш пост`;
+        return `${actorName} commented on your post`;
       case 'reaction_on_post':
-        return `${actorName} поставил(а) реакцию на ваш пост`;
+        return `${actorName} reacted to your post`;
       case 'comment_on_comment':
-        return `${actorName} ответил(а) на ваш комментарий`;
+        return `${actorName} replied to your comment`;
       case 'subscription':
-        return `${actorName} подписался(ась) на вас`;
+        return `${actorName} followed you`;
       case 'trust_flow_entry':
-        return `${actorName} оставил(а) запись в Trust Flow`;
+        return `${actorName} left a Trust Flow entry`;
       default:
-        return 'Новое уведомление';
+        return 'New notification';
     }
   };
 
@@ -191,12 +191,12 @@ export default function AlertPage() {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'только что';
-    if (diffMins < 60) return `${diffMins} мин. назад`;
-    if (diffHours < 24) return `${diffHours} ч. назад`;
-    if (diffDays < 7) return `${diffDays} дн. назад`;
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
     
-    return date.toLocaleDateString('ru-RU', {
+    return date.toLocaleDateString('en-US', {
       day: 'numeric',
       month: 'short',
       year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
@@ -209,7 +209,7 @@ export default function AlertPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold text-white flex items-center gap-2">
             <Bell size={24} />
-            Уведомления
+            Notifications
             {unreadCount > 0 && (
               <span className="ml-2 px-2 py-1 bg-primary-blue text-white text-sm font-medium rounded-full">
                 {unreadCount}
@@ -221,7 +221,7 @@ export default function AlertPage() {
               onClick={markAllAsRead}
               className="px-4 py-2 text-sm text-primary-blue hover:text-primary-blue-light border border-primary-blue/30 rounded-lg hover:bg-primary-blue/10 transition"
             >
-              Отметить все как прочитанные
+              Mark all as read
             </button>
           )}
         </div>
@@ -238,7 +238,7 @@ export default function AlertPage() {
         ) : notifications.length === 0 ? (
           <div className="bg-gray-800 p-8 rounded-lg text-center">
             <Bell size={48} className="mx-auto mb-4 text-gray-500" />
-            <p className="text-gray-400">У вас пока нет уведомлений</p>
+            <p className="text-gray-400">You have no notifications yet</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -294,7 +294,7 @@ export default function AlertPage() {
                             disabled={markingRead === notification.id}
                             className="flex-shrink-0 px-2 py-1 text-xs text-primary-blue hover:text-primary-blue-light border border-primary-blue/30 rounded hover:bg-primary-blue/10 transition"
                           >
-                            {markingRead === notification.id ? '...' : 'Прочитано'}
+                            {markingRead === notification.id ? '...' : 'Mark as read'}
                           </button>
                         )}
                       </div>
