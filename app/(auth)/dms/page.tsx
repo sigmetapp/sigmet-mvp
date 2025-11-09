@@ -1276,7 +1276,7 @@ function DmsInner() {
                                   }
                                 }}
                                 className={[
-                                  'group relative grid grid-cols-[auto,1fr,auto] items-center gap-3 rounded-xl border px-3 py-2 transition cursor-pointer',
+                                  'group relative grid grid-cols-[auto,1fr] items-center gap-3 rounded-xl border px-3 py-2 transition cursor-pointer',
                                   partner.notifications_muted ? 'opacity-80' : '',
                                   isSelected
                                     ? 'bg-white/10 border-white/20'
@@ -1349,19 +1349,16 @@ function DmsInner() {
                                     )}
                                   </button>
                                 </div>
-                                <div className="text-xs text-white/60 flex items-center gap-1 truncate">
+                                <div className="text-xs text-white/60 flex items-center gap-1 min-w-0 flex-1">
                                   {previewMeta.icon && <span aria-hidden="true">{previewMeta.icon}</span>}
-                                  <span className="truncate">{previewMeta.text}</span>
+                                  <span className="truncate flex-1 min-w-0">{previewMeta.text}</span>
+                                  {timestampLabel && (
+                                    <span className={[
+                                      'text-[11px] shrink-0 ml-1',
+                                      theme === 'light' ? 'text-black/50' : 'text-white/45',
+                                    ].join(' ')}>{timestampLabel}</span>
+                                  )}
                                 </div>
-                              </div>
-                              {/* Meta (time) */}
-                              <div className="flex flex-col items-end gap-1">
-                                {timestampLabel && (
-                                  <div className={[
-                                    'text-[11px]',
-                                    theme === 'light' ? 'text-black/50' : 'text-white/45',
-                                  ].join(' ')}>{timestampLabel}</div>
-                                )}
                               </div>
                             </div>
                           );
