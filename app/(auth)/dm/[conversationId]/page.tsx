@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
-import ChatWindow from '@/components/ChatWindow';
+import ChatView from '@/app/(chat)/[dialogId]/ChatView';
 import { getOrCreateThread } from '@/lib/dms';
 
 export default function DmPage() {
@@ -92,7 +92,11 @@ function DmPageInner() {
         <h1 className="text-white text-lg font-medium">Chat</h1>
       </div>
       <div className="flex-1 overflow-hidden">
-        <ChatWindow threadId={threadId} currentUserId={currentUserId} />
+        <ChatView
+          dialogId={threadId}
+          currentUserId={currentUserId}
+          otherUserId={conversationId}
+        />
       </div>
     </div>
   );
