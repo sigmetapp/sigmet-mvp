@@ -2014,36 +2014,58 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       }
       // Get reply_to_message_id if replying
       // Validate that replyingTo.id is a valid message ID (not temporary/local echo)
-      let replyToMessageId: number | null = null;
+      // Note: id can be either number (bigint) or string (UUID) depending on database schema
+      let replyToMessageId: number | string | null = null;
       if (replyingTo?.id) {
         // Skip temporary IDs (local echo messages have id === -1)
         if (replyingTo.id === -1 || replyingTo.id === '-1') {
           console.warn('[DmsChatWindow] Cannot reply to temporary message, skipping reply');
           replyToMessageId = null;
         } else {
-          // Convert to number if it's a string
-          const parsedId = typeof replyingTo.id === 'string' 
-            ? parseInt(replyingTo.id, 10) 
-            : Number(replyingTo.id);
+          // Verify that the message exists in the current thread and is not deleted
+          const repliedToMessage = messages.find(m => {
+            // Compare IDs - handle both string and number types
+            if (typeof m.id === 'string' && typeof replyingTo.id === 'string') {
+              return m.id === replyingTo.id;
+            } else if (typeof m.id === 'number' && typeof replyingTo.id === 'number') {
+              return m.id === replyingTo.id;
+            } else if (typeof m.id === 'string' && typeof replyingTo.id === 'number') {
+              return m.id === String(replyingTo.id);
+            } else if (typeof m.id === 'number' && typeof replyingTo.id === 'string') {
+              // Try to parse string as number, or compare as string
+              const parsed = parseInt(replyingTo.id, 10);
+              if (!isNaN(parsed) && parsed > 0) {
+                return m.id === parsed;
+              }
+              return false;
+            }
+            return false;
+          });
           
-          // Validate that it's a valid number
-          if (!isNaN(parsedId) && parsedId > 0) {
-            // Verify that the message exists in the current thread and is not deleted
-            const repliedToMessage = messages.find(m => m.id === parsedId);
-            if (repliedToMessage && !repliedToMessage.deleted_at && repliedToMessage.thread_id === threadId) {
-              replyToMessageId = parsedId;
+          if (repliedToMessage && !repliedToMessage.deleted_at && repliedToMessage.thread_id === threadId) {
+            // Use the ID as-is (can be number or string/UUID)
+            // If it's a string that looks like a number, convert to number for consistency
+            if (typeof replyingTo.id === 'string') {
+              const parsed = parseInt(replyingTo.id, 10);
+              if (!isNaN(parsed) && parsed > 0 && String(parsed) === replyingTo.id) {
+                // It's a numeric string, use as number
+                replyToMessageId = parsed;
+              } else {
+                // It's a UUID or non-numeric string, use as string
+                replyToMessageId = replyingTo.id;
+              }
             } else {
-              console.warn('[DmsChatWindow] Reply message not found in thread or deleted:', {
-                messageId: parsedId,
-                found: !!repliedToMessage,
-                deleted: repliedToMessage?.deleted_at,
-                threadId: repliedToMessage?.thread_id,
-                currentThreadId: threadId,
-              });
-              replyToMessageId = null;
+              // It's already a number
+              replyToMessageId = replyingTo.id;
             }
           } else {
-            console.warn('[DmsChatWindow] Invalid reply message ID:', replyingTo.id);
+            console.warn('[DmsChatWindow] Reply message not found in thread or deleted:', {
+              messageId: replyingTo.id,
+              found: !!repliedToMessage,
+              deleted: repliedToMessage?.deleted_at,
+              threadId: repliedToMessage?.thread_id,
+              currentThreadId: threadId,
+            });
             replyToMessageId = null;
           }
         }
