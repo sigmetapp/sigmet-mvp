@@ -6,6 +6,7 @@ type Props = {
   message: Message;
   isOwn: boolean;
   onRetry?: () => void;
+  onReply?: (message: Message) => void;
 };
 
 function renderTicks(status?: MessageStatus) {
@@ -68,18 +69,44 @@ function renderTicks(status?: MessageStatus) {
   );
 }
 
-export function MessageItem({ message, isOwn, onRetry }: Props) {
+export function MessageItem({ message, isOwn, onRetry, onReply }: Props) {
   const containerClass = isOwn ? 'flex gap-2 justify-end' : 'flex gap-2 justify-start';
   const bubbleClass = [
-    'max-w-[78%] px-4 py-2.5 rounded-2xl shadow-sm transition',
+    'max-w-[78%] px-4 py-2.5 rounded-2xl shadow-sm transition group relative',
     isOwn
       ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-sm'
       : 'bg-white/10 text-white rounded-bl-sm border border-white/20',
   ].join(' ');
 
+  // Debug logging
+  if (message.replyToMessageId && !message.replyToMessage) {
+    console.warn('[MessageItem] Message has replyToMessageId but no replyToMessage:', {
+      messageId: message.id,
+      replyToMessageId: message.replyToMessageId,
+      message,
+    });
+  }
+
   return (
     <div className={containerClass}>
       <div className={bubbleClass}>
+        {/* Reply preview */}
+        {message.replyToMessage && (
+          <div
+            className={[
+              'mb-2 pl-3 border-l-2 rounded',
+              isOwn ? 'border-white/40' : 'border-white/30',
+            ].join(' ')}
+          >
+            <div className="text-[10px] text-white/60 mb-1">
+              Replying to:
+            </div>
+            <div className="text-xs text-white/80 line-clamp-2">
+              {message.replyToMessage.text}
+            </div>
+          </div>
+        )}
+
         <div className="whitespace-pre-wrap text-sm leading-relaxed break-words">
           {message.text}
         </div>
@@ -106,6 +133,18 @@ export function MessageItem({ message, isOwn, onRetry }: Props) {
             </button>
           )}
         </div>
+
+        {/* Reply button - appears on hover */}
+        {onReply && (
+          <button
+            type="button"
+            onClick={() => onReply(message)}
+            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 rounded text-[10px] bg-black/40 hover:bg-black/60 text-white/90 hover:text-white border border-white/20"
+            title="Reply"
+          >
+            Reply
+          </button>
+        )}
       </div>
     </div>
   );

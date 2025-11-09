@@ -62,14 +62,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         : null;
 
     // Validate reply_to_message_id if provided
+    // Note: reply_to_message_id can be either number (bigint) or string (UUID) depending on database schema
     const rawReplyToMessageId = req.body?.reply_to_message_id;
-    let replyToMessageId: number | null = null;
+    let replyToMessageId: number | string | null = null;
     if (rawReplyToMessageId !== undefined && rawReplyToMessageId !== null) {
-      const parsed = typeof rawReplyToMessageId === 'string' 
-        ? Number.parseInt(rawReplyToMessageId, 10)
-        : Number(rawReplyToMessageId);
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        replyToMessageId = parsed;
+      if (typeof rawReplyToMessageId === 'string') {
+        // Check if it's a numeric string or UUID
+        const parsed = Number.parseInt(rawReplyToMessageId, 10);
+        if (!Number.isNaN(parsed) && parsed > 0 && String(parsed) === rawReplyToMessageId) {
+          // It's a numeric string, use as number
+          replyToMessageId = parsed;
+        } else {
+          // It's a UUID or non-numeric string, use as string
+          replyToMessageId = rawReplyToMessageId;
+        }
+      } else if (typeof rawReplyToMessageId === 'number' && rawReplyToMessageId > 0) {
+        replyToMessageId = rawReplyToMessageId;
       }
     }
 

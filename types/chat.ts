@@ -11,5 +11,12 @@ export interface Message {
   text: string;
   createdAt: string;
   status?: MessageStatus;
+  replyToMessageId?: string | number;
+  replyToMessage?: {
+    id: string;
+    senderId: string;
+    text: string;
+    createdAt: string;
+  };
 }
 

@@ -34,6 +34,35 @@ function sortMessages(messages: Message[]): Message[] {
 
 function mergeMessage(existing: Message, incoming: Message): Message {
   const next: Message = { ...existing, ...incoming };
+  
+  // Preserve reply information - prefer incoming if it has replyToMessage, otherwise keep existing
+  // This ensures that if incoming message has replyToMessage, we use it
+  // But if incoming only has replyToMessageId without replyToMessage, we preserve existing replyToMessage
+  if (incoming.replyToMessage) {
+    // Incoming has replyToMessage, use it
+    next.replyToMessage = incoming.replyToMessage;
+  } else if (existing.replyToMessage) {
+    // Incoming doesn't have replyToMessage, but existing does - preserve it
+    next.replyToMessage = existing.replyToMessage;
+  }
+  
+  // Preserve replyToMessageId - prefer incoming if it exists
+  if (incoming.replyToMessageId) {
+    next.replyToMessageId = incoming.replyToMessageId;
+  } else if (existing.replyToMessageId) {
+    next.replyToMessageId = existing.replyToMessageId;
+  }
+  
+  // Debug logging
+  if (next.replyToMessageId && !next.replyToMessage) {
+    console.warn('[chatStore] mergeMessage: replyToMessageId exists but no replyToMessage after merge:', {
+      messageId: next.id,
+      replyToMessageId: next.replyToMessageId,
+      existingHadReply: !!existing.replyToMessage,
+      incomingHadReply: !!incoming.replyToMessage,
+    });
+  }
+  
   if (existing.status && incoming.status) {
     const existingPriority = STATUS_PRIORITY[existing.status] ?? -1;
     const incomingPriority = STATUS_PRIORITY[incoming.status] ?? -1;
@@ -72,8 +101,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const normalized: Message = { ...message, dialogId: key };
         const current = merged.get(normalized.id);
         if (current) {
+          // Debug logging
+          if (normalized.replyToMessageId && !normalized.replyToMessage && current.replyToMessage) {
+            console.log('[chatStore] addMessages: Preserving existing replyToMessage for message:', {
+              messageId: normalized.id,
+              replyToMessageId: normalized.replyToMessageId,
+              existingReplyToMessage: current.replyToMessage,
+            });
+          }
           merged.set(normalized.id, mergeMessage(current, normalized));
         } else {
+          // Debug logging for new messages with reply
+          if (normalized.replyToMessageId) {
+            console.log('[chatStore] addMessages: New message with reply:', {
+              messageId: normalized.id,
+              replyToMessageId: normalized.replyToMessageId,
+              hasReplyToMessage: !!normalized.replyToMessage,
+              replyText: normalized.replyToMessage?.text,
+            });
+          }
           merged.set(normalized.id, normalized);
         }
       }
@@ -95,6 +141,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       const normalizedPatch: Partial<Message> = { ...patch };
+      
+      // Remove undefined values to avoid overwriting existing data
+      if (normalizedPatch.replyToMessage === undefined) {
+        delete normalizedPatch.replyToMessage;
+      }
+      if (normalizedPatch.replyToMessageId === undefined) {
+        delete normalizedPatch.replyToMessageId;
+      }
+      
       if (normalizedPatch.status) {
         const desiredPriority = STATUS_PRIORITY[normalizedPatch.status];
         if (desiredPriority === undefined) {
@@ -122,11 +177,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
         delete normalizedPatch.status;
       }
 
+      // Preserve reply information - prefer patch if provided, otherwise keep existing
+      const finalReplyToMessage = normalizedPatch.replyToMessage !== undefined
+        ? normalizedPatch.replyToMessage
+        : target.replyToMessage;
+      const finalReplyToMessageId = normalizedPatch.replyToMessageId !== undefined
+        ? normalizedPatch.replyToMessageId
+        : target.replyToMessageId;
+
+      // Debug logging
+      if (finalReplyToMessageId && !finalReplyToMessage) {
+        console.warn('[chatStore] updateMessage: replyToMessageId exists but no replyToMessage', {
+          messageId: target.id,
+          replyToMessageId: finalReplyToMessageId,
+          patch: normalizedPatch,
+          target: target,
+        });
+      }
+
       const updatedMessage: Message = {
         ...target,
         ...normalizedPatch,
         id: normalizedPatch.id ?? target.id,
         status: nextStatus,
+        // Explicitly set reply information
+        replyToMessage: finalReplyToMessage,
+        replyToMessageId: finalReplyToMessageId,
       };
 
       const nextMessages = messages.filter((_, idx) => idx !== index);

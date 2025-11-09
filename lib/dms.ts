@@ -39,7 +39,7 @@ export type Message = {
   deleted_at: string | null;
   sequence_number?: number | null;
   client_msg_id?: string | null;
-  reply_to_message_id?: number | null;
+  reply_to_message_id?: number | string | null; // Can be number (bigint) or string (UUID) depending on database schema
 };
 
 /**
@@ -343,7 +343,7 @@ export async function sendMessage(
   body: string | null,
   attachments: unknown[] = [],
   clientMsgId?: string | null,
-  replyToMessageId?: number | null
+  replyToMessageId?: number | string | null
 ): Promise<Message> {
   const normalizedThreadId = assertThreadId(threadId, 'Invalid thread_id');
 
