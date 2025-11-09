@@ -5,7 +5,7 @@ import { X as CloseIcon } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import Button from '@/components/Button';
 
-type ComplaintType = 'harassment' | 'misinformation' | 'inappropriate_content';
+type ComplaintType = 'harassment' | 'misinformation' | 'inappropriate_content' | 'unreliable_information';
 
 type PostReportModalProps = {
   postId: number;
@@ -19,6 +19,7 @@ const COMPLAINT_TYPES: Array<{ value: ComplaintType; label: string }> = [
   { value: 'harassment', label: 'Harassment' },
   { value: 'misinformation', label: 'Misinformation' },
   { value: 'inappropriate_content', label: 'Inappropriate Content' },
+  { value: 'unreliable_information', label: 'Unreliable Information' },
 ];
 
 export default function PostReportModal({

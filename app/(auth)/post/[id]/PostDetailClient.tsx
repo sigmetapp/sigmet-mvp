@@ -545,7 +545,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     }
   }, [post.user_id, postId, router, uid]);
 
-  const handleReportSubmit = useCallback(async (complaintType: 'harassment' | 'misinformation' | 'inappropriate_content', description: string) => {
+  const handleReportSubmit = useCallback(async (complaintType: 'harassment' | 'misinformation' | 'inappropriate_content' | 'unreliable_information', description: string) => {
     if (!uid) {
       alert('Sign in required');
       return;

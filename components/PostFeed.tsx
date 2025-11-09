@@ -1052,7 +1052,7 @@ export default function PostFeed({
   }, [backToProfileUsername]);
 
   // Handle post report submission
-  const handleReportSubmit = useCallback(async (postId: number, complaintType: 'harassment' | 'misinformation' | 'inappropriate_content', description: string) => {
+  const handleReportSubmit = useCallback(async (postId: number, complaintType: 'harassment' | 'misinformation' | 'inappropriate_content' | 'unreliable_information', description: string) => {
     if (!uid) {
       setToast({ message: 'Sign in required', type: 'error' });
       return;

@@ -29,7 +29,7 @@ type Ticket = {
   image_urls?: string[];
   video_urls?: string[];
   post_url?: string | null;
-  complaint_type?: 'harassment' | 'misinformation' | 'inappropriate_content' | null;
+  complaint_type?: 'harassment' | 'misinformation' | 'inappropriate_content' | 'unreliable_information' | null;
 };
 
 function AdminTicketsInner() {
@@ -372,6 +372,7 @@ function AdminTicketsInner() {
                             {ticket.complaint_type === 'harassment' && 'Harassment'}
                             {ticket.complaint_type === 'misinformation' && 'Misinformation'}
                             {ticket.complaint_type === 'inappropriate_content' && 'Inappropriate Content'}
+                            {ticket.complaint_type === 'unreliable_information' && 'Unreliable Information'}
                           </span>
                         ) : (
                           <span className={`text-xs ${isLight ? 'text-black/40' : 'text-white/40'}`}>
@@ -518,6 +519,7 @@ function AdminTicketsInner() {
                     {selectedTicket.complaint_type === 'harassment' && 'Harassment'}
                     {selectedTicket.complaint_type === 'misinformation' && 'Misinformation'}
                     {selectedTicket.complaint_type === 'inappropriate_content' && 'Inappropriate Content'}
+                    {selectedTicket.complaint_type === 'unreliable_information' && 'Unreliable Information'}
                   </span>
                 </div>
               </div>
