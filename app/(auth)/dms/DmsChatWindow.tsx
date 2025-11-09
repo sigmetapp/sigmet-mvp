@@ -1300,7 +1300,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 console.error('Error marking messages as read on thread open:', err);
               });
           }
-        }, 100);
 
         setHasMoreHistory(sorted.length === INITIAL_MESSAGE_LIMIT);
         
