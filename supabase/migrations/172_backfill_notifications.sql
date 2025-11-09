@@ -11,12 +11,26 @@ declare
   comments_id_type text;
 begin
   -- Determine which column is used for comment author
+  -- Check all columns in comments table to find the author column
   select column_name into comments_author_col
   from information_schema.columns
   where table_schema = 'public'
     and table_name = 'comments'
     and column_name in ('author_id', 'user_id')
+  order by case when column_name = 'author_id' then 0 else 1 end
   limit 1;
+
+  -- If still not found, try to find any uuid column that references auth.users
+  if comments_author_col is null then
+    select column_name into comments_author_col
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'comments'
+      and data_type = 'uuid'
+      and column_name != 'id'
+      and column_name != 'parent_id'
+    limit 1;
+  end if;
 
   -- Determine comments.id type
   select data_type into comments_id_type
@@ -26,9 +40,11 @@ begin
     and column_name = 'id';
 
   if comments_author_col is null then
-    raise notice 'Could not find author column in comments table';
+    raise notice 'Could not find author column in comments table. Skipping comment notifications backfill.';
     return;
   end if;
+
+  raise notice 'Using column % for comment author', comments_author_col;
 
   if comments_id_type = 'uuid' then
     -- comments.id is uuid
@@ -86,12 +102,26 @@ declare
   comments_id_type text;
 begin
   -- Determine which column is used for comment author
+  -- Check all columns in comments table to find the author column
   select column_name into comments_author_col
   from information_schema.columns
   where table_schema = 'public'
     and table_name = 'comments'
     and column_name in ('author_id', 'user_id')
+  order by case when column_name = 'author_id' then 0 else 1 end
   limit 1;
+
+  -- If still not found, try to find any uuid column that references auth.users
+  if comments_author_col is null then
+    select column_name into comments_author_col
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'comments'
+      and data_type = 'uuid'
+      and column_name != 'id'
+      and column_name != 'parent_id'
+    limit 1;
+  end if;
 
   -- Determine comments.id type
   select data_type into comments_id_type
@@ -101,7 +131,7 @@ begin
     and column_name = 'id';
 
   if comments_author_col is null then
-    raise notice 'Could not find author column in comments table';
+    raise notice 'Could not find author column in comments table. Skipping comment reply notifications backfill.';
     return;
   end if;
 
