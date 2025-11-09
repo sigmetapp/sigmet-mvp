@@ -71,6 +71,36 @@ function mergeMessages(existing: Message[], additions: Message[]): Message[] {
   return sortMessagesChronologically(Array.from(byId.values()));
 }
 
+function sanitizeMessageIdsForQuery(ids: Array<unknown>): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of ids) {
+    if (raw === null || raw === undefined) {
+      continue;
+    }
+
+    const str = String(raw).trim();
+    if (!str || str === '-1') {
+      continue;
+    }
+
+    const lower = str.toLowerCase();
+    if (lower === 'nan' || lower === 'undefined' || lower === 'null') {
+      continue;
+    }
+
+    if (seen.has(lower)) {
+      continue;
+    }
+
+    seen.add(lower);
+    result.push(str);
+  }
+
+  return result;
+}
+
 export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [thread, setThread] = useState<Thread | null>(null);
@@ -933,35 +963,35 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   // Periodically refresh receipts to ensure UI is up-to-date
   useEffect(() => {
     if (!thread?.id || !currentUserId || !partnerId) return;
-    
+
     const refreshReceipts = async () => {
       try {
         // Get message IDs of messages sent by current user
         const myMessageIds = messages
           .filter((m) => m.sender_id === currentUserId && m.id !== -1)
-          .map((m) => String(m.id))
-          .filter((id) => id && id !== '-1');
+          .map((m) => m.id);
         
-        if (myMessageIds.length === 0) return;
+        const queryMessageIds = sanitizeMessageIdsForQuery(myMessageIds);
+        if (queryMessageIds.length === 0) return;
         
         // Load receipts where partner is the recipient
         const { data: receipts } = await supabase
           .from('dms_message_receipts')
           .select('message_id, status')
-          .in('message_id', myMessageIds)
+          .in('message_id', queryMessageIds)
           .eq('user_id', partnerId);
         
-          if (receipts) {
-            for (const receipt of receipts) {
-              const messageId = String(receipt.message_id);
-              if (!messageId || messageId === '-1') {
-                continue;
-              }
-
-              const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
-              updateMessageReceiptStatus(messageId, status, 'refresh');
+        if (receipts) {
+          for (const receipt of receipts) {
+            const messageId = String(receipt.message_id);
+            if (!messageId || messageId === '-1') {
+              continue;
             }
+
+            const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
+            updateMessageReceiptStatus(messageId, status, 'refresh');
           }
+        }
       } catch (err) {
         console.error('Error refreshing receipts:', err);
       }
@@ -1056,27 +1086,23 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         });
         
         // Load message receipts for messages sent by current user (to show partner's read status)
-        if (sorted.length > 0 && currentUserId && partnerId) {
-          try {
-            // Get message IDs of messages sent by current user
-            const myMessageIds = sorted
-              .filter((m) => m.sender_id === currentUserId)
-              .map((m) => String(m.id));
-            const numericMessageIds = myMessageIds.filter((id) => /^\d+$/.test(id));
-            
-            if (numericMessageIds.length > 0) {
-              const supabaseMessageIds = numericMessageIds.map((id) => {
-                const numeric = Number(id);
-                return Number.isSafeInteger(numeric) ? numeric : id;
-              });
-            
-              // Load receipts where partner is the recipient (user_id = partnerId)
-              const { data: receipts } = await supabase
-                .from('dms_message_receipts')
-                .select('message_id, status')
-                .in('message_id', supabaseMessageIds)
-                .eq('user_id', partnerId);
-              
+          if (sorted.length > 0 && currentUserId && partnerId) {
+            try {
+              // Get message IDs of messages sent by current user
+              const myMessageIds = sorted
+                .filter((m) => m.sender_id === currentUserId)
+                .map((m) => m.id);
+
+              const queryMessageIds = sanitizeMessageIdsForQuery(myMessageIds);
+
+              if (queryMessageIds.length > 0) {
+                // Load receipts where partner is the recipient (user_id = partnerId)
+                const { data: receipts } = await supabase
+                  .from('dms_message_receipts')
+                  .select('message_id, status')
+                  .in('message_id', queryMessageIds)
+                  .eq('user_id', partnerId);
+                
                 if (receipts) {
                   const applied: Array<{ messageId: string; status: 'sent' | 'delivered' | 'read' }> = [];
                   for (const receipt of receipts) {
@@ -1092,11 +1118,11 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                     console.log('[DM] Loaded receipts via bootstrap', applied);
                   }
                 }
+              }
+            } catch (err) {
+              console.error('Error loading message receipts:', err);
             }
-          } catch (err) {
-            console.error('Error loading message receipts:', err);
           }
-        }
         
         // Scroll to bottom after messages are loaded (always scroll to newest messages)
         setTimeout(() => {
