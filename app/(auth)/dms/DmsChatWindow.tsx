@@ -1224,29 +1224,10 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             }
           }
         
-        // Scroll to bottom after messages are loaded (always scroll to newest messages)
-        // Use multiple attempts to ensure scroll happens after DOM is fully rendered
-        const scrollToBottom = () => {
-          if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }
-        };
-        
-        // Immediate scroll
-        scrollToBottom();
-        
-        // Scroll after a short delay to ensure DOM is rendered
-        setTimeout(() => {
-          scrollToBottom();
-          initialScrollDoneRef.current = true;
-        }, 100);
-        
-        // Additional scroll after longer delay to catch any late renders
-        setTimeout(() => {
-          if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }
-        }, 300);
+        // Scroll to bottom immediately after messages are loaded
+        // This happens synchronously to avoid visible scrolling
+        // Use useLayoutEffect will handle the scroll synchronously before paint
+        initialScrollDoneRef.current = false;
           
           // Mark all messages as read when thread is opened and messages are loaded
           // This ensures that when user opens a chat, all visible messages are marked as read
@@ -1586,35 +1567,20 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   }, [hasMoreHistory, loadingOlderMessages, loadOlderMessages, thread?.id]);
 
   // Always scroll to bottom when thread changes (when opening a dialog)
-  useEffect(() => {
+  // Use useLayoutEffect for synchronous scroll before paint to avoid visible scrolling
+  useLayoutEffect(() => {
     if (!thread?.id || !messages.length || loading) {
       return;
     }
 
-    // Reset scroll state when thread changes
-    initialScrollDoneRef.current = false;
-    
-    // Scroll to bottom after a short delay to ensure DOM is rendered
-    // Use requestAnimationFrame to ensure DOM is fully rendered
-    requestAnimationFrame(() => {
-      const container = scrollRef.current;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-        // Double-check after another short delay
-        setTimeout(() => {
-          if (container) {
-            container.scrollTop = container.scrollHeight;
-          }
-          // Final check after longer delay to catch any late renders
-          setTimeout(() => {
-            if (container) {
-              container.scrollTop = container.scrollHeight;
-            }
-            initialScrollDoneRef.current = true;
-          }, 100);
-        }, 50);
-      }
-    });
+    // Scroll to bottom synchronously before paint to avoid visible scrolling
+    const container = scrollRef.current;
+    if (container) {
+      // Set scroll position immediately, before browser paints
+      // This happens synchronously in useLayoutEffect, so user won't see scrolling
+      container.scrollTop = container.scrollHeight;
+      initialScrollDoneRef.current = true;
+    }
   }, [thread?.id, loading, messages.length]);
 
   // Scroll to bottom on new messages and when messages are initially loaded
@@ -1630,18 +1596,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     }
 
     if (!initialScrollDoneRef.current) {
-      // Use requestAnimationFrame to ensure DOM is fully rendered before scrolling
-      requestAnimationFrame(() => {
-        if (container) {
-          container.scrollTop = container.scrollHeight;
-          // Double-check after a short delay to ensure scroll happened
-          setTimeout(() => {
-            if (container) {
-              container.scrollTop = container.scrollHeight;
-            }
-          }, 50);
-        }
-      });
+      // Set scroll position synchronously before paint to avoid visible scrolling
+      container.scrollTop = container.scrollHeight;
       historyAutoLoadReadyRef.current = true;
       initialScrollDoneRef.current = true;
       
