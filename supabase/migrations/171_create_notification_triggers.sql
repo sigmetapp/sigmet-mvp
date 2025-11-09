@@ -149,7 +149,28 @@ create trigger notify_reaction_on_post_trigger
   execute function public.notify_reaction_on_post();
 
 -- Trigger for follows/subscriptions
--- First check if follows table exists
+-- Create trigger function for follows (will only be used if follows table exists)
+create or replace function public.notify_subscription()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- Don't notify if following yourself
+  if new.follower_id != new.followee_id then
+    perform public.create_notification(
+      p_user_id := new.followee_id,
+      p_type := 'subscription',
+      p_actor_id := new.follower_id
+    );
+  end if;
+
+  return new;
+end;
+$$;
+
+-- Create trigger only if follows table exists
 do $$
 begin
   if exists (
@@ -157,32 +178,11 @@ begin
     where table_schema = 'public' 
     and table_name = 'follows'
   ) then
-    -- Create trigger function for follows
-    create or replace function public.notify_subscription()
-    returns trigger
-    language plpgsql
-    security definer
-    set search_path = public
-    as $$
-    begin
-      -- Don't notify if following yourself
-      if new.follower_id != new.followee_id then
-        perform public.create_notification(
-          p_user_id := new.followee_id,
-          p_type := 'subscription',
-          p_actor_id := new.follower_id
-        );
-      end if;
-
-      return new;
-    end;
-    $$;
-
     drop trigger if exists notify_subscription_trigger on public.follows;
-    create trigger notify_subscription_trigger
+    execute 'create trigger notify_subscription_trigger
       after insert on public.follows
       for each row
-      execute function public.notify_subscription();
+      execute function public.notify_subscription()';
   end if;
 end $$;
 
