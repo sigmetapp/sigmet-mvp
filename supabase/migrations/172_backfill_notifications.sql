@@ -4,109 +4,151 @@ begin;
 
 -- Backfill notifications for existing comments on posts
 -- Note: comment_id type depends on actual comments.id type in database
+-- Also need to check if comments table uses author_id or user_id
 do $$
+declare
+  comments_author_col text;
+  comments_id_type text;
 begin
-  -- Check if comments.id is uuid or bigint
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'comments'
-      and column_name = 'id'
-      and data_type = 'uuid'
-  ) then
+  -- Determine which column is used for comment author
+  select column_name into comments_author_col
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'comments'
+    and column_name in ('author_id', 'user_id')
+  limit 1;
+
+  -- Determine comments.id type
+  select data_type into comments_id_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'comments'
+    and column_name = 'id';
+
+  if comments_author_col is null then
+    raise notice 'Could not find author column in comments table';
+    return;
+  end if;
+
+  if comments_id_type = 'uuid' then
     -- comments.id is uuid
-    insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
-    select distinct
-      p.author_id as user_id,
-      'comment_on_post'::text as type,
-      c.author_id as actor_id,
-      c.post_id,
-      c.id as comment_id,
-      c.created_at
-    from public.comments c
-    inner join public.posts p on p.id = c.post_id
-    where c.parent_id is null
-      and c.author_id != p.author_id
-      and not exists (
-        select 1 from public.notifications n
-        where n.user_id = p.author_id
-          and n.type = 'comment_on_post'
-          and n.comment_id = c.id
-      )
-    on conflict do nothing;
+    execute format('
+      insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
+      select distinct
+        p.author_id as user_id,
+        ''comment_on_post''::text as type,
+        c.%I as actor_id,
+        c.post_id,
+        c.id as comment_id,
+        c.created_at
+      from public.comments c
+      inner join public.posts p on p.id = c.post_id
+      where c.parent_id is null
+        and c.%I != p.author_id
+        and not exists (
+          select 1 from public.notifications n
+          where n.user_id = p.author_id
+            and n.type = ''comment_on_post''
+            and n.comment_id = c.id
+        )
+      on conflict do nothing
+    ', comments_author_col, comments_author_col);
   else
-    -- comments.id is bigint, need to cast
-    insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
-    select distinct
-      p.author_id as user_id,
-      'comment_on_post'::text as type,
-      c.author_id as actor_id,
-      c.post_id,
-      c.id::text as comment_id,
-      c.created_at
-    from public.comments c
-    inner join public.posts p on p.id = c.post_id
-    where c.parent_id is null
-      and c.author_id != p.author_id
-      and not exists (
-        select 1 from public.notifications n
-        where n.user_id = p.author_id
-          and n.type = 'comment_on_post'
-          and n.comment_id = c.id::text
-      )
-    on conflict do nothing;
+    -- comments.id is bigint, need to cast to text
+    execute format('
+      insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
+      select distinct
+        p.author_id as user_id,
+        ''comment_on_post''::text as type,
+        c.%I as actor_id,
+        c.post_id,
+        c.id::text as comment_id,
+        c.created_at
+      from public.comments c
+      inner join public.posts p on p.id = c.post_id
+      where c.parent_id is null
+        and c.%I != p.author_id
+        and not exists (
+          select 1 from public.notifications n
+          where n.user_id = p.author_id
+            and n.type = ''comment_on_post''
+            and n.comment_id = c.id::text
+        )
+      on conflict do nothing
+    ', comments_author_col, comments_author_col);
   end if;
 end $$;
 
 -- Backfill notifications for existing replies to comments
 do $$
+declare
+  comments_author_col text;
+  comments_id_type text;
 begin
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'comments'
-      and column_name = 'id'
-      and data_type = 'uuid'
-  ) then
-    insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
-    select distinct
-      pc.author_id as user_id,
-      'comment_on_comment'::text as type,
-      c.author_id as actor_id,
-      c.post_id,
-      c.id as comment_id,
-      c.created_at
-    from public.comments c
-    inner join public.comments pc on pc.id = c.parent_id
-    where c.parent_id is not null
-      and c.author_id != pc.author_id
-      and not exists (
-        select 1 from public.notifications n
-        where n.user_id = pc.author_id
-          and n.type = 'comment_on_comment'
-          and n.comment_id = c.id
-      )
-    on conflict do nothing;
+  -- Determine which column is used for comment author
+  select column_name into comments_author_col
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'comments'
+    and column_name in ('author_id', 'user_id')
+  limit 1;
+
+  -- Determine comments.id type
+  select data_type into comments_id_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'comments'
+    and column_name = 'id';
+
+  if comments_author_col is null then
+    raise notice 'Could not find author column in comments table';
+    return;
+  end if;
+
+  if comments_id_type = 'uuid' then
+    execute format('
+      insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
+      select distinct
+        pc.%I as user_id,
+        ''comment_on_comment''::text as type,
+        c.%I as actor_id,
+        c.post_id,
+        c.id as comment_id,
+        c.created_at
+      from public.comments c
+      inner join public.comments pc on pc.id = c.parent_id
+      where c.parent_id is not null
+        and c.%I != pc.%I
+        and not exists (
+          select 1 from public.notifications n
+          where n.user_id = pc.%I
+            and n.type = ''comment_on_comment''
+            and n.comment_id = c.id
+        )
+      on conflict do nothing
+    ', comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col);
   else
-    insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
-    select distinct
-      pc.author_id as user_id,
-      'comment_on_comment'::text as type,
-      c.author_id as actor_id,
-      c.post_id,
-      c.id::text as comment_id,
-      c.created_at
-    from public.comments c
-    inner join public.comments pc on pc.id = c.parent_id
-    where c.parent_id is not null
-      and c.author_id != pc.author_id
-      and not exists (
-        select 1 from public.notifications n
-        where n.user_id = pc.author_id
-          and n.type = 'comment_on_comment'
-          and n.comment_id = c.id::text
-      )
-    on conflict do nothing;
+    execute format('
+      insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
+      select distinct
+        pc.%I as user_id,
+        ''comment_on_comment''::text as type,
+        c.%I as actor_id,
+        c.post_id,
+        c.id::text as comment_id,
+        c.created_at
+      from public.comments c
+      inner join public.comments pc on pc.id = c.parent_id
+      where c.parent_id is not null
+        and c.%I != pc.%I
+        and not exists (
+          select 1 from public.notifications n
+          where n.user_id = pc.%I
+            and n.type = ''comment_on_comment''
+            and n.comment_id = c.id::text
+        )
+      on conflict do nothing
+    ', comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col);
   end if;
 end $$;
 
