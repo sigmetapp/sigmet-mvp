@@ -253,16 +253,23 @@ export function useSendMessage({
           originalReplyToMessageId: replyToMessageId,
           replyToId,
           finalReplyToMessage,
+          replyToMessage,
         });
         
-        // Preserve reply information even if replyToId was null (due to temporary ID)
-        // Use the replyToMessage that was passed in the optimistic update
+        // Preserve reply information - always use the fetched reply message if available
+        // Otherwise use the passed replyToMessage from optimistic update
         const preservedReplyToMessage = finalReplyToMessage || replyToMessage;
         const preservedReplyToMessageId = data.reply_to_message_id 
           ? String(data.reply_to_message_id) 
           : (replyToMessageId && !replyToMessageId.toString().startsWith('temp-') 
               ? String(replyToMessageId) 
               : undefined);
+        
+        console.log('[useSendMessage] Final update data:', {
+          preservedReplyToMessageId,
+          preservedReplyToMessage,
+          hasReplyToMessage: !!preservedReplyToMessage,
+        });
         
         updateMessage(dialogId, tempId, {
           id: serverId,

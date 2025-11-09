@@ -78,6 +78,15 @@ export function MessageItem({ message, isOwn, onRetry, onReply }: Props) {
       : 'bg-white/10 text-white rounded-bl-sm border border-white/20',
   ].join(' ');
 
+  // Debug logging
+  if (message.replyToMessageId && !message.replyToMessage) {
+    console.warn('[MessageItem] Message has replyToMessageId but no replyToMessage:', {
+      messageId: message.id,
+      replyToMessageId: message.replyToMessageId,
+      message,
+    });
+  }
+
   return (
     <div className={containerClass}>
       <div className={bubbleClass}>

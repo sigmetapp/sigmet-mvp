@@ -102,6 +102,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       const normalizedPatch: Partial<Message> = { ...patch };
+      
+      // Remove undefined values to avoid overwriting existing data
+      if (normalizedPatch.replyToMessage === undefined) {
+        delete normalizedPatch.replyToMessage;
+      }
+      if (normalizedPatch.replyToMessageId === undefined) {
+        delete normalizedPatch.replyToMessageId;
+      }
+      
       if (normalizedPatch.status) {
         const desiredPriority = STATUS_PRIORITY[normalizedPatch.status];
         if (desiredPriority === undefined) {
@@ -129,14 +138,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
         delete normalizedPatch.status;
       }
 
+      // Preserve reply information - prefer patch if provided, otherwise keep existing
+      const finalReplyToMessage = normalizedPatch.replyToMessage !== undefined
+        ? normalizedPatch.replyToMessage
+        : target.replyToMessage;
+      const finalReplyToMessageId = normalizedPatch.replyToMessageId !== undefined
+        ? normalizedPatch.replyToMessageId
+        : target.replyToMessageId;
+
+      // Debug logging
+      if (finalReplyToMessageId && !finalReplyToMessage) {
+        console.warn('[chatStore] updateMessage: replyToMessageId exists but no replyToMessage', {
+          messageId: target.id,
+          replyToMessageId: finalReplyToMessageId,
+          patch: normalizedPatch,
+          target: target,
+        });
+      }
+
       const updatedMessage: Message = {
         ...target,
         ...normalizedPatch,
         id: normalizedPatch.id ?? target.id,
         status: nextStatus,
-        // Preserve reply information if not explicitly updated
-        replyToMessage: normalizedPatch.replyToMessage ?? target.replyToMessage,
-        replyToMessageId: normalizedPatch.replyToMessageId ?? target.replyToMessageId,
+        // Explicitly set reply information
+        replyToMessage: finalReplyToMessage,
+        replyToMessageId: finalReplyToMessageId,
       };
 
       const nextMessages = messages.filter((_, idx) => idx !== index);
