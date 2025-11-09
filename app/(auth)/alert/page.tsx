@@ -55,8 +55,30 @@ export default function AlertPage() {
   const loadNotifications = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log('No user found');
+        setLoading(false);
+        return;
+      }
 
+      console.log('Loading notifications for user:', user.id);
+
+      // First, try to get notifications without joins to see if they exist
+      const { data: simpleData, error: simpleError } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (simpleError) {
+        console.error('Error loading simple notifications:', simpleError);
+        throw simpleError;
+      }
+
+      console.log('Found notifications (simple):', simpleData?.length || 0);
+
+      // Now try with joins
       const { data, error } = await supabase
         .from('notifications')
         .select(`
@@ -70,8 +92,16 @@ export default function AlertPage() {
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading notifications with joins:', error);
+        // If joins fail, use simple data
+        setNotifications(simpleData || []);
+        const unread = (simpleData || []).filter(n => !n.read_at).length;
+        setUnreadCount(unread);
+        return;
+      }
 
+      console.log('Found notifications (with joins):', data?.length || 0);
       setNotifications(data || []);
 
       // Count unread

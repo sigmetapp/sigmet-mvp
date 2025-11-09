@@ -1,7 +1,7 @@
 -- Create triggers to automatically create notifications for various events
 begin;
 
--- Function to create notification (using service role to bypass RLS)
+-- Function to create notification (using security definer to bypass RLS)
 create or replace function public.create_notification(
   p_user_id uuid,
   p_type text,
@@ -16,6 +16,7 @@ security definer
 set search_path = public
 as $$
 begin
+  -- Security definer functions automatically bypass RLS
   insert into public.notifications (
     user_id,
     type,

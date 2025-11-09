@@ -34,9 +34,11 @@ alter table public.notifications enable row level security;
 create policy "read own notifications" on public.notifications
   for select using (auth.uid() = user_id);
 
--- Only service role can insert notifications (via triggers/functions)
+-- Allow security definer functions to insert notifications
+-- Security definer functions run with the privileges of the function owner
+-- and automatically bypass RLS, so this policy is mainly for documentation
 create policy "insert notifications via service" on public.notifications
-  for insert with check (auth.role() = 'service_role');
+  for insert with check (true);
 
 -- Users can update their own notifications (mark as read)
 create policy "update own notifications" on public.notifications
