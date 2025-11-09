@@ -896,6 +896,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
 
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
         const sorted = sortMessagesChronologically(messagesData);
+        setMessagesFromHook(sorted);
         oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
         
         // Load message receipts for messages sent by current user (to show partner's read status)
