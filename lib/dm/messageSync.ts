@@ -266,17 +266,23 @@ export async function fillGaps(
 
 /**
  * Start periodic sync for a thread
+ * Optionally accepts a function to get the latest message ID dynamically
  */
 export function startPeriodicSync(
   threadId: ThreadId,
-  onMessages: (messages: Message[]) => void
+  onMessages: (messages: Message[]) => void,
+  getLastMessageId?: () => number | null
 ): () => void {
   const normalizedThreadId = assertThreadId(threadId, 'Invalid thread ID');
 
   const sync = async () => {
     try {
-      const state = getSyncState(normalizedThreadId);
-      const messages = await syncThreadMessages(normalizedThreadId, state?.last_message_id ?? null);
+      // Use dynamic getter if provided, otherwise fall back to sync state
+      const lastMessageId = getLastMessageId 
+        ? getLastMessageId() 
+        : (getSyncState(normalizedThreadId)?.last_message_id ?? null);
+      
+      const messages = await syncThreadMessages(normalizedThreadId, lastMessageId);
 
       if (messages.length > 0) {
         onMessages(messages);

@@ -327,119 +327,89 @@ export function useWebSocketDm(
 
     const loadInitialState = async () => {
       try {
-        const { listMessages } = await import("@/lib/dms");
-
-        // First, get the newest message ID to check if there are any messages
-        // that were sent while the dialog was closed
-        let newestMessageId: number | null = null;
-        try {
-          const { data: newestMsg, error: newestError } = await supabase
-            .from("dms_messages")
-            .select("id")
-            .eq("thread_id", normalizedThreadId)
-            .order("id", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (!newestError && newestMsg) {
-            newestMessageId =
-              typeof newestMsg.id === "string"
-                ? parseInt(newestMsg.id, 10)
-                : Number(newestMsg.id);
-          }
-        } catch (err) {
-          console.warn("Error getting newest message ID:", err);
-        }
-
-        // Always load fresh messages from server when dialog opens
-        // This ensures we get all messages even if dialog was closed
-        const initialMessages = await listMessages(normalizedThreadId, {
-          limit: initialLimitRef.current,
-        });
-
+        // Always load the LATEST messages first when dialog opens
+        // Load only the most recent N messages (e.g., 50)
+        // Older messages will be loaded lazily when scrolling up
+        
         if (!cancelled) {
-          if (initialMessages && initialMessages.length > 0) {
-            // Sort messages chronologically (oldest first)
-            const sorted = initialMessages.slice().sort((a, b) => {
-              const timeA = new Date(a.created_at).getTime();
-              const timeB = new Date(b.created_at).getTime();
-              if (timeA !== timeB) return timeA - timeB;
-              return a.id - b.id;
-            });
+          let allMessages: Message[] = [];
+          
+          try {
+            // Load the most recent messages (newest first, then reverse for chronological order)
+            const INITIAL_LIMIT = initialLimitRef.current; // Usually 50
+            
+            const { data: recentData, error: recentError } = await supabase
+              .from("dms_messages")
+              .select("*")
+              .eq("thread_id", normalizedThreadId)
+              .order("id", { ascending: false }) // Load newest first
+              .limit(INITIAL_LIMIT);
 
-            const lastMsg = sorted[sorted.length - 1];
-            const lastMsgId = lastMsg ? lastMsg.id : null;
+            if (!recentError && recentData && recentData.length > 0) {
+              // Convert to Message format and reverse to chronological order (oldest first)
+              const messages = recentData.map((msg: any) => ({
+                id: typeof msg.id === "string" ? parseInt(msg.id, 10) : Number(msg.id),
+                thread_id: normalizedThreadId,
+                sender_id: msg.sender_id,
+                kind: msg.kind || "text",
+                body: msg.body,
+                attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
+                created_at: msg.created_at,
+                edited_at: msg.edited_at || null,
+                deleted_at: msg.deleted_at || null,
+                sequence_number:
+                  msg.sequence_number === null || msg.sequence_number === undefined
+                    ? null
+                    : typeof msg.sequence_number === "string"
+                      ? parseInt(msg.sequence_number, 10)
+                      : Number(msg.sequence_number),
+                client_msg_id: msg.client_msg_id ?? null,
+                reply_to_message_id: msg.reply_to_message_id
+                  ? typeof msg.reply_to_message_id === "string"
+                    ? parseInt(msg.reply_to_message_id, 10)
+                    : Number(msg.reply_to_message_id)
+                  : null,
+              }));
 
-            // Check if there are messages after the last loaded message
-            // This handles the case when messages were sent while dialog was closed
-            let allMessages = sorted;
-
-            if (lastMsgId && newestMessageId && newestMessageId > lastMsgId) {
-              try {
-                // Load ALL messages after the last loaded message
-                // This ensures we get all messages that were sent while dialog was closed
-                const { data: missedData, error: missedError } = await supabase
-                  .from("dms_messages")
-                  .select("*")
-                  .eq("thread_id", normalizedThreadId)
-                  .gt("id", lastMsgId)
-                  .order("id", { ascending: true });
-
-                if (!missedError && missedData && missedData.length > 0) {
-                  // Convert to Message format
-                  const missedMessages: Message[] = missedData.map(
-                    (msg: any) => ({
-                      id:
-                        typeof msg.id === "string"
-                          ? parseInt(msg.id, 10)
-                          : Number(msg.id),
-                      thread_id: normalizedThreadId,
-                      sender_id: msg.sender_id,
-                      kind: msg.kind || "text",
-                      body: msg.body,
-                      attachments: Array.isArray(msg.attachments)
-                        ? msg.attachments
-                        : [],
-                      created_at: msg.created_at,
-                      edited_at: msg.edited_at || null,
-                      deleted_at: msg.deleted_at || null,
-                      sequence_number:
-                        msg.sequence_number === null ||
-                        msg.sequence_number === undefined
-                          ? null
-                          : typeof msg.sequence_number === "string"
-                            ? parseInt(msg.sequence_number, 10)
-                            : Number(msg.sequence_number),
-                      client_msg_id: msg.client_msg_id ?? null,
-                      reply_to_message_id: msg.reply_to_message_id
-                        ? typeof msg.reply_to_message_id === "string"
-                          ? parseInt(msg.reply_to_message_id, 10)
-                          : Number(msg.reply_to_message_id)
-                        : null,
-                    }),
-                  );
-
-                  // Merge with existing messages
-                  allMessages = [...sorted, ...missedMessages];
-                }
-              } catch (missedErr) {
-                console.error("Error loading missed messages:", missedErr);
-                // Continue with initial messages if missed messages load fails
-              }
+              // Reverse to get chronological order (oldest first, newest last)
+              // This way newest messages are at the bottom and we scroll to them
+              allMessages = messages.reverse();
+            } else if (recentError) {
+              console.error("Error loading recent messages:", recentError);
             }
+          } catch (loadErr) {
+            console.error("Error loading initial messages:", loadErr);
+            
+            // Fallback: try using listMessages API
+            try {
+              const { listMessages } = await import("@/lib/dms");
+              const initialMessages = await listMessages(normalizedThreadId, {
+                limit: initialLimitRef.current,
+              });
 
+              if (initialMessages && initialMessages.length > 0) {
+                // Sort messages chronologically (oldest first)
+                allMessages = initialMessages.slice().sort((a, b) => {
+                  const timeA = new Date(a.created_at).getTime();
+                  const timeB = new Date(b.created_at).getTime();
+                  if (timeA !== timeB) return timeA - timeB;
+                  return a.id - b.id;
+                });
+              }
+            } catch (apiErr) {
+              console.error("Error loading messages via API:", apiErr);
+            }
+          }
 
-            // Always set messages from server, even if cache exists
-            // This ensures we have the latest messages when dialog opens
-            setMessagesState(allMessages);
+          // Set messages from server
+          setMessagesState(allMessages);
 
-            // Update lastServerMsgId to the newest message
-            const finalLastMsg = allMessages[allMessages.length - 1];
-            const finalLastMsgId = finalLastMsg ? finalLastMsg.id : lastMsgId;
-            setLastServerMsgId(finalLastMsgId);
-            lastServerMsgIdRef.current = finalLastMsgId;
+          // Update lastServerMsgId to the newest message (last in array)
+          if (allMessages.length > 0) {
+            const newestMsg = allMessages[allMessages.length - 1];
+            setLastServerMsgId(newestMsg.id);
+            lastServerMsgIdRef.current = newestMsg.id;
           } else {
-            setMessagesState([]);
             setLastServerMsgId(null);
             lastServerMsgIdRef.current = null;
           }
@@ -477,51 +447,19 @@ export function useWebSocketDm(
     };
 
     void loadInitialState().then(() => {
-      // After initial state is loaded, request sync to catch any missed messages
+      // After initial state is loaded, immediately sync to catch any missed messages
       // This ensures that if the chat window was closed and new messages arrived,
       // they will be loaded when the dialog is reopened
-      if (
-        transport === "websocket" &&
-        wsClient.getState() === "authenticated"
-      ) {
-        // Request sync with the last loaded message ID from ref
-        // The sync will return any messages after lastServerMsgId
-        const currentLastId = lastServerMsgIdRef.current;
-        wsClient.syncThread(normalizedThreadId, currentLastId);
-      }
-
-      // Update sync state
+      
+      // Update sync state with the latest message ID
       if (lastServerMsgIdRef.current) {
         updateSyncState(normalizedThreadId, {
           last_message_id: lastServerMsgIdRef.current,
         });
       }
 
-      // Start periodic sync for missed messages
-      if (syncCleanupRef.current) {
-        syncCleanupRef.current();
-      }
-      syncCleanupRef.current = startPeriodicSync(
-        normalizedThreadId,
-        (missedMessages) => {
-          if (missedMessages.length > 0) {
-            setMessagesState((prev) => {
-              let result = prev;
-              for (const msg of missedMessages) {
-                result = addOrUpdateMessage(result, msg);
-              }
-              return result;
-            });
-
-            // Update last server message ID
-            const lastMsg = missedMessages[missedMessages.length - 1];
-            if (lastMsg) {
-              setLastServerMsgId(lastMsg.id);
-              lastServerMsgIdRef.current = lastMsg.id;
-            }
-          }
-        }
-      );
+      // No automatic sync - only sync via realtime events
+      // This ensures we only load messages on demand (lazy loading)
     });
 
     if (transport === "websocket") {
@@ -915,31 +853,8 @@ export function useWebSocketDm(
 
       void setupFallback();
 
-      // Start periodic sync for missed messages (Supabase fallback)
-      if (syncCleanupRef.current) {
-        syncCleanupRef.current();
-      }
-      syncCleanupRef.current = startPeriodicSync(
-        normalizedThreadId,
-        (missedMessages) => {
-          if (missedMessages.length > 0) {
-            setMessagesState((prev) => {
-              let result = prev;
-              for (const msg of missedMessages) {
-                result = addOrUpdateMessage(result, msg);
-              }
-              return result;
-            });
-
-            // Update last server message ID
-            const lastMsg = missedMessages[missedMessages.length - 1];
-            if (lastMsg) {
-              setLastServerMsgId(lastMsg.id);
-              lastServerMsgIdRef.current = lastMsg.id;
-            }
-          }
-        }
-      );
+      // No automatic sync - only sync via realtime events
+      // This ensures we only load messages on demand (lazy loading)
 
       return () => {
         cancelled = true;
@@ -1493,6 +1408,85 @@ export function useWebSocketDm(
     }
   }, [threadId, messages, acknowledgeMessage]);
 
+  // Load older messages (for lazy loading when scrolling up)
+  const loadOlderMessages = useCallback(
+    async (beforeId: number | null = null): Promise<Message[]> => {
+      if (!threadId) return [];
+
+      const normalizedThreadId = assertThreadId(threadId, "Invalid thread ID");
+      const OLDER_MESSAGES_LIMIT = 20; // Load 20 older messages at a time
+
+      try {
+        // Get the oldest message ID if beforeId is not provided
+        const oldestId = beforeId || (messages.length > 0 ? messages[0].id : null);
+        
+        if (!oldestId) {
+          return []; // No messages to load older ones
+        }
+
+        // Load messages before the oldest one
+        const { data: olderData, error: olderError } = await supabase
+          .from("dms_messages")
+          .select("*")
+          .eq("thread_id", normalizedThreadId)
+          .lt("id", oldestId) // Load messages with ID less than oldest
+          .order("id", { ascending: false }) // Get newest of the older messages first
+          .limit(OLDER_MESSAGES_LIMIT);
+
+        if (olderError) {
+          console.error("Error loading older messages:", olderError);
+          return [];
+        }
+
+        if (!olderData || olderData.length === 0) {
+          return []; // No older messages
+        }
+
+        // Convert to Message format and reverse to chronological order (oldest first)
+        const olderMessages: Message[] = olderData.reverse().map((msg: any) => ({
+          id: typeof msg.id === "string" ? parseInt(msg.id, 10) : Number(msg.id),
+          thread_id: normalizedThreadId,
+          sender_id: msg.sender_id,
+          kind: msg.kind || "text",
+          body: msg.body,
+          attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
+          created_at: msg.created_at,
+          edited_at: msg.edited_at || null,
+          deleted_at: msg.deleted_at || null,
+          sequence_number:
+            msg.sequence_number === null || msg.sequence_number === undefined
+              ? null
+              : typeof msg.sequence_number === "string"
+                ? parseInt(msg.sequence_number, 10)
+                : Number(msg.sequence_number),
+          client_msg_id: msg.client_msg_id ?? null,
+          reply_to_message_id: msg.reply_to_message_id
+            ? typeof msg.reply_to_message_id === "string"
+              ? parseInt(msg.reply_to_message_id, 10)
+              : Number(msg.reply_to_message_id)
+            : null,
+        }));
+
+        // Prepend older messages to existing messages
+        setMessagesState((prev) => {
+          // Merge and sort to avoid duplicates
+          const merged = [...olderMessages, ...prev];
+          const byId = new Map<number, Message>();
+          for (const msg of merged) {
+            byId.set(msg.id, msg);
+          }
+          return sortMessagesChronologically(Array.from(byId.values()));
+        });
+
+        return olderMessages;
+      } catch (err) {
+        console.error("Error in loadOlderMessages:", err);
+        return [];
+      }
+    },
+    [threadId, messages]
+  );
+
   return {
     messages,
     isConnected,
@@ -1506,5 +1500,6 @@ export function useWebSocketDm(
     sendMessage,
     sendTyping,
     acknowledgeMessage,
+    loadOlderMessages,
   };
 }

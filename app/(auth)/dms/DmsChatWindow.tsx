@@ -118,6 +118,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     sendMessage: sendMessageHook,
     sendTyping: wsSendTyping,
     acknowledgeMessage,
+    loadOlderMessages: loadOlderMessagesFromHook,
   } = useWebSocketDm(thread?.id || null, { initialLimit: INITIAL_MESSAGE_LIMIT });
 
   // Backward-compatible alias to avoid ReferenceError in older chunks
@@ -940,10 +941,11 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           }
         }
         
-        // Scroll to bottom after messages are loaded
+        // Scroll to bottom after messages are loaded (always scroll to newest messages)
         setTimeout(() => {
           if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            initialScrollDoneRef.current = true;
           }
           
           // Mark all messages as read when thread is opened and messages are loaded
@@ -1186,7 +1188,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   }, [thread?.id]);
   
   const loadOlderMessages = useCallback(async () => {
-    if (!thread?.id || loadingOlderMessages || !hasMoreHistory) {
+    if (!thread?.id || loadingOlderMessages || !hasMoreHistory || !loadOlderMessagesFromHook) {
       return;
     }
 
@@ -1204,21 +1206,18 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     const prevScrollTop = scrollContainer?.scrollTop ?? 0;
 
     try {
-      const olderMessages = await listMessages(thread.id, {
-        limit: HISTORY_PAGE_LIMIT,
-        beforeId: currentOldest,
-      });
+      // Use loadOlderMessagesFromHook from the hook (loads 20 messages at a time)
+      const olderMessages = await loadOlderMessagesFromHook(currentOldest);
 
       if (!olderMessages || olderMessages.length === 0) {
         setHasMoreHistory(false);
         return;
       }
 
-      const orderedOlder = sortMessagesChronologically(olderMessages);
-      oldestMessageIdRef.current = orderedOlder[0]?.id ?? oldestMessageIdRef.current;
+      // Update oldest message ID
+      oldestMessageIdRef.current = olderMessages[0]?.id ?? oldestMessageIdRef.current;
 
-      mergeMessagesIntoState(orderedOlder);
-
+      // Restore scroll position after loading older messages
       requestAnimationFrame(() => {
         if (!scrollContainer) return;
         const newHeight = scrollContainer.scrollHeight;
@@ -1226,7 +1225,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         scrollContainer.scrollTop = prevScrollTop + diff;
       });
 
-      if (orderedOlder.length < HISTORY_PAGE_LIMIT) {
+      // If we got less than 20 messages, there are no more older messages
+      if (olderMessages.length < 20) {
         setHasMoreHistory(false);
       }
     } catch (err) {
@@ -1235,7 +1235,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     } finally {
       setLoadingOlderMessages(false);
     }
-  }, [thread?.id, loadingOlderMessages, hasMoreHistory, mergeMessages, messages]);
+  }, [thread?.id, loadingOlderMessages, hasMoreHistory, loadOlderMessagesFromHook, messages]);
 
   useEffect(() => {
     const sentinel = historySentinelRef.current;
