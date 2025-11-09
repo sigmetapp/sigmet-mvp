@@ -218,8 +218,13 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
   const handleSend = useCallback(async () => {
     if (!draft.trim()) return;
     const text = draft.trim();
-    const replyToMessageId = replyingTo?.id;
-    const replyToMessage = replyingTo
+    
+    // Only use reply if message ID is not temporary
+    const replyToMessageId = replyingTo?.id && !replyingTo.id.startsWith('temp-')
+      ? replyingTo.id
+      : undefined;
+    
+    const replyToMessage = replyingTo && replyToMessageId
       ? {
           id: replyingTo.id,
           senderId: replyingTo.senderId,
@@ -227,6 +232,7 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
           createdAt: replyingTo.createdAt,
         }
       : undefined;
+    
     try {
       setDraft('');
       setReplyingTo(null);
@@ -234,6 +240,10 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
     } catch (err) {
       console.error('[ChatView] Failed to send message', err);
       setDraft(text); // restore draft on failure
+      // Restore reply state if error occurred
+      if (replyingTo && replyToMessageId) {
+        setReplyingTo(replyingTo);
+      }
     }
   }, [draft, sendMessage, replyingTo]);
 

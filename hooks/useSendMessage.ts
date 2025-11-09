@@ -81,9 +81,27 @@ export function useSendMessage({
           throw new Error('Invalid thread_id');
         }
 
-        const replyToId = replyToMessageId 
-          ? (typeof replyToMessageId === 'string' ? Number(replyToMessageId) : replyToMessageId)
-          : null;
+        // Convert replyToMessageId to number, but skip if it's a temporary ID
+        let replyToId: number | null = null;
+        if (replyToMessageId) {
+          if (typeof replyToMessageId === 'string') {
+            // Skip temporary IDs (they start with 'temp-')
+            if (replyToMessageId.startsWith('temp-')) {
+              console.warn('[useSendMessage] Cannot reply to temporary message, skipping reply');
+              replyToId = null;
+            } else {
+              const parsed = Number(replyToMessageId);
+              if (!isNaN(parsed) && parsed > 0) {
+                replyToId = parsed;
+              } else {
+                console.warn('[useSendMessage] Invalid replyToMessageId:', replyToMessageId);
+                replyToId = null;
+              }
+            }
+          } else if (typeof replyToMessageId === 'number' && replyToMessageId > 0) {
+            replyToId = replyToMessageId;
+          }
+        }
 
         // Try RPC function first
         let data: any = null;
@@ -186,16 +204,27 @@ export function useSendMessage({
           tempId,
           serverId,
           replyToMessageId: data.reply_to_message_id,
+          originalReplyToMessageId: replyToMessageId,
+          replyToId,
           finalReplyToMessage,
         });
+        
+        // Preserve reply information even if replyToId was null (due to temporary ID)
+        // Use the replyToMessage that was passed in the optimistic update
+        const preservedReplyToMessage = finalReplyToMessage || replyToMessage;
+        const preservedReplyToMessageId = data.reply_to_message_id 
+          ? String(data.reply_to_message_id) 
+          : (replyToMessageId && !replyToMessageId.toString().startsWith('temp-') 
+              ? String(replyToMessageId) 
+              : undefined);
         
         updateMessage(dialogId, tempId, {
           id: serverId,
           createdAt: data.created_at,
           text: data.body ?? text,
           status: 'sent',
-          replyToMessageId: data.reply_to_message_id ? String(data.reply_to_message_id) : undefined,
-          replyToMessage: finalReplyToMessage,
+          replyToMessageId: preservedReplyToMessageId,
+          replyToMessage: preservedReplyToMessage,
         });
       } catch (error) {
         console.error('[useSendMessage] Failed to send message', error);
