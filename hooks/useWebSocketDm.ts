@@ -327,10 +327,9 @@ export function useWebSocketDm(
 
     const loadInitialState = async () => {
       try {
-        const { listMessages } = await import("@/lib/dms");
-
+        // Always load fresh messages from server when dialog opens
+        // This ensures we get all messages even if dialog was closed
         // First, get the newest message ID to check if there are any messages
-        // that were sent while the dialog was closed
         let newestMessageId: number | null = null;
         try {
           const { data: newestMsg, error: newestError } = await supabase
@@ -351,8 +350,8 @@ export function useWebSocketDm(
           console.warn("Error getting newest message ID:", err);
         }
 
-        // Always load fresh messages from server when dialog opens
-        // This ensures we get all messages even if dialog was closed
+        // Load initial batch of messages (newest first from API)
+        const { listMessages } = await import("@/lib/dms");
         const initialMessages = await listMessages(normalizedThreadId, {
           limit: initialLimitRef.current,
         });
@@ -370,11 +369,13 @@ export function useWebSocketDm(
             const lastMsg = sorted[sorted.length - 1];
             const lastMsgId = lastMsg ? lastMsg.id : null;
 
-            // Check if there are messages after the last loaded message
-            // This handles the case when messages were sent while dialog was closed
+            // Always check for messages after the last loaded message
+            // This ensures we get ALL messages that were sent while dialog was closed
             let allMessages = sorted;
 
-            if (lastMsgId && newestMessageId && newestMessageId > lastMsgId) {
+            // If we have a newest message ID and it's greater than the last loaded message,
+            // or if we don't have newestMessageId but want to be safe, load all messages after lastMsgId
+            if (lastMsgId) {
               try {
                 // Load ALL messages after the last loaded message
                 // This ensures we get all messages that were sent while dialog was closed
@@ -428,20 +429,80 @@ export function useWebSocketDm(
               }
             }
 
-
             // Always set messages from server, even if cache exists
             // This ensures we have the latest messages when dialog opens
             setMessagesState(allMessages);
 
             // Update lastServerMsgId to the newest message
             const finalLastMsg = allMessages[allMessages.length - 1];
-            const finalLastMsgId = finalLastMsg ? finalLastMsg.id : lastMsgId;
+            const finalLastMsgId = finalLastMsg ? finalLastMsg.id : (newestMessageId || lastMsgId);
             setLastServerMsgId(finalLastMsgId);
             lastServerMsgIdRef.current = finalLastMsgId;
           } else {
-            setMessagesState([]);
-            setLastServerMsgId(null);
-            lastServerMsgIdRef.current = null;
+            // No messages found, but still check if there are any messages
+            // This handles the case when listMessages returns empty but there are actually messages
+            if (newestMessageId !== null) {
+              try {
+                // Load all messages if we know there are messages but listMessages returned empty
+                const { data: allData, error: allError } = await supabase
+                  .from("dms_messages")
+                  .select("*")
+                  .eq("thread_id", normalizedThreadId)
+                  .order("id", { ascending: true })
+                  .limit(initialLimitRef.current * 2); // Load more to be safe
+
+                if (!allError && allData && allData.length > 0) {
+                  const allMessages: Message[] = allData.map((msg: any) => ({
+                    id:
+                      typeof msg.id === "string"
+                        ? parseInt(msg.id, 10)
+                        : Number(msg.id),
+                    thread_id: normalizedThreadId,
+                    sender_id: msg.sender_id,
+                    kind: msg.kind || "text",
+                    body: msg.body,
+                    attachments: Array.isArray(msg.attachments)
+                      ? msg.attachments
+                      : [],
+                    created_at: msg.created_at,
+                    edited_at: msg.edited_at || null,
+                    deleted_at: msg.deleted_at || null,
+                    sequence_number:
+                      msg.sequence_number === null ||
+                      msg.sequence_number === undefined
+                        ? null
+                        : typeof msg.sequence_number === "string"
+                          ? parseInt(msg.sequence_number, 10)
+                          : Number(msg.sequence_number),
+                    client_msg_id: msg.client_msg_id ?? null,
+                    reply_to_message_id: msg.reply_to_message_id
+                      ? typeof msg.reply_to_message_id === "string"
+                        ? parseInt(msg.reply_to_message_id, 10)
+                        : Number(msg.reply_to_message_id)
+                      : null,
+                  }));
+
+                  setMessagesState(allMessages);
+                  const finalLastMsg = allMessages[allMessages.length - 1];
+                  const finalLastMsgId = finalLastMsg ? finalLastMsg.id : newestMessageId;
+                  setLastServerMsgId(finalLastMsgId);
+                  lastServerMsgIdRef.current = finalLastMsgId;
+                } else {
+                  setMessagesState([]);
+                  setLastServerMsgId(newestMessageId);
+                  lastServerMsgIdRef.current = newestMessageId;
+                }
+              } catch (allErr) {
+                console.error("Error loading all messages:", allErr);
+                setMessagesState([]);
+                setLastServerMsgId(newestMessageId);
+                lastServerMsgIdRef.current = newestMessageId;
+              }
+            } else {
+              setMessagesState([]);
+              setLastServerMsgId(null);
+              lastServerMsgIdRef.current = null;
+            }
           }
         }
       } catch (err) {
@@ -477,34 +538,26 @@ export function useWebSocketDm(
     };
 
     void loadInitialState().then(() => {
-      // After initial state is loaded, request sync to catch any missed messages
+      // After initial state is loaded, immediately sync to catch any missed messages
       // This ensures that if the chat window was closed and new messages arrived,
       // they will be loaded when the dialog is reopened
-      if (
-        transport === "websocket" &&
-        wsClient.getState() === "authenticated"
-      ) {
-        // Request sync with the last loaded message ID from ref
-        // The sync will return any messages after lastServerMsgId
-        const currentLastId = lastServerMsgIdRef.current;
-        wsClient.syncThread(normalizedThreadId, currentLastId);
-      }
-
-      // Update sync state
+      
+      // Update sync state with the latest message ID
       if (lastServerMsgIdRef.current) {
         updateSyncState(normalizedThreadId, {
           last_message_id: lastServerMsgIdRef.current,
         });
       }
 
-      // Start periodic sync for missed messages
-      if (syncCleanupRef.current) {
-        syncCleanupRef.current();
-      }
-      syncCleanupRef.current = startPeriodicSync(
-        normalizedThreadId,
-        (missedMessages) => {
-          if (missedMessages.length > 0) {
+      // Immediately sync to get any messages that might have been missed
+      // Use the actual lastServerMsgId from the ref, not from sync state
+      const performImmediateSync = async () => {
+        try {
+          const { syncThreadMessages } = await import("@/lib/dm/messageSync");
+          const currentLastId = lastServerMsgIdRef.current;
+          const missedMessages = await syncThreadMessages(normalizedThreadId, currentLastId);
+          
+          if (missedMessages.length > 0 && !cancelled) {
             setMessagesState((prev) => {
               let result = prev;
               for (const msg of missedMessages) {
@@ -518,9 +571,60 @@ export function useWebSocketDm(
             if (lastMsg) {
               setLastServerMsgId(lastMsg.id);
               lastServerMsgIdRef.current = lastMsg.id;
+              updateSyncState(normalizedThreadId, {
+                last_message_id: lastMsg.id,
+              });
             }
           }
+        } catch (err) {
+          console.error("Error in immediate sync:", err);
         }
+      };
+
+      // Perform immediate sync
+      void performImmediateSync();
+
+      // Also request WebSocket sync if available
+      if (
+        transport === "websocket" &&
+        wsClient.getState() === "authenticated"
+      ) {
+        // Request sync with the last loaded message ID from ref
+        // The sync will return any messages after lastServerMsgId
+        const currentLastId = lastServerMsgIdRef.current;
+        wsClient.syncThread(normalizedThreadId, currentLastId);
+      }
+
+      // Start periodic sync for missed messages
+      // Use a custom sync function that always uses the latest lastServerMsgId from ref
+      if (syncCleanupRef.current) {
+        syncCleanupRef.current();
+      }
+      syncCleanupRef.current = startPeriodicSync(
+        normalizedThreadId,
+        (missedMessages) => {
+          if (missedMessages.length > 0 && !cancelled) {
+            setMessagesState((prev) => {
+              let result = prev;
+              for (const msg of missedMessages) {
+                result = addOrUpdateMessage(result, msg);
+              }
+              return result;
+            });
+
+            // Update last server message ID
+            const lastMsg = missedMessages[missedMessages.length - 1];
+            if (lastMsg) {
+              setLastServerMsgId(lastMsg.id);
+              lastServerMsgIdRef.current = lastMsg.id;
+              updateSyncState(normalizedThreadId, {
+                last_message_id: lastMsg.id,
+              });
+            }
+          }
+        },
+        // Provide a getter function that always returns the latest lastServerMsgId
+        () => lastServerMsgIdRef.current
       );
     });
 
@@ -916,13 +1020,14 @@ export function useWebSocketDm(
       void setupFallback();
 
       // Start periodic sync for missed messages (Supabase fallback)
+      // Use a custom sync function that always uses the latest lastServerMsgId from ref
       if (syncCleanupRef.current) {
         syncCleanupRef.current();
       }
       syncCleanupRef.current = startPeriodicSync(
         normalizedThreadId,
         (missedMessages) => {
-          if (missedMessages.length > 0) {
+          if (missedMessages.length > 0 && !cancelled) {
             setMessagesState((prev) => {
               let result = prev;
               for (const msg of missedMessages) {
@@ -936,9 +1041,14 @@ export function useWebSocketDm(
             if (lastMsg) {
               setLastServerMsgId(lastMsg.id);
               lastServerMsgIdRef.current = lastMsg.id;
+              updateSyncState(normalizedThreadId, {
+                last_message_id: lastMsg.id,
+              });
             }
           }
-        }
+        },
+        // Provide a getter function that always returns the latest lastServerMsgId
+        () => lastServerMsgIdRef.current
       );
 
       return () => {
