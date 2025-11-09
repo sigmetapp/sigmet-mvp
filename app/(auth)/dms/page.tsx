@@ -1296,19 +1296,6 @@ function DmsInner() {
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 min-w-0">
                                   <div className="text-sm font-medium text-white truncate">{name}</div>
-                                  <span
-                                    className="flex items-center gap-1 text-[11px] text-white/50 shrink-0"
-                                    title={presenceLabel}
-                                  >
-                                    <span className={`h-2 w-2 rounded-full ${presenceClasses}`} aria-hidden="true" />
-                                    <span className="hidden md:inline">
-                                      {presenceStatus === 'online'
-                                        ? 'Online'
-                                        : presenceStatus === 'recent'
-                                          ? 'Active recently'
-                                          : 'Offline'}
-                                    </span>
-                                  </span>
                                 </div>
                                 <div className="text-xs text-white/60 flex items-center gap-1 truncate">
                                   {previewMeta.icon && <span aria-hidden="true">{previewMeta.icon}</span>}
