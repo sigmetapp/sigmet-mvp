@@ -14,7 +14,7 @@ create table if not exists public.notifications (
   )),
   actor_id uuid references auth.users(id) on delete set null,
   post_id bigint references public.posts(id) on delete cascade,
-  comment_id bigint references public.comments(id) on delete cascade,
+  comment_id uuid references public.comments(id) on delete cascade,
   trust_feedback_id bigint references public.trust_feedback(id) on delete cascade,
   read_at timestamptz,
   created_at timestamptz default now()
