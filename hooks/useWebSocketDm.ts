@@ -329,6 +329,28 @@ export function useWebSocketDm(
       try {
         const { listMessages } = await import("@/lib/dms");
 
+        // First, get the newest message ID to check if there are any messages
+        // that were sent while the dialog was closed
+        let newestMessageId: number | null = null;
+        try {
+          const { data: newestMsg, error: newestError } = await supabase
+            .from("dms_messages")
+            .select("id")
+            .eq("thread_id", normalizedThreadId)
+            .order("id", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!newestError && newestMsg) {
+            newestMessageId =
+              typeof newestMsg.id === "string"
+                ? parseInt(newestMsg.id, 10)
+                : Number(newestMsg.id);
+          }
+        } catch (err) {
+          console.warn("Error getting newest message ID:", err);
+        }
+
         // Always load fresh messages from server when dialog opens
         // This ensures we get all messages even if dialog was closed
         const initialMessages = await listMessages(normalizedThreadId, {
@@ -348,25 +370,20 @@ export function useWebSocketDm(
             const lastMsg = sorted[sorted.length - 1];
             const lastMsgId = lastMsg ? lastMsg.id : null;
 
-            // Always set messages from server, even if cache exists
-            // This ensures we have the latest messages when dialog opens
-            setMessagesState(sorted);
-            setLastServerMsgId(lastMsgId);
-            lastServerMsgIdRef.current = lastMsgId;
+            // Check if there are messages after the last loaded message
+            // This handles the case when messages were sent while dialog was closed
+            let allMessages = sorted;
 
-            // After loading initial messages, check for missed messages
-            // This handles the case when the chat window was closed and new messages arrived
-            if (lastMsgId) {
+            if (lastMsgId && newestMessageId && newestMessageId > lastMsgId) {
               try {
-                // Load messages after the last loaded message to catch any missed messages
-                // Use direct Supabase query to get messages with ID > lastMsgId
+                // Load ALL messages after the last loaded message
+                // This ensures we get all messages that were sent while dialog was closed
                 const { data: missedData, error: missedError } = await supabase
                   .from("dms_messages")
                   .select("*")
                   .eq("thread_id", normalizedThreadId)
                   .gt("id", lastMsgId)
-                  .order("id", { ascending: true })
-                  .limit(100); // Load up to 100 missed messages
+                  .order("id", { ascending: true });
 
                 if (!missedError && missedData && missedData.length > 0) {
                   // Convert to Message format
@@ -403,21 +420,24 @@ export function useWebSocketDm(
                   );
 
                   // Merge with existing messages
-                  const merged = [...sorted, ...missedMessages];
-                  setMessagesState(merged);
-
-                  // Update lastServerMsgId to the newest message
-                  const newestMsg = missedMessages[missedMessages.length - 1];
-                  if (newestMsg) {
-                    setLastServerMsgId(newestMsg.id);
-                    lastServerMsgIdRef.current = newestMsg.id;
-                  }
+                  allMessages = [...sorted, ...missedMessages];
                 }
               } catch (missedErr) {
                 console.error("Error loading missed messages:", missedErr);
                 // Continue with initial messages if missed messages load fails
               }
             }
+
+
+            // Always set messages from server, even if cache exists
+            // This ensures we have the latest messages when dialog opens
+            setMessagesState(allMessages);
+
+            // Update lastServerMsgId to the newest message
+            const finalLastMsg = allMessages[allMessages.length - 1];
+            const finalLastMsgId = finalLastMsg ? finalLastMsg.id : lastMsgId;
+            setLastServerMsgId(finalLastMsgId);
+            lastServerMsgIdRef.current = finalLastMsgId;
           } else {
             setMessagesState([]);
             setLastServerMsgId(null);
