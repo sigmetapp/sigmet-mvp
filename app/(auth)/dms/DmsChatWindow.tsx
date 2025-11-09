@@ -971,48 +971,54 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           // Mark all messages as read when thread is opened and messages are loaded
           // This ensures that when user opens a chat, all visible messages are marked as read
           const newestMessage = sorted[sorted.length - 1] ?? null;
-          if (
-            newestMessage &&
-            newestMessage.id !== undefined &&
-            newestMessage.id !== null &&
-            newestMessage.id !== -1 &&
+          const messageId =
+            newestMessage && newestMessage.id !== undefined && newestMessage.id !== null
+              ? String(newestMessage.id)
+              : '';
+          const shouldMarkRead =
+            messageId &&
+            messageId !== '-1' &&
             currentUserId &&
             partnerId &&
-            threadId
-          ) {
-            // Mark all messages up to the last one as read immediately
+            threadId;
+
+          if (shouldMarkRead) {
             fetch('/api/dms/messages.read', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 thread_id: String(threadId),
-                up_to_message_id: String(newestMessage.id),
+                up_to_message_id: messageId,
               }),
             })
               .then((response) => {
                 if (response.ok) {
-                  // Dispatch event to update unread count in partner list
                   window.dispatchEvent(
                     new CustomEvent('dm:message-read', {
                       detail: {
                         threadId: String(threadId),
-                        partnerId: partnerId,
+                        partnerId,
                       },
                     })
                   );
                 } else {
-                  // Log error response for debugging
-                  response.json().then((data) => {
-                    console.error('Error marking messages as read on thread open:', data);
-                  }).catch(() => {
-                    console.error('Error marking messages as read on thread open:', response.status, response.statusText);
-                  });
+                  response
+                    .json()
+                    .then((data) => {
+                      console.error('Error marking messages as read on thread open:', data);
+                    })
+                    .catch(() => {
+                      console.error(
+                        'Error marking messages as read on thread open:',
+                        response.status,
+                        response.statusText
+                      );
+                    });
                 }
               })
               .catch((err) => {
                 console.error('Error marking messages as read on thread open:', err);
               });
-            }
           }
         }, 100);
 
