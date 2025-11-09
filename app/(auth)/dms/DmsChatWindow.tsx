@@ -1225,11 +1225,28 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           }
         
         // Scroll to bottom after messages are loaded (always scroll to newest messages)
+        // Use multiple attempts to ensure scroll happens after DOM is fully rendered
+        const scrollToBottom = () => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }
+        };
+        
+        // Immediate scroll
+        scrollToBottom();
+        
+        // Scroll after a short delay to ensure DOM is rendered
+        setTimeout(() => {
+          scrollToBottom();
+          initialScrollDoneRef.current = true;
+        }, 100);
+        
+        // Additional scroll after longer delay to catch any late renders
         setTimeout(() => {
           if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-            initialScrollDoneRef.current = true;
           }
+        }, 300);
           
           // Mark all messages as read when thread is opened and messages are loaded
           // This ensures that when user opens a chat, all visible messages are marked as read
@@ -1569,6 +1586,38 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     };
   }, [hasMoreHistory, loadingOlderMessages, loadOlderMessages, thread?.id]);
 
+  // Always scroll to bottom when thread changes (when opening a dialog)
+  useEffect(() => {
+    if (!thread?.id || !messages.length || loading) {
+      return;
+    }
+
+    // Reset scroll state when thread changes
+    initialScrollDoneRef.current = false;
+    
+    // Scroll to bottom after a short delay to ensure DOM is rendered
+    // Use requestAnimationFrame to ensure DOM is fully rendered
+    requestAnimationFrame(() => {
+      const container = scrollRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+        // Double-check after another short delay
+        setTimeout(() => {
+          if (container) {
+            container.scrollTop = container.scrollHeight;
+          }
+          // Final check after longer delay to catch any late renders
+          setTimeout(() => {
+            if (container) {
+              container.scrollTop = container.scrollHeight;
+            }
+            initialScrollDoneRef.current = true;
+          }, 100);
+        }, 50);
+      }
+    });
+  }, [thread?.id, loading, messages.length]);
+
   // Scroll to bottom on new messages and when messages are initially loaded
   // Also mark messages as read when scrolling to bottom
   useLayoutEffect(() => {
@@ -1582,7 +1631,18 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     }
 
     if (!initialScrollDoneRef.current) {
-      container.scrollTop = container.scrollHeight;
+      // Use requestAnimationFrame to ensure DOM is fully rendered before scrolling
+      requestAnimationFrame(() => {
+        if (container) {
+          container.scrollTop = container.scrollHeight;
+          // Double-check after a short delay to ensure scroll happened
+          setTimeout(() => {
+            if (container) {
+              container.scrollTop = container.scrollHeight;
+            }
+          }, 50);
+        }
+      });
       historyAutoLoadReadyRef.current = true;
       initialScrollDoneRef.current = true;
       
