@@ -49,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Validate complaint_type if provided
-    if (complaint_type && !['harassment', 'misinformation', 'inappropriate_content'].includes(complaint_type)) {
+    if (complaint_type && !['harassment', 'misinformation', 'inappropriate_content', 'unreliable_information'].includes(complaint_type)) {
       return res.status(400).json({ error: 'Invalid complaint_type' });
     }
 
