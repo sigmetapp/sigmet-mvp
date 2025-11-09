@@ -22,7 +22,7 @@ import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
-import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag, Users, MessageSquare } from "lucide-react";
+import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag, UserPlus, HelpCircle } from "lucide-react";
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
@@ -1122,7 +1122,7 @@ export default function PostFeed({
           }`}
           title="Connections"
         >
-          <Users size={18} />
+          <UserPlus size={18} />
         </button>
         <button
           onClick={() => {
@@ -1140,7 +1140,7 @@ export default function PostFeed({
           }`}
           title="Discuss"
         >
-          <MessageSquare size={18} />
+          <HelpCircle size={18} />
         </button>
         {myDirections.length > 0 && availableDirections.length > 0 && myDirections.map((id) => {
           const meta = availableDirections.find((a) => a.id === id);
