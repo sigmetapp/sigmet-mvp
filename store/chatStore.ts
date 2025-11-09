@@ -34,13 +34,35 @@ function sortMessages(messages: Message[]): Message[] {
 
 function mergeMessage(existing: Message, incoming: Message): Message {
   const next: Message = { ...existing, ...incoming };
-  // Preserve reply information - prefer existing if both exist, otherwise use incoming
-  if (existing.replyToMessage || incoming.replyToMessage) {
-    next.replyToMessage = incoming.replyToMessage ?? existing.replyToMessage;
+  
+  // Preserve reply information - prefer incoming if it has replyToMessage, otherwise keep existing
+  // This ensures that if incoming message has replyToMessage, we use it
+  // But if incoming only has replyToMessageId without replyToMessage, we preserve existing replyToMessage
+  if (incoming.replyToMessage) {
+    // Incoming has replyToMessage, use it
+    next.replyToMessage = incoming.replyToMessage;
+  } else if (existing.replyToMessage) {
+    // Incoming doesn't have replyToMessage, but existing does - preserve it
+    next.replyToMessage = existing.replyToMessage;
   }
-  if (existing.replyToMessageId || incoming.replyToMessageId) {
-    next.replyToMessageId = incoming.replyToMessageId ?? existing.replyToMessageId;
+  
+  // Preserve replyToMessageId - prefer incoming if it exists
+  if (incoming.replyToMessageId) {
+    next.replyToMessageId = incoming.replyToMessageId;
+  } else if (existing.replyToMessageId) {
+    next.replyToMessageId = existing.replyToMessageId;
   }
+  
+  // Debug logging
+  if (next.replyToMessageId && !next.replyToMessage) {
+    console.warn('[chatStore] mergeMessage: replyToMessageId exists but no replyToMessage after merge:', {
+      messageId: next.id,
+      replyToMessageId: next.replyToMessageId,
+      existingHadReply: !!existing.replyToMessage,
+      incomingHadReply: !!incoming.replyToMessage,
+    });
+  }
+  
   if (existing.status && incoming.status) {
     const existingPriority = STATUS_PRIORITY[existing.status] ?? -1;
     const incomingPriority = STATUS_PRIORITY[incoming.status] ?? -1;
@@ -79,8 +101,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const normalized: Message = { ...message, dialogId: key };
         const current = merged.get(normalized.id);
         if (current) {
+          // Debug logging
+          if (normalized.replyToMessageId && !normalized.replyToMessage && current.replyToMessage) {
+            console.log('[chatStore] addMessages: Preserving existing replyToMessage for message:', {
+              messageId: normalized.id,
+              replyToMessageId: normalized.replyToMessageId,
+              existingReplyToMessage: current.replyToMessage,
+            });
+          }
           merged.set(normalized.id, mergeMessage(current, normalized));
         } else {
+          // Debug logging for new messages with reply
+          if (normalized.replyToMessageId) {
+            console.log('[chatStore] addMessages: New message with reply:', {
+              messageId: normalized.id,
+              replyToMessageId: normalized.replyToMessageId,
+              hasReplyToMessage: !!normalized.replyToMessage,
+              replyText: normalized.replyToMessage?.text,
+            });
+          }
           merged.set(normalized.id, normalized);
         }
       }

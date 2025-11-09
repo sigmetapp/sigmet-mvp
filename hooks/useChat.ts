@@ -173,6 +173,17 @@ export function useChat(dialogId: string | null, options: UseChatOptions): UseCh
             const replyToMessage = row.reply_to_message_id
               ? replyMessagesMap.get(Number(row.reply_to_message_id))
               : undefined;
+            
+            // Debug logging
+            if (row.reply_to_message_id) {
+              console.log('[useChat] Loading message with reply:', {
+                messageId: row.id,
+                replyToMessageId: row.reply_to_message_id,
+                foundReplyMessage: !!replyToMessage,
+                replyText: replyToMessage?.body,
+              });
+            }
+            
             return mapRowToMessage(row, dialogKey, currentUserId, otherUserId, replyToMessage);
           })
           .reverse();
@@ -215,18 +226,41 @@ export function useChat(dialogId: string | null, options: UseChatOptions): UseCh
           const row = payload.new as any;
           if (!row) return;
           
+          console.log('[useChat] Realtime message received:', {
+            messageId: row.id,
+            replyToMessageId: row.reply_to_message_id,
+            hasReplyToMessageId: !!row.reply_to_message_id,
+          });
+          
           // Fetch reply message if exists
           let replyToMessage: any = undefined;
           if (row.reply_to_message_id) {
-            const { data: replyData } = await supabase
+            const { data: replyData, error: replyError } = await supabase
               .from('dms_messages')
               .select('id, sender_id, body, created_at')
               .eq('id', row.reply_to_message_id)
               .single();
-            replyToMessage = replyData || undefined;
+            
+            if (replyError) {
+              console.warn('[useChat] Failed to fetch reply message:', replyError);
+            } else {
+              replyToMessage = replyData || undefined;
+              console.log('[useChat] Reply message fetched:', {
+                replyMessageId: replyData?.id,
+                replyText: replyData?.body,
+              });
+            }
           }
           
           const message = mapRowToMessage(row, dialogKey, currentUserId, otherUserId, replyToMessage);
+          
+          console.log('[useChat] Mapped message:', {
+            messageId: message.id,
+            replyToMessageId: message.replyToMessageId,
+            hasReplyToMessage: !!message.replyToMessage,
+            replyToMessageText: message.replyToMessage?.text,
+          });
+          
           addMessages(dialogKey, [message]);
         }
       );
