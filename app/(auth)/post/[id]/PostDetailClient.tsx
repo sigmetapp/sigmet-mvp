@@ -348,11 +348,17 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           .from('profiles')
           .select('user_id, username, avatar_url')
           .in('user_id', userIds),
-        supabase
-          .from('sw_scores')
-          .select('user_id, total')
-          .in('user_id', userIds)
-          .catch(() => ({ data: null, error: null })), // Gracefully handle if table doesn't exist
+        (async () => {
+          try {
+            return await supabase
+              .from('sw_scores')
+              .select('user_id, total')
+              .in('user_id', userIds);
+          } catch {
+            // Gracefully handle if table doesn't exist
+            return { data: null, error: null };
+          }
+        })(),
       ]);
 
       // Process profiles
