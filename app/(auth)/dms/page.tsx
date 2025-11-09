@@ -1304,7 +1304,7 @@ function DmsInner() {
                                       event.stopPropagation();
                                       void handleTogglePin(partner);
                                     }}
-                                    className="rounded-md bg-white/10 p-1 text-white/70 hover:bg-white/15 inline-flex items-center shrink-0"
+                                    className="opacity-0 group-hover:opacity-100 rounded-md bg-white/10 p-1 text-white/70 hover:bg-white/15 inline-flex items-center shrink-0 transition-opacity duration-200"
                                   >
                                     {/* Pin icon */}
                                     <svg
@@ -1324,7 +1324,7 @@ function DmsInner() {
                                       event.stopPropagation();
                                       void handleToggleMute(partner);
                                     }}
-                                    className="rounded-md bg-white/10 p-1 text-white/70 hover:bg-white/15 inline-flex items-center shrink-0"
+                                    className="opacity-0 group-hover:opacity-100 rounded-md bg-white/10 p-1 text-white/70 hover:bg-white/15 inline-flex items-center shrink-0 transition-opacity duration-200"
                                   >
                                     {/* Bell/Mute icon */}
                                     {partner.notifications_muted ? (

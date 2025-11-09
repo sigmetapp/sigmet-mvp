@@ -2943,7 +2943,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-white/10 pb-[calc(env(safe-area-inset-bottom)+12px)]">
       <div
-        className={`relative flex items-end gap-2 bg-white/5 border border-white/10 rounded-2xl px-2 py-2 transition ${
+        className={`relative flex items-end gap-2 bg-white/5 border border-white/10 rounded-2xl px-3 py-2.5 transition ${
           isDragActive ? 'ring-2 ring-cyan-400/50 border-cyan-400/50 bg-white/10' : ''
         }`}
         onDragOver={handleDragOver}
@@ -2962,7 +2962,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           {/* Attach button */}
           <button
             type="button"
-            className="px-2 py-1 rounded-xl text-white/80 hover:bg-white/10 transition flex-shrink-0"
+            className="px-2 py-1.5 rounded-xl text-white/80 hover:bg-white/10 transition flex-shrink-0 self-center"
             title="Attach file, photo, or video"
             onClick={() => fileInputRef.current?.click()}
             disabled={sending || uploadingAttachments}
@@ -2984,7 +2984,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           </button>
           <textarea
             ref={textareaRef}
-            className="flex-1 bg-transparent border-0 focus:ring-0 placeholder-white/40 resize-none max-h-32 overflow-y-auto text-sm py-1"
+            className="flex-1 bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-white/40 resize-none max-h-32 overflow-y-auto text-sm text-white leading-6 py-1.5 px-1"
             value={messageText}
             onChange={handleMessageTextChange}
             onKeyDown={(e) => {
@@ -3000,6 +3000,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
               height: 'auto',
               minHeight: '24px',
               fontSize: '16px', // Prevent zoom on mobile
+              lineHeight: '24px',
             }}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
