@@ -2013,11 +2013,46 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         return;
       }
       // Get reply_to_message_id if replying
-      const replyToMessageId = replyingTo?.id || null;
+      // Validate that replyingTo.id is a valid message ID (not temporary/local echo)
+      let replyToMessageId: number | null = null;
+      if (replyingTo?.id) {
+        // Skip temporary IDs (local echo messages have id === -1)
+        if (replyingTo.id === -1 || replyingTo.id === '-1') {
+          console.warn('[DmsChatWindow] Cannot reply to temporary message, skipping reply');
+          replyToMessageId = null;
+        } else {
+          // Convert to number if it's a string
+          const parsedId = typeof replyingTo.id === 'string' 
+            ? parseInt(replyingTo.id, 10) 
+            : Number(replyingTo.id);
+          
+          // Validate that it's a valid number
+          if (!isNaN(parsedId) && parsedId > 0) {
+            // Verify that the message exists in the current thread and is not deleted
+            const repliedToMessage = messages.find(m => m.id === parsedId);
+            if (repliedToMessage && !repliedToMessage.deleted_at && repliedToMessage.thread_id === threadId) {
+              replyToMessageId = parsedId;
+            } else {
+              console.warn('[DmsChatWindow] Reply message not found in thread or deleted:', {
+                messageId: parsedId,
+                found: !!repliedToMessage,
+                deleted: repliedToMessage?.deleted_at,
+                threadId: repliedToMessage?.thread_id,
+                currentThreadId: threadId,
+              });
+              replyToMessageId = null;
+            }
+          } else {
+            console.warn('[DmsChatWindow] Invalid reply message ID:', replyingTo.id);
+            replyToMessageId = null;
+          }
+        }
+      }
       
       console.log('[DmsChatWindow] Sending message with reply:', {
         replyToMessageId,
         replyingToText: replyingTo?.body,
+        replyingToId: replyingTo?.id,
         threadId,
       });
       
