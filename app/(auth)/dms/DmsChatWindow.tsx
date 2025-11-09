@@ -163,6 +163,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [messageReceipts, setMessageReceipts] = useState<Map<string, 'sent' | 'delivered' | 'read'>>(new Map());
+  // Cache for reply messages loaded from database
+  const [replyMessagesCache, setReplyMessagesCache] = useState<Map<string | number, Message>>(new Map());
   
   // Theme
   const { theme } = useTheme();
@@ -775,6 +777,93 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       clearInterval(pollInterval);
     };
   }, [partnerProfile?.user_id, partnerProfile?.show_online_status, applyOnlineStatus]);
+
+  // Load reply messages that are not found in the messages array
+  useEffect(() => {
+    if (!thread?.id || !messages.length) return;
+
+    // Find all reply_to_message_id values that are not in the messages array
+    const missingReplyIds = new Set<string | number>();
+    for (const msg of messages) {
+      if (msg.reply_to_message_id && 
+          msg.reply_to_message_id !== 0 && 
+          msg.reply_to_message_id !== '0' &&
+          !replyMessagesCache.has(String(msg.reply_to_message_id)) &&
+          !replyMessagesCache.has(msg.reply_to_message_id) &&
+          !messages.find(m => {
+            if (typeof m.id === 'string' && typeof msg.reply_to_message_id === 'string') {
+              return m.id === msg.reply_to_message_id;
+            } else if (typeof m.id === 'number' && typeof msg.reply_to_message_id === 'number') {
+              return m.id === msg.reply_to_message_id;
+            } else if (typeof m.id === 'string' && typeof msg.reply_to_message_id === 'number') {
+              return m.id === String(msg.reply_to_message_id);
+            } else if (typeof m.id === 'number' && typeof msg.reply_to_message_id === 'string') {
+              const parsed = parseInt(msg.reply_to_message_id, 10);
+              if (!isNaN(parsed) && parsed > 0) {
+                return m.id === parsed;
+              }
+              return m.id === msg.reply_to_message_id;
+            }
+            return false;
+          })) {
+        missingReplyIds.add(msg.reply_to_message_id);
+      }
+    }
+
+    if (missingReplyIds.size === 0) return;
+
+    // Load missing reply messages from database
+    (async () => {
+      try {
+        const ids = Array.from(missingReplyIds);
+        const { data, error } = await supabase
+          .from('dms_messages')
+          .select('*')
+          .in('id', ids)
+          .eq('thread_id', thread.id);
+
+        if (error) {
+          console.error('[DmsChatWindow] Error loading reply messages:', error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          const loadedMessages: Message[] = data.map((row: any) => ({
+            id: row.id,
+            thread_id: row.thread_id,
+            sender_id: row.sender_id,
+            kind: row.kind,
+            body: row.body,
+            attachments: row.attachments || [],
+            created_at: row.created_at,
+            edited_at: row.edited_at,
+            deleted_at: row.deleted_at,
+            sequence_number: row.sequence_number,
+            client_msg_id: row.client_msg_id,
+            reply_to_message_id: row.reply_to_message_id,
+          }));
+
+          // Add to cache
+          setReplyMessagesCache(prev => {
+            const newCache = new Map(prev);
+            for (const loadedMsg of loadedMessages) {
+              newCache.set(String(loadedMsg.id), loadedMsg);
+              newCache.set(loadedMsg.id, loadedMsg);
+            }
+            return newCache;
+          });
+
+          // Add to messages array if they belong to this thread
+          const messagesToAdd = loadedMessages.filter(m => m.thread_id === thread.id);
+          if (messagesToAdd.length > 0) {
+            setMessagesFromHook(prev => mergeMessages(prev, messagesToAdd));
+          }
+        }
+      } catch (err) {
+        console.error('[DmsChatWindow] Error loading reply messages:', err);
+      }
+    })();
+  }, [messages, thread?.id, replyMessagesCache, setMessagesFromHook]);
 
   const updateMessageReceiptStatus = useCallback(
     (
@@ -2582,10 +2671,35 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                       }`}
                     >
                       {/* Reply quote - show if message has reply_to_message_id */}
-                      {msg.reply_to_message_id && (() => {
-                        const repliedToMessage = messages.find(m => m.id === msg.reply_to_message_id);
+                      {msg.reply_to_message_id && msg.reply_to_message_id !== 0 && msg.reply_to_message_id !== '0' && (() => {
+                        // First try to find in messages array
+                        let repliedToMessage = messages.find(m => {
+                          // Compare IDs - handle both string and number types
+                          if (typeof m.id === 'string' && typeof msg.reply_to_message_id === 'string') {
+                            return m.id === msg.reply_to_message_id;
+                          } else if (typeof m.id === 'number' && typeof msg.reply_to_message_id === 'number') {
+                            return m.id === msg.reply_to_message_id;
+                          } else if (typeof m.id === 'string' && typeof msg.reply_to_message_id === 'number') {
+                            return m.id === String(msg.reply_to_message_id);
+                          } else if (typeof m.id === 'number' && typeof msg.reply_to_message_id === 'string') {
+                            const parsed = parseInt(msg.reply_to_message_id, 10);
+                            if (!isNaN(parsed) && parsed > 0) {
+                              return m.id === parsed;
+                            }
+                            return m.id === msg.reply_to_message_id;
+                          }
+                          return false;
+                        });
+                        
+                        // If not found, try cache
                         if (!repliedToMessage) {
-                          console.warn('[DmsChatWindow] Reply message not found in messages array:', {
+                          const cacheKey = String(msg.reply_to_message_id);
+                          repliedToMessage = replyMessagesCache.get(cacheKey) || replyMessagesCache.get(msg.reply_to_message_id) || null;
+                        }
+                        
+                        // If still not found, return null (will be loaded by useEffect)
+                        if (!repliedToMessage) {
+                          console.warn('[DmsChatWindow] Reply message not found in messages array or cache:', {
                             messageId: msg.id,
                             replyToMessageId: msg.reply_to_message_id,
                             availableMessageIds: messages.map(m => m.id).slice(0, 10),
@@ -2593,6 +2707,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                           });
                           return null;
                         }
+                        
                         console.log('[DmsChatWindow] Displaying reply:', {
                           messageId: msg.id,
                           replyToMessageId: msg.reply_to_message_id,
