@@ -93,6 +93,29 @@ export function useSendMessage({
               const parsed = Number(replyToMessageId);
               if (!isNaN(parsed) && parsed > 0) {
                 replyToId = parsed;
+                
+                // Verify that the message exists in the current thread
+                try {
+                  const { data: replyMsg, error: replyErr } = await supabase
+                    .from('dms_messages')
+                    .select('id, thread_id, deleted_at')
+                    .eq('id', replyToId)
+                    .eq('thread_id', threadId)
+                    .is('deleted_at', null)
+                    .maybeSingle();
+                  
+                  if (replyErr || !replyMsg) {
+                    console.warn('[useSendMessage] Reply message not found in thread or deleted:', {
+                      replyToId,
+                      threadId,
+                      error: replyErr,
+                    });
+                    replyToId = null;
+                  }
+                } catch (verifyErr) {
+                  console.warn('[useSendMessage] Failed to verify reply message:', verifyErr);
+                  replyToId = null;
+                }
               } else {
                 console.warn('[useSendMessage] Invalid replyToMessageId:', replyToMessageId);
                 replyToId = null;
@@ -100,6 +123,29 @@ export function useSendMessage({
             }
           } else if (typeof replyToMessageId === 'number' && replyToMessageId > 0) {
             replyToId = replyToMessageId;
+            
+            // Verify that the message exists in the current thread
+            try {
+              const { data: replyMsg, error: replyErr } = await supabase
+                .from('dms_messages')
+                .select('id, thread_id, deleted_at')
+                .eq('id', replyToId)
+                .eq('thread_id', threadId)
+                .is('deleted_at', null)
+                .maybeSingle();
+              
+              if (replyErr || !replyMsg) {
+                console.warn('[useSendMessage] Reply message not found in thread or deleted:', {
+                  replyToId,
+                  threadId,
+                  error: replyErr,
+                });
+                replyToId = null;
+              }
+            } catch (verifyErr) {
+              console.warn('[useSendMessage] Failed to verify reply message:', verifyErr);
+              replyToId = null;
+            }
           }
         }
 

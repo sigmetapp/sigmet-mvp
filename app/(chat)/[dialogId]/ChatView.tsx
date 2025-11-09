@@ -219,10 +219,19 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
     if (!draft.trim()) return;
     const text = draft.trim();
     
-    // Only use reply if message ID is not temporary
-    const replyToMessageId = replyingTo?.id && !replyingTo.id.startsWith('temp-')
-      ? replyingTo.id
-      : undefined;
+    // Only use reply if message ID is not temporary and belongs to current dialog
+    let replyToMessageId: string | number | undefined = undefined;
+    if (replyingTo?.id && !replyingTo.id.startsWith('temp-')) {
+      // Verify that the message belongs to the current dialog
+      if (replyingTo.dialogId === dialogId) {
+        replyToMessageId = replyingTo.id;
+      } else {
+        console.warn('[ChatView] Reply message belongs to different dialog, skipping reply', {
+          messageDialogId: replyingTo.dialogId,
+          currentDialogId: dialogId,
+        });
+      }
+    }
     
     const replyToMessage = replyingTo && replyToMessageId
       ? {
@@ -232,6 +241,12 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
           createdAt: replyingTo.createdAt,
         }
       : undefined;
+    
+    console.log('[ChatView] Sending message with reply:', {
+      replyToMessageId,
+      replyToMessage,
+      dialogId,
+    });
     
     try {
       setDraft('');
@@ -245,7 +260,7 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
         setReplyingTo(replyingTo);
       }
     }
-  }, [draft, sendMessage, replyingTo]);
+  }, [draft, sendMessage, replyingTo, dialogId]);
 
   const handleReply = useCallback((message: Message) => {
     setReplyingTo(message);
