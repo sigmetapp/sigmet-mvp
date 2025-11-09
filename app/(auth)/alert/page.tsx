@@ -259,10 +259,10 @@ export default function AlertPage() {
           <img
             src={actor.avatar_url}
             alt={actor.full_name || actor.username || 'User'}
-            className="w-full h-full rounded-full object-cover ring-2 ring-gray-700/50"
+            className="w-full h-full rounded-full object-cover ring-1 ring-gray-700/50"
           />
-          <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-gray-800 dark:bg-gray-900 border-2 border-gray-800 dark:border-gray-900 flex items-center justify-center text-white shadow-lg z-10">
-            <div className="scale-[0.7]">
+          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-gray-800 dark:bg-gray-900 border border-gray-800 dark:border-gray-900 flex items-center justify-center text-white shadow-md z-10">
+            <div className="scale-[0.65]">
               {icon}
             </div>
           </div>
@@ -391,14 +391,14 @@ export default function AlertPage() {
               const isUnread = !notification.read_at;
               const content = (
                 <div
-                  className={`p-4 rounded-lg border transition ${
+                  className={`p-3 rounded-lg border transition ${
                     isUnread
                       ? 'bg-primary-blue/10 border-primary-blue/30'
                       : 'bg-gray-800 border-gray-700'
                   }`}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className={`flex-shrink-0 w-10 h-10 rounded-full ${
+                  <div className="flex items-start gap-2.5">
+                    <div className={`flex-shrink-0 w-9 h-9 rounded-full ${
                       notification.actor?.avatar_url 
                         ? '' 
                         : `grid place-items-center ${isUnread ? 'bg-primary-blue/20 text-primary-blue' : 'bg-gray-700 text-gray-400'}`
@@ -408,8 +408,11 @@ export default function AlertPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
-                          <p className={`text-sm ${isUnread ? 'text-white font-medium' : 'text-gray-300'}`}>
+                          <p className={`text-sm leading-snug ${isUnread ? 'text-white font-medium' : 'text-gray-300'}`}>
                             {getNotificationText(notification)}
+                            <span className="text-xs text-gray-500 font-normal ml-1.5">
+                              • {formatDate(notification.created_at)}
+                            </span>
                           </p>
                           {notification.post?.text && (
                             <p className="text-xs text-gray-400 mt-1 line-clamp-2">
@@ -426,9 +429,6 @@ export default function AlertPage() {
                               {notification.trust_feedback.comment}
                             </p>
                           )}
-                          <p className="text-xs text-gray-500 mt-2">
-                            {formatDate(notification.created_at)}
-                          </p>
                         </div>
                         {isUnread && (
                           <button
@@ -438,9 +438,9 @@ export default function AlertPage() {
                               markAsRead(notification.id);
                             }}
                             disabled={markingRead === notification.id}
-                            className="flex-shrink-0 px-2 py-1 text-xs text-primary-blue hover:text-primary-blue-light border border-primary-blue/30 rounded hover:bg-primary-blue/10 transition"
+                            className="flex-shrink-0 px-2 py-0.5 text-xs text-primary-blue hover:text-primary-blue-light border border-primary-blue/30 rounded hover:bg-primary-blue/10 transition"
                           >
-                            {markingRead === notification.id ? '...' : 'Mark as read'}
+                            {markingRead === notification.id ? '...' : 'Read'}
                           </button>
                         )}
                       </div>
