@@ -57,7 +57,7 @@ function compareMessages(a: Message, b: Message): number {
   const timeA = new Date(a.created_at).getTime();
   const timeB = new Date(b.created_at).getTime();
   if (timeA !== timeB) return timeA - timeB;
-  return a.id - b.id;
+  return String(a.id).localeCompare(String(b.id));
 }
 
 function sortMessagesChronologically(messages: Message[]): Message[] {
@@ -152,7 +152,7 @@ export function useWebSocketDm(
   const [isTyping, setIsTyping] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [partnerOnline, setPartnerOnline] = useState<boolean | null>(null);
-  const [lastServerMsgId, setLastServerMsgId] = useState<number | null>(null);
+  const [lastServerMsgId, setLastServerMsgId] = useState<string | null>(null);
   const [transport, setTransport] = useState<"websocket" | "supabase">(
     "websocket",
   );
@@ -178,7 +178,7 @@ export function useWebSocketDm(
   >(null);
   const isHydratedFromCacheRef = useRef(false);
   const initialLimitRef = useRef(initialLimit);
-  const lastServerMsgIdRef = useRef<number | null>(null);
+  const lastServerMsgIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     initialLimitRef.current = initialLimit;
@@ -200,12 +200,12 @@ export function useWebSocketDm(
   const mergeMessagesExternal = useCallback((incoming: Message[]) => {
     if (!incoming || incoming.length === 0) return;
     setMessagesState((prev) => {
-      const map = new Map<number, Message>();
+      const map = new Map<string, Message>();
       for (const msg of prev) {
-        map.set(msg.id, msg);
+        map.set(String(msg.id), msg);
       }
       for (const msg of incoming) {
-        map.set(msg.id, msg);
+        map.set(String(msg.id), msg);
       }
       return sortMessagesChronologically(Array.from(map.values()));
     });
@@ -1410,7 +1410,7 @@ export function useWebSocketDm(
 
   // Load older messages (for lazy loading when scrolling up)
   const loadOlderMessages = useCallback(
-    async (beforeId: number | null = null): Promise<Message[]> => {
+    async (beforeId: string | number | null = null): Promise<Message[]> => {
       if (!threadId) return [];
 
       const normalizedThreadId = assertThreadId(threadId, "Invalid thread ID");

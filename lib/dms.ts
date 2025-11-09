@@ -28,7 +28,7 @@ export type Thread = {
 };
 
 export type Message = {
-  id: number;
+  id: string | number;
   thread_id: ThreadId;
   sender_id: string;
   kind: 'text' | 'system';
@@ -302,24 +302,39 @@ export async function listMessages(
     );
   }
 
-  const messagesWithNormalizedIds = (messages || []).map((msg: any) => ({
-    ...msg,
-    id: typeof msg.id === 'string' ? parseInt(msg.id, 10) : Number(msg.id),
-    thread_id: assertThreadId(msg.thread_id, 'Invalid thread_id in message'),
-    sequence_number:
-      msg.sequence_number === null || msg.sequence_number === undefined
-        ? null
-        : typeof msg.sequence_number === 'string'
-          ? parseInt(msg.sequence_number, 10)
-          : Number(msg.sequence_number),
-    client_msg_id: msg.client_msg_id ?? null,
-    attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
-    reply_to_message_id: msg.reply_to_message_id 
-      ? (typeof msg.reply_to_message_id === 'string' 
-          ? parseInt(msg.reply_to_message_id, 10) 
-          : Number(msg.reply_to_message_id))
-      : null,
-  }));
+  const messagesWithNormalizedIds = (messages || []).map((msg: any) => {
+    const rawId = msg?.id;
+    let normalizedId: string | number;
+    if (typeof rawId === 'number') {
+      normalizedId = rawId;
+    } else if (typeof rawId === 'string' && /^\d+$/.test(rawId)) {
+      const numeric = Number(rawId);
+      normalizedId = Number.isSafeInteger(numeric) ? numeric : rawId;
+    } else if (rawId == null) {
+      normalizedId = '';
+    } else {
+      normalizedId = String(rawId);
+    }
+
+    return {
+      ...msg,
+      id: normalizedId,
+      thread_id: assertThreadId(msg.thread_id, 'Invalid thread_id in message'),
+      sequence_number:
+        msg.sequence_number === null || msg.sequence_number === undefined
+          ? null
+          : typeof msg.sequence_number === 'string'
+            ? parseInt(msg.sequence_number, 10)
+            : Number(msg.sequence_number),
+      client_msg_id: msg.client_msg_id ?? null,
+      attachments: Array.isArray(msg.attachments) ? msg.attachments : [],
+      reply_to_message_id: msg.reply_to_message_id 
+        ? (typeof msg.reply_to_message_id === 'string' 
+            ? parseInt(msg.reply_to_message_id, 10) 
+            : Number(msg.reply_to_message_id))
+        : null,
+    };
+  });
 
   return messagesWithNormalizedIds as Message[];
 }
@@ -381,23 +396,36 @@ export async function sendMessage(
   }
 
   // Ensure message IDs are numbers
-  const message = result.message as any;
-  return {
-    ...message,
-    id: typeof message.id === 'string' ? parseInt(message.id, 10) : Number(message.id),
-    thread_id: assertThreadId(message.thread_id, 'Invalid thread_id in message'),
-    sequence_number:
-      message.sequence_number === null || message.sequence_number === undefined
-        ? null
-        : typeof message.sequence_number === 'string'
-          ? parseInt(message.sequence_number, 10)
-          : Number(message.sequence_number),
-    client_msg_id: (message.client_msg_id ?? clientMsgId ?? null) as string | null,
-    attachments: Array.isArray(message.attachments) ? message.attachments : [],
-    reply_to_message_id: message.reply_to_message_id 
-      ? (typeof message.reply_to_message_id === 'string' 
-          ? parseInt(message.reply_to_message_id, 10) 
-          : Number(message.reply_to_message_id))
-      : null,
-  } as Message;
+    const message = result.message as any;
+    const rawId = message?.id;
+    let normalizedId: string | number;
+    if (typeof rawId === 'number') {
+      normalizedId = rawId;
+    } else if (typeof rawId === 'string' && /^\d+$/.test(rawId)) {
+      const numeric = Number(rawId);
+      normalizedId = Number.isSafeInteger(numeric) ? numeric : rawId;
+    } else if (rawId == null) {
+      normalizedId = '';
+    } else {
+      normalizedId = String(rawId);
+    }
+
+    return {
+      ...message,
+      id: normalizedId,
+      thread_id: assertThreadId(message.thread_id, 'Invalid thread_id in message'),
+      sequence_number:
+        message.sequence_number === null || message.sequence_number === undefined
+          ? null
+          : typeof message.sequence_number === 'string'
+            ? parseInt(message.sequence_number, 10)
+            : Number(message.sequence_number),
+      client_msg_id: (message.client_msg_id ?? clientMsgId ?? null) as string | null,
+      attachments: Array.isArray(message.attachments) ? message.attachments : [],
+      reply_to_message_id: message.reply_to_message_id 
+        ? (typeof message.reply_to_message_id === 'string' 
+            ? parseInt(message.reply_to_message_id, 10) 
+            : Number(message.reply_to_message_id))
+        : null,
+    } as Message;
 }

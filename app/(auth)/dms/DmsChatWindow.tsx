@@ -48,7 +48,7 @@ function compareMessages(a: Message, b: Message): number {
   const timeA = new Date(a.created_at).getTime();
   const timeB = new Date(b.created_at).getTime();
   if (timeA !== timeB) return timeA - timeB;
-  return a.id - b.id;
+  return String(a.id).localeCompare(String(b.id));
 }
 
 function sortMessagesChronologically(rawMessages: Message[]): Message[] {
@@ -60,12 +60,12 @@ function mergeMessages(existing: Message[], additions: Message[]): Message[] {
     return existing;
   }
 
-  const byId = new Map<number, Message>();
+  const byId = new Map<string, Message>();
   for (const msg of existing) {
-    byId.set(msg.id, msg);
+    byId.set(String(msg.id), msg);
   }
   for (const msg of additions) {
-    byId.set(msg.id, msg);
+    byId.set(String(msg.id), msg);
   }
 
   return sortMessagesChronologically(Array.from(byId.values()));
@@ -90,8 +90,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [daysStreak, setDaysStreak] = useState<number>(0);
   
   const audioContextRef = useRef<AudioContext | null>(null);
-  const lastMessageIdRef = useRef<number | null>(null);
-  const oldestMessageIdRef = useRef<number | null>(null);
+  const lastMessageIdRef = useRef<string | null>(null);
+  const oldestMessageIdRef = useRef<string | null>(null);
 
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
@@ -795,8 +795,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         // Get message IDs of messages sent by current user
         const myMessageIds = messages
           .filter((m) => m.sender_id === currentUserId && m.id !== -1)
-          .map((m) => Number(m.id))
-          .filter((id) => !Number.isNaN(id));
+          .map((m) => String(m.id))
+          .filter((id) => id && id !== '-1');
         
         if (myMessageIds.length === 0) return;
         
@@ -905,7 +905,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         // Sort by created_at ascending (oldest first, newest last) and by id for consistent ordering
         const sorted = sortMessagesChronologically(messagesData);
         setMessagesFromHook(sorted);
-        oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
+        oldestMessageIdRef.current = sorted.length > 0 ? String(sorted[0].id) : null;
         
         const first = sorted[0];
         const last = sorted[sorted.length - 1];
@@ -973,25 +973,22 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           const newestMessage = sorted[sorted.length - 1] ?? null;
           if (
             newestMessage &&
+            newestMessage.id !== undefined &&
+            newestMessage.id !== null &&
+            newestMessage.id !== -1 &&
             currentUserId &&
             partnerId &&
-            threadId &&
-            typeof newestMessage.id === 'number' &&
-            newestMessage.id > 0
+            threadId
           ) {
-            const lastMessage = newestMessage;
-            // Mark all messages as read when opening chat, regardless of sender
-            // This ensures that on page refresh, these messages won't be unread
-            if (lastMessage) {
-              // Mark all messages up to the last one as read immediately
-              fetch('/api/dms/messages.read', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  thread_id: String(threadId),
-                  up_to_message_id: String(lastMessage.id),
-                }),
-              })
+            // Mark all messages up to the last one as read immediately
+            fetch('/api/dms/messages.read', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                thread_id: String(threadId),
+                up_to_message_id: String(newestMessage.id),
+              }),
+            })
               .then((response) => {
                 if (response.ok) {
                   // Dispatch event to update unread count in partner list
@@ -1091,7 +1088,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     if (messages.length > 0 && !lastMessageIdRef.current) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg) {
-        lastMessageIdRef.current = lastMsg.id;
+        lastMessageIdRef.current = String(lastMsg.id);
       }
     }
   }, [messages.length]);
@@ -1109,12 +1106,13 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage) return;
 
-    const isNewMessage = lastMessage.id !== lastMessageIdRef.current;
+    const lastMessageId = String(lastMessage.id);
+    const isNewMessage = lastMessageId !== lastMessageIdRef.current;
     const isFromPartner = lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId;
 
     if (isNewMessage) {
       const prevLastId = lastMessageIdRef.current;
-      lastMessageIdRef.current = lastMessage.id;
+      lastMessageIdRef.current = lastMessageId;
 
       if (prevLastId === null) {
         return;
@@ -1220,7 +1218,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       return;
     }
 
-    const currentOldest = oldestMessageIdRef.current ?? messages[0]?.id ?? null;
+    const currentOldest = oldestMessageIdRef.current ?? (messages[0]?.id ? String(messages[0]?.id) : null) ?? null;
     if (!currentOldest) {
       setHasMoreHistory(false);
       return;
@@ -1243,7 +1241,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       }
 
       // Update oldest message ID
-      oldestMessageIdRef.current = olderMessages[0]?.id ?? oldestMessageIdRef.current;
+      oldestMessageIdRef.current = olderMessages[0]?.id ? String(olderMessages[0]?.id) : oldestMessageIdRef.current;
 
       // Restore scroll position after loading older messages
       requestAnimationFrame(() => {
