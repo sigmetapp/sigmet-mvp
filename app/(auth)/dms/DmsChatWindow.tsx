@@ -899,18 +899,17 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         setMessagesFromHook(sorted);
         oldestMessageIdRef.current = sorted.length > 0 ? sorted[0].id : null;
         
-        if (process.env.NODE_ENV !== 'production') {
-          const first = sorted[0];
-          const last = sorted[sorted.length - 1];
-          console.info('[DM] Bootstrap messages', {
-            threadId,
-            count: sorted.length,
-            oldestId: first ? first.id : null,
-            oldestAt: first ? first.created_at : null,
-            newestId: last ? last.id : null,
-            newestAt: last ? last.created_at : null,
-          });
-        }
+        const first = sorted[0];
+        const last = sorted[sorted.length - 1];
+        console.info('[DM] Bootstrap messages', {
+          threadId,
+          count: sorted.length,
+          oldestId: first ? first.id : null,
+          oldestAt: first ? first.created_at : null,
+          newestId: last ? last.id : null,
+          newestAt: last ? last.created_at : null,
+          newestText: last ? (last.body ?? (last as any).text ?? null) : null,
+        });
         
         // Load message receipts for messages sent by current user (to show partner's read status)
         if (sorted.length > 0 && currentUserId && partnerId) {
@@ -919,15 +918,14 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             const myMessageIds = sorted
               .filter((m) => m.sender_id === currentUserId)
               .map((m) => String(m.id));
-            const supabaseMessageIds = myMessageIds.map((id) => {
-              if (/^\d+$/.test(id)) {
+            const numericMessageIds = myMessageIds.filter((id) => /^\d+$/.test(id));
+            
+            if (numericMessageIds.length > 0) {
+              const supabaseMessageIds = numericMessageIds.map((id) => {
                 const numeric = Number(id);
                 return Number.isSafeInteger(numeric) ? numeric : id;
-              }
-              return id;
-            });
+              });
             
-            if (supabaseMessageIds.length > 0) {
               // Load receipts where partner is the recipient (user_id = partnerId)
               const { data: receipts } = await supabase
                 .from('dms_message_receipts')
@@ -964,8 +962,16 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           
           // Mark all messages as read when thread is opened and messages are loaded
           // This ensures that when user opens a chat, all visible messages are marked as read
-          if (sorted.length > 0 && currentUserId && partnerId && threadId) {
-            const lastMessage = sorted[sorted.length - 1];
+          const newestMessage = sorted[sorted.length - 1] ?? null;
+          if (
+            newestMessage &&
+            currentUserId &&
+            partnerId &&
+            threadId &&
+            typeof newestMessage.id === 'number' &&
+            newestMessage.id > 0
+          ) {
+            const lastMessage = newestMessage;
             // Mark all messages as read when opening chat, regardless of sender
             // This ensures that on page refresh, these messages won't be unread
             if (lastMessage) {
