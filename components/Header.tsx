@@ -4,12 +4,13 @@ import { useEffect, useState, useRef } from "react";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { supabase } from "@/lib/supabaseClient";
 import { useTheme } from "@/components/ThemeProvider";
-import { Sun, Moon, Home, Rss, UserPlus } from "lucide-react";
+import { Sun, Moon, Home, Rss, UserPlus, Bell } from "lucide-react";
 import SearchInput from "@/components/SearchInput";
 
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/feed", label: "Feed" },
+  { href: "/alert", label: "Alert" },
   { href: "/invite", label: "Invite" },
 ];
 
@@ -232,7 +233,7 @@ export default function Header() {
             <SearchInput />
           </div>
 
-          {/* Icon nav for Home / Feed / Invite */}
+          {/* Icon nav for Home / Feed / Alert / Invite */}
           <div className="flex items-center gap-1 flex-shrink-0">
             <Link
               href="/"
@@ -255,6 +256,21 @@ export default function Header() {
               }`}
             >
               <Rss size={18} />
+            </Link>
+            <Link
+              href="/alert"
+              aria-label="Alert"
+              className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
+                pathname === "/alert"
+                  ? isLight
+                    ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
+                    : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                  : isLight
+                  ? "border-primary-blue/20 text-primary-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue"
+                  : "border-primary-blue/30 text-primary-text-secondary hover:bg-primary-blue/20 hover:text-primary-blue-light"
+              }`}
+            >
+              <Bell size={18} />
             </Link>
             <Link
               href="/invite"
