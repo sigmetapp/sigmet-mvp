@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 type ProgressiveImageProps = {
   src: string;
@@ -63,12 +63,27 @@ export default function ProgressiveImage({
     return url;
   };
 
+  // Check if image is already loaded (for cached images)
+  const checkImageLoaded = useCallback((img: HTMLImageElement | null) => {
+    if (img && img.complete && img.naturalWidth > 0) {
+      setImageLoaded(true);
+    }
+  }, []);
+
   useEffect(() => {
     const optimizedSrc = optimizeImageUrl(src);
     setCurrentSrc(optimizedSrc);
     setImageLoaded(false);
     setImageError(false);
-  }, [src, width, height]);
+    
+    // Check if image is already loaded after setting src
+    // Use setTimeout to ensure DOM is updated
+    const timeoutId = setTimeout(() => {
+      checkImageLoaded(imgRef.current);
+    }, 0);
+    
+    return () => clearTimeout(timeoutId);
+  }, [src, width, height, checkImageLoaded]);
 
   const handleLoad = () => {
     setImageLoaded(true);
@@ -142,7 +157,13 @@ export default function ProgressiveImage({
 
       {/* Actual image */}
       <img
-        ref={imgRef}
+        ref={(node) => {
+          imgRef.current = node;
+          // Check if image is already loaded when ref is set (for cached images)
+          if (node) {
+            checkImageLoaded(node);
+          }
+        }}
         src={currentSrc}
         alt={alt}
         width={width}
