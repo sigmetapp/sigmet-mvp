@@ -19,6 +19,20 @@ import type { Message } from "@/lib/dms";
 import { assertThreadId, type ThreadId } from "@/lib/dm/threadId";
 import { subscribeToThread, sendTypingIndicator } from "@/lib/dm/realtime";
 import { subscribeToPresence, getPresenceMap } from "@/lib/dm/presence";
+import {
+  enqueueMessage,
+  markMessagePersisted,
+  markMessageFailed,
+  removeMessage,
+  startQueueProcessor,
+  type PendingMessage,
+} from "@/lib/dm/reliableQueue";
+import {
+  startPeriodicSync,
+  syncThreadMessages,
+  updateSyncState,
+  clearSyncState,
+} from "@/lib/dm/messageSync";
 
 const MESSAGE_CACHE_KEY_PREFIX = "dm:messages:";
 const MESSAGE_CACHE_LIMIT = 200;
@@ -455,6 +469,39 @@ export function useWebSocketDm(
         const currentLastId = lastServerMsgIdRef.current;
         wsClient.syncThread(normalizedThreadId, currentLastId);
       }
+
+      // Update sync state
+      if (lastServerMsgIdRef.current) {
+        updateSyncState(normalizedThreadId, {
+          last_message_id: lastServerMsgIdRef.current,
+        });
+      }
+
+      // Start periodic sync for missed messages
+      if (syncCleanupRef.current) {
+        syncCleanupRef.current();
+      }
+      syncCleanupRef.current = startPeriodicSync(
+        normalizedThreadId,
+        (missedMessages) => {
+          if (missedMessages.length > 0) {
+            setMessagesState((prev) => {
+              let result = prev;
+              for (const msg of missedMessages) {
+                result = addOrUpdateMessage(result, msg);
+              }
+              return result;
+            });
+
+            // Update last server message ID
+            const lastMsg = missedMessages[missedMessages.length - 1];
+            if (lastMsg) {
+              setLastServerMsgId(lastMsg.id);
+              lastServerMsgIdRef.current = lastMsg.id;
+            }
+          }
+        }
+      );
     });
 
     if (transport === "websocket") {
@@ -511,6 +558,11 @@ export function useWebSocketDm(
               filterTimeoutsRef.current.delete(clientMsgIdFromServer);
             }
             sentClientMsgIdsRef.current.delete(clientMsgIdFromServer);
+
+            // Update reliable queue with server message ID
+            markMessagePersisted(clientMsgIdFromServer, serverMsgId).then(() => {
+              removeMessage(clientMsgIdFromServer);
+            });
           }
 
           setMessagesState((prev) => {
@@ -561,6 +613,21 @@ export function useWebSocketDm(
             pendingEchoTimeoutsRef.current.delete(event.client_msg_id);
           }
           pendingEchoAttemptsRef.current.delete(event.client_msg_id);
+
+          // Mark message as persisted in reliable queue
+          // Note: We need to get the server_msg_id from the message event, not db_message_id
+          // db_message_id is a UUID string, but we need the numeric ID
+          // The server_msg_id should come from the message event itself
+          // For now, we'll mark it as persisted and remove from queue
+          // The actual server_msg_id will be updated when we receive the message event
+          markMessagePersisted(
+            event.client_msg_id,
+            0, // Will be updated when message event arrives
+            event.db_message_id
+          ).then(() => {
+            // Remove from queue after successful persistence
+            removeMessage(event.client_msg_id);
+          });
 
           // Update message status to 'persisted' and update metadata
           // Note: db_message_id is UUID (string), not a number
@@ -712,6 +779,28 @@ export function useWebSocketDm(
 
       setIsConnected(wsClient.getState() === "authenticated");
 
+      // Start queue processor for reliable delivery
+      if (queueProcessorCleanupRef.current) {
+        queueProcessorCleanupRef.current();
+      }
+      queueProcessorCleanupRef.current = startQueueProcessor(
+        async (msg: PendingMessage) => {
+          try {
+            const { sendMessage: sendMessageHttp } = await import("@/lib/dms");
+            const saved = await sendMessageHttp(
+              msg.thread_id,
+              msg.body,
+              msg.attachments,
+              msg.id
+            );
+            return { server_msg_id: saved.id };
+          } catch (error) {
+            console.error("Queue processor send error:", error);
+            throw error;
+          }
+        }
+      );
+
       return () => {
         cancelled = true;
         unsubMessage();
@@ -723,6 +812,15 @@ export function useWebSocketDm(
         unsubMessageAck();
         unsubMessagePersisted();
         wsClient.unsubscribe(normalizedThreadId);
+        if (queueProcessorCleanupRef.current) {
+          queueProcessorCleanupRef.current();
+          queueProcessorCleanupRef.current = null;
+        }
+        if (syncCleanupRef.current) {
+          syncCleanupRef.current();
+          syncCleanupRef.current = null;
+        }
+        clearSyncState(normalizedThreadId);
       };
     } else {
       // Only set up Supabase fallback if WebSocket is not being used
@@ -797,12 +895,43 @@ export function useWebSocketDm(
 
       void setupFallback();
 
+      // Start periodic sync for missed messages (Supabase fallback)
+      if (syncCleanupRef.current) {
+        syncCleanupRef.current();
+      }
+      syncCleanupRef.current = startPeriodicSync(
+        normalizedThreadId,
+        (missedMessages) => {
+          if (missedMessages.length > 0) {
+            setMessagesState((prev) => {
+              let result = prev;
+              for (const msg of missedMessages) {
+                result = addOrUpdateMessage(result, msg);
+              }
+              return result;
+            });
+
+            // Update last server message ID
+            const lastMsg = missedMessages[missedMessages.length - 1];
+            if (lastMsg) {
+              setLastServerMsgId(lastMsg.id);
+              lastServerMsgIdRef.current = lastMsg.id;
+            }
+          }
+        }
+      );
+
       return () => {
         cancelled = true;
         if (fallbackThreadUnsubscribeRef.current) {
           void fallbackThreadUnsubscribeRef.current();
           fallbackThreadUnsubscribeRef.current = null;
         }
+        if (syncCleanupRef.current) {
+          syncCleanupRef.current();
+          syncCleanupRef.current = null;
+        }
+        clearSyncState(normalizedThreadId);
       };
     }
   }, [threadId, transport, initialLimit]);
@@ -951,7 +1080,11 @@ export function useWebSocketDm(
     };
   }, [partnerId]);
 
-  // Send message with local-echo support
+  // Queue processor cleanup ref
+  const queueProcessorCleanupRef = useRef<(() => void) | null>(null);
+  const syncCleanupRef = useRef<(() => void) | null>(null);
+
+  // Send message with local-echo support and reliable queue
   const sendMessage = useCallback(
     async (
       threadId: ThreadId,
@@ -968,6 +1101,9 @@ export function useWebSocketDm(
 
       // Generate UUID v4 for client_msg_id
       const clientMsgId = uuidv4();
+
+      // Add to reliable queue for guaranteed delivery
+      await enqueueMessage(clientMsgId, normalizedThreadId, body, attachments);
 
       // Track this client_msg_id to filter out own echoes
       sentClientMsgIdsRef.current.add(clientMsgId);
@@ -1203,11 +1339,21 @@ export function useWebSocketDm(
 
         setLastServerMsgId(savedMessage.id);
         lastServerMsgIdRef.current = savedMessage.id;
+
+        // Mark message as persisted in reliable queue
+        await markMessagePersisted(clientMsgId, savedMessage.id);
+        await removeMessage(clientMsgId);
+
         // Keep client_msg_id in filter to prevent echo from WebSocket events
         // Don't delete immediately - wait for message_persisted or timeout
 
         return { client_msg_id: clientMsgId, server_msg_id: savedMessage.id };
       } catch (error) {
+        // Mark message as failed in reliable queue
+        await markMessageFailed(
+          clientMsgId,
+          (error as Error)?.message || "Failed to send"
+        );
         // Keep local echo for user retry; clear filters after timeout
         throw error;
       }
@@ -1295,6 +1441,37 @@ export function useWebSocketDm(
     },
     [transport],
   );
+
+  // Auto-acknowledge messages when they become visible
+  useEffect(() => {
+    if (!threadId || messages.length === 0) {
+      return;
+    }
+
+    const normalizedThreadId = assertThreadId(threadId, "Invalid thread ID");
+    const currentUserId = currentUserIdRef.current;
+
+    if (!currentUserId) {
+      return;
+    }
+
+    // Find the last message that is not from current user
+    const lastOtherMessage = [...messages]
+      .reverse()
+      .find((msg) => msg.sender_id !== currentUserId && msg.id !== -1);
+
+    if (lastOtherMessage && lastOtherMessage.id > 0) {
+      // Acknowledge as read if user is viewing the thread
+      // Use a debounce to avoid too many requests
+      const timeoutId = setTimeout(() => {
+        acknowledgeMessage(lastOtherMessage.id, normalizedThreadId, "read");
+      }, 1000); // 1 second debounce
+
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    }
+  }, [threadId, messages, acknowledgeMessage]);
 
   return {
     messages,
