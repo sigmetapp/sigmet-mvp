@@ -887,6 +887,14 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         let messagesData;
         try {
           messagesData = await listMessages(threadId, { limit: INITIAL_MESSAGE_LIMIT });
+          console.info(
+            '[DM] listMessages raw',
+            (messagesData || []).slice(-5).map((msg: any) => ({
+              id: msg?.id ?? null,
+              created_at: msg?.created_at ?? null,
+              body: msg?.body ?? null
+            }))
+          );
         } catch (msgErr: any) {
           console.error('Error in listMessages:', msgErr, 'threadId:', threadId);
           // Continue without messages if we can't load them, but thread is valid
