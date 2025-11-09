@@ -28,7 +28,8 @@ function mapRowToMessage(
   row: any,
   dialogId: string,
   currentUserId: string,
-  otherUserId: string
+  otherUserId: string,
+  replyToMessage?: any
 ): Message {
   const senderId = row.sender_id as string;
   return {
@@ -39,6 +40,15 @@ function mapRowToMessage(
     text: row.body ?? '',
     createdAt: row.created_at,
     status: senderId === currentUserId ? 'sent' : undefined,
+    replyToMessageId: row.reply_to_message_id ? String(row.reply_to_message_id) : undefined,
+    replyToMessage: replyToMessage
+      ? {
+          id: String(replyToMessage.id),
+          senderId: replyToMessage.sender_id,
+          text: replyToMessage.body ?? '',
+          createdAt: replyToMessage.created_at,
+        }
+      : undefined,
   };
 }
 
@@ -132,7 +142,7 @@ export function useChat(dialogId: string | null, options: UseChatOptions): UseCh
       try {
         const { data, error: fetchError } = await supabase
           .from('dms_messages')
-          .select('id, sender_id, body, created_at')
+          .select('id, sender_id, body, created_at, reply_to_message_id')
           .eq('thread_id', dialogKey)
           .order('id', { ascending: false })
           .limit(pageSize);
@@ -141,8 +151,30 @@ export function useChat(dialogId: string | null, options: UseChatOptions): UseCh
           throw fetchError;
         }
 
+        // Fetch reply messages if any
+        const replyIds = (data ?? [])
+          .map((row) => row.reply_to_message_id)
+          .filter((id): id is number => id != null);
+        
+        let replyMessagesMap: Map<number, any> = new Map();
+        if (replyIds.length > 0) {
+          const { data: replyData } = await supabase
+            .from('dms_messages')
+            .select('id, sender_id, body, created_at')
+            .in('id', replyIds);
+          
+          if (replyData) {
+            replyMessagesMap = new Map(replyData.map((msg) => [Number(msg.id), msg]));
+          }
+        }
+
         const baseMessages = (data ?? [])
-          .map((row) => mapRowToMessage(row, dialogKey, currentUserId, otherUserId))
+          .map((row) => {
+            const replyToMessage = row.reply_to_message_id
+              ? replyMessagesMap.get(Number(row.reply_to_message_id))
+              : undefined;
+            return mapRowToMessage(row, dialogKey, currentUserId, otherUserId, replyToMessage);
+          })
           .reverse();
 
         const hydrated = await hydrateReceiptsSafe(baseMessages, currentUserId, otherUserId);
@@ -179,10 +211,22 @@ export function useChat(dialogId: string | null, options: UseChatOptions): UseCh
           table: 'dms_messages',
           filter: `thread_id=eq.${dialogKey}`,
         },
-        (payload) => {
+        async (payload) => {
           const row = payload.new as any;
           if (!row) return;
-          const message = mapRowToMessage(row, dialogKey, currentUserId, otherUserId);
+          
+          // Fetch reply message if exists
+          let replyToMessage: any = undefined;
+          if (row.reply_to_message_id) {
+            const { data: replyData } = await supabase
+              .from('dms_messages')
+              .select('id, sender_id, body, created_at')
+              .eq('id', row.reply_to_message_id)
+              .single();
+            replyToMessage = replyData || undefined;
+          }
+          
+          const message = mapRowToMessage(row, dialogKey, currentUserId, otherUserId, replyToMessage);
           addMessages(dialogKey, [message]);
         }
       );
@@ -230,7 +274,7 @@ export function useChat(dialogId: string | null, options: UseChatOptions): UseCh
     try {
       const { data, error: fetchError } = await supabase
         .from('dms_messages')
-        .select('id, sender_id, body, created_at')
+        .select('id, sender_id, body, created_at, reply_to_message_id')
         .eq('thread_id', dialogKey)
         .lt('id', oldestNumericId)
         .order('id', { ascending: false })
@@ -245,8 +289,30 @@ export function useChat(dialogId: string | null, options: UseChatOptions): UseCh
         return;
       }
 
+      // Fetch reply messages if any
+      const replyIds = data
+        .map((row) => row.reply_to_message_id)
+        .filter((id): id is number => id != null);
+      
+      let replyMessagesMap: Map<number, any> = new Map();
+      if (replyIds.length > 0) {
+        const { data: replyData } = await supabase
+          .from('dms_messages')
+          .select('id, sender_id, body, created_at')
+          .in('id', replyIds);
+        
+        if (replyData) {
+          replyMessagesMap = new Map(replyData.map((msg) => [Number(msg.id), msg]));
+        }
+      }
+
       const baseMessages = data
-        .map((row) => mapRowToMessage(row, dialogKey, currentUserId, otherUserId))
+        .map((row) => {
+          const replyToMessage = row.reply_to_message_id
+            ? replyMessagesMap.get(Number(row.reply_to_message_id))
+            : undefined;
+          return mapRowToMessage(row, dialogKey, currentUserId, otherUserId, replyToMessage);
+        })
         .reverse();
       const hydrated = await hydrateReceiptsSafe(baseMessages, currentUserId, otherUserId);
 

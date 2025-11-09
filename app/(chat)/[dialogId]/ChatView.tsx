@@ -6,6 +6,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useChat } from '@/hooks/useChat';
 import { useSendMessage } from '@/hooks/useSendMessage';
 import { MessageItem } from '@/components/chat/MessageItem';
+import type { Message } from '@/types/chat';
 import { markDelivered, markRead } from '@/lib/receipts';
 import {
   leaveDmChannel,
@@ -43,6 +44,7 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
 
   const [draft, setDraft] = useState('');
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -216,14 +218,37 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
   const handleSend = useCallback(async () => {
     if (!draft.trim()) return;
     const text = draft.trim();
+    const replyToMessageId = replyingTo?.id;
+    const replyToMessage = replyingTo
+      ? {
+          id: replyingTo.id,
+          senderId: replyingTo.senderId,
+          text: replyingTo.text,
+          createdAt: replyingTo.createdAt,
+        }
+      : undefined;
     try {
       setDraft('');
-      await sendMessage(text);
+      setReplyingTo(null);
+      await sendMessage(text, replyToMessageId, replyToMessage);
     } catch (err) {
       console.error('[ChatView] Failed to send message', err);
       setDraft(text); // restore draft on failure
     }
-  }, [draft, sendMessage]);
+  }, [draft, sendMessage, replyingTo]);
+
+  const handleReply = useCallback((message: Message) => {
+    setReplyingTo(message);
+    // Focus the textarea
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      textarea.focus();
+    }
+  }, []);
+
+  const handleCancelReply = useCallback(() => {
+    setReplyingTo(null);
+  }, []);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -265,6 +290,7 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
               key={message.id}
               message={message}
               isOwn={isOwn}
+              onReply={handleReply}
             />
           );
         })}
@@ -272,12 +298,34 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
       </div>
 
       <div className="border-t border-white/10 px-4 py-3">
+        {/* Reply preview */}
+        {replyingTo && (
+          <div className="mb-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] text-white/60 mb-1">
+                Replying to:
+              </div>
+              <div className="text-xs text-white/80 line-clamp-2">
+                {replyingTo.text}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleCancelReply}
+              className="flex-shrink-0 px-2 py-1 rounded text-[10px] text-white/60 hover:text-white/80 hover:bg-white/10 transition"
+              title="Cancel reply"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message…"
+            placeholder={replyingTo ? "Type your reply…" : "Type a message…"}
             disabled={isSending}
             className="flex-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
             rows={1}
