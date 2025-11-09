@@ -155,6 +155,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchIndex, setSearchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const messagesRef = useRef<Message[]>([]);
   const messageNodeMap = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const AVATAR_FALLBACK =
@@ -189,6 +190,10 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     }
 
   }, []);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const playKnock = useCallback(
     async (volume = 0.35) => {
@@ -640,6 +645,126 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     };
   }, [partnerProfile?.user_id, partnerProfile?.show_online_status, applyOnlineStatus]);
 
+  const updateMessageReceiptStatus = useCallback(
+    (
+      messageId: string,
+      status: 'sent' | 'delivered' | 'read',
+      source: 'ack' | 'realtime' | 'refresh' | 'bootstrap',
+    ) => {
+      if (!messageId) {
+        return;
+      }
+
+      setMessageReceipts((prev) => {
+        const previousStatus = prev.get(messageId);
+        if (previousStatus === status) {
+          console.debug('[DM] Receipt status unchanged', {
+            messageId,
+            status,
+            source,
+          });
+          return prev;
+        }
+
+        const next = new Map(prev);
+        next.set(messageId, status);
+        console.log('[DM] Receipt status updated', {
+          messageId,
+          previousStatus,
+          status,
+          source,
+        });
+        return next;
+      });
+
+      setMessagesFromHook((prev) => {
+        let changed = false;
+        const updated = prev.map((msg) => {
+          if (String(msg.id) !== messageId) {
+            return msg;
+          }
+
+          const nextDeliveryState =
+            status === 'read'
+              ? 'read'
+              : status === 'delivered'
+                ? 'delivered'
+                : 'sent';
+
+          const currentDeliveryState = (msg as any).delivery_state;
+          const currentSendError = (msg as any).send_error;
+
+          if (currentDeliveryState === nextDeliveryState && currentSendError === undefined) {
+            return msg;
+          }
+
+          changed = true;
+          return {
+            ...msg,
+            delivery_state: nextDeliveryState,
+            send_error: undefined,
+          };
+        });
+
+        if (changed) {
+          console.debug('[DM] Updated message delivery_state due to receipt', {
+            messageId,
+            status,
+            source,
+          });
+          return updated;
+        }
+
+        return prev;
+      });
+    },
+    [setMessageReceipts, setMessagesFromHook],
+  );
+
+  useEffect(() => {
+    setMessageReceipts(new Map());
+    console.debug('[DM] Reset message receipts map for thread', {
+      threadId: thread?.id ?? null,
+    });
+  }, [thread?.id]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const dump = () => {
+      const rows = Array.from(messageReceipts.entries()).map(([messageId, status]) => {
+        const message = messagesRef.current.find((msg) => String(msg.id) === messageId);
+        return {
+          messageId,
+          status,
+          delivery_state: (message as any)?.delivery_state ?? null,
+          sender_id: message?.sender_id ?? null,
+          client_msg_id: (message as any)?.client_msg_id ?? null,
+          body_preview: message?.body ? String(message.body).slice(0, 80) : null,
+        };
+      });
+      console.groupCollapsed('[DM] Receipt debug dump');
+      console.table(rows);
+      console.groupEnd();
+      return rows;
+    };
+
+    (window as any).__DM_RECEIPTS_DEBUG__ = {
+      dump,
+      entries: () => Array.from(messageReceipts.entries()),
+      get: (messageId: string) => messageReceipts.get(messageId),
+      size: messageReceipts.size,
+      lastUpdatedAt: new Date().toISOString(),
+    };
+    return () => {
+      if ((window as any).__DM_RECEIPTS_DEBUG__) {
+        delete (window as any).__DM_RECEIPTS_DEBUG__;
+      }
+    };
+  }, [messageReceipts, messages]);
+
   // Listen for message acknowledgments and update receipts
   useEffect(() => {
     if (!thread?.id || !currentUserId || !partnerId) return;
@@ -647,35 +772,59 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     const { getWebSocketClient } = require('@/lib/dm/websocket');
     const wsClient = getWebSocketClient();
     
-    const handleAck = async (event: any) => {
-        if (event.type === 'ack' && event.thread_id === thread.id) {
-          // Only update receipts for messages sent by current user
-          // The ack event comes from the partner, so we update the receipt status
-          // Verify that this receipt is for a message sent by current user
-          try {
-            const { data: message } = await supabase
-              .from('dms_messages')
-              .select('sender_id')
-              .eq('id', event.message_id)
-              .eq('sender_id', currentUserId)
-              .maybeSingle();
-            
-            if (message) {
-              // This receipt is for a message sent by current user
-              const receiptKey = String(event.message_id);
-              const newStatus = (event.status as 'sent' | 'delivered' | 'read') || 'delivered';
-              console.log('[DM] Receipt updated via WebSocket ack:', receiptKey, 'status:', newStatus);
-              setMessageReceipts((prev) => {
-                const updated = new Map(prev);
-                updated.set(receiptKey, newStatus);
-                return updated;
-              });
-            }
-          } catch (err) {
-            console.error('Error verifying ack message:', err);
-          }
+      const handleAck = async (event: any) => {
+        if (event.type !== 'ack' || event.thread_id !== thread.id) {
+          return;
         }
-    };
+
+        const receiptKey = String(event.message_id ?? '');
+        if (!receiptKey || receiptKey === 'undefined') {
+          console.warn('[DM] Received ack without a valid message_id', event);
+          return;
+        }
+
+        const newStatus = (event.status as 'sent' | 'delivered' | 'read') || 'delivered';
+        const clientMsgId = event.client_msg_id ?? null;
+
+        const localMessage =
+          messagesRef.current.find((msg) => String(msg.id) === receiptKey) ?? null;
+
+        if (localMessage) {
+          if (localMessage.sender_id === currentUserId) {
+            updateMessageReceiptStatus(receiptKey, newStatus, 'ack');
+          } else {
+            console.debug('[DM] Ignoring ack for message not sent by current user', {
+              messageId: receiptKey,
+              senderId: localMessage.sender_id,
+              currentUserId,
+              status: newStatus,
+              clientMsgId,
+            });
+          }
+          return;
+        }
+
+        try {
+          const { data: message } = await supabase
+            .from('dms_messages')
+            .select('sender_id')
+            .eq('id', event.message_id)
+            .eq('sender_id', currentUserId)
+            .maybeSingle();
+
+          if (message) {
+            updateMessageReceiptStatus(receiptKey, newStatus, 'ack-db');
+          } else {
+            console.debug('[DM] Ack message not found or not sent by current user', {
+              messageId: receiptKey,
+              status: newStatus,
+              clientMsgId,
+            });
+          }
+        } catch (err) {
+          console.error('Error verifying ack message:', err);
+        }
+      };
 
     const handleMessage = (event: any) => {
         if (event.type === 'message' && event.thread_id === thread.id) {
@@ -683,30 +832,26 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           // If this is our message, mark it as sent on server confirmation
           // Receipts will be updated when partner acknowledges
           if (message.sender_id === currentUserId) {
-            setMessageReceipts((prev) => {
-              const updated = new Map(prev);
-              const receiptKey = String(event.server_msg_id);
-              // Initially mark as 'sent', will be updated to 'delivered'/'read' when partner acknowledges
-              if (!updated.has(receiptKey)) {
-                updated.set(receiptKey, 'sent');
+              const receiptKey = String(event.server_msg_id ?? '');
+              if (receiptKey && receiptKey !== 'undefined') {
+                updateMessageReceiptStatus(receiptKey, 'sent', 'local');
               }
-              return updated;
-            });
-            setMessagesFromHook((prev: any[]) =>
-              prev.map((msg) => {
-                const matchesById = String((msg as any)?.id ?? '') === String(event.server_msg_id ?? '');
-                const matchesByClient =
-                  (msg as any)?.client_msg_id && message.client_msg_id && (msg as any).client_msg_id === message.client_msg_id;
-                if (!matchesById && !matchesByClient) {
-                  return msg;
-                }
-                return {
-                  ...msg,
-                  send_error: undefined,
-                  delivery_state: 'sent',
-                };
-              })
-            );
+
+              setMessagesFromHook((prev: any[]) =>
+                prev.map((msg) => {
+                  const matchesById = String((msg as any)?.id ?? '') === String(event.server_msg_id ?? '');
+                  const matchesByClient =
+                    (msg as any)?.client_msg_id && message.client_msg_id && (msg as any).client_msg_id === message.client_msg_id;
+                  if (!matchesById && !matchesByClient) {
+                    return msg;
+                  }
+                  return {
+                    ...msg,
+                    send_error: undefined,
+                    delivery_state: 'sent',
+                  };
+                })
+              );
           }
         }
     };
@@ -729,10 +874,32 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           table: 'dms_message_receipts',
           filter: `user_id=eq.${partnerId}`,
         },
-        async (payload) => {
-          const receipt = payload.new as any;
-          if (receipt && receipt.message_id) {
-            // Verify that this receipt is for a message sent by current user
+          async (payload) => {
+            const receipt = payload.new as any;
+            if (!receipt || !receipt.message_id) {
+              return;
+            }
+
+            const receiptKey = String(receipt.message_id);
+            const newStatus = (receipt.status as 'sent' | 'delivered' | 'read') || 'delivered';
+
+            const localMessage =
+              messagesRef.current.find((msg) => String(msg.id) === receiptKey) ?? null;
+
+            if (localMessage) {
+              if (localMessage.sender_id === currentUserId) {
+                updateMessageReceiptStatus(receiptKey, newStatus, 'realtime');
+              } else {
+                console.debug('[DM] Ignoring realtime receipt for partner message', {
+                  messageId: receiptKey,
+                  senderId: localMessage.sender_id,
+                  currentUserId,
+                  status: newStatus,
+                });
+              }
+              return;
+            }
+
             try {
               const { data: message } = await supabase
                 .from('dms_messages')
@@ -740,42 +907,19 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 .eq('id', receipt.message_id)
                 .eq('sender_id', currentUserId)
                 .maybeSingle();
-              
-                if (message) {
-                  // This receipt is for a message sent by current user
-                  const receiptKey = String(receipt.message_id);
-                  const newStatus = (receipt.status as 'sent' | 'delivered' | 'read') || 'delivered';
-                  console.log('[DM] Receipt updated via Supabase Realtime:', receiptKey, 'status:', newStatus);
-                  setMessageReceipts((prev) => {
-                    const updated = new Map(prev);
-                    updated.set(receiptKey, newStatus);
-                    return updated;
-                  });
-                  setMessagesFromHook((prev: any[]) =>
-                    prev.map((msg) => {
-                      const matchesById = String((msg as any)?.id ?? '') === String(receipt.message_id ?? '');
-                      if (!matchesById) {
-                        return msg;
-                      }
-                      const deliveryState =
-                        receipt.status === 'read'
-                          ? 'read'
-                          : receipt.status === 'delivered'
-                            ? 'delivered'
-                            : 'sent';
-                      return {
-                        ...msg,
-                        send_error: undefined,
-                        delivery_state: deliveryState,
-                      };
-                    })
-                  );
-                }
+
+              if (message) {
+                updateMessageReceiptStatus(receiptKey, newStatus, 'realtime-db');
+              } else {
+                console.debug('[DM] Realtime receipt not for current user message', {
+                  messageId: receiptKey,
+                  status: newStatus,
+                });
+              }
             } catch (err) {
               console.error('Error verifying receipt message:', err);
             }
           }
-        }
       )
       .subscribe();
 
@@ -807,25 +951,17 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           .in('message_id', myMessageIds)
           .eq('user_id', partnerId);
         
-        if (receipts) {
-          setMessageReceipts((prev) => {
-            const updated = new Map(prev);
-            let hasChanges = false;
+          if (receipts) {
             for (const receipt of receipts) {
               const messageId = String(receipt.message_id);
-              const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
-              const currentStatus = updated.get(messageId);
-              if (currentStatus !== status) {
-                updated.set(messageId, status);
-                hasChanges = true;
-                if (status === 'read') {
-                  console.log('[DM] Refreshed read receipt for message:', messageId);
-                }
+              if (!messageId || messageId === '-1') {
+                continue;
               }
+
+              const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
+              updateMessageReceiptStatus(messageId, status, 'refresh');
             }
-            return hasChanges ? updated : prev;
-          });
-        }
+          }
       } catch (err) {
         console.error('Error refreshing receipts:', err);
       }
@@ -941,20 +1077,21 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 .in('message_id', supabaseMessageIds)
                 .eq('user_id', partnerId);
               
-              if (receipts) {
-                const receiptsMap = new Map<string, 'sent' | 'delivered' | 'read'>();
-                for (const receipt of receipts) {
-                  const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
-                  const messageId = String(receipt.message_id);
-                  receiptsMap.set(messageId, status);
-                  // Debug log
-                  if (status === 'read') {
-                    console.log('[DM] Loaded read receipt for message:', messageId, 'status:', status);
+                if (receipts) {
+                  const applied: Array<{ messageId: string; status: 'sent' | 'delivered' | 'read' }> = [];
+                  for (const receipt of receipts) {
+                    const messageId = String(receipt.message_id);
+                    if (!messageId || messageId === '-1') {
+                      continue;
+                    }
+                    const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
+                    applied.push({ messageId, status });
+                    updateMessageReceiptStatus(messageId, status, 'bootstrap');
+                  }
+                  if (applied.length > 0) {
+                    console.log('[DM] Loaded receipts via bootstrap', applied);
                   }
                 }
-                setMessageReceipts(receiptsMap);
-                console.log('[DM] Loaded receipts:', Array.from(receiptsMap.entries()));
-              }
             }
           } catch (err) {
             console.error('Error loading message receipts:', err);
