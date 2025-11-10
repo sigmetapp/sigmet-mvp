@@ -476,22 +476,22 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         if (!value) return;
         setReplySubmitting((prev) => ({ ...prev, [parentId]: true }));
         try {
-          // Try user_id first, fallback to author_id if user_id doesn't work
+          // Try author_id first (as per schema), fallback to user_id if needed
           let insertData: any = {
             post_id: postId,
-            body: value,
+            text: value,
             parent_id: parentId,
-            user_id: uid,
+            author_id: uid,
           };
           let { error } = await supabase.from('comments').insert(insertData);
           
-          // If user_id fails, try author_id instead
-          if (error && error.message?.includes('user_id')) {
+          // If author_id fails, try user_id instead
+          if (error && (error.message?.includes('author_id') || error.message?.includes('field'))) {
             insertData = {
               post_id: postId,
               text: value,
               parent_id: parentId,
-              author_id: uid,
+              user_id: uid,
             };
             const retryResult = await supabase.from('comments').insert(insertData);
             error = retryResult.error;
@@ -511,20 +511,20 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         if (!value) return;
         setCommentSubmitting(true);
         try {
-          // Try user_id first, fallback to author_id if user_id doesn't work
+          // Try author_id first (as per schema), fallback to user_id if needed
           let insertData: any = {
             post_id: postId,
-            body: value,
-            user_id: uid,
+            text: value,
+            author_id: uid,
           };
           let { error } = await supabase.from('comments').insert(insertData);
           
-          // If user_id fails, try author_id instead
-          if (error && error.message?.includes('user_id')) {
+          // If author_id fails, try user_id instead
+          if (error && (error.message?.includes('author_id') || error.message?.includes('field'))) {
             insertData = {
               post_id: postId,
               text: value,
-              author_id: uid,
+              user_id: uid,
             };
             const retryResult = await supabase.from('comments').insert(insertData);
             error = retryResult.error;
