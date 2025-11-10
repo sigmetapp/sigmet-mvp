@@ -117,9 +117,9 @@ export default function Header() {
         {/* DESKTOP NAV */}
         <nav className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-1 flex-shrink-0">
           {navLinks.map((l) => {
-            // For home route "/", match exactly. For other routes, match exact or nested paths
+            // For home route "/", match exactly or /u/[slug] routes. For other routes, match exact or nested paths
             const active = l.href === "/" 
-              ? pathname === "/"
+              ? pathname === "/" || pathname.startsWith("/u/")
               : pathname === l.href || pathname.startsWith(l.href + "/");
             const isExternal = l.href.startsWith("http");
             const IconComponent = l.icon;
@@ -245,7 +245,7 @@ export default function Header() {
               href="/"
               aria-label="Home"
               className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
-                pathname === "/"
+                pathname === "/" || pathname.startsWith("/u/")
                   ? isLight
                     ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-primary-blue"
                     : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)] border-primary-blue"
