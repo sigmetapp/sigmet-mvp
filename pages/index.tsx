@@ -195,8 +195,9 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Why Sigmet.app Section */}
-          <div className="mt-12 sm:mt-16 md:mt-20">
+          {/* Why Sigmet.app & Updates Section */}
+          <div className="mt-12 sm:mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            {/* Why Sigmet.app Section */}
             <div className="card-glow-primary p-6 sm:p-8 md:p-10 backdrop-blur-sm">
               <div className="text-center mb-6 sm:mb-8">
                 <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary-text mb-3 sm:mb-4">
@@ -209,8 +210,8 @@ export default function Home() {
               
               <div className="space-y-4 sm:space-y-5">
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-base sm:text-lg">
-                    1
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-[0_0_20px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                    ⚖️
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -220,8 +221,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-base sm:text-lg">
-                    2
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-[0_0_20px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                    🗺️
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -231,8 +232,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-base sm:text-lg">
-                    3
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-[0_0_20px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                    🎨
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -242,8 +243,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-base sm:text-lg">
-                    4
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-[0_0_20px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                    🔐
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -253,8 +254,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-base sm:text-lg">
-                    5
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-[0_0_20px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                    🧭
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -264,16 +265,16 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Updates Section */}
-          <div className="mt-12 sm:mt-16 md:mt-20 card-glow-primary p-5 sm:p-6 md:p-8 backdrop-blur-sm">
-            <h3 className="text-primary-text text-lg sm:text-xl font-semibold mb-3 sm:mb-4">📢 Latest updates</h3>
-            <ul className="text-primary-text-secondary text-sm sm:text-base list-disc list-inside space-y-1.5 sm:space-y-2">
-              <li>New profile dashboard with analytics</li>
-              <li>Faster content loading in feed</li>
-              <li>Improved onboarding flow</li>
-            </ul>
+            {/* Updates Section */}
+            <div className="card-glow-primary p-5 sm:p-6 md:p-8 backdrop-blur-sm">
+              <h3 className="text-primary-text text-lg sm:text-xl font-semibold mb-3 sm:mb-4">📢 Latest updates</h3>
+              <ul className="text-primary-text-secondary text-sm sm:text-base list-disc list-inside space-y-1.5 sm:space-y-2">
+                <li>New profile dashboard with analytics</li>
+                <li>Faster content loading in feed</li>
+                <li>Improved onboarding flow</li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>
