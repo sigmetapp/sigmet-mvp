@@ -71,15 +71,22 @@ export default async function handler(
     const admin = supabaseAdmin();
 
     // Check if slug already exists
-    const { data: existing } = await admin
+    const { data: existing, error: checkError } = await admin
       .from('blog_posts')
       .select('id')
       .eq('slug', slug)
-      .single();
+      .maybeSingle();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking slug:', checkError);
+      return res.status(500).json({ error: 'Failed to check slug availability' });
+    }
 
     if (existing) {
       return res.status(400).json({ error: 'A post with this title already exists' });
     }
+
+    const publishedAtValue = published_at ? new Date(published_at).toISOString() : null;
 
     const { data, error } = await admin
       .from('blog_posts')
@@ -91,14 +98,30 @@ export default async function handler(
         excerpt: excerpt || null,
         type,
         media_urls: media_urls || [],
-        published_at: published_at || null,
+        published_at: publishedAtValue,
       })
-      .select()
+      .select(`
+        id,
+        title,
+        slug,
+        content,
+        excerpt,
+        type,
+        media_urls,
+        published_at,
+        created_at,
+        updated_at,
+        author_id
+      `)
       .single();
 
     if (error) {
       console.error('Error creating blog post:', error);
-      return res.status(500).json({ error: 'Failed to create blog post' });
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      return res.status(500).json({ 
+        error: `Failed to create blog post: ${error.message || 'Unknown error'}`,
+        details: error
+      });
     }
 
     return res.status(201).json({ post: data });

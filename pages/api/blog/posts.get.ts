@@ -80,13 +80,13 @@ export default async function handler(
     } else {
       query = query.eq('slug', slug as string);
     }
-    
-    query = query.single();
 
     // If not admin, only show published posts
     if (!isAdmin) {
       query = query.not('published_at', 'is', null);
     }
+    
+    query = query.single();
 
     const { data, error } = await query;
 
@@ -95,7 +95,20 @@ export default async function handler(
         return res.status(404).json({ error: 'Post not found' });
       }
       console.error('Error fetching blog post:', error);
-      return res.status(500).json({ error: 'Failed to fetch blog post' });
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      
+      // Check if table doesn't exist
+      if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
+        return res.status(500).json({ 
+          error: 'Blog table not found. Please run migration 183_blog_system.sql',
+          details: error.message
+        });
+      }
+      
+      return res.status(500).json({ 
+        error: `Failed to fetch blog post: ${error.message || 'Unknown error'}`,
+        details: error
+      });
     }
 
     return res.status(200).json({ post: data });

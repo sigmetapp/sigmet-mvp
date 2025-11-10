@@ -46,11 +46,15 @@ create policy "Anyone can view published blog posts"
   using (published_at is not null);
 
 -- Admins can view all blog posts (including drafts)
+-- Note: This policy allows admins to see drafts, but service role bypasses RLS
 create policy "Admins can view all blog posts"
   on public.blog_posts
   for select
   to authenticated
-  using (public.is_admin());
+  using (
+    public.is_admin() or 
+    published_at is not null
+  );
 
 -- Admins can create blog posts
 create policy "Admins can create blog posts"

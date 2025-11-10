@@ -81,10 +81,17 @@ export default function BlogCreatePage() {
       });
 
       const data = await response.json();
-      if (response.ok) {
-        router.push(`/blog/${data.post.slug}`);
+      if (response.ok && data.post) {
+        // If post is published, redirect to post page, otherwise redirect to edit page
+        if (data.post.published_at) {
+          router.push(`/blog/${data.post.slug}`);
+        } else {
+          router.push(`/blog/admin/edit/${data.post.id}`);
+        }
       } else {
-        alert(data.error || 'Failed to create post');
+        console.error('Error creating post:', data);
+        const errorMessage = data.error || data.details?.message || 'Failed to create post';
+        alert(`Error: ${errorMessage}\n\nPlease check:\n1. Database migration is run (183_blog_system.sql)\n2. You are logged in as admin (seosasha@gmail.com)\n3. Check browser console for details`);
       }
     } catch (error) {
       console.error('Error creating post:', error);
