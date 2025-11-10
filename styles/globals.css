@@ -673,6 +673,165 @@ html.theme-light .skeleton {
   animation: progressFill 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+/* Blog content styles */
+.blog-content {
+  line-height: 1.7;
+  color: inherit;
+}
+
+.blog-content-light {
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.blog-content-dark {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.blog-content p {
+  margin-bottom: 1.25em;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.blog-content h1,
+.blog-content h2,
+.blog-content h3,
+.blog-content h4,
+.blog-content h5,
+.blog-content h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.blog-content h1 {
+  font-size: 2em;
+}
+
+.blog-content h2 {
+  font-size: 1.5em;
+}
+
+.blog-content h3 {
+  font-size: 1.25em;
+}
+
+.blog-content ul,
+.blog-content ol {
+  margin-bottom: 1.25em;
+  padding-left: 2em;
+}
+
+.blog-content li {
+  margin-bottom: 0.5em;
+  line-height: 1.7;
+}
+
+.blog-content strong {
+  font-weight: 600;
+}
+
+.blog-content em {
+  font-style: italic;
+}
+
+.blog-content a {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.blog-content-light a {
+  color: var(--primary-blue);
+}
+
+.blog-content-dark a {
+  color: var(--primary-blue-light);
+}
+
+.blog-content a:hover {
+  opacity: 0.8;
+}
+
+.blog-content blockquote {
+  margin: 1.5em 0;
+  padding-left: 1.5em;
+  border-left: 3px solid currentColor;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.blog-content code {
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 0.2em 0.4em;
+  border-radius: 0.25em;
+  font-size: 0.9em;
+  font-family: 'Courier New', monospace;
+}
+
+.blog-content-dark code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.blog-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 1em;
+  border-radius: 0.5em;
+  overflow-x: auto;
+  margin-bottom: 1.25em;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.blog-content-dark pre {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.blog-content pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.blog-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5em;
+  margin: 1.5em 0;
+}
+
+.blog-content hr {
+  border: none;
+  border-top: 1px solid currentColor;
+  opacity: 0.2;
+  margin: 2em 0;
+}
+
+.blog-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+}
+
+.blog-content th,
+.blog-content td {
+  padding: 0.75em;
+  border: 1px solid currentColor;
+  opacity: 0.2;
+  text-align: left;
+}
+
+.blog-content th {
+  font-weight: 600;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.blog-content-dark th {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
 /* Prevent mobile browsers from auto-scrolling textarea to center on focus */
 /* Keep input fields at their current position (bottom of screen) */
 textarea {

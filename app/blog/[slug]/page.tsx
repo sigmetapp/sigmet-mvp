@@ -302,7 +302,7 @@ export default function BlogPostPage() {
         )}
 
         <div
-          className={`prose prose-sm max-w-none ${isLight ? 'prose-invert' : ''}`}
+          className={`blog-content ${isLight ? 'blog-content-light' : 'blog-content-dark'}`}
           dangerouslySetInnerHTML={{ __html: post.content }}
         />
       </article>
