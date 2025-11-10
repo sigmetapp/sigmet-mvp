@@ -112,6 +112,9 @@ export default function AlertPage() {
         )
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+      
+      // Dispatch event to update badge counter in Header
+      window.dispatchEvent(new CustomEvent('notification:read'));
     } catch (err: any) {
       console.error('Error marking notification as read:', err);
     } finally {
@@ -133,6 +136,9 @@ export default function AlertPage() {
         prev.map(n => ({ ...n, read_at: n.read_at || new Date().toISOString() }))
       );
       setUnreadCount(0);
+      
+      // Dispatch event to update badge counter in Header
+      window.dispatchEvent(new CustomEvent('notification:read'));
     } catch (err: any) {
       console.error('Error marking all as read:', err);
     }
