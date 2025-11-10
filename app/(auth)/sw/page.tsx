@@ -259,23 +259,23 @@ function getCurrentLevelBlockGlowParameters(levelName: string, colorScheme: { he
     },
     'Growing': {
       boxShadow: `0 0 16px ${colorScheme.hex}40, 0 0 24px ${colorScheme.hex}30, 0 0 32px ${colorScheme.hex}20`,
-      outerGlow: `0 0 20px ${colorScheme.hex}25`
+      outerGlow: `0 0 24px ${colorScheme.hex}30, 0 0 40px ${colorScheme.hex}20, 0 0 56px ${colorScheme.hex}15`
     },
     'Advance': {
       boxShadow: `0 0 20px ${colorScheme.hex}50, 0 0 32px ${colorScheme.hex}38, 0 0 44px ${colorScheme.hex}28`,
-      outerGlow: `0 0 28px ${colorScheme.hex}35`
+      outerGlow: `0 0 32px ${colorScheme.hex}40, 0 0 52px ${colorScheme.hex}28, 0 0 72px ${colorScheme.hex}20`
     },
     'Expert': {
       boxShadow: `0 0 24px ${colorScheme.hex}60, 0 0 40px ${colorScheme.hex}46, 0 0 56px ${colorScheme.hex}36`,
-      outerGlow: `0 0 36px ${colorScheme.hex}45`
+      outerGlow: `0 0 40px ${colorScheme.hex}50, 0 0 64px ${colorScheme.hex}36, 0 0 88px ${colorScheme.hex}25`
     },
     'Leader': {
       boxShadow: `0 0 28px ${colorScheme.hex}70, 0 0 48px ${colorScheme.hex}54, 0 0 68px ${colorScheme.hex}44`,
-      outerGlow: `0 0 44px ${colorScheme.hex}55`
+      outerGlow: `0 0 48px ${colorScheme.hex}60, 0 0 76px ${colorScheme.hex}44, 0 0 104px ${colorScheme.hex}30`
     },
     'Angel': {
       boxShadow: `0 0 32px ${colorScheme.hex}80, 0 0 56px ${colorScheme.hex}62, 0 0 80px ${colorScheme.hex}52`,
-      outerGlow: `0 0 52px ${colorScheme.hex}65`
+      outerGlow: `0 0 56px ${colorScheme.hex}70, 0 0 88px ${colorScheme.hex}52, 0 0 120px ${colorScheme.hex}35`
     }
   };
 
@@ -847,13 +847,13 @@ export default function SWPage() {
               const blockGlowParams = getCurrentLevelBlockGlowParameters(currentLevel.name, currentColorScheme);
               return (
                 <div className="relative w-full md:w-2/3">
-                  {/* Outer glow layer for the block */}
+                  {/* Outer glow layer for the block - covers entire block including progress bar */}
                   {blockGlowParams.outerGlow && (
                     <div
-                      className="absolute inset-0 rounded-lg pointer-events-none -z-10"
+                      className="absolute -inset-4 rounded-lg pointer-events-none -z-10"
                       style={{
                         boxShadow: blockGlowParams.outerGlow,
-                        background: `radial-gradient(circle at center, ${currentColorScheme.hex}10, transparent 70%)`
+                        background: `radial-gradient(ellipse at center, ${currentColorScheme.hex}20, transparent 65%)`
                       }}
                     />
                   )}
