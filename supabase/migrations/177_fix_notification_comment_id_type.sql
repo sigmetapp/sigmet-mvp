@@ -2,6 +2,10 @@
 -- This migration fixes the type mismatch and updates the triggers accordingly
 begin;
 
+-- First, drop the foreign key constraint if it exists (must be done before type change)
+alter table public.notifications
+  drop constraint if exists notifications_comment_id_fkey;
+
 -- Change comment_id from uuid to bigint to match comments.id type
 -- Handle existing data safely
 do $$
@@ -15,7 +19,7 @@ begin
       and data_type = 'uuid'
   ) then
     -- Column exists and is uuid, need to convert
-    -- First, clear any invalid data (comments that don't exist)
+    -- First, clear any invalid data (comments that don't exist or can't be converted)
     update public.notifications
     set comment_id = null
     where comment_id is not null
@@ -43,9 +47,7 @@ begin
   end if;
 end $$;
 
--- Update the foreign key constraint
-alter table public.notifications
-  drop constraint if exists notifications_comment_id_fkey;
+-- Recreate the foreign key constraint with correct type
 
 alter table public.notifications
   add constraint notifications_comment_id_fkey
