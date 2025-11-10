@@ -35,10 +35,12 @@ export default async function handler(
       query = query.eq('type', type);
     }
 
+    const limitNum = parseInt(limit as string, 10);
+    const offsetNum = parseInt(offset as string, 10);
+    
     query = query
       .order('published_at', { ascending: false, nullsFirst: false })
-      .limit(parseInt(limit as string, 10))
-      .offset(parseInt(offset as string, 10));
+      .range(offsetNum, offsetNum + limitNum - 1);
 
     const { data, error } = await query;
     
