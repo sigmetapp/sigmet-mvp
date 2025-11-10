@@ -1007,139 +1007,162 @@ export default function SWPage() {
 
       {/* Levels Tab */}
       {activeTab === 'levels' && (
-        <div className="space-y-3">
-          <div className="card p-3">
-            <h2 className="text-xl font-semibold text-white mb-4">SW Levels & Features</h2>
-            <div className="relative">
-              {/* Levels grid - 2 columns with roadmap lines */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
-                {swLevels.map((level, index) => {
-                  const isCurrent = currentLevel.name === level.name;
-                  const isUnlocked = totalSW >= level.minSW;
-                  const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                  const row = Math.floor(index / 2);
-                  const col = index % 2;
-                  const hasNextLevel = index < swLevels.length - 1;
-                  const nextLevel = hasNextLevel ? swLevels[index + 1] : null;
-                  const nextIsUnlocked = nextLevel ? totalSW >= nextLevel.minSW : false;
-                  const nextRow = hasNextLevel ? Math.floor((index + 1) / 2) : null;
-                  const nextCol = hasNextLevel ? (index + 1) % 2 : null;
-                  const isSameRow = hasNextLevel && nextRow === row;
-                  const isDifferentRow = hasNextLevel && nextRow !== row;
-                  const isLastInRow = col === 1;
-                  
-                  // Line color based on unlock status
-                  const lineColor = isUnlocked && nextIsUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)';
-                  const lineStyle = isUnlocked && nextIsUnlocked ? 'solid' : 'dashed';
-                  
-                  return (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">SW Levels & Features</h2>
+            <p className="text-white/60 text-sm">Your progression path through Social Weight levels</p>
+          </div>
+          
+          {/* Vertical Timeline Roadmap */}
+          <div className="relative">
+            {/* Vertical timeline line */}
+            <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-white/10 hidden md:block" />
+            
+            <div className="space-y-6">
+              {swLevels.map((level, index) => {
+                const isCurrent = currentLevel.name === level.name;
+                const isUnlocked = totalSW >= level.minSW;
+                const hasNextLevel = index < swLevels.length - 1;
+                const nextLevel = hasNextLevel ? swLevels[index + 1] : null;
+                const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                const progressToNext = nextLevel && isUnlocked 
+                  ? Math.min(100, ((totalSW - level.minSW) / (nextLevel.minSW - level.minSW)) * 100)
+                  : 0;
+                
+                return (
+                  <div key={level.name} className="relative">
+                    {/* Timeline connector dot */}
+                    <div className="absolute left-8 top-6 transform -translate-x-1/2 -translate-y-1/2 z-10 hidden md:block">
+                      <div
+                        className="w-4 h-4 rounded-full border-2 transition-all"
+                        style={{
+                          backgroundColor: isUnlocked ? colorScheme.hex : 'transparent',
+                          borderColor: isUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.3)',
+                          boxShadow: isUnlocked ? `0 0 12px ${colorScheme.hex}60` : 'none'
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Level Card */}
                     <div
-                      key={level.name}
-                      className={`p-4 rounded-lg border-2 transition-all relative ${
+                      className={`ml-0 md:ml-12 p-6 rounded-2xl border-2 transition-all relative overflow-hidden ${
                         isCurrent
-                          ? `${colorScheme.border} ${colorScheme.bgGradient ? `bg-gradient-to-br ${colorScheme.bgGradient}` : colorScheme.bg} ${colorScheme.borderGlow}`
+                          ? `${colorScheme.border} ${colorScheme.bgGradient ? `bg-gradient-to-br ${colorScheme.bgGradient}` : colorScheme.bg} ${colorScheme.borderGlow} scale-105`
                           : isUnlocked
-                          ? `${colorScheme.border} ${colorScheme.bg} opacity-80`
-                          : `${colorScheme.border} ${colorScheme.bg} opacity-40`
+                          ? `${colorScheme.border} ${colorScheme.bg} opacity-90 hover:opacity-100`
+                          : `${colorScheme.border} ${colorScheme.bg} opacity-50`
                       }`}
                     >
-                      {/* Horizontal line to next level (same row) - 0→1, 2→3, 4→5 */}
-                      {hasNextLevel && isSameRow && (
-                        <>
-                          <div
-                            className="absolute top-1/2 -right-2 transform -translate-y-1/2 translate-x-full z-0"
-                            style={{
-                              width: 'calc(1rem + 2px)',
-                              height: '2px',
-                              background: lineStyle === 'dashed' 
-                                ? 'repeating-linear-gradient(to right, rgba(255, 255, 255, 0.2) 0px, rgba(255, 255, 255, 0.2) 4px, transparent 4px, transparent 8px)'
-                                : lineColor,
-                              boxShadow: isUnlocked && nextIsUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
-                            }}
-                          />
-                          {/* Arrow pointing right */}
-                          <div
-                            className="absolute top-1/2 -right-2 transform -translate-y-1/2 translate-x-full z-20"
-                            style={{
-                              width: '0',
-                              height: '0',
-                              marginLeft: 'calc(1rem + 2px)',
-                              borderTop: '4px solid transparent',
-                              borderBottom: '4px solid transparent',
-                              borderLeft: `6px solid ${lineColor}`,
-                              filter: isUnlocked && nextIsUnlocked ? `drop-shadow(0 0 2px ${colorScheme.hex})` : 'none'
-                            }}
-                          />
-                        </>
+                      {/* Background glow effect for current level */}
+                      {isCurrent && (
+                        <div
+                          className="absolute inset-0 opacity-20"
+                          style={{
+                            background: `radial-gradient(circle at center, ${colorScheme.hex}, transparent 70%)`
+                          }}
+                        />
                       )}
                       
-                      {/* L-shaped line (different row, last in current row) - 1→2, 3→4 */}
-                      {hasNextLevel && isDifferentRow && isLastInRow && (
-                        <>
-                          {/* Vertical line down */}
-                          <div
-                            className="absolute -bottom-2 right-1/2 transform translate-x-1/2 translate-y-full z-0"
-                            style={{
-                              width: '2px',
-                              height: 'calc(1rem + 2px)',
-                              background: lineStyle === 'dashed'
-                                ? 'repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.2) 0px, rgba(255, 255, 255, 0.2) 4px, transparent 4px, transparent 8px)'
-                                : lineColor,
-                              boxShadow: isUnlocked && nextIsUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
-                            }}
-                          />
-                          {/* Horizontal line left */}
-                          <div
-                            className="absolute -bottom-2 left-0 transform translate-y-full z-0"
-                            style={{
-                              width: 'calc(50% + 1rem)',
-                              height: '2px',
-                              background: lineStyle === 'dashed'
-                                ? 'repeating-linear-gradient(to right, rgba(255, 255, 255, 0.2) 0px, rgba(255, 255, 255, 0.2) 4px, transparent 4px, transparent 8px)'
-                                : lineColor,
-                              boxShadow: isUnlocked && nextIsUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
-                            }}
-                          />
-                          {/* Arrow pointing left (at the end of horizontal line) */}
-                          <div
-                            className="absolute -bottom-2 left-1/2 transform -translate-x-full translate-y-full z-20"
-                            style={{
-                              width: '0',
-                              height: '0',
-                              borderTop: '4px solid transparent',
-                              borderBottom: '4px solid transparent',
-                              borderRight: `6px solid ${lineColor}`,
-                              filter: isUnlocked && nextIsUnlocked ? `drop-shadow(0 0 2px ${colorScheme.hex})` : 'none'
-                            }}
-                          />
-                        </>
-                      )}
-                      
-                      <div className="flex items-center justify-between mb-3">
-                        <div className={`text-xl font-bold ${colorScheme.text}`}>
-                          {level.name}
-                          {isCurrent && <span className={`ml-2 text-sm ${colorScheme.text} opacity-80`}>(Current)</span>}
-                        </div>
-                        <div className={`px-3 py-1.5 rounded-full ${colorScheme.badgeBg} border ${colorScheme.badgeBorder}`}>
-                          <span className={`${colorScheme.text} font-semibold text-base`}>
-                            {level.maxSW ? `${level.minSW.toLocaleString()} - ${level.maxSW.toLocaleString()} pts` : `${level.minSW.toLocaleString()}+ pts`}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        {level.features.map((feature, featureIndex) => (
-                          <div key={featureIndex} className="flex items-start gap-2">
-                            <span className={`${colorScheme.checkmark} mt-0.5 text-sm`}>✓</span>
-                            <span className={`text-sm ${isUnlocked ? 'text-white/80' : 'text-white/50'}`}>
-                              {feature}
+                      <div className="relative z-10">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <div
+                                className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold border-2"
+                                style={{
+                                  backgroundColor: isUnlocked ? `${colorScheme.hex}20` : 'rgba(255, 255, 255, 0.05)',
+                                  borderColor: isUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)',
+                                  color: colorScheme.hex
+                                }}
+                              >
+                                {index + 1}
+                              </div>
+                              <div>
+                                <h3 className={`text-2xl font-bold ${colorScheme.text} flex items-center gap-2`}>
+                                  {level.name}
+                                  {isCurrent && (
+                                    <span className="text-sm px-2 py-1 rounded-full bg-white/10 text-white/90">
+                                      Current
+                                    </span>
+                                  )}
+                                </h3>
+                                <p className="text-white/50 text-sm mt-1">
+                                  {level.maxSW 
+                                    ? `${level.minSW.toLocaleString()} - ${level.maxSW.toLocaleString()} points`
+                                    : `${level.minSW.toLocaleString()}+ points`}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Status Badge */}
+                          <div className={`px-4 py-2 rounded-full border ${isUnlocked ? colorScheme.badgeBg : 'bg-white/5'} ${isUnlocked ? colorScheme.badgeBorder : 'border-white/10'}`}>
+                            <span className={`text-sm font-semibold ${isUnlocked ? colorScheme.text : 'text-white/40'}`}>
+                              {isUnlocked ? '✓ Unlocked' : '🔒 Locked'}
                             </span>
                           </div>
-                        ))}
+                        </div>
+                        
+                        {/* Progress to next level */}
+                        {hasNextLevel && isUnlocked && (
+                          <div className="mb-4">
+                            <div className="flex items-center justify-between text-xs text-white/60 mb-2">
+                              <span>Progress to {nextLevel?.name}</span>
+                              <span>{Math.round(progressToNext)}%</span>
+                            </div>
+                            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{
+                                  width: `${progressToNext}%`,
+                                  backgroundColor: colorScheme.hex,
+                                  boxShadow: `0 0 8px ${colorScheme.hex}60`
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Features */}
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold text-white/70 mb-3">Features:</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {level.features.map((feature, featureIndex) => (
+                              <div key={featureIndex} className="flex items-start gap-2">
+                                <span 
+                                  className={`mt-0.5 text-base ${colorScheme.checkmark}`}
+                                  style={{ opacity: isUnlocked ? 1 : 0.4 }}
+                                >
+                                  ✓
+                                </span>
+                                <span className={`text-sm ${isUnlocked ? 'text-white/90' : 'text-white/40'}`}>
+                                  {feature}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
+                      
+                      {/* Arrow to next level */}
+                      {hasNextLevel && (
+                        <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 z-20 hidden md:block">
+                          <div
+                            className="w-0 h-0 border-l-4 border-r-4 border-t-8"
+                            style={{
+                              borderLeftColor: 'transparent',
+                              borderRightColor: 'transparent',
+                              borderTopColor: isUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)',
+                              filter: isUnlocked ? `drop-shadow(0 0 4px ${colorScheme.hex}60)` : 'none'
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
