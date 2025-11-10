@@ -631,9 +631,15 @@ export default function BlogPostPage() {
   const commentsByParent = useMemo(() => {
     const map: Record<number | 'root', Comment[]> = { root: [] };
     for (const comment of comments) {
-      const key = (comment.parent_id ?? 'root') as number | 'root';
+      const key = (comment.parent_id == null ? 'root' : comment.parent_id) as number | 'root';
       if (!map[key]) map[key] = [];
       map[key].push(comment);
+    }
+    // Sort each group by created_at to maintain chronological order
+    for (const key in map) {
+      map[key].sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
     }
     return map;
   }, [comments]);
@@ -648,8 +654,15 @@ export default function BlogPostPage() {
           ? `/u/${comment.profiles.username}` 
           : `/u/${comment.author_id}`;
         
+        const marginLeft = depth === 0 ? 0 : Math.min(depth * 16, 64); // 16px per level, max 64px
+        const paddingLeft = depth === 0 ? 0 : Math.min(depth * 8 + 8, 32); // 8px per level + base, max 32px
+        
         return (
-          <div key={comment.id} className={`mt-4 ${depth === 0 ? '' : 'ml-4 border-l border-slate-200 dark:border-slate-700 pl-4'}`}>
+          <div 
+            key={comment.id} 
+            className={`mt-4 ${depth === 0 ? '' : 'border-l-2 ' + (isLight ? 'border-slate-300' : 'border-slate-600')}`}
+            style={depth > 0 ? { marginLeft: `${marginLeft}px`, paddingLeft: `${paddingLeft}px` } : {}}
+          >
             <div className={`rounded-xl p-3 ${isLight ? 'bg-white shadow-sm' : 'bg-slate-800/70 shadow-md'} transition-all`}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
