@@ -684,92 +684,95 @@ export default function SWPage() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-4">
-          {/* Total SW */}
-          {(() => {
-            const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-            return (
-              <div className={`card p-6 border-2 ${currentColorScheme.border} ${currentColorScheme.borderGlow}`}>
-                <div className="text-center">
-                  <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
-                  <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
-                  {originalSW && originalSW !== totalSW && (
-                    <div className="text-white/50 text-xs mb-2">
-                      Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
-                    </div>
-                  )}
-                  <div className="text-white/60 text-sm mb-3">Total Points</div>
-                  {swGrowth && (
-                    <div className="flex justify-center gap-4 mt-4 pt-4 border-t border-white/10">
-                      <div className="text-center">
-                        <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
-                        <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {swGrowth.growth24h >= 0 ? '+' : ''}{swGrowth.growth24h.toLocaleString()}
+          {/* Total SW and Current Level - Side by Side */}
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Total SW - 1/3 width */}
+            {(() => {
+              const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+              return (
+                <div className={`card p-6 border-2 ${currentColorScheme.border} ${currentColorScheme.borderGlow} w-full md:w-1/3`}>
+                  <div className="text-center w-full">
+                    <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
+                    <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
+                    {originalSW && originalSW !== totalSW && (
+                      <div className="text-white/50 text-xs mb-2">
+                        Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
+                      </div>
+                    )}
+                    <div className="text-white/60 text-sm mb-3">Total Points</div>
+                    {swGrowth && (
+                      <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-white/10">
+                        <div className="text-center">
+                          <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
+                          <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {swGrowth.growth24h >= 0 ? '+' : ''}{swGrowth.growth24h.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-white/50 text-xs mb-1">Last 7 days</div>
+                          <div className={`text-sm font-semibold ${swGrowth.growth7d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {swGrowth.growth7d >= 0 ? '+' : ''}{swGrowth.growth7d.toLocaleString()}
+                          </div>
                         </div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-white/50 text-xs mb-1">Last 7 days</div>
-                        <div className={`text-sm font-semibold ${swGrowth.growth7d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {swGrowth.growth7d >= 0 ? '+' : ''}{swGrowth.growth7d.toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
 
-          {/* Current Level */}
-          {(() => {
-            const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-            return (
-              <div className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} ${currentColorScheme.borderGlow}`}>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <div className="text-white/60 text-sm mb-1">Current Level</div>
-                    <div className={`text-2xl font-bold ${currentColorScheme.text} flex items-center gap-2`}>
-                      <span>{currentLevel.name}</span>
-                      <span className="text-lg animate-pulse">✨</span>
+            {/* Current Level - 2/3 width */}
+            {(() => {
+              const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+              return (
+                <div className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} ${currentColorScheme.borderGlow} w-full md:w-2/3`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <div className="text-white/60 text-sm mb-1">Current Level</div>
+                      <div className={`text-2xl font-bold ${currentColorScheme.text} flex items-center gap-2`}>
+                        <span>{currentLevel.name}</span>
+                        <span className="text-lg animate-pulse">✨</span>
+                      </div>
                     </div>
+                    {nextLevel && (
+                      <div className="text-right">
+                        <div className="text-white/60 text-sm mb-1">Next Level</div>
+                        {(() => {
+                          const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
+                          const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                          return (
+                            <>
+                              <div className={`text-xl font-semibold ${nextColorScheme.text} flex items-center gap-2 justify-end`}>
+                                <span>{nextLevel.name}</span>
+                                <span className="text-sm">🚀</span>
+                              </div>
+                              <div className={`text-sm font-medium mt-1 ${currentColorScheme.text}`}>
+                                {nextLevel.minSW - totalSW} points to next level
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
                   {nextLevel && (
-                    <div className="text-right">
-                      <div className="text-white/60 text-sm mb-1">Next Level</div>
-                      {(() => {
-                        const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
-                        const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                        return (
-                          <>
-                            <div className={`text-xl font-semibold ${nextColorScheme.text} flex items-center gap-2 justify-end`}>
-                              <span>{nextLevel.name}</span>
-                              <span className="text-sm">🚀</span>
-                            </div>
-                            <div className={`text-sm font-medium mt-1 ${currentColorScheme.text}`}>
-                              {nextLevel.minSW - totalSW} points to next level
-                            </div>
-                          </>
-                        );
-                      })()}
+                    <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="h-3 rounded-full transition-all duration-500 ease-out relative"
+                        style={{ 
+                          width: `${Math.min(100, Math.max(0, progressToNext))}%`,
+                          backgroundColor: currentColorScheme.hex,
+                          boxShadow: `0 0 10px ${currentColorScheme.hex}40`
+                        }}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                      </div>
                     </div>
                   )}
                 </div>
-                {nextLevel && (
-                  <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
-                    <div
-                      className="h-3 rounded-full transition-all duration-500 ease-out relative"
-                      style={{ 
-                        width: `${Math.min(100, Math.max(0, progressToNext))}%`,
-                        backgroundColor: currentColorScheme.hex,
-                        boxShadow: `0 0 10px ${currentColorScheme.hex}40`
-                      }}
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+              );
+            })()}
+          </div>
 
           {/* Inflation Indicator */}
           {inflationRate && inflationRate < 1 && (
