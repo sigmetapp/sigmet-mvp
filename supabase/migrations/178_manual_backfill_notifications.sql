@@ -6,18 +6,31 @@ begin;
 do $$
 declare
   comments_author_col text;
+  has_author_id boolean;
+  has_user_id boolean;
 begin
-  -- Determine which column is used for comment author
-  select column_name into comments_author_col
-  from information_schema.columns
-  where table_schema = 'public'
-    and table_name = 'comments'
-    and column_name in ('author_id', 'user_id')
-  order by case when column_name = 'author_id' then 0 else 1 end
-  limit 1;
-
-  -- If not found, try to find any uuid column that references auth.users
-  if comments_author_col is null then
+  -- Check which columns exist
+  select exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'comments'
+      and column_name = 'author_id'
+  ) into has_author_id;
+  
+  select exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'comments'
+      and column_name = 'user_id'
+  ) into has_user_id;
+  
+  -- Determine which column to use
+  if has_author_id then
+    comments_author_col := 'author_id';
+  elsif has_user_id then
+    comments_author_col := 'user_id';
+  else
+    -- Try to find any uuid column that references auth.users
     select column_name into comments_author_col
     from information_schema.columns
     where table_schema = 'public'
