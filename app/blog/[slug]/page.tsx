@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
-import { Calendar, ArrowLeft, Edit, Trash2 } from 'lucide-react';
+import { Calendar, ArrowLeft, Edit, Trash2, Pencil, X } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import AvatarWithBadge from '@/components/AvatarWithBadge';
@@ -173,6 +173,10 @@ export default function BlogPostPage() {
   const [replyOpen, setReplyOpen] = useState<Record<number, boolean>>({});
   const [replyInput, setReplyInput] = useState<Record<number, string>>({});
   const [replySubmitting, setReplySubmitting] = useState<Record<number, boolean>>({});
+  const [editingComment, setEditingComment] = useState<Record<number, boolean>>({});
+  const [editCommentDraft, setEditCommentDraft] = useState<Record<number, string>>({});
+  const [updatingComment, setUpdatingComment] = useState<Record<number, boolean>>({});
+  const [deletingComment, setDeletingComment] = useState<Record<number, boolean>>({});
   
   // Post reactions state
   const [postReactionCounts, setPostReactionCounts] = useState<Record<ReactionType, number>>({
@@ -542,6 +546,87 @@ export default function BlogPostPage() {
     setReplyOpen((prev) => ({ ...prev, [commentId]: !prev[commentId] }));
   }, []);
 
+  const handleEditComment = useCallback((commentId: number, currentContent: string) => {
+    setEditingComment((prev) => ({ ...prev, [commentId]: true }));
+    setEditCommentDraft((prev) => ({ ...prev, [commentId]: currentContent }));
+  }, []);
+
+  const handleCancelEditComment = useCallback((commentId: number) => {
+    setEditingComment((prev) => ({ ...prev, [commentId]: false }));
+    setEditCommentDraft((prev) => {
+      const newState = { ...prev };
+      delete newState[commentId];
+      return newState;
+    });
+  }, []);
+
+  const handleUpdateComment = useCallback(async (commentId: number) => {
+    if (!user) {
+      alert('Sign in required');
+      return;
+    }
+
+    const content = (editCommentDraft[commentId] || '').trim();
+    if (!content) return;
+
+    setUpdatingComment((prev) => ({ ...prev, [commentId]: true }));
+    try {
+      const response = await fetch(`/api/blog/comments.update?id=${commentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setEditingComment((prev) => ({ ...prev, [commentId]: false }));
+        setEditCommentDraft((prev) => {
+          const newState = { ...prev };
+          delete newState[commentId];
+          return newState;
+        });
+        await fetchComments();
+      } else {
+        console.error('Comment update error:', data);
+        alert(data.error || 'Failed to update comment');
+      }
+    } catch (error) {
+      console.error('Error updating comment:', error);
+      alert('Failed to update comment');
+    } finally {
+      setUpdatingComment((prev) => ({ ...prev, [commentId]: false }));
+    }
+  }, [user, editCommentDraft, fetchComments]);
+
+  const handleDeleteComment = useCallback(async (commentId: number) => {
+    if (!user) {
+      alert('Sign in required');
+      return;
+    }
+
+    if (!confirm('Delete this comment? This cannot be undone.')) return;
+
+    setDeletingComment((prev) => ({ ...prev, [commentId]: true }));
+    try {
+      const response = await fetch(`/api/blog/comments.delete?id=${commentId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await fetchComments();
+      } else {
+        const data = await response.json();
+        console.error('Comment delete error:', data);
+        alert(data.error || 'Failed to delete comment');
+      }
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment');
+    } finally {
+      setDeletingComment((prev) => ({ ...prev, [commentId]: false }));
+    }
+  }, [user, fetchComments]);
+
   // Group comments by parent_id for threaded display
   const commentsByParent = useMemo(() => {
     const map: Record<number | 'root', Comment[]> = { root: [] };
@@ -584,20 +669,84 @@ export default function BlogPostPage() {
                     </time>
                   </div>
                 </div>
-                {user && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => toggleReply(comment.id)}
-                  >
-                    Reply
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {user && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => toggleReply(comment.id)}
+                    >
+                      Reply
+                    </Button>
+                  )}
+                  {user && user.id === comment.author_id && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => handleEditComment(comment.id, comment.content)}
+                        disabled={editingComment[comment.id] || deletingComment[comment.id]}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`text-xs ${isLight ? 'text-red-600 hover:text-red-700' : 'text-red-400 hover:text-red-300'}`}
+                        onClick={() => handleDeleteComment(comment.id)}
+                        disabled={editingComment[comment.id] || deletingComment[comment.id]}
+                      >
+                        {deletingComment[comment.id] ? (
+                          <span className="text-xs">Deleting...</span>
+                        ) : (
+                          <Trash2 className="w-3 h-3" />
+                        )}
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className={`mt-3 whitespace-pre-wrap text-sm ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
-                {formatTextWithMentions(comment.content)}
-              </div>
+              {editingComment[comment.id] ? (
+                <div className="mt-3 space-y-2">
+                  <textarea
+                    value={editCommentDraft[comment.id] || ''}
+                    onChange={(event) =>
+                      setEditCommentDraft((prev) => ({ ...prev, [comment.id]: event.target.value }))
+                    }
+                    className={`w-full rounded-lg border ${
+                      isLight
+                        ? 'border-slate-200 bg-transparent text-slate-900 placeholder-slate-400 focus:ring-sky-500/40'
+                        : 'border-slate-700 bg-transparent text-slate-100 placeholder-slate-400 focus:ring-sky-500/40'
+                    } px-3 py-2 text-sm outline-none focus:ring`}
+                    placeholder="Edit comment..."
+                    rows={3}
+                    style={{ fontSize: '16px' }}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleCancelEditComment(comment.id)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={updatingComment[comment.id] || !(editCommentDraft[comment.id] || '').trim()}
+                      onClick={() => handleUpdateComment(comment.id)}
+                    >
+                      {updatingComment[comment.id] ? 'Saving?' : 'Save'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className={`mt-3 whitespace-pre-wrap text-sm ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
+                  {formatTextWithMentions(comment.content)}
+                </div>
+              )}
               
               {replyOpen[comment.id] && (
                 <div className="mt-3 space-y-2">
@@ -661,7 +810,7 @@ export default function BlogPostPage() {
         );
       });
     },
-    [commentsByParent, commenterSWScores, isLight, user, toggleReply, replyOpen, replyInput, replySubmitting, handleSubmitComment, commentReactions, handleBlogCommentReactionChange]
+    [commentsByParent, commenterSWScores, isLight, user, toggleReply, replyOpen, replyInput, replySubmitting, handleSubmitComment, commentReactions, handleBlogCommentReactionChange, editingComment, editCommentDraft, updatingComment, deletingComment, handleEditComment, handleCancelEditComment, handleUpdateComment, handleDeleteComment]
   );
 
   const handleDeletePost = async () => {
