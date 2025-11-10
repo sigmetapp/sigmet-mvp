@@ -9,49 +9,76 @@ alter table public.notifications
 -- Change comment_id from uuid to bigint to match comments.id type
 -- Handle existing data safely
 do $$
+declare
+  current_type text;
 begin
-  -- Check if column exists and what type it is
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'notifications'
-      and column_name = 'comment_id'
-      and data_type = 'uuid'
-  ) then
-    -- Column exists and is uuid, need to convert
-    -- First, clear any invalid data (comments that don't exist or can't be converted)
+  -- Get current type of comment_id column
+  select data_type into current_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'notifications'
+    and column_name = 'comment_id';
+  
+  if current_type is null then
+    raise notice 'comment_id column does not exist, skipping';
+    return;
+  end if;
+  
+  raise notice 'Current comment_id type: %', current_type;
+  
+  if current_type = 'uuid' then
+    -- Column is uuid, need to convert to bigint
+    -- First, clear ALL comment_id values since UUID cannot be converted to bigint
+    -- (UUIDs and bigints are completely different types)
+    raise notice 'Clearing all comment_id values before type conversion';
     update public.notifications
     set comment_id = null
-    where comment_id is not null
-      and not exists (
-        select 1 from public.comments c
-        where c.id::text = notifications.comment_id::text
-      );
+    where comment_id is not null;
     
-    -- Now convert the type
+    -- Now convert the type (all values are null, so conversion is safe)
+    raise notice 'Converting comment_id from uuid to bigint';
     alter table public.notifications 
-      alter column comment_id type bigint using 
-        case 
-          when comment_id is null then null
-          else (comment_id::text)::bigint
-        end;
-  elsif exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'notifications'
-      and column_name = 'comment_id'
-      and data_type = 'bigint'
-  ) then
-    -- Already correct type, just ensure constraint exists
+      alter column comment_id type bigint using null::bigint;
+    
+    raise notice 'Type conversion completed';
+  elsif current_type = 'bigint' then
+    -- Already correct type
     raise notice 'comment_id is already bigint, skipping conversion';
+  else
+    raise notice 'comment_id has unexpected type: %, skipping conversion', current_type;
   end if;
 end $$;
 
--- Recreate the foreign key constraint with correct type
-
-alter table public.notifications
-  add constraint notifications_comment_id_fkey
-  foreign key (comment_id) references public.comments(id) on delete cascade;
+-- Recreate the foreign key constraint with correct type (only if types match)
+do $$
+declare
+  comment_id_type text;
+  comments_id_type text;
+begin
+  -- Check types before creating constraint
+  select data_type into comment_id_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'notifications'
+    and column_name = 'comment_id';
+  
+  select data_type into comments_id_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'comments'
+    and column_name = 'id';
+  
+  if comment_id_type = 'bigint' and comments_id_type = 'bigint' then
+    -- Types match, create constraint
+    raise notice 'Creating foreign key constraint (both types are bigint)';
+    alter table public.notifications
+      add constraint notifications_comment_id_fkey
+      foreign key (comment_id) references public.comments(id) on delete cascade;
+  else
+    raise notice 'Types do not match: notifications.comment_id = %, comments.id = %, skipping constraint creation', 
+      comment_id_type, comments_id_type;
+  end if;
+end $$;
 
 -- Update create_notification function to accept bigint for comment_id
 create or replace function public.create_notification(
