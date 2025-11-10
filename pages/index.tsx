@@ -2,7 +2,7 @@
 import Head from "next/head";
 import { GetServerSideProps } from "next";
 import { createClient } from "@supabase/supabase-js";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Button from "@/components/Button";
 
@@ -82,8 +82,17 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   };
 };
 
+interface StatsData {
+  newUsers: { '24h': number; '7d': number; '30d': number };
+  newPosts: { '24h': number; '7d': number; '30d': number };
+  newComments: { '24h': number; '7d': number; '30d': number };
+  newReactions: { '24h': number; '7d': number; '30d': number };
+}
+
 export default function Home() {
   const router = useRouter();
+  const [stats, setStats] = useState<StatsData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Client-side auth check (fallback)
@@ -95,6 +104,22 @@ export default function Home() {
       }
     };
     checkAuth();
+
+    // Fetch statistics
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/stats/public');
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
   }, [router]);
 
   return (
@@ -274,6 +299,96 @@ export default function Home() {
                 <li>Faster content loading in feed</li>
                 <li>Improved onboarding flow</li>
               </ul>
+            </div>
+          </div>
+
+          {/* Statistics Section */}
+          <div className="mt-12 sm:mt-16 md:mt-20">
+            <div className="card-glow-primary p-6 sm:p-8 md:p-10 backdrop-blur-sm">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary-text text-center mb-6 sm:mb-8">
+                📊 Network Statistics
+              </h2>
+              
+              {loading ? (
+                <div className="text-center text-primary-text-secondary py-8">
+                  Loading statistics...
+                </div>
+              ) : stats ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left py-3 px-4 text-primary-text font-semibold text-sm sm:text-base"></th>
+                        <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">24 hours</th>
+                        <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">7 days</th>
+                        <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">30 days</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">👥 New Users</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['24h'].toLocaleString()}</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['7d'].toLocaleString()}</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['30d'].toLocaleString()}</td>
+                      </tr>
+                      <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">📝 New Posts</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['24h'].toLocaleString()}</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['7d'].toLocaleString()}</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['30d'].toLocaleString()}</td>
+                      </tr>
+                      <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">💬 New Comments</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['24h'].toLocaleString()}</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['7d'].toLocaleString()}</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['30d'].toLocaleString()}</td>
+                      </tr>
+                      <tr className="hover:bg-white/5 transition-colors">
+                        <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">❤️ New Reactions</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['24h'].toLocaleString()}</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['7d'].toLocaleString()}</td>
+                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['30d'].toLocaleString()}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center text-primary-text-secondary py-8">
+                  Failed to load statistics
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Social Media Follow Section */}
+          <div className="mt-12 sm:mt-16 md:mt-20">
+            <div className="card-glow-primary p-6 sm:p-8 md:p-10 backdrop-blur-sm text-center">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary-text mb-3 sm:mb-4">
+                Follow Sigmet for Updates
+              </h2>
+              <p className="text-primary-text-secondary text-base sm:text-lg mb-6 sm:mb-8">
+                Stay in the loop about the project launch, closed beta access, and upcoming releases.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <Button
+                  href="https://x.com/sigmetapp"
+                  variant="primary"
+                  className="w-full sm:w-auto min-w-[200px]"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Follow on X
+                </Button>
+                <Button
+                  href="https://t.me/sigmetapp"
+                  variant="secondary"
+                  className="w-full sm:w-auto min-w-[200px]"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Join Telegram
+                </Button>
+              </div>
             </div>
           </div>
         </div>
