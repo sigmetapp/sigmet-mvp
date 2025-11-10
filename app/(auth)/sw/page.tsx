@@ -280,6 +280,7 @@ export default function SWPage() {
     growth24h: number;
     growth7d: number;
   } | null>(null);
+  const [isLoadingGrowth, setIsLoadingGrowth] = useState(true);
 
   useEffect(() => {
     // Оптимизированная загрузка: получаем auth данные один раз и загружаем все параллельно
@@ -390,6 +391,7 @@ export default function SWPage() {
           // Set default values if failed
           setSwGrowth({ growth24h: 0, growth7d: 0 });
         }
+        setIsLoadingGrowth(false);
 
         setLoading(false);
       } catch (error: any) {
@@ -459,12 +461,19 @@ export default function SWPage() {
   }
 
   async function loadSWGrowth() {
+    setIsLoadingGrowth(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setIsLoadingGrowth(false);
+        return;
+      }
 
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      if (!token) return;
+      if (!token) {
+        setIsLoadingGrowth(false);
+        return;
+      }
 
       const response = await fetch('/api/sw/growth', {
         headers: {
@@ -478,6 +487,8 @@ export default function SWPage() {
       }
     } catch (error: any) {
       console.error('Error loading SW growth:', error);
+    } finally {
+      setIsLoadingGrowth(false);
     }
   }
 
@@ -629,6 +640,7 @@ export default function SWPage() {
   const currentLevel = getSWLevel(totalSW, swLevels);
   const nextLevel = getNextLevel(totalSW, swLevels);
   const progressToNext = nextLevel ? ((totalSW - currentLevel.minSW) / (nextLevel.minSW - currentLevel.minSW)) * 100 : 100;
+  const isLoadingProgress = loading || isLoadingGrowth;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 md:p-6 space-y-4">
@@ -731,22 +743,35 @@ export default function SWPage() {
                       </div>
                     )}
                     <div className="text-white/60 text-sm mb-3">Total Points</div>
-                    {swGrowth && (
-                      <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/10">
-                        <div className="text-center">
-                          <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
-                          <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {swGrowth.growth24h >= 0 ? '+' : ''}{swGrowth.growth24h.toLocaleString()}
+                    <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/10">
+                      {isLoadingGrowth ? (
+                        <>
+                          <div className="text-center">
+                            <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
+                            <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
                           </div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-white/50 text-xs mb-1">Last 7 days</div>
-                          <div className={`text-sm font-semibold ${swGrowth.growth7d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {swGrowth.growth7d >= 0 ? '+' : ''}{swGrowth.growth7d.toLocaleString()}
+                          <div className="text-center">
+                            <div className="text-white/50 text-xs mb-1">Last 7 days</div>
+                            <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
                           </div>
-                        </div>
-                      </div>
-                    )}
+                        </>
+                      ) : swGrowth ? (
+                        <>
+                          <div className="text-center">
+                            <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
+                            <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {swGrowth.growth24h >= 0 ? '+' : ''}{swGrowth.growth24h.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-white/50 text-xs mb-1">Last 7 days</div>
+                            <div className={`text-sm font-semibold ${swGrowth.growth7d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {swGrowth.growth7d >= 0 ? '+' : ''}{swGrowth.growth7d.toLocaleString()}
+                            </div>
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               );
@@ -778,7 +803,11 @@ export default function SWPage() {
                                 <span className="text-sm">🚀</span>
                               </div>
                               <div className={`text-sm font-medium mt-1 ${currentColorScheme.text}`}>
-                                {nextLevel.minSW - totalSW} points to next level
+                                {isLoadingProgress ? (
+                                  <span className="inline-block h-4 w-24 bg-white/10 rounded animate-pulse"></span>
+                                ) : (
+                                  `${nextLevel.minSW - totalSW} points to next level`
+                                )}
                               </div>
                             </>
                           );
@@ -786,8 +815,11 @@ export default function SWPage() {
                       </div>
                     )}
                   </div>
-                  {nextLevel && (
-                    <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                {nextLevel && (
+                  <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                    {isLoadingProgress ? (
+                      <div className="h-3 bg-white/10 rounded-full animate-pulse"></div>
+                    ) : (
                       <div
                         className="h-3 rounded-full transition-all duration-500 ease-out relative"
                         style={{ 
@@ -798,8 +830,9 @@ export default function SWPage() {
                       >
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                )}
                 </div>
               );
             })()}
