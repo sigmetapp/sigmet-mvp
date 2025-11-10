@@ -1,0 +1,59 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { supabaseAdmin } from '@/lib/supabaseServer';
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { type, limit = '20', offset = '0' } = req.query;
+    const admin = supabaseAdmin();
+
+    let query = admin
+      .from('blog_posts')
+      .select(`
+        id,
+        title,
+        slug,
+        excerpt,
+        type,
+        published_at,
+        created_at,
+        updated_at,
+        author_id,
+        profiles:author_id (
+          username,
+          full_name,
+          avatar_url
+        )
+      `);
+
+    // Only show published posts (published_at is not null)
+    query = query.not('published_at', 'is', null);
+
+    query = query
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .limit(parseInt(limit as string, 10))
+      .offset(parseInt(offset as string, 10));
+
+    if (type && (type === 'guideline' || type === 'changelog')) {
+      query = query.eq('type', type);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching blog posts:', error);
+      return res.status(500).json({ error: 'Failed to fetch blog posts' });
+    }
+
+    return res.status(200).json({ posts: data || [] });
+  } catch (error: any) {
+    console.error('Error in blog posts list API:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
