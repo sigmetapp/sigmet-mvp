@@ -99,9 +99,8 @@ export default function PostReactions({
   const reaction = FIRE_REACTION;
 
   return (
-    <div className={`${isLight ? 'bg-gradient-to-br from-white/20 to-white/5' : 'bg-gradient-to-br from-white/15 to-white/5'} rounded-xl p-1.5 md:p-2 backdrop-blur-md border ${isLight ? 'border-black/10' : 'border-white/10'} shadow-lg`}>
-      <div className="flex flex-row items-center justify-center gap-1 md:gap-2">
-        <motion.button
+    <div className="flex flex-row items-center justify-center">
+      <motion.button
           onClick={handleReactionClick}
           data-prevent-card-navigation="true"
           whileHover={{ 
@@ -208,7 +207,6 @@ export default function PostReactions({
             </>
           )}
         </motion.button>
-      </div>
     </div>
   );
 }
