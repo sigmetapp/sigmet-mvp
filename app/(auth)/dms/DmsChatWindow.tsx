@@ -2376,7 +2376,11 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 {/* Days Streak Badge */}
                 {daysStreak > 0 && (
                   <span
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30"
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium border ${
+                      theme === 'light'
+                        ? 'bg-orange-500/10 text-orange-600 border-orange-500/20'
+                        : 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+                    }`}
                     title="Days streak"
                   >
                     <span className="text-xs leading-none" role="img" aria-label="fire">
