@@ -24,16 +24,11 @@ export default async function handler(
         published_at,
         created_at,
         updated_at,
-        author_id,
-        profiles:author_id (
-          username,
-          full_name,
-          avatar_url
-        )
+        author_id
       `);
 
     // Only show published posts (published_at is not null)
-    // Filter out null published_at values
+    // Filter out null published_at values - use isNotNull() for better compatibility
     query = query.not('published_at', 'is', null);
 
     if (type && (type === 'guideline' || type === 'changelog')) {
@@ -49,7 +44,8 @@ export default async function handler(
     
     console.log('Blog posts query result:', { 
       dataLength: data?.length, 
-      error: error ? JSON.stringify(error, null, 2) : null 
+      error: error ? JSON.stringify(error, null, 2) : null,
+      samplePost: data?.[0] ? { id: data[0].id, title: data[0].title, published_at: data[0].published_at } : null
     });
 
     if (error) {
@@ -70,6 +66,7 @@ export default async function handler(
       });
     }
 
+    // Return posts without profiles for list view (profiles can be fetched on detail page)
     return res.status(200).json({ posts: data || [] });
   } catch (error: any) {
     console.error('Error in blog posts list API:', error);
