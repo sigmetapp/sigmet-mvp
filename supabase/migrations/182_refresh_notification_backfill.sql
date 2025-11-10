@@ -1,7 +1,6 @@
--- Ensure notification triggers handle posts.user_id schema and backfill missing records
+-- Refresh notification triggers/backfill with improved author resolution
 begin;
 
--- Helper to resolve the author/owner column on posts dynamically
 create or replace function public.resolve_post_author_id(p_post_id bigint)
 returns uuid
 language plpgsql
@@ -36,7 +35,6 @@ exception
 end;
 $$;
 
--- Recreate notify_comment_on_post with dynamic post author resolution
 create or replace function public.notify_comment_on_post()
 returns trigger
 language plpgsql
@@ -104,7 +102,6 @@ exception
 end;
 $$;
 
--- Recreate notify_comment_on_comment with dynamic parent/author resolution
 create or replace function public.notify_comment_on_comment()
 returns trigger
 language plpgsql
@@ -183,7 +180,6 @@ exception
 end;
 $$;
 
--- Recreate notify_reaction_on_post with dynamic post author resolution
 create or replace function public.notify_reaction_on_post()
 returns trigger
 language plpgsql
@@ -237,7 +233,6 @@ exception
 end;
 $$;
 
--- Recreate triggers to ensure they call the updated functions
 drop trigger if exists notify_comment_on_post_trigger on public.comments;
 create trigger notify_comment_on_post_trigger
   after insert on public.comments
@@ -258,7 +253,6 @@ create trigger notify_reaction_on_post_trigger
   for each row
   execute function public.notify_reaction_on_post();
 
--- Backfill missing notifications using dynamic column detection
 do $$
 declare
   posts_author_col text;
@@ -271,7 +265,7 @@ declare
   reply_backfill_sql text;
   reaction_backfill_sql text;
 begin
-  -- Resolve posts author column dynamically, prefer column that actually has data
+  -- Resolve posts author column dynamically, prefer a column with data
   if exists (
     select 1
     from information_schema.columns
