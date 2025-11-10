@@ -57,6 +57,12 @@ export default function BlogPage() {
       const data = await response.json();
       if (response.ok) {
         setPosts(data.posts || []);
+      } else {
+        console.error('Error fetching blog posts:', data);
+        // Don't show alert for empty list, just log the error
+        if (data.error && !data.error.includes('not found')) {
+          console.error('API Error:', data.error, data.details);
+        }
       }
     } catch (error) {
       console.error('Error fetching blog posts:', error);

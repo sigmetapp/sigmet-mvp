@@ -35,14 +35,14 @@ export default async function handler(
     // Only show published posts (published_at is not null)
     query = query.not('published_at', 'is', null);
 
+    if (type && (type === 'guideline' || type === 'changelog')) {
+      query = query.eq('type', type);
+    }
+
     query = query
       .order('published_at', { ascending: false, nullsFirst: false })
       .limit(parseInt(limit as string, 10))
       .offset(parseInt(offset as string, 10));
-
-    if (type && (type === 'guideline' || type === 'changelog')) {
-      query = query.eq('type', type);
-    }
 
     const { data, error } = await query;
 

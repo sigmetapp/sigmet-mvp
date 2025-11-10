@@ -81,6 +81,9 @@ export default function BlogCreatePage() {
       });
 
       const data = await response.json();
+      console.log('Response status:', response.status);
+      console.log('Response data:', data);
+      
       if (response.ok && data.post) {
         // If post is published, redirect to post page, otherwise redirect to edit page
         if (data.post.published_at) {
@@ -90,8 +93,9 @@ export default function BlogCreatePage() {
         }
       } else {
         console.error('Error creating post:', data);
-        const errorMessage = data.error || data.details?.message || 'Failed to create post';
-        alert(`Error: ${errorMessage}\n\nPlease check:\n1. Database migration is run (183_blog_system.sql)\n2. You are logged in as admin (seosasha@gmail.com)\n3. Check browser console for details`);
+        const errorMessage = data.error || data.details?.message || data.message || 'Failed to create post';
+        const errorDetails = data.details ? JSON.stringify(data.details, null, 2) : '';
+        alert(`Error (${response.status}): ${errorMessage}\n\n${errorDetails ? `Details:\n${errorDetails}\n\n` : ''}Please check:\n1. Database migration is run (183_blog_system.sql)\n2. You are logged in as admin (seosasha@gmail.com)\n3. Check browser console for details`);
       }
     } catch (error) {
       console.error('Error creating post:', error);

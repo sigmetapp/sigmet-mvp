@@ -59,12 +59,18 @@ export default async function handler(
 
     const { title, content, excerpt, type, media_urls, published_at } = req.body;
 
-    if (!title || !content || !type) {
-      return res.status(400).json({ error: 'Title, content, and type are required' });
+    console.log('Creating post with data:', { title, content: content?.substring(0, 50), excerpt, type, media_urls, published_at });
+
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: 'Title is required and must be a non-empty string' });
     }
 
-    if (type !== 'guideline' && type !== 'changelog') {
-      return res.status(400).json({ error: 'Type must be guideline or changelog' });
+    if (!content || typeof content !== 'string' || !content.trim()) {
+      return res.status(400).json({ error: 'Content is required and must be a non-empty string' });
+    }
+
+    if (!type || (type !== 'guideline' && type !== 'changelog')) {
+      return res.status(400).json({ error: 'Type is required and must be either "guideline" or "changelog"' });
     }
 
     const slug = generateSlug(title);
