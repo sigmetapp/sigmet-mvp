@@ -15,7 +15,11 @@ export type NavItemProps = {
 
 export default function NavItem({ label, href, icon, badgeCount, bordered }: NavItemProps) {
   const pathname = usePathname() || '/';
-  const isActive = pathname === href || pathname.startsWith(href + '/');
+  // Special case: /page should be active on /u/[slug] routes
+  let isActive = pathname === href || pathname.startsWith(href + '/');
+  if (href === '/page' && pathname.startsWith('/u/')) {
+    isActive = true;
+  }
   const { theme } = useTheme();
   const isLight = theme === "light";
 
