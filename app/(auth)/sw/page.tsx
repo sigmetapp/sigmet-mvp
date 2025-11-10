@@ -218,6 +218,38 @@ function getNextLevel(sw: number, levels: SWLevel[]): SWLevel | null {
   return null;
 }
 
+// Progressive glow parameters for progress bar by level
+function getProgressBarGlowParameters(levelName: string, colorScheme: { hex: string }) {
+  const levelParams = {
+    'Beginner': {
+      boxShadow: `0 0 8px ${colorScheme.hex}30`,
+      outerGlow: null
+    },
+    'Growing': {
+      boxShadow: `0 0 10px ${colorScheme.hex}40, 0 0 16px ${colorScheme.hex}30, 0 0 22px ${colorScheme.hex}20`,
+      outerGlow: `0 0 12px ${colorScheme.hex}20`
+    },
+    'Advance': {
+      boxShadow: `0 0 12px ${colorScheme.hex}50, 0 0 20px ${colorScheme.hex}38, 0 0 28px ${colorScheme.hex}28`,
+      outerGlow: `0 0 16px ${colorScheme.hex}28`
+    },
+    'Expert': {
+      boxShadow: `0 0 14px ${colorScheme.hex}60, 0 0 24px ${colorScheme.hex}46, 0 0 34px ${colorScheme.hex}36`,
+      outerGlow: `0 0 20px ${colorScheme.hex}36`
+    },
+    'Leader': {
+      boxShadow: `0 0 16px ${colorScheme.hex}70, 0 0 28px ${colorScheme.hex}54, 0 0 40px ${colorScheme.hex}44`,
+      outerGlow: `0 0 24px ${colorScheme.hex}44`
+    },
+    'Angel': {
+      boxShadow: `0 0 18px ${colorScheme.hex}80, 0 0 32px ${colorScheme.hex}62, 0 0 46px ${colorScheme.hex}52`,
+      outerGlow: `0 0 28px ${colorScheme.hex}52`
+    }
+  };
+
+  return levelParams[levelName as keyof typeof levelParams] || levelParams['Beginner'];
+}
+
 const CACHE_KEY_SW = 'sw_data_cache';
 const CACHE_KEY_RECENT_ACTIVITY = 'sw_recent_activity_cache';
 const CACHE_KEY_CITY_LEADERS = 'sw_city_leaders_cache';
@@ -815,24 +847,37 @@ export default function SWPage() {
                       </div>
                     )}
                   </div>
-                {nextLevel && (
-                  <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
-                    {isLoadingProgress ? (
-                      <div className="h-3 bg-white/10 rounded-full animate-pulse"></div>
-                    ) : (
-                      <div
-                        className="h-3 rounded-full transition-all duration-500 ease-out relative"
-                        style={{ 
-                          width: `${Math.min(100, Math.max(0, progressToNext))}%`,
-                          backgroundColor: currentColorScheme.hex,
-                          boxShadow: `0 0 10px ${currentColorScheme.hex}40`
-                        }}
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {nextLevel && (() => {
+                  const glowParams = getProgressBarGlowParameters(currentLevel.name, currentColorScheme);
+                  return (
+                    <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                      {/* Outer glow layer */}
+                      {glowParams.outerGlow && !isLoadingProgress && (
+                        <div
+                          className="absolute inset-0 rounded-full pointer-events-none"
+                          style={{
+                            boxShadow: glowParams.outerGlow,
+                            background: `radial-gradient(circle at left center, ${currentColorScheme.hex}15, transparent 50%)`
+                          }}
+                        />
+                      )}
+                      {isLoadingProgress ? (
+                        <div className="h-3 bg-white/10 rounded-full animate-pulse"></div>
+                      ) : (
+                        <div
+                          className="h-3 rounded-full transition-all duration-500 ease-out relative z-10"
+                          style={{ 
+                            width: `${Math.min(100, Math.max(0, progressToNext))}%`,
+                            backgroundColor: currentColorScheme.hex,
+                            boxShadow: glowParams.boxShadow
+                          }}
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 </div>
               );
             })()}
@@ -1169,24 +1214,37 @@ export default function SWPage() {
                         </div>
                         
                         {/* Progress to next level */}
-                        {hasNextLevel && isUnlocked && (
-                          <div className="mb-4">
-                            <div className="flex items-center justify-between text-xs text-white/60 mb-2">
-                              <span>Progress to {nextLevel?.name}</span>
-                              <span>{Math.round(progressToNext)}%</span>
+                        {hasNextLevel && isUnlocked && (() => {
+                          const glowParams = getProgressBarGlowParameters(level.name, colorScheme);
+                          return (
+                            <div className="mb-4">
+                              <div className="flex items-center justify-between text-xs text-white/60 mb-2">
+                                <span>Progress to {nextLevel?.name}</span>
+                                <span>{Math.round(progressToNext)}%</span>
+                              </div>
+                              <div className="relative w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                                {/* Outer glow layer */}
+                                {glowParams.outerGlow && (
+                                  <div
+                                    className="absolute inset-0 rounded-full pointer-events-none"
+                                    style={{
+                                      boxShadow: glowParams.outerGlow,
+                                      background: `radial-gradient(circle at left center, ${colorScheme.hex}15, transparent 50%)`
+                                    }}
+                                  />
+                                )}
+                                <div
+                                  className="h-full rounded-full transition-all duration-500 relative z-10"
+                                  style={{
+                                    width: `${progressToNext}%`,
+                                    backgroundColor: colorScheme.hex,
+                                    boxShadow: glowParams.boxShadow
+                                  }}
+                                />
+                              </div>
                             </div>
-                            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${progressToNext}%`,
-                                  backgroundColor: colorScheme.hex,
-                                  boxShadow: `0 0 8px ${colorScheme.hex}60`
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                         
                         {/* Features */}
                         <div className="space-y-2">
