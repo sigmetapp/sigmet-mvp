@@ -47,6 +47,8 @@ declare
   post_author_id uuid;
   comment_author_id uuid;
   has_blocks_table boolean;
+  comment_id_text text;
+  comment_id_bigint bigint := null;
 begin
   comment_author_id := coalesce(
     nullif((to_jsonb(new)->>'author_id'), '')::uuid,
@@ -54,6 +56,11 @@ begin
   );
 
   post_author_id := public.resolve_post_author_id(new.post_id);
+
+  comment_id_text := to_jsonb(new)->>'id';
+  if comment_id_text ~ '^[0-9]+$' then
+    comment_id_bigint := comment_id_text::bigint;
+  end if;
 
   if post_author_id is null or comment_author_id is null then
     return new;
@@ -86,7 +93,7 @@ begin
     p_type := 'comment_on_post',
     p_actor_id := comment_author_id,
     p_post_id := new.post_id,
-    p_comment_id := new.id
+    p_comment_id := comment_id_bigint
   );
 
   return new;
@@ -108,6 +115,8 @@ declare
   parent_comment_author_id uuid;
   comment_author_id uuid;
   has_blocks_table boolean;
+  comment_id_text text;
+  comment_id_bigint bigint := null;
 begin
   if new.parent_id is null then
     return new;
@@ -126,6 +135,11 @@ begin
   from public.comments c
   where c.id::text = new.parent_id::text
   limit 1;
+
+  comment_id_text := to_jsonb(new)->>'id';
+  if comment_id_text ~ '^[0-9]+$' then
+    comment_id_bigint := comment_id_text::bigint;
+  end if;
 
   if parent_comment_author_id is null or comment_author_id is null then
     return new;
@@ -158,7 +172,7 @@ begin
     p_type := 'comment_on_comment',
     p_actor_id := comment_author_id,
     p_post_id := new.post_id,
-    p_comment_id := new.id
+    p_comment_id := comment_id_bigint
   );
 
   return new;
@@ -304,7 +318,10 @@ begin
         'comment_on_post'::text as type,
         c.%2$I as actor_id,
         c.post_id,
-        c.id,
+        case
+          when (to_jsonb(c)->>'id') ~ '^[0-9]+$' then (to_jsonb(c)->>'id')::bigint
+          else null
+        end as comment_id,
         c.created_at
       from public.comments c
       join public.posts p on p.id = c.post_id
@@ -320,7 +337,7 @@ begin
             and n.post_id = c.post_id
             and n.actor_id = c.%2$I
             and (
-              n.comment_id = c.id
+              coalesce(n.comment_id::text, '') = coalesce((to_jsonb(c)->>'id'), '')
               or (
                 n.comment_id is null
                 and abs(extract(epoch from (n.created_at - c.created_at))) < 60
@@ -343,7 +360,10 @@ begin
         'comment_on_comment'::text as type,
         c.%1$I as actor_id,
         c.post_id,
-        c.id,
+        case
+          when (to_jsonb(c)->>'id') ~ '^[0-9]+$' then (to_jsonb(c)->>'id')::bigint
+          else null
+        end as comment_id,
         c.created_at
       from public.comments c
       join public.comments pc on pc.id::text = c.parent_id::text
@@ -360,7 +380,7 @@ begin
             and n.post_id = c.post_id
             and n.actor_id = c.%1$I
             and (
-              n.comment_id = c.id
+              coalesce(n.comment_id::text, '') = coalesce((to_jsonb(c)->>'id'), '')
               or (
                 n.comment_id is null
                 and abs(extract(epoch from (n.created_at - c.created_at))) < 60
