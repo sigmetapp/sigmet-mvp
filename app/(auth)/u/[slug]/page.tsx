@@ -984,13 +984,13 @@ export default function PublicProfilePage() {
                           animationDelay: '0.2s',
                         }}
                       >
-                        {/* Background circle - increased contrast */}
+                        {/* Background circle - darker for better contrast */}
                         <circle
                           cx={center}
                           cy={center}
                           r={radius}
                           fill="none"
-                          stroke="rgba(255, 255, 255, 0.5)"
+                          stroke="rgba(255, 255, 255, 0.15)"
                           strokeWidth="9"
                         />
                         {/* Progress circle - very thick and visible */}
