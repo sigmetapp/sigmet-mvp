@@ -40,6 +40,16 @@ export default function AvatarWithBadge({
 
   const avatarElement = (
     <div className={`relative inline-block ${sizeClasses[size]} ${className}`}>
+      {/* Glow effect ring - outer glow layer */}
+      {showBadge && colorScheme && (
+        <div
+          className="absolute inset-0 rounded-full pointer-events-none"
+          style={{
+            boxShadow: `0 0 16px ${colorScheme.hex}60, 0 0 24px ${colorScheme.hex}40, 0 0 32px ${colorScheme.hex}30`,
+            background: `radial-gradient(circle at center, ${colorScheme.hex}20, transparent 70%)`,
+          }}
+        />
+      )}
       {/* Actual image */}
       <img
         key={normalizedAvatarUrl}
@@ -47,7 +57,7 @@ export default function AvatarWithBadge({
         alt={alt}
         width={size === 'sm' ? 50 : size === 'md' ? 60 : 80}
         height={size === 'sm' ? 50 : size === 'md' ? 60 : 80}
-        className={`${sizeClasses[size]} rounded-full shrink-0 object-cover ${
+        className={`${sizeClasses[size]} rounded-full shrink-0 object-cover relative z-10 ${
           showBadge && colorScheme
             ? 'border-2'
             : 'border border-white/10'
@@ -56,7 +66,7 @@ export default function AvatarWithBadge({
           showBadge && colorScheme
             ? {
                 borderColor: colorScheme.hex,
-                boxShadow: `0 0 8px ${colorScheme.hex}40, 0 0 12px ${colorScheme.hex}30`,
+                boxShadow: `0 0 12px ${colorScheme.hex}80, 0 0 20px ${colorScheme.hex}60, 0 0 28px ${colorScheme.hex}40, inset 0 0 8px ${colorScheme.hex}20`,
               }
             : undefined
         }
