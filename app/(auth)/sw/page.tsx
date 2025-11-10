@@ -250,6 +250,38 @@ function getProgressBarGlowParameters(levelName: string, colorScheme: { hex: str
   return levelParams[levelName as keyof typeof levelParams] || levelParams['Beginner'];
 }
 
+// Progressive glow parameters for Current Level block by level
+function getCurrentLevelBlockGlowParameters(levelName: string, colorScheme: { hex: string }) {
+  const levelParams = {
+    'Beginner': {
+      boxShadow: `0 0 12px ${colorScheme.hex}20, 0 0 20px ${colorScheme.hex}15`,
+      outerGlow: null
+    },
+    'Growing': {
+      boxShadow: `0 0 16px ${colorScheme.hex}40, 0 0 24px ${colorScheme.hex}30, 0 0 32px ${colorScheme.hex}20`,
+      outerGlow: `0 0 20px ${colorScheme.hex}25`
+    },
+    'Advance': {
+      boxShadow: `0 0 20px ${colorScheme.hex}50, 0 0 32px ${colorScheme.hex}38, 0 0 44px ${colorScheme.hex}28`,
+      outerGlow: `0 0 28px ${colorScheme.hex}35`
+    },
+    'Expert': {
+      boxShadow: `0 0 24px ${colorScheme.hex}60, 0 0 40px ${colorScheme.hex}46, 0 0 56px ${colorScheme.hex}36`,
+      outerGlow: `0 0 36px ${colorScheme.hex}45`
+    },
+    'Leader': {
+      boxShadow: `0 0 28px ${colorScheme.hex}70, 0 0 48px ${colorScheme.hex}54, 0 0 68px ${colorScheme.hex}44`,
+      outerGlow: `0 0 44px ${colorScheme.hex}55`
+    },
+    'Angel': {
+      boxShadow: `0 0 32px ${colorScheme.hex}80, 0 0 56px ${colorScheme.hex}62, 0 0 80px ${colorScheme.hex}52`,
+      outerGlow: `0 0 52px ${colorScheme.hex}65`
+    }
+  };
+
+  return levelParams[levelName as keyof typeof levelParams] || levelParams['Beginner'];
+}
+
 const CACHE_KEY_SW = 'sw_data_cache';
 const CACHE_KEY_RECENT_ACTIVITY = 'sw_recent_activity_cache';
 const CACHE_KEY_CITY_LEADERS = 'sw_city_leaders_cache';
@@ -812,41 +844,58 @@ export default function SWPage() {
             {/* Current Level - 2/3 width */}
             {(() => {
               const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+              const blockGlowParams = getCurrentLevelBlockGlowParameters(currentLevel.name, currentColorScheme);
               return (
-                <div className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} ${currentColorScheme.borderGlow} w-full md:w-2/3`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <div className="text-white/60 text-sm mb-1">Current Level</div>
-                      <div className={`text-2xl font-bold ${currentColorScheme.text} flex items-center gap-2`}>
-                        <span>{currentLevel.name}</span>
-                        <span className="text-lg animate-pulse">✨</span>
+                <div className="relative w-full md:w-2/3">
+                  {/* Outer glow layer for the block */}
+                  {blockGlowParams.outerGlow && (
+                    <div
+                      className="absolute inset-0 rounded-lg pointer-events-none -z-10"
+                      style={{
+                        boxShadow: blockGlowParams.outerGlow,
+                        background: `radial-gradient(circle at center, ${currentColorScheme.hex}10, transparent 70%)`
+                      }}
+                    />
+                  )}
+                  <div 
+                    className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} w-full relative z-10`}
+                    style={{
+                      boxShadow: blockGlowParams.boxShadow
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <div className="text-white/60 text-sm mb-1">Current Level</div>
+                        <div className={`text-2xl font-bold ${currentColorScheme.text} flex items-center gap-2`}>
+                          <span>{currentLevel.name}</span>
+                          <span className="text-lg animate-pulse">✨</span>
+                        </div>
                       </div>
+                      {nextLevel && (
+                        <div className="text-right">
+                          <div className="text-white/60 text-sm mb-1">Next Level</div>
+                          {(() => {
+                            const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
+                            const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                            return (
+                              <>
+                                <div className={`text-xl font-semibold ${nextColorScheme.text} flex items-center gap-2 justify-end`}>
+                                  <span>{nextLevel.name}</span>
+                                  <span className="text-sm">🚀</span>
+                                </div>
+                                <div className={`text-sm font-medium mt-1 ${currentColorScheme.text}`}>
+                                  {isLoadingProgress ? (
+                                    <span className="inline-block h-4 w-24 bg-white/10 rounded animate-pulse"></span>
+                                  ) : (
+                                    `${nextLevel.minSW - totalSW} points to next level`
+                                  )}
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
-                    {nextLevel && (
-                      <div className="text-right">
-                        <div className="text-white/60 text-sm mb-1">Next Level</div>
-                        {(() => {
-                          const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
-                          const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                          return (
-                            <>
-                              <div className={`text-xl font-semibold ${nextColorScheme.text} flex items-center gap-2 justify-end`}>
-                                <span>{nextLevel.name}</span>
-                                <span className="text-sm">🚀</span>
-                              </div>
-                              <div className={`text-sm font-medium mt-1 ${currentColorScheme.text}`}>
-                                {isLoadingProgress ? (
-                                  <span className="inline-block h-4 w-24 bg-white/10 rounded animate-pulse"></span>
-                                ) : (
-                                  `${nextLevel.minSW - totalSW} points to next level`
-                                )}
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
                 {nextLevel && (() => {
                   const glowParams = getProgressBarGlowParameters(currentLevel.name, currentColorScheme);
                   return (
