@@ -33,7 +33,7 @@ interface Notification {
     body?: string | null;
     author_id?: string | null;
     user_id?: string | null;
-  };
+  } | null;
   comment?: {
     id: number | string;
     text?: string | null;
@@ -42,13 +42,13 @@ interface Notification {
     author_id?: string | null;
     user_id?: string | null;
     parent_id?: number | string | null;
-  };
+  } | null;
   trust_feedback?: {
     id: number | string;
     value: number;
     comment: string | null;
     author_id: string | null;
-  };
+  } | null;
 }
 
 export default function AlertPage() {
@@ -63,149 +63,30 @@ export default function AlertPage() {
 
   const loadNotifications = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('No user found');
-        setLoading(false);
-        return;
-      }
-
-      console.log('Loading notifications for user:', user.id);
-
-      // First, try to get notifications without joins to see if they exist
-      const { data: simpleData, error: simpleError } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1000);
-
-      if (simpleError) {
-        console.error('Error loading simple notifications:', simpleError);
-        throw simpleError;
-      }
-
-      console.log('Found notifications (simple):', simpleData?.length || 0);
-
-      // Load notifications with related data
-      // First, get all notifications
-      const { data: notificationsData, error: notificationsError } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1000);
-
-      if (notificationsError) {
-        console.error('Error loading notifications:', notificationsError);
-        setNotifications(simpleData || []);
-        const unread = (simpleData || []).filter(n => !n.read_at).length;
-        setUnreadCount(unread);
-        return;
-      }
-
-        if (!notificationsData || notificationsData.length === 0) {
-          setNotifications([]);
-          setUnreadCount(0);
+        const response = await fetch('/api/notifications/list');
+        if (response.status === 401) {
+          console.log('Not authenticated');
+          setLoading(false);
           return;
+      }
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || 'Failed to load notifications');
         }
 
-        // Get all unique actor IDs
-        const actorIds = Array.from(
-          new Set(
-            notificationsData
-              .map(n => n.actor_id)
-              .filter((id): id is string => Boolean(id))
-          )
-        );
+        const payload = await response.json();
+        const fetchedNotifications: Notification[] = payload.notifications || [];
+        const unread = payload.unreadCount || 0;
 
-        const postIds = Array.from(
-          new Set(
-            notificationsData
-              .map(n => n.post_id)
-              .filter((id): id is number | string => id !== null && id !== undefined)
-              .map(id => id.toString())
-          )
-        );
+        if (!fetchedNotifications || fetchedNotifications.length === 0) {
+          setNotifications([]);
+          setUnreadCount(0);
+        return;
+      }
 
-        const commentIds = Array.from(
-          new Set(
-            notificationsData
-              .map(n => n.comment_id)
-              .filter((id): id is number | string => id !== null && id !== undefined)
-              .map(id => id.toString())
-          )
-        );
-
-        const trustFeedbackIds = Array.from(
-          new Set(
-            notificationsData
-              .map(n => n.trust_feedback_id)
-              .filter((id): id is number | string => id !== null && id !== undefined)
-              .map(id => id.toString())
-          )
-        );
-
-        // Load all related data in parallel
-        const [actorsData, postsData, commentsData, trustFeedbackData] = await Promise.all([
-          actorIds.length > 0
-            ? supabase
-                .from('profiles')
-                .select('user_id, username, full_name, avatar_url')
-                .in('user_id', actorIds)
-            : Promise.resolve({ data: [] }),
-          postIds.length > 0
-            ? supabase
-                .from('posts')
-                .select('id, text, body, author_id, user_id')
-                .in('id', postIds)
-            : Promise.resolve({ data: [] }),
-          commentIds.length > 0
-            ? supabase
-                .from('comments')
-                .select('id, text, body, post_id, author_id, user_id, parent_id')
-                .in('id', commentIds)
-            : Promise.resolve({ data: [] }),
-          trustFeedbackIds.length > 0
-            ? supabase
-                .from('trust_feedback')
-                .select('id, value, comment, author_id')
-                .in('id', trustFeedbackIds)
-            : Promise.resolve({ data: [] }),
-        ]);
-
-      // Create maps for quick lookup
-        const actorsMap = new Map(
-          (actorsData.data || []).map(a => [a.user_id, a])
-        );
-        const postsMap = new Map(
-          (postsData.data || []).map(p => [p.id?.toString?.() ?? '', p])
-        );
-        const commentsMap = new Map(
-          (commentsData.data || []).map(c => [c.id?.toString?.() ?? '', c])
-        );
-        const trustFeedbackMap = new Map(
-          (trustFeedbackData.data || []).map(tf => [tf.id?.toString?.() ?? '', tf])
-        );
-
-      // Enrich notifications with related data
-      const enrichedNotifications = notificationsData.map(n => ({
-        ...n,
-          actor: n.actor_id ? actorsMap.get(n.actor_id) : undefined,
-          post: n.post_id !== null && n.post_id !== undefined ? postsMap.get(n.post_id.toString()) : undefined,
-          comment: n.comment_id !== null && n.comment_id !== undefined ? commentsMap.get(n.comment_id.toString()) : undefined,
-          trust_feedback:
-            n.trust_feedback_id !== null && n.trust_feedback_id !== undefined
-              ? trustFeedbackMap.get(n.trust_feedback_id.toString())
-              : undefined,
-      }));
-
-      console.log('Found notifications (enriched):', enrichedNotifications.length);
-      setNotifications(enrichedNotifications);
-
-      // Count unread
-      const unread = enrichedNotifications.filter(n => !n.read_at).length;
-      setUnreadCount(unread);
+        setNotifications(fetchedNotifications);
+        setUnreadCount(unread);
     } catch (err: any) {
       console.error('Error loading notifications:', err);
     } finally {
