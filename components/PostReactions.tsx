@@ -140,7 +140,7 @@ export default function PostReactions({
         >
           <span 
             className={`text-base md:text-lg leading-none select-none inline-flex items-center justify-center transition-all duration-200 ${
-              isSelected ? 'opacity-100' : 'opacity-30'
+              isSelected ? 'opacity-100' : isLight ? 'opacity-50' : 'opacity-70'
             }`}
             role="img" 
             aria-label="Fire reaction"
@@ -153,7 +153,7 @@ export default function PostReactions({
               justifyContent: 'center',
               fontVariant: 'normal',
               textRendering: 'optimizeLegibility',
-              filter: isSelected ? 'none' : 'grayscale(100%) brightness(0.5)',
+              filter: isSelected ? 'none' : isLight ? 'grayscale(40%) brightness(0.8)' : 'grayscale(20%) brightness(1.2)',
             }}
           >
             <span style={{ fontSize: 'inherit', lineHeight: '1', display: 'block' }}>{reaction.emoji}</span>
