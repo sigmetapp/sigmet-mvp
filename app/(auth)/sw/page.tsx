@@ -282,12 +282,6 @@ export default function SWPage() {
   } | null>(null);
 
   useEffect(() => {
-    // Если есть кэшированные данные, показываем их сразу
-    const hasCachedData = swData || isAdmin !== null;
-    if (hasCachedData) {
-      setLoading(false);
-    }
-
     // Оптимизированная загрузка: получаем auth данные один раз и загружаем все параллельно
     async function loadAllData() {
       try {
@@ -391,6 +385,10 @@ export default function SWPage() {
 
         if (growthData.status === 'fulfilled' && growthData.value) {
           setSwGrowth(growthData.value);
+        } else if (growthData.status === 'rejected') {
+          console.warn('Failed to load growth data:', growthData.reason);
+          // Set default values if failed
+          setSwGrowth({ growth24h: 0, growth7d: 0 });
         }
 
         setLoading(false);
@@ -403,6 +401,16 @@ export default function SWPage() {
 
     loadAllData();
   }, []);
+
+  // Update growth data and progress when switching to overview tab
+  useEffect(() => {
+    if (activeTab === 'overview' && swData) {
+      // Refresh growth data when opening overview tab
+      loadSWGrowth();
+      // Refresh SW data to update progress bar
+      loadSW();
+    }
+  }, [activeTab]);
 
   async function loadRecentActivity() {
     try {
@@ -447,6 +455,29 @@ export default function SWPage() {
       }
     } catch (error: any) {
       console.error('Error loading city leaders:', error);
+    }
+  }
+
+  async function loadSWGrowth() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) return;
+
+      const response = await fetch('/api/sw/growth', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSwGrowth(data);
+      }
+    } catch (error: any) {
+      console.error('Error loading SW growth:', error);
     }
   }
 
@@ -701,7 +732,7 @@ export default function SWPage() {
                     )}
                     <div className="text-white/60 text-sm mb-3">Total Points</div>
                     {swGrowth && (
-                      <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-white/10">
+                      <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/10">
                         <div className="text-center">
                           <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
                           <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
