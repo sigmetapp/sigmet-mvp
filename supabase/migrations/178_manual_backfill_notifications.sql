@@ -114,7 +114,7 @@ begin
               and b.blocked = c.%I
           )
         on conflict do nothing
-      ', comments_author_col, comments_author_col, comments_author_col);
+      ', comments_author_col, comments_author_col, comments_author_col, comments_author_col);
     end if;
     
     -- Backfill notifications for existing replies to comments
@@ -179,7 +179,7 @@ begin
               and b.blocked = c.%I
           )
         on conflict do nothing
-      ', comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col);
+      ', comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col);
     end if;
   end if;
 end $$;
