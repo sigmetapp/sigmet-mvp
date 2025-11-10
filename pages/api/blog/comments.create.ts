@@ -64,12 +64,7 @@ export default async function handler(
         content,
         created_at,
         updated_at,
-        author_id,
-        profiles:author_id (
-          username,
-          full_name,
-          avatar_url
-        )
+        author_id
       `)
       .single();
 
@@ -90,7 +85,23 @@ export default async function handler(
       });
     }
 
-    return res.status(201).json({ comment: data });
+    // Fetch profile separately
+    let profile = null;
+    if (data?.author_id) {
+      const { data: profileData } = await admin
+        .from('profiles')
+        .select('username, full_name, avatar_url')
+        .eq('user_id', data.author_id)
+        .maybeSingle();
+      profile = profileData;
+    }
+
+    return res.status(201).json({ 
+      comment: {
+        ...data,
+        profiles: profile
+      }
+    });
   } catch (error: any) {
     console.error('Error in blog comment create API:', error);
     return res.status(500).json({ error: 'Internal server error' });

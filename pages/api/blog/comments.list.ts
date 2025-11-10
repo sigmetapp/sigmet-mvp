@@ -23,12 +23,7 @@ export default async function handler(
         content,
         created_at,
         updated_at,
-        author_id,
-        profiles:author_id (
-          username,
-          full_name,
-          avatar_url
-        )
+        author_id
       `)
       .eq('post_id', parseInt(post_id as string, 10))
       .order('created_at', { ascending: true });
@@ -38,7 +33,29 @@ export default async function handler(
       return res.status(500).json({ error: 'Failed to fetch blog comments' });
     }
 
-    return res.status(200).json({ comments: data || [] });
+    // Fetch profiles for all comments
+    const comments = data || [];
+    const authorIds = [...new Set(comments.map((c: any) => c.author_id))];
+    
+    let profilesMap = new Map();
+    if (authorIds.length > 0) {
+      const { data: profilesData } = await admin
+        .from('profiles')
+        .select('user_id, username, full_name, avatar_url')
+        .in('user_id', authorIds);
+      
+      if (profilesData) {
+        profilesMap = new Map(profilesData.map((p: any) => [p.user_id, p]));
+      }
+    }
+
+    // Join profiles with comments
+    const commentsWithProfiles = comments.map((comment: any) => ({
+      ...comment,
+      profiles: profilesMap.get(comment.author_id) || null
+    }));
+
+    return res.status(200).json({ comments: commentsWithProfiles });
   } catch (error: any) {
     console.error('Error in blog comments list API:', error);
     return res.status(500).json({ error: 'Internal server error' });
