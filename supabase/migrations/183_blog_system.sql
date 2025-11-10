@@ -123,6 +123,10 @@ create policy "Admins can delete any blog comment"
   to authenticated
   using (public.is_admin());
 
+-- Drop triggers first if they exist
+drop trigger if exists blog_posts_updated_at on public.blog_posts;
+drop trigger if exists blog_comments_updated_at on public.blog_comments;
+
 -- Function to update updated_at timestamp for blog_posts
 create or replace function update_blog_posts_updated_at()
 returns trigger as $$
@@ -132,7 +136,7 @@ begin
 end;
 $$ language plpgsql;
 
-drop trigger if exists blog_posts_updated_at on public.blog_posts;
+-- Create trigger for blog_posts
 create trigger blog_posts_updated_at
   before update on public.blog_posts
   for each row
@@ -147,7 +151,7 @@ begin
 end;
 $$ language plpgsql;
 
-drop trigger if exists blog_comments_updated_at on public.blog_comments;
+-- Create trigger for blog_comments
 create trigger blog_comments_updated_at
   before update on public.blog_comments
   for each row
