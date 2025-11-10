@@ -1019,13 +1019,18 @@ export default function SWPage() {
                   const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
                   const row = Math.floor(index / 2);
                   const col = index % 2;
-                  const isLastInRow = col === 1 || index === swLevels.length - 1;
-                  const isFirstInRow = col === 0;
                   const hasNextLevel = index < swLevels.length - 1;
                   const nextLevel = hasNextLevel ? swLevels[index + 1] : null;
                   const nextIsUnlocked = nextLevel ? totalSW >= nextLevel.minSW : false;
                   const nextRow = hasNextLevel ? Math.floor((index + 1) / 2) : null;
-                  const isLastRow = row === Math.floor((swLevels.length - 1) / 2);
+                  const nextCol = hasNextLevel ? (index + 1) % 2 : null;
+                  const isSameRow = hasNextLevel && nextRow === row;
+                  const isDifferentRow = hasNextLevel && nextRow !== row;
+                  const isLastInRow = col === 1;
+                  
+                  // Line color based on unlock status
+                  const lineColor = isUnlocked && nextIsUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)';
+                  const lineStyle = isUnlocked && nextIsUnlocked ? 'solid' : 'dashed';
                   
                   return (
                     <div
@@ -1038,94 +1043,76 @@ export default function SWPage() {
                           : `${colorScheme.border} ${colorScheme.bg} opacity-40`
                       }`}
                     >
-                      {/* Horizontal line to next level (same row) */}
-                      {hasNextLevel && nextRow === row && (
-                        <div
-                          className="absolute top-1/2 -right-2 transform -translate-y-1/2 translate-x-full z-0"
-                          style={{
-                            width: 'calc(1rem + 2px)',
-                            height: '2px',
-                            background: isUnlocked && nextIsUnlocked 
-                              ? colorScheme.hex 
-                              : 'repeating-linear-gradient(to right, rgba(255, 255, 255, 0.1) 0px, rgba(255, 255, 255, 0.1) 4px, transparent 4px, transparent 8px)',
-                            boxShadow: isUnlocked && nextIsUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
-                          }}
-                        />
+                      {/* Horizontal line to next level (same row) - 0→1, 2→3, 4→5 */}
+                      {hasNextLevel && isSameRow && (
+                        <>
+                          <div
+                            className="absolute top-1/2 -right-2 transform -translate-y-1/2 translate-x-full z-0"
+                            style={{
+                              width: 'calc(1rem + 2px)',
+                              height: '2px',
+                              background: lineStyle === 'dashed' 
+                                ? 'repeating-linear-gradient(to right, rgba(255, 255, 255, 0.2) 0px, rgba(255, 255, 255, 0.2) 4px, transparent 4px, transparent 8px)'
+                                : lineColor,
+                              boxShadow: isUnlocked && nextIsUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
+                            }}
+                          />
+                          {/* Arrow pointing right */}
+                          <div
+                            className="absolute top-1/2 -right-2 transform -translate-y-1/2 translate-x-full z-20"
+                            style={{
+                              width: '0',
+                              height: '0',
+                              marginLeft: 'calc(1rem + 2px)',
+                              borderTop: '4px solid transparent',
+                              borderBottom: '4px solid transparent',
+                              borderLeft: `6px solid ${lineColor}`,
+                              filter: isUnlocked && nextIsUnlocked ? `drop-shadow(0 0 2px ${colorScheme.hex})` : 'none'
+                            }}
+                          />
+                        </>
                       )}
                       
-                      {/* Vertical line down (last in row, not last row) */}
-                      {isLastInRow && !isLastRow && hasNextLevel && (
-                        <div
-                          className="absolute -bottom-2 right-1/2 transform translate-x-1/2 translate-y-full z-0"
-                          style={{
-                            width: '2px',
-                            height: 'calc(1rem + 2px)',
-                            background: isUnlocked && nextIsUnlocked 
-                              ? colorScheme.hex 
-                              : 'repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 0px, rgba(255, 255, 255, 0.1) 4px, transparent 4px, transparent 8px)',
-                            boxShadow: isUnlocked && nextIsUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
-                          }}
-                        />
-                      )}
-                      
-                      {/* Horizontal line left (first in row, not first row) */}
-                      {isFirstInRow && row > 0 && (
-                        <div
-                          className="absolute top-1/2 -left-2 transform -translate-y-1/2 -translate-x-full z-0"
-                          style={{
-                            width: 'calc(1rem + 2px)',
-                            height: '2px',
-                            background: isUnlocked 
-                              ? colorScheme.hex 
-                              : 'repeating-linear-gradient(to right, rgba(255, 255, 255, 0.1) 0px, rgba(255, 255, 255, 0.1) 4px, transparent 4px, transparent 8px)',
-                            boxShadow: isUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
-                          }}
-                        />
-                      )}
-                      
-                      {/* Connector dot - right side */}
-                      {hasNextLevel && nextRow === row && (
-                        <div
-                          className="absolute -right-2 top-1/2 transform -translate-y-1/2 translate-x-1/2 z-20"
-                          style={{
-                            width: '12px',
-                            height: '12px',
-                            borderRadius: '50%',
-                            backgroundColor: isUnlocked && nextIsUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)',
-                            border: `2px solid ${isUnlocked && nextIsUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.3)'}`,
-                            boxShadow: isUnlocked && nextIsUnlocked ? `0 0 8px ${colorScheme.hex}60` : 'none'
-                          }}
-                        />
-                      )}
-                      
-                      {/* Connector dot - left side (first in row, not first row) */}
-                      {isFirstInRow && row > 0 && (
-                        <div
-                          className="absolute -left-2 top-1/2 transform -translate-y-1/2 -translate-x-1/2 z-20"
-                          style={{
-                            width: '12px',
-                            height: '12px',
-                            borderRadius: '50%',
-                            backgroundColor: isUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)',
-                            border: `2px solid ${isUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.3)'}`,
-                            boxShadow: isUnlocked ? `0 0 8px ${colorScheme.hex}60` : 'none'
-                          }}
-                        />
-                      )}
-                      
-                      {/* Connector dot - bottom (last in row, not last row) */}
-                      {isLastInRow && !isLastRow && hasNextLevel && (
-                        <div
-                          className="absolute -bottom-2 right-1/2 transform translate-x-1/2 translate-y-1/2 z-20"
-                          style={{
-                            width: '12px',
-                            height: '12px',
-                            borderRadius: '50%',
-                            backgroundColor: isUnlocked && nextIsUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)',
-                            border: `2px solid ${isUnlocked && nextIsUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.3)'}`,
-                            boxShadow: isUnlocked && nextIsUnlocked ? `0 0 8px ${colorScheme.hex}60` : 'none'
-                          }}
-                        />
+                      {/* L-shaped line (different row, last in current row) - 1→2, 3→4 */}
+                      {hasNextLevel && isDifferentRow && isLastInRow && (
+                        <>
+                          {/* Vertical line down */}
+                          <div
+                            className="absolute -bottom-2 right-1/2 transform translate-x-1/2 translate-y-full z-0"
+                            style={{
+                              width: '2px',
+                              height: 'calc(1rem + 2px)',
+                              background: lineStyle === 'dashed'
+                                ? 'repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.2) 0px, rgba(255, 255, 255, 0.2) 4px, transparent 4px, transparent 8px)'
+                                : lineColor,
+                              boxShadow: isUnlocked && nextIsUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
+                            }}
+                          />
+                          {/* Horizontal line left */}
+                          <div
+                            className="absolute -bottom-2 left-0 transform translate-y-full z-0"
+                            style={{
+                              width: 'calc(50% + 1rem)',
+                              height: '2px',
+                              background: lineStyle === 'dashed'
+                                ? 'repeating-linear-gradient(to right, rgba(255, 255, 255, 0.2) 0px, rgba(255, 255, 255, 0.2) 4px, transparent 4px, transparent 8px)'
+                                : lineColor,
+                              boxShadow: isUnlocked && nextIsUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
+                            }}
+                          />
+                          {/* Arrow pointing left (at the end of horizontal line) */}
+                          <div
+                            className="absolute -bottom-2 left-1/2 transform -translate-x-full translate-y-full z-20"
+                            style={{
+                              width: '0',
+                              height: '0',
+                              borderTop: '4px solid transparent',
+                              borderBottom: '4px solid transparent',
+                              borderRight: `6px solid ${lineColor}`,
+                              filter: isUnlocked && nextIsUnlocked ? `drop-shadow(0 0 2px ${colorScheme.hex})` : 'none'
+                            }}
+                          />
+                        </>
                       )}
                       
                       <div className="flex items-center justify-between mb-3">
