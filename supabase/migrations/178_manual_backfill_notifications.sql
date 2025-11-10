@@ -74,7 +74,7 @@ begin
             select 1 from public.notifications n
             where n.user_id = p.author_id
               and n.type = ''comment_on_post''
-              and n.comment_id = c.id
+              and n.comment_id::text = c.id::text
           )
           and not exists (
             select 1 from public.dms_blocks b
@@ -137,7 +137,7 @@ begin
             select 1 from public.notifications n
             where n.user_id = pc.%I
               and n.type = ''comment_on_comment''
-              and n.comment_id = c.id
+              and n.comment_id::text = c.id::text
           )
           and not exists (
             select 1 from public.dms_blocks b
