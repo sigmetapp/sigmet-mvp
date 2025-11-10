@@ -3,110 +3,130 @@
 -- NOTE: We insert without comment_id to avoid type mismatch issues
 begin;
 
--- Backfill notifications for existing comments on posts (dynamic column detection)
+-- Backfill notifications for existing comments on posts
+-- First, try with author_id column
 do $$
-declare
-  comments_author_col text;
-  has_author_id boolean;
-  has_user_id boolean;
 begin
-  -- Check which columns exist
-  select exists (
+  if exists (
     select 1 from information_schema.columns
     where table_schema = 'public'
       and table_name = 'comments'
       and column_name = 'author_id'
-  ) into has_author_id;
-  
-  select exists (
+  ) then
+    -- Use author_id column
+    insert into public.notifications (user_id, type, actor_id, post_id, created_at)
+    select distinct
+      p.author_id as user_id,
+      'comment_on_post'::text as type,
+      c.author_id as actor_id,
+      c.post_id,
+      c.created_at
+    from public.comments c
+    inner join public.posts p on p.id = c.post_id
+    where COALESCE(c.parent_id::text, '') = ''
+      and c.author_id != p.author_id
+      and not exists (
+        select 1 from public.notifications n
+        where n.user_id = p.author_id
+          and n.type = 'comment_on_post'
+          and n.post_id = c.post_id
+          and n.actor_id = c.author_id
+          and abs(extract(epoch from (n.created_at - c.created_at))) < 60
+      )
+      and not exists (
+        select 1 from public.dms_blocks b
+        where b.blocker = p.author_id
+          and b.blocked = c.author_id
+      )
+    on conflict do nothing;
+    
+    -- Backfill notifications for existing replies to comments
+    insert into public.notifications (user_id, type, actor_id, post_id, created_at)
+    select distinct
+      pc.author_id as user_id,
+      'comment_on_comment'::text as type,
+      c.author_id as actor_id,
+      c.post_id,
+      c.created_at
+    from public.comments c
+    inner join public.comments pc on pc.id::text = c.parent_id::text
+    where c.parent_id is not null
+      and COALESCE(c.parent_id::text, '') != ''
+      and c.author_id != pc.author_id
+      and not exists (
+        select 1 from public.notifications n
+        where n.user_id = pc.author_id
+          and n.type = 'comment_on_comment'
+          and n.post_id = c.post_id
+          and n.actor_id = c.author_id
+          and abs(extract(epoch from (n.created_at - c.created_at))) < 60
+      )
+      and not exists (
+        select 1 from public.dms_blocks b
+        where b.blocker = pc.author_id
+          and b.blocked = c.author_id
+      )
+    on conflict do nothing;
+  elsif exists (
     select 1 from information_schema.columns
     where table_schema = 'public'
       and table_name = 'comments'
       and column_name = 'user_id'
-  ) into has_user_id;
-  
-  -- Determine which column to use
-  if has_author_id then
-    comments_author_col := 'author_id';
-  elsif has_user_id then
-    comments_author_col := 'user_id';
-  else
-    -- Try to find any uuid column that references auth.users
-    select column_name into comments_author_col
-    from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'comments'
-      and data_type = 'uuid'
-      and column_name != 'id'
-      and column_name != 'parent_id'
-    limit 1;
-  end if;
-
-  if comments_author_col is null then
-    raise notice 'Could not find author column in comments table. Skipping comment notifications backfill.';
-  else
-    raise notice 'Using column % for comment author', comments_author_col;
-    
-    -- Backfill notifications for existing comments on posts
-    -- Insert without comment_id to avoid type mismatch issues
-    execute format('
-      insert into public.notifications (user_id, type, actor_id, post_id, created_at)
-      select distinct
-        p.author_id as user_id,
-        ''comment_on_post''::text as type,
-        c.%I as actor_id,
-        c.post_id,
-        c.created_at
-      from public.comments c
-      inner join public.posts p on p.id = c.post_id
-      where COALESCE(c.parent_id::text, '''') = ''''
-        and c.%I != p.author_id
-        and not exists (
-          select 1 from public.notifications n
-          where n.user_id = p.author_id
-            and n.type = ''comment_on_post''
-            and n.post_id = c.post_id
-            and n.actor_id = c.%I
-            and abs(extract(epoch from (n.created_at - c.created_at))) < 60
-        )
-        and not exists (
-          select 1 from public.dms_blocks b
-          where b.blocker = p.author_id
-            and b.blocked = c.%I
-        )
-      on conflict do nothing
-    ', comments_author_col, comments_author_col, comments_author_col, comments_author_col);
+  ) then
+    -- Use user_id column
+    insert into public.notifications (user_id, type, actor_id, post_id, created_at)
+    select distinct
+      p.author_id as user_id,
+      'comment_on_post'::text as type,
+      c.user_id as actor_id,
+      c.post_id,
+      c.created_at
+    from public.comments c
+    inner join public.posts p on p.id = c.post_id
+    where COALESCE(c.parent_id::text, '') = ''
+      and c.user_id != p.author_id
+      and not exists (
+        select 1 from public.notifications n
+        where n.user_id = p.author_id
+          and n.type = 'comment_on_post'
+          and n.post_id = c.post_id
+          and n.actor_id = c.user_id
+          and abs(extract(epoch from (n.created_at - c.created_at))) < 60
+      )
+      and not exists (
+        select 1 from public.dms_blocks b
+        where b.blocker = p.author_id
+          and b.blocked = c.user_id
+      )
+    on conflict do nothing;
     
     -- Backfill notifications for existing replies to comments
-    -- Use text comparison for parent_id join to handle type mismatch
-    execute format('
-      insert into public.notifications (user_id, type, actor_id, post_id, created_at)
-      select distinct
-        pc.%I as user_id,
-        ''comment_on_comment''::text as type,
-        c.%I as actor_id,
-        c.post_id,
-        c.created_at
-      from public.comments c
-      inner join public.comments pc on pc.id::text = c.parent_id::text
-      where c.parent_id is not null
-        and COALESCE(c.parent_id::text, '''') != ''''
-        and c.%I != pc.%I
-        and not exists (
-          select 1 from public.notifications n
-          where n.user_id = pc.%I
-            and n.type = ''comment_on_comment''
-            and n.post_id = c.post_id
-            and n.actor_id = c.%I
-            and abs(extract(epoch from (n.created_at - c.created_at))) < 60
-        )
-        and not exists (
-          select 1 from public.dms_blocks b
-          where b.blocker = pc.%I
-            and b.blocked = c.%I
-        )
-      on conflict do nothing
-    ', comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col);
+    insert into public.notifications (user_id, type, actor_id, post_id, created_at)
+    select distinct
+      pc.user_id as user_id,
+      'comment_on_comment'::text as type,
+      c.user_id as actor_id,
+      c.post_id,
+      c.created_at
+    from public.comments c
+    inner join public.comments pc on pc.id::text = c.parent_id::text
+    where c.parent_id is not null
+      and COALESCE(c.parent_id::text, '') != ''
+      and c.user_id != pc.user_id
+      and not exists (
+        select 1 from public.notifications n
+        where n.user_id = pc.user_id
+          and n.type = 'comment_on_comment'
+          and n.post_id = c.post_id
+          and n.actor_id = c.user_id
+          and abs(extract(epoch from (n.created_at - c.created_at))) < 60
+      )
+      and not exists (
+        select 1 from public.dms_blocks b
+        where b.blocker = pc.user_id
+          and b.blocked = c.user_id
+      )
+    on conflict do nothing;
   end if;
 end $$;
 
