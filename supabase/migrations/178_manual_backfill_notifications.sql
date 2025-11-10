@@ -8,7 +8,6 @@ declare
   comments_author_col text;
   has_author_id boolean;
   has_user_id boolean;
-  parent_id_type text;
 begin
   -- Check which columns exist
   select exists (
@@ -48,6 +47,7 @@ begin
     raise notice 'Using column % for comment author', comments_author_col;
     
     -- Backfill notifications for existing comments on posts
+    -- Use COALESCE to handle null parent_id regardless of type
     execute format('
       insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
       select distinct
@@ -59,7 +59,7 @@ begin
         c.created_at
       from public.comments c
       inner join public.posts p on p.id = c.post_id
-      where c.parent_id is null
+      where COALESCE(c.parent_id::text, '''') = ''''
         and c.%I != p.author_id
         and not exists (
           select 1 from public.notifications n
@@ -75,72 +75,35 @@ begin
       on conflict do nothing
     ', comments_author_col, comments_author_col, comments_author_col);
     
-    -- Check parent_id type for replies
-    select data_type into parent_id_type
-    from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'comments'
-      and column_name = 'parent_id';
-    
     -- Backfill notifications for existing replies to comments
-    -- Note: parent_id might be uuid or bigint, need to handle both cases
-    if parent_id_type = 'uuid' then
-      -- parent_id is uuid, need to cast id to text for join
-      execute format('
-        insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
-        select distinct
-          pc.%I as user_id,
-          ''comment_on_comment''::text as type,
-          c.%I as actor_id,
-          c.post_id,
-          c.id as comment_id,
-          c.created_at
-        from public.comments c
-        inner join public.comments pc on pc.id::text = c.parent_id::text
-        where c.parent_id is not null
-          and c.%I != pc.%I
-          and not exists (
-            select 1 from public.notifications n
-            where n.user_id = pc.%I
-              and n.type = ''comment_on_comment''
-              and n.comment_id = c.id
-          )
-          and not exists (
-            select 1 from public.dms_blocks b
-            where b.blocker = pc.%I
-              and b.blocked = c.%I
-          )
-        on conflict do nothing
-      ', comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col);
-    else
-      -- parent_id is bigint, can join directly
-      execute format('
-        insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
-        select distinct
-          pc.%I as user_id,
-          ''comment_on_comment''::text as type,
-          c.%I as actor_id,
-          c.post_id,
-          c.id as comment_id,
-          c.created_at
-        from public.comments c
-        inner join public.comments pc on pc.id = c.parent_id
-        where c.parent_id is not null
-          and c.%I != pc.%I
-          and not exists (
-            select 1 from public.notifications n
-            where n.user_id = pc.%I
-              and n.type = ''comment_on_comment''
-              and n.comment_id = c.id
-          )
-          and not exists (
-            select 1 from public.dms_blocks b
-            where b.blocker = pc.%I
-              and b.blocked = c.%I
-          )
-        on conflict do nothing
-      ', comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col);
-    end if;
+    -- Use text comparison for parent_id join to handle type mismatch
+    execute format('
+      insert into public.notifications (user_id, type, actor_id, post_id, comment_id, created_at)
+      select distinct
+        pc.%I as user_id,
+        ''comment_on_comment''::text as type,
+        c.%I as actor_id,
+        c.post_id,
+        c.id as comment_id,
+        c.created_at
+      from public.comments c
+      inner join public.comments pc on pc.id::text = c.parent_id::text
+      where c.parent_id is not null
+        and COALESCE(c.parent_id::text, '''') != ''''
+        and c.%I != pc.%I
+        and not exists (
+          select 1 from public.notifications n
+          where n.user_id = pc.%I
+            and n.type = ''comment_on_comment''
+            and n.comment_id = c.id
+        )
+        and not exists (
+          select 1 from public.dms_blocks b
+          where b.blocker = pc.%I
+            and b.blocked = c.%I
+        )
+      on conflict do nothing
+    ', comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col);
   end if;
 end $$;
 
