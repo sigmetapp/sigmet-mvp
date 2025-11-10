@@ -207,6 +207,7 @@ export default function PublicProfilePage() {
   const [recentSocial, setRecentSocial] = useState<
     { kind: 'in' | 'out'; otherUserId: string; created_at?: string }[]
   >([]);
+  const [profileInfoExpanded, setProfileInfoExpanded] = useState<boolean>(false);
   // Trust Flow state (basic default 80%)
   const [trustScore, setTrustScore] = useState<number>(80);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -1275,176 +1276,294 @@ export default function PublicProfilePage() {
         )}
       </div>
 
-      {/* Unified Profile Info Block - 2/3 width */}
+      {/* Unified Profile Info Block - 2/3 width with collapsible */}
       {!loadingProfile && profile && (
         <div className="flex justify-center">
           <div className="w-full max-w-4xl md:w-2/3">
             <div className="card p-5 md:p-6 animate-fade-in-up animate-stagger-2">
-              <div className="space-y-5">
-                {/* Bio - Full width at top */}
-                {profile.bio && (
-                  <div className="pb-5 border-b border-white/10">
-                    <div className={`text-[10px] font-semibold mb-2 uppercase tracking-wider ${
+              {/* Header with hamburger */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`text-base font-semibold ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                  Profile Information
+                </h3>
+                <button
+                  onClick={() => setProfileInfoExpanded(!profileInfoExpanded)}
+                  className={`p-2 rounded-lg transition-all hover:bg-white/10 ${
+                    isLight ? 'hover:bg-gray-100' : ''
+                  }`}
+                  aria-label={profileInfoExpanded ? 'Collapse' : 'Expand'}
+                >
+                  <svg
+                    className={`w-5 h-5 transition-transform duration-200 ${isLight ? 'text-primary-text' : 'text-white/70'} ${
+                      profileInfoExpanded ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Collapsible content */}
+              <div
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                  profileInfoExpanded ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+                }`}
+              >
+                <div className="space-y-5">
+                  {/* Bio - Full width at top */}
+                  {profile.bio && (
+                    <div className="pb-5 border-b border-white/10">
+                      <div className={`text-[10px] font-semibold mb-2 uppercase tracking-wider ${
+                        isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                      }`}>
+                        Bio
+                      </div>
+                      <div className={`text-sm leading-relaxed ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                        {profile.bio}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Main Info Grid - 3 columns, symmetric */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {/* Column 1 */}
+                    <div className="space-y-4">
+                      {/* Work & Career */}
+                      {profile.work_career_status && (
+                        <div>
+                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                            isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                          }`}>
+                            Work & Career
+                          </div>
+                          <div className={`text-sm font-medium ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                            {profile.work_career_status === 'employed' ? 'Employed' :
+                             profile.work_career_status === 'entrepreneur' ? 'Entrepreneur' :
+                             profile.work_career_status === 'student' ? 'Student' :
+                             profile.work_career_status === 'looking_for_opportunities' ? 'Looking for Opportunities' :
+                             profile.work_career_status === 'unemployed' ? 'Unemployed' :
+                             profile.work_career_status}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Location */}
+                      {profile.country && (
+                        <div>
+                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                            isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                          }`}>
+                            Location
+                          </div>
+                          <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
+                            {(() => {
+                              const city = String(profile.country).split(",")[0].trim();
+                              return (
+                                <Link href={`/city/${encodeURIComponent(city)}`} className="hover:underline inline-flex items-center gap-1.5">
+                                  <span>{profile.country}</span>
+                                  <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                </Link>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Column 2 */}
+                    <div className="space-y-4">
+                      {/* Relationship Status */}
+                      {profile.relationship_status && (
+                        <div>
+                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                            isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                          }`}>
+                            Relationship
+                          </div>
+                          <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
+                            {profile.relationship_status === 'single' ? 'Single' :
+                             profile.relationship_status === 'looking' ? 'Looking' :
+                             profile.relationship_status === 'dating' ? 'Dating' :
+                             profile.relationship_status === 'married' ? 'Married' :
+                             profile.relationship_status}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Date of birth */}
+                      {profile.date_of_birth && (
+                        <div>
+                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                            isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                          }`}>
+                            Date of birth
+                          </div>
+                          <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
+                            {new Date(profile.date_of_birth).toLocaleDateString('en-GB', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric' 
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Column 3 */}
+                    <div className="space-y-4">
+                      {/* Portfolio */}
+                      {profile.website_url && (
+                        <div>
+                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                            isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                          }`}>
+                            Portfolio
+                          </div>
+                          <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
+                            <a 
+                              href={profile.website_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="hover:underline inline-flex items-center gap-1.5 break-all"
+                            >
+                              <span className="truncate">
+                                {profile.website_url && profile.website_url.length > 20 
+                                  ? profile.website_url.substring(0, 20) + '...' 
+                                  : profile.website_url}
+                              </span>
+                              <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Joined */}
+                      {profile.created_at && (
+                        <div>
+                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                            isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                          }`}>
+                            Joined
+                          </div>
+                          <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
+                            {new Date(profile.created_at).toLocaleDateString('en-GB', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric' 
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Place of Study - Full width at bottom */}
+                  {educationalInstitution && (
+                    <div className="pt-5 border-t border-white/10">
+                      <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                        isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                      }`}>
+                        Place of Study
+                      </div>
+                      <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
+                        {educationalInstitution.name} ({educationalInstitution.type === 'school' ? 'School' : educationalInstitution.type === 'college' ? 'College' : 'University'})
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stats block - Connections, Following, Followers, Referrals */}
+                  <div className="pt-5 border-t border-white/10">
+                    <div className={`text-[10px] font-semibold mb-4 uppercase tracking-wider ${
                       isLight ? 'text-primary-text-secondary' : 'text-white/50'
                     }`}>
-                      Bio
+                      Statistics
                     </div>
-                    <div className={`text-sm leading-relaxed ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
-                      {profile.bio}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* Connections */}
+                      <div className="flex flex-col">
+                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                          isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                        }`}>
+                          Connections
+                        </div>
+                        <div className={`text-2xl font-bold mb-1 ${
+                          isLight 
+                            ? 'bg-gradient-to-r from-violet-500 to-purple-500 bg-clip-text text-transparent' 
+                            : 'bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent'
+                        }`}>
+                          {connectionsCount}
+                        </div>
+                        <div className={`text-[10px] ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
+                          Mutual
+                        </div>
+                      </div>
+
+                      {/* Following */}
+                      <div className="flex flex-col">
+                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                          isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                        }`}>
+                          Following
+                        </div>
+                        <div className={`text-2xl font-bold mb-1 ${
+                          isLight 
+                            ? 'bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent' 
+                            : 'bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent'
+                        }`}>
+                          {followingCount}
+                        </div>
+                        <div className={`text-[10px] ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
+                          You follow
+                        </div>
+                      </div>
+
+                      {/* Followers */}
+                      <div className="flex flex-col">
+                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                          isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                        }`}>
+                          Followers
+                        </div>
+                        <div className={`text-2xl font-bold mb-1 ${
+                          isLight 
+                            ? 'bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent' 
+                            : 'bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent'
+                        }`}>
+                          {followersCount}
+                        </div>
+                        <div className={`text-[10px] ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
+                          Following you
+                        </div>
+                      </div>
+
+                      {/* Referrals */}
+                      <div className="flex flex-col">
+                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                          isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                        }`}>
+                          Referrals
+                        </div>
+                        <div className={`text-2xl font-bold mb-1 ${
+                          isLight 
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent' 
+                            : 'bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent'
+                        }`}>
+                          {referralsCount}
+                        </div>
+                        <div className={`text-[10px] ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
+                          Invited
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Main Info Grid - 3 columns, symmetric */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  {/* Column 1 */}
-                  <div className="space-y-4">
-                    {/* Work & Career */}
-                    {profile.work_career_status && (
-                      <div>
-                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
-                          isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                        }`}>
-                          Work & Career
-                        </div>
-                        <div className={`text-sm font-medium ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
-                          {profile.work_career_status === 'employed' ? 'Employed' :
-                           profile.work_career_status === 'entrepreneur' ? 'Entrepreneur' :
-                           profile.work_career_status === 'student' ? 'Student' :
-                           profile.work_career_status === 'looking_for_opportunities' ? 'Looking for Opportunities' :
-                           profile.work_career_status === 'unemployed' ? 'Unemployed' :
-                           profile.work_career_status}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Location */}
-                    {profile.country && (
-                      <div>
-                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
-                          isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                        }`}>
-                          Location
-                        </div>
-                        <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
-                          {(() => {
-                            const city = String(profile.country).split(",")[0].trim();
-                            return (
-                              <Link href={`/city/${encodeURIComponent(city)}`} className="hover:underline inline-flex items-center gap-1.5">
-                                <span>{profile.country}</span>
-                                <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                </svg>
-                              </Link>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Column 2 */}
-                  <div className="space-y-4">
-                    {/* Relationship Status */}
-                    {profile.relationship_status && (
-                      <div>
-                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
-                          isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                        }`}>
-                          Relationship
-                        </div>
-                        <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
-                          {profile.relationship_status === 'single' ? 'Single' :
-                           profile.relationship_status === 'looking' ? 'Looking' :
-                           profile.relationship_status === 'dating' ? 'Dating' :
-                           profile.relationship_status === 'married' ? 'Married' :
-                           profile.relationship_status}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Date of birth */}
-                    {profile.date_of_birth && (
-                      <div>
-                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
-                          isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                        }`}>
-                          Date of birth
-                        </div>
-                        <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
-                          {new Date(profile.date_of_birth).toLocaleDateString('en-GB', { 
-                            day: '2-digit', 
-                            month: '2-digit', 
-                            year: 'numeric' 
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Column 3 */}
-                  <div className="space-y-4">
-                    {/* Portfolio */}
-                    {profile.website_url && (
-                      <div>
-                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
-                          isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                        }`}>
-                          Portfolio
-                        </div>
-                        <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
-                          <a 
-                            href={profile.website_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="hover:underline inline-flex items-center gap-1.5 break-all"
-                          >
-                            <span className="truncate">
-                              {profile.website_url && profile.website_url.length > 20 
-                                ? profile.website_url.substring(0, 20) + '...' 
-                                : profile.website_url}
-                            </span>
-                            <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                          </a>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Joined */}
-                    {profile.created_at && (
-                      <div>
-                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
-                          isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                        }`}>
-                          Joined
-                        </div>
-                        <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
-                          {new Date(profile.created_at).toLocaleDateString('en-GB', { 
-                            day: '2-digit', 
-                            month: '2-digit', 
-                            year: 'numeric' 
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
-
-                {/* Place of Study - Full width at bottom */}
-                {educationalInstitution && (
-                  <div className="pt-5 border-t border-white/10">
-                    <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                    }`}>
-                      Place of Study
-                    </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
-                      {educationalInstitution.name} ({educationalInstitution.type === 'school' ? 'School' : educationalInstitution.type === 'college' ? 'College' : 'University'})
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
