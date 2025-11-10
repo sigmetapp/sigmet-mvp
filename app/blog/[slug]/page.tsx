@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
 import { Calendar, ArrowLeft, Edit, Trash2 } from 'lucide-react';
@@ -10,6 +10,7 @@ import AvatarWithBadge from '@/components/AvatarWithBadge';
 import { resolveAvatarUrl } from '@/lib/utils';
 import Button from '@/components/Button';
 import EmojiPicker from '@/components/EmojiPicker';
+import { formatTextWithMentions } from '@/lib/formatText';
 
 type BlogPost = {
   id: number;
@@ -56,10 +57,34 @@ function formatDate(dateString: string): string {
   }).format(date);
 }
 
-function formatDateWithTime(dateString: string): string {
+function formatDateWithTodayYesterday(dateString: string): string {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return dateString;
   
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  const timePart = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+  
+  // Check if date is today
+  if (dateOnly.getTime() === today.getTime()) {
+    return `Today, ${timePart}`;
+  }
+  
+  // Check if date is yesterday
+  if (dateOnly.getTime() === yesterday.getTime()) {
+    return `Yesterday, ${timePart}`;
+  }
+  
+  // For all other dates, use the original format
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
@@ -141,6 +166,7 @@ export default function BlogPostPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [commenterSWScores, setCommenterSWScores] = useState<Record<string, number>>({});
 
   useEffect(() => {
     checkAuth();
@@ -185,31 +211,57 @@ export default function BlogPostPage() {
       const data = await response.json();
       if (response.ok) {
         setComments(data.comments || []);
+        
+        // Load SW scores for commenters
+        const authorIds = [...new Set((data.comments || []).map((c: Comment) => c.author_id).filter(Boolean))];
+        if (authorIds.length > 0) {
+          try {
+            const { data: swData } = await supabase
+              .from('sw_scores')
+              .select('user_id, total')
+              .in('user_id', authorIds);
+            
+            if (swData) {
+              const swMap: Record<string, number> = {};
+              for (const row of swData as Array<{ user_id: string; total: number }>) {
+                swMap[row.user_id] = row.total || 0;
+              }
+              setCommenterSWScores(swMap);
+            }
+          } catch {
+            // SW scores table may not exist
+            setCommenterSWScores({});
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching comments:', error);
     }
   };
 
-  const handleSubmitComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!post || !user || !commentContent.trim()) return;
+  const handleSubmitComment = useCallback(async () => {
+    if (!post || !user) {
+      alert('Sign in required');
+      return;
+    }
 
+    const value = commentContent.trim();
+    if (!value) return;
+    setSubmittingComment(true);
     try {
-      setSubmittingComment(true);
       const response = await fetch('/api/blog/comments.create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           post_id: post.id,
-          content: commentContent.trim(),
+          content: value,
         }),
       });
 
       const data = await response.json();
       if (response.ok) {
         setCommentContent('');
-        fetchComments();
+        await fetchComments();
       } else {
         console.error('Comment creation error:', data);
         alert(data.details || data.error || 'Failed to post comment');
@@ -220,7 +272,8 @@ export default function BlogPostPage() {
     } finally {
       setSubmittingComment(false);
     }
-  };
+  }, [post, user, commentContent]);
+
 
   const handleDeletePost = async () => {
     if (!post || !isAdmin) return;
@@ -366,88 +419,96 @@ export default function BlogPostPage() {
         />
       </article>
 
-      <section className={`${isLight ? 'bg-white border-black/10' : 'bg-white/5 border-white/10'} p-6 md:p-8 rounded-xl border`}>
-        <h2 className={`text-2xl font-semibold mb-6 ${isLight ? 'text-black' : 'text-white'}`}>
-          Comments ({comments.length})
-        </h2>
+      <section className="space-y-4">
+        <header className="flex items-center justify-between">
+          <h2 className={`text-lg font-semibold ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
+            Comments ({comments.length})
+          </h2>
+        </header>
 
         {user ? (
-          <form onSubmit={handleSubmitComment} className="mb-8">
-            <div className="relative">
-              <textarea
-                value={commentContent}
-                onChange={(e) => setCommentContent(e.target.value)}
-                placeholder="Write a comment..."
-                rows={4}
-                className={`w-full p-4 pr-12 rounded-lg border resize-none ${
-                  isLight
-                    ? 'bg-white border-black/10 text-black placeholder-black/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/20'
-                    : 'bg-white/5 border-white/10 text-white placeholder-white/40 focus:border-primary-blue-light focus:ring-2 focus:ring-primary-blue-light/20'
-                }`}
+          <div className={`rounded-xl border ${isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-900'} p-4 shadow-sm`}>
+            <textarea
+              value={commentContent}
+              onChange={(e) => setCommentContent(e.target.value)}
+              placeholder="Write a comment?"
+              rows={3}
+              className={`w-full rounded-lg border ${
+                isLight
+                  ? 'border-slate-200 bg-transparent text-slate-900 placeholder-slate-400 focus:ring-sky-500/40'
+                  : 'border-slate-700 bg-transparent text-slate-100 placeholder-slate-400 focus:ring-sky-500/40'
+              } px-3 py-2 text-sm outline-none focus:ring`}
+              style={{ fontSize: '16px' }}
+            />
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <EmojiPicker
+                onEmojiSelect={(emoji) => {
+                  setCommentContent((prev) => prev + emoji);
+                }}
+                variant={isLight ? 'light' : 'dark'}
+                align="right"
+                position="top"
               />
-              <div className="absolute bottom-2 right-2">
-                <EmojiPicker
-                  onEmojiSelect={(emoji) => {
-                    setCommentContent((prev) => prev + emoji);
-                  }}
-                  variant={isLight ? 'light' : 'dark'}
-                  align="right"
-                  position="top"
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex justify-end">
               <Button
-                type="submit"
+                variant="primary"
                 disabled={!commentContent.trim() || submittingComment}
-                className={isLight ? 'bg-primary-blue text-white' : 'bg-primary-blue-light text-white'}
+                onClick={() => handleSubmitComment()}
               >
-                {submittingComment ? 'Posting...' : 'Post Comment'}
+                {submittingComment ? 'Sending?' : 'Comment'}
               </Button>
             </div>
-          </form>
+          </div>
         ) : (
-          <div className={`mb-8 p-4 rounded-lg ${isLight ? 'bg-black/5' : 'bg-white/5'}`}>
-            <p className={`text-sm ${isLight ? 'text-black/60' : 'text-white/60'}`}>
+          <div className={`rounded-xl border ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-800/30'} p-4`}>
+            <p className={`text-sm ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
               Please <Link href="/login" className={`underline ${isLight ? 'text-primary-blue' : 'text-primary-blue-light'}`}>sign in</Link> to comment
             </p>
           </div>
         )}
 
-        <div className="space-y-6">
-          {comments.length > 0 ? (
-            comments.map((comment) => (
-              <div key={comment.id} className={`pb-6 border-b ${isLight ? 'border-black/10' : 'border-white/10'} last:border-0`}>
-                <div className="flex items-start gap-3 mb-2">
-                  {comment.profiles && (
-                    <AvatarWithBadge
-                      avatarUrl={resolveAvatarUrl(comment.profiles.avatar_url)}
-                      username={comment.profiles.username}
-                      size={32}
-                    />
-                  )}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`font-medium ${isLight ? 'text-black' : 'text-white'}`}>
-                        {comment.profiles?.full_name || comment.profiles?.username || 'Unknown'}
-                      </span>
-                      <span className={`text-xs ${isLight ? 'text-black/50' : 'text-white/50'}`}>
-                        {formatDateWithTime(comment.created_at)}
-                      </span>
+        {comments.length === 0 ? (
+          <p className={`text-sm text-center py-8 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            No comments yet. Be the first to start the conversation.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {comments.map((comment) => {
+              const swScore = commenterSWScores[comment.author_id] ?? 0;
+              const profileUrl = comment.profiles?.username 
+                ? `/u/${comment.profiles.username}` 
+                : `/u/${comment.author_id}`;
+              
+              return (
+                <div key={comment.id} className={`mt-4 ${isLight ? '' : ''}`}>
+                  <div className={`rounded-xl p-3 ${isLight ? 'bg-white shadow-sm' : 'bg-slate-800/70 shadow-md'} transition-all`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <AvatarWithBadge
+                          avatarUrl={resolveAvatarUrl(comment.profiles?.avatar_url)}
+                          swScore={swScore}
+                          size="sm"
+                          alt="avatar"
+                          href={profileUrl}
+                        />
+                        <div className="flex flex-col min-w-0">
+                          <span className={`text-sm font-medium truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                            {comment.profiles?.full_name || comment.profiles?.username || 'Unknown'}
+                          </span>
+                          <time className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`} dateTime={comment.created_at}>
+                            {formatDateWithTodayYesterday(comment.created_at)}
+                          </time>
+                        </div>
+                      </div>
                     </div>
-                    <p className={`${isLight ? 'text-black/80' : 'text-white/80'}`}>
-                      {comment.content}
-                    </p>
+                    <div className={`mt-3 whitespace-pre-wrap text-sm ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
+                      {formatTextWithMentions(comment.content)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
-          ) : (
-            <p className={`text-center py-8 ${isLight ? 'text-black/50' : 'text-white/50'}`}>
-              No comments yet. Be the first to comment!
-            </p>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -45,20 +45,27 @@ export default async function handler(
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { post_id, content } = req.body;
+    const { post_id, content, parent_id } = req.body;
 
     if (!post_id || !content) {
       return res.status(400).json({ error: 'Post ID and content are required' });
     }
 
     const admin = supabaseAdmin();
+    const insertData: any = {
+      post_id: parseInt(post_id, 10),
+      author_id: userData.user.id,
+      content: content.trim(),
+    };
+    
+    // Add parent_id if provided (for replies)
+    if (parent_id) {
+      insertData.parent_id = parseInt(parent_id, 10);
+    }
+
     const { data, error } = await admin
       .from('blog_comments')
-      .insert({
-        post_id: parseInt(post_id, 10),
-        author_id: userData.user.id,
-        content: content.trim(),
-      })
+      .insert(insertData)
       .select(`
         id,
         content,
