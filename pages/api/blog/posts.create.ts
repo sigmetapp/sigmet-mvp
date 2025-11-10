@@ -59,7 +59,15 @@ export default async function handler(
 
     const { title, content, excerpt, type, media_urls, published_at } = req.body;
 
-    console.log('Creating post with data:', { title, content: content?.substring(0, 50), excerpt, type, media_urls, published_at });
+    console.log('Creating post with data:', { 
+      title, 
+      contentLength: content?.length, 
+      excerpt, 
+      type, 
+      media_urls, 
+      published_at,
+      published_at_type: typeof published_at
+    });
 
     if (!title || typeof title !== 'string' || !title.trim()) {
       return res.status(400).json({ error: 'Title is required and must be a non-empty string' });
@@ -92,7 +100,21 @@ export default async function handler(
       return res.status(400).json({ error: 'A post with this title already exists' });
     }
 
-    const publishedAtValue = published_at ? new Date(published_at).toISOString() : null;
+    // Handle published_at - convert empty string to null, validate date if provided
+    let publishedAtValue: string | null = null;
+    if (published_at) {
+      if (typeof published_at === 'string' && published_at.trim() !== '') {
+        try {
+          const date = new Date(published_at);
+          if (isNaN(date.getTime())) {
+            return res.status(400).json({ error: 'Invalid published_at date format' });
+          }
+          publishedAtValue = date.toISOString();
+        } catch (e) {
+          return res.status(400).json({ error: 'Invalid published_at date format' });
+        }
+      }
+    }
 
     const { data, error } = await admin
       .from('blog_posts')

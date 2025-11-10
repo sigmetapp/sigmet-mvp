@@ -33,6 +33,7 @@ export default async function handler(
       `);
 
     // Only show published posts (published_at is not null)
+    // Use is() instead of not() for better compatibility
     query = query.not('published_at', 'is', null);
 
     if (type && (type === 'guideline' || type === 'changelog')) {
@@ -45,6 +46,11 @@ export default async function handler(
       .offset(parseInt(offset as string, 10));
 
     const { data, error } = await query;
+    
+    console.log('Blog posts query result:', { 
+      dataLength: data?.length, 
+      error: error ? JSON.stringify(error, null, 2) : null 
+    });
 
     if (error) {
       console.error('Error fetching blog posts:', error);

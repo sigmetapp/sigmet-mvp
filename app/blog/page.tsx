@@ -58,7 +58,7 @@ export default function BlogPage() {
       if (response.ok) {
         setPosts(data.posts || []);
       } else {
-        console.error('Error fetching blog posts:', data);
+        console.error('Error fetching blog posts:', JSON.stringify(data, null, 2));
         // Don't show alert for empty list, just log the error
         if (data.error && !data.error.includes('not found')) {
           console.error('API Error:', data.error, data.details);

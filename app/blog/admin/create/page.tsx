@@ -70,19 +70,19 @@ export default function BlogCreatePage() {
       const response = await fetch('/api/blog/posts.create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          content: content.trim(),
-          excerpt: excerpt.trim() || null,
-          type,
-          media_urls: mediaUrls,
-          published_at: publishedAt || null,
-        }),
+          body: JSON.stringify({
+            title: title.trim(),
+            content: content.trim(),
+            excerpt: excerpt.trim() || null,
+            type,
+            media_urls: mediaUrls,
+            published_at: publishedAt && publishedAt.trim() ? publishedAt : null,
+          }),
       });
 
       const data = await response.json();
       console.log('Response status:', response.status);
-      console.log('Response data:', data);
+      console.log('Response data:', JSON.stringify(data, null, 2));
       
       if (response.ok && data.post) {
         // If post is published, redirect to post page, otherwise redirect to edit page
