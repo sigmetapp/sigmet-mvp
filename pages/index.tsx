@@ -299,64 +299,62 @@ export default function Home() {
                 <li>Faster content loading in feed</li>
                 <li>Improved onboarding flow</li>
               </ul>
-            </div>
-          </div>
-
-          {/* Statistics Section */}
-          <div className="mt-12 sm:mt-16 md:mt-20">
-            <div className="card-glow-primary p-6 sm:p-8 md:p-10 backdrop-blur-sm">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary-text text-center mb-6 sm:mb-8">
-                📊 Network Statistics
-              </h2>
               
-              {loading ? (
-                <div className="text-center text-primary-text-secondary py-8">
-                  Loading statistics...
-                </div>
-              ) : stats ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b border-white/10">
-                        <th className="text-left py-3 px-4 text-primary-text font-semibold text-sm sm:text-base"></th>
-                        <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">24 hours</th>
-                        <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">7 days</th>
-                        <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">30 days</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                        <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">👥 New Users</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['24h'].toLocaleString()}</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['7d'].toLocaleString()}</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['30d'].toLocaleString()}</td>
-                      </tr>
-                      <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                        <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">📝 New Posts</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['24h'].toLocaleString()}</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['7d'].toLocaleString()}</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['30d'].toLocaleString()}</td>
-                      </tr>
-                      <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                        <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">💬 New Comments</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['24h'].toLocaleString()}</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['7d'].toLocaleString()}</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['30d'].toLocaleString()}</td>
-                      </tr>
-                      <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">❤️ New Reactions</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['24h'].toLocaleString()}</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['7d'].toLocaleString()}</td>
-                        <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['30d'].toLocaleString()}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center text-primary-text-secondary py-8">
-                  Failed to load statistics
-                </div>
-              )}
+              {/* Statistics Section */}
+              <div className="mt-6 sm:mt-8">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary-text text-center mb-4 sm:mb-6">
+                  📊 Network Statistics
+                </h2>
+                
+                {loading ? (
+                  <div className="text-center text-primary-text-secondary py-8">
+                    Loading statistics...
+                  </div>
+                ) : stats ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left py-3 px-4 text-primary-text font-semibold text-sm sm:text-base"></th>
+                          <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">24 hours</th>
+                          <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">7 days</th>
+                          <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">30 days</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">👥 New Users</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['24h'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['7d'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['30d'].toLocaleString()}</td>
+                        </tr>
+                        <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">📝 New Posts</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['24h'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['7d'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['30d'].toLocaleString()}</td>
+                        </tr>
+                        <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">💬 New Comments</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['24h'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['7d'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['30d'].toLocaleString()}</td>
+                        </tr>
+                        <tr className="hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">❤️ New Reactions</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['24h'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['7d'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['30d'].toLocaleString()}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center text-primary-text-secondary py-8">
+                    Failed to load statistics
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
