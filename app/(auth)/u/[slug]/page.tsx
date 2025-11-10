@@ -583,30 +583,21 @@ export default function PublicProfilePage() {
     if (!profile?.user_id) return;
     (async () => {
       try {
-        // Try to load goals from user_goals table if it exists, otherwise use JSON field
-        const { data: goalsData, error } = await supabase
-          .from('user_goals')
-          .select('id, text, target_date')
+        // Load goals from profiles JSON field
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('goals')
           .eq('user_id', profile.user_id)
-          .order('created_at', { ascending: true });
+          .maybeSingle();
         
-        if (!error && goalsData) {
-          setUserGoals(goalsData.map((g: any) => ({
-            id: g.id.toString(),
-            text: g.text,
-            target_date: g.target_date
+        if (profileData?.goals && Array.isArray(profileData.goals)) {
+          setUserGoals(profileData.goals.map((g: any) => ({
+            id: g.id || Date.now().toString() + Math.random(),
+            text: g.text || '',
+            target_date: g.target_date || null
           })));
         } else {
-          // Fallback: try to load from profiles JSON field
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('goals')
-            .eq('user_id', profile.user_id)
-            .maybeSingle();
-          
-          if (profileData?.goals && Array.isArray(profileData.goals)) {
-            setUserGoals(profileData.goals);
-          }
+          setUserGoals([]);
         }
       } catch (err) {
         console.error('Error loading goals:', err);

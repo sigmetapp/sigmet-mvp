@@ -34,6 +34,7 @@ function ProfileSettings() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [educationalInstitutionType, setEducationalInstitutionType] = useState<'school' | 'college' | 'university' | null>(null);
   const [educationalInstitutionName, setEducationalInstitutionName] = useState<string>('');
+  const [goals, setGoals] = useState<Array<{ id: string; text: string; target_date: string | null }>>([]);
 
   useEffect(() => {
     (async () => {
@@ -61,7 +62,15 @@ function ProfileSettings() {
         relationship_status: null,
         date_of_birth: null,
         work_career_status: null,
+        goals: [],
       };
+      
+      // Load goals from profile data
+      if (profileData.goals && Array.isArray(profileData.goals)) {
+        setGoals(profileData.goals);
+      } else {
+        setGoals([]);
+      }
       
       // Load educational institution if exists
       if (profileData.educational_institution_id) {
@@ -128,6 +137,7 @@ function ProfileSettings() {
     const profileToSave = {
       ...profile,
       educational_institution_id: institutionId || null,
+      goals: goals,
     };
     
     const { error } = await supabase.from('profiles').upsert(profileToSave, { onConflict: 'user_id' });
@@ -427,6 +437,128 @@ function ProfileSettings() {
               <span className={`text-sm ${isLight ? "text-primary-text" : "text-primary-text"}`}>Hide</span>
             </label>
           </div>
+        </div>
+
+        {/* Goals Section */}
+        <div className="pt-4 border-t border-white/10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <label className="label text-xs mb-1">Goals</label>
+              <p className={`text-xs ${isLight ? "text-primary-text-secondary" : "text-white/60"}`}>
+                Set your personal goals with optional target dates (4-7 goals recommended)
+              </p>
+            </div>
+            {goals.length < 7 && (
+              <button
+                onClick={() => {
+                  const newGoal = { id: Date.now().toString(), text: '', target_date: null };
+                  setGoals([...goals, newGoal]);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  isLight
+                    ? "bg-primary-blue text-white hover:bg-primary-blue-dark"
+                    : "bg-primary-blue text-white hover:bg-primary-blue-dark"
+                }`}
+              >
+                + Add Goal
+              </button>
+            )}
+          </div>
+          
+          <div className="space-y-3">
+            {goals.length === 0 ? (
+              <div className={`text-center py-8 rounded-xl border border-dashed ${
+                isLight ? "border-gray-300 bg-gray-50/50" : "border-white/20 bg-white/5"
+              }`}>
+                <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <p className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-white/60"}`}>
+                  No goals set yet. Click "Add Goal" to get started.
+                </p>
+              </div>
+            ) : (
+              goals.map((goal, index) => (
+                <div
+                  key={goal.id}
+                  className={`p-4 rounded-xl border ${
+                    isLight
+                      ? "border-gray-200 bg-gray-50/50 hover:border-gray-300"
+                      : "border-white/10 bg-white/5 hover:border-white/20"
+                  } transition-all`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 space-y-3">
+                      <div>
+                        <label className={`text-xs font-medium mb-1.5 block ${
+                          isLight ? "text-primary-text-secondary" : "text-white/70"
+                        }`}>
+                          Goal {index + 1}
+                        </label>
+                        <textarea
+                          className={`input text-sm py-2 min-h-[80px] resize-none ${
+                            isLight ? "" : ""
+                          }`}
+                          placeholder="Describe your goal..."
+                          value={goal.text}
+                          onChange={(e) => {
+                            const updatedGoals = [...goals];
+                            updatedGoals[index].text = e.target.value;
+                            setGoals(updatedGoals);
+                          }}
+                          rows={3}
+                        />
+                      </div>
+                      <div>
+                        <label className={`text-xs font-medium mb-1.5 block ${
+                          isLight ? "text-primary-text-secondary" : "text-white/70"
+                        }`}>
+                          Target Date (optional)
+                        </label>
+                        <input
+                          type="date"
+                          className="input text-sm py-2"
+                          value={goal.target_date || ''}
+                          onChange={(e) => {
+                            const updatedGoals = [...goals];
+                            updatedGoals[index].target_date = e.target.value || null;
+                            setGoals(updatedGoals);
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const updatedGoals = goals.filter((_, i) => i !== index);
+                        setGoals(updatedGoals);
+                      }}
+                      className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                        isLight
+                          ? "text-red-500 hover:bg-red-50"
+                          : "text-red-400 hover:bg-red-500/10"
+                      }`}
+                      aria-label="Remove goal"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          
+          {goals.length > 0 && goals.length < 4 && (
+            <p className={`text-xs mt-3 ${isLight ? "text-amber-600" : "text-amber-400"}`}>
+              💡 Tip: Setting 4-7 goals helps maintain focus and balance.
+            </p>
+          )}
+          {goals.length >= 7 && (
+            <p className={`text-xs mt-3 ${isLight ? "text-primary-text-secondary" : "text-white/60"}`}>
+              Maximum of 7 goals reached.
+            </p>
+          )}
         </div>
 
         {note && !showSuccess && (
