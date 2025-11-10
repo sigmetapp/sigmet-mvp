@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { supabase } from "@/lib/supabaseClient";
@@ -17,7 +18,7 @@ const navLinks = [
 export default function Header() {
   const { logo_url, site_name } = useSiteSettings();
   const [user, setUser] = useState<any>(null);
-  const [pathname, setPathname] = useState<string>("");
+  const pathname = usePathname() || "/";
   // Mobile menu removed in favor of inline icons
   const { theme, toggleTheme } = useTheme();
   const preloadLinkRef = useRef<HTMLLinkElement | null>(null);
@@ -52,7 +53,6 @@ export default function Header() {
     const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null);
     });
-    setPathname(typeof window !== "undefined" ? window.location.pathname : "");
     return () => listener.subscription.unsubscribe();
   }, []);
 
@@ -117,7 +117,10 @@ export default function Header() {
         {/* DESKTOP NAV */}
         <nav className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-1 flex-shrink-0">
           {navLinks.map((l) => {
-            const active = pathname === l.href;
+            // For home route "/", match exactly. For other routes, match exact or nested paths
+            const active = l.href === "/" 
+              ? pathname === "/"
+              : pathname === l.href || pathname.startsWith(l.href + "/");
             const isExternal = l.href.startsWith("http");
             const IconComponent = l.icon;
             const className = `h-9 w-9 grid place-items-center rounded-lg border transition ${
@@ -242,7 +245,11 @@ export default function Header() {
               href="/"
               aria-label="Home"
               className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
-                isLight
+                pathname === "/"
+                  ? isLight
+                    ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-primary-blue"
+                    : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)] border-primary-blue"
+                  : isLight
                   ? "border-primary-blue/20 text-primary-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue"
                   : "border-primary-blue/30 text-primary-text-secondary hover:bg-primary-blue/20 hover:text-primary-blue-light"
               }`}
@@ -253,7 +260,11 @@ export default function Header() {
               href="/feed"
               aria-label="Feed"
               className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
-                isLight
+                pathname === "/feed" || pathname.startsWith("/feed/")
+                  ? isLight
+                    ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-primary-blue"
+                    : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)] border-primary-blue"
+                  : isLight
                   ? "border-primary-blue/20 text-primary-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue"
                   : "border-primary-blue/30 text-primary-text-secondary hover:bg-primary-blue/20 hover:text-primary-blue-light"
               }`}
@@ -264,10 +275,10 @@ export default function Header() {
               href="/alert"
               aria-label="Alert"
               className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
-                pathname === "/alert"
+                pathname === "/alert" || pathname.startsWith("/alert/")
                   ? isLight
-                    ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)]"
-                    : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)]"
+                    ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-primary-blue"
+                    : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)] border-primary-blue"
                   : isLight
                   ? "border-primary-blue/20 text-primary-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue"
                   : "border-primary-blue/30 text-primary-text-secondary hover:bg-primary-blue/20 hover:text-primary-blue-light"
@@ -279,7 +290,11 @@ export default function Header() {
               href="/invite"
               aria-label="Invite"
               className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
-                isLight
+                pathname === "/invite" || pathname.startsWith("/invite/")
+                  ? isLight
+                    ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-primary-blue"
+                    : "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.3)] border-primary-blue"
+                  : isLight
                   ? "border-primary-blue/20 text-primary-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue"
                   : "border-primary-blue/30 text-primary-text-secondary hover:bg-primary-blue/20 hover:text-primary-blue-light"
               }`}
