@@ -207,7 +207,8 @@ export default function PublicProfilePage() {
   const [recentSocial, setRecentSocial] = useState<
     { kind: 'in' | 'out'; otherUserId: string; created_at?: string }[]
   >([]);
-  const [profileInfoExpanded, setProfileInfoExpanded] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'info' | 'goals'>('info');
+  const [userGoals, setUserGoals] = useState<Array<{ id: string; text: string; target_date: string | null }>>([]);
   // Trust Flow state (basic default 80%)
   const [trustScore, setTrustScore] = useState<number>(80);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -573,6 +574,43 @@ export default function PublicProfilePage() {
         setFollowingCount(0);
         setReferralsCount(0);
         setConnectionsCount(0);
+      }
+    })();
+  }, [profile?.user_id]);
+
+  // Load user goals
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    (async () => {
+      try {
+        // Try to load goals from user_goals table if it exists, otherwise use JSON field
+        const { data: goalsData, error } = await supabase
+          .from('user_goals')
+          .select('id, text, target_date')
+          .eq('user_id', profile.user_id)
+          .order('created_at', { ascending: true });
+        
+        if (!error && goalsData) {
+          setUserGoals(goalsData.map((g: any) => ({
+            id: g.id.toString(),
+            text: g.text,
+            target_date: g.target_date
+          })));
+        } else {
+          // Fallback: try to load from profiles JSON field
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('goals')
+            .eq('user_id', profile.user_id)
+            .maybeSingle();
+          
+          if (profileData?.goals && Array.isArray(profileData.goals)) {
+            setUserGoals(profileData.goals);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading goals:', err);
+        setUserGoals([]);
       }
     })();
   }, [profile?.user_id]);
@@ -1276,42 +1314,55 @@ export default function PublicProfilePage() {
         )}
       </div>
 
-      {/* Unified Profile Info Block - 2/3 width with collapsible */}
+      {/* Unified Profile Info Block - Full width with tabs */}
       {!loadingProfile && profile && (
-        <div className="flex justify-center">
-          <div className="w-full max-w-4xl md:w-2/3">
-            <div className="card p-5 md:p-6 animate-fade-in-up animate-stagger-2">
-              {/* Header with hamburger */}
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-base font-semibold ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
-                  Profile Information
-                </h3>
-                <button
-                  onClick={() => setProfileInfoExpanded(!profileInfoExpanded)}
-                  className={`p-2 rounded-lg transition-all hover:bg-white/10 ${
-                    isLight ? 'hover:bg-gray-100' : ''
-                  }`}
-                  aria-label={profileInfoExpanded ? 'Collapse' : 'Expand'}
-                >
-                  <svg
-                    className={`w-5 h-5 transition-transform duration-200 ${isLight ? 'text-primary-text' : 'text-white/70'} ${
-                      profileInfoExpanded ? 'rotate-180' : ''
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Collapsible content */}
-              <div
-                className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                  profileInfoExpanded ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+        <div className="w-full">
+          <div className="card p-5 md:p-6 animate-fade-in-up animate-stagger-2">
+            {/* Tabs */}
+            <div className="flex items-center gap-2 mb-5 border-b border-white/10">
+              <button
+                onClick={() => setActiveTab('info')}
+                className={`px-4 py-2 text-sm font-semibold transition-all relative ${
+                  activeTab === 'info'
+                    ? isLight
+                      ? 'text-primary-text'
+                      : 'text-white/90'
+                    : isLight
+                    ? 'text-primary-text-secondary'
+                    : 'text-white/60'
                 }`}
               >
+                Profile Information
+                {activeTab === 'info' && (
+                  <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${
+                    isLight ? 'bg-primary-blue' : 'bg-primary-blue-light'
+                  }`} />
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('goals')}
+                className={`px-4 py-2 text-sm font-semibold transition-all relative ${
+                  activeTab === 'goals'
+                    ? isLight
+                      ? 'text-primary-text'
+                      : 'text-white/90'
+                    : isLight
+                    ? 'text-primary-text-secondary'
+                    : 'text-white/60'
+                }`}
+              >
+                Goals
+                {activeTab === 'goals' && (
+                  <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${
+                    isLight ? 'bg-primary-blue' : 'bg-primary-blue-light'
+                  }`} />
+                )}
+              </button>
+            </div>
+
+            {/* Tab content */}
+            {activeTab === 'info' && (
+              <div>
                 <div className="space-y-5">
                   {/* Bio - Full width at top */}
                   {profile.bio && (
@@ -1565,7 +1616,54 @@ export default function PublicProfilePage() {
                   </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* Goals Tab */}
+            {activeTab === 'goals' && (
+              <div className="space-y-4">
+                {userGoals.length === 0 ? (
+                  <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
+                    <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    <p className="text-sm">No goals set yet. Goals can be added in profile settings.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {userGoals.map((goal) => (
+                      <div
+                        key={goal.id}
+                        className={`p-4 rounded-xl border ${
+                          isLight
+                            ? 'border-gray-200 bg-gray-50/50 hover:bg-gray-100/50'
+                            : 'border-white/10 bg-white/5 hover:bg-white/10'
+                        } transition-all`}
+                      >
+                        <div className={`text-sm leading-relaxed mb-3 ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                          {goal.text}
+                        </div>
+                        {goal.target_date && (
+                          <div className={`text-xs flex items-center gap-2 ${
+                            isLight ? 'text-primary-text-secondary' : 'text-white/60'
+                          }`}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span>
+                              Target: {new Date(goal.target_date).toLocaleDateString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
