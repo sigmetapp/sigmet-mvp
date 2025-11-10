@@ -896,37 +896,38 @@ export default function SWPage() {
                         </div>
                       )}
                     </div>
-                {nextLevel && (() => {
-                  const glowParams = getProgressBarGlowParameters(currentLevel.name, currentColorScheme);
-                  return (
-                    <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
-                      {/* Outer glow layer */}
-                      {glowParams.outerGlow && !isLoadingProgress && (
-                        <div
-                          className="absolute inset-0 rounded-full pointer-events-none"
-                          style={{
-                            boxShadow: glowParams.outerGlow,
-                            background: `radial-gradient(circle at left center, ${currentColorScheme.hex}15, transparent 50%)`
-                          }}
-                        />
-                      )}
-                      {isLoadingProgress ? (
-                        <div className="h-3 bg-white/10 rounded-full animate-pulse"></div>
-                      ) : (
-                        <div
-                          className="h-3 rounded-full transition-all duration-500 ease-out relative z-10"
-                          style={{ 
-                            width: `${Math.min(100, Math.max(0, progressToNext))}%`,
-                            backgroundColor: currentColorScheme.hex,
-                            boxShadow: glowParams.boxShadow
-                          }}
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                    {nextLevel && (() => {
+                      const glowParams = getProgressBarGlowParameters(currentLevel.name, currentColorScheme);
+                      return (
+                        <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                          {/* Outer glow layer */}
+                          {glowParams.outerGlow && !isLoadingProgress && (
+                            <div
+                              className="absolute inset-0 rounded-full pointer-events-none"
+                              style={{
+                                boxShadow: glowParams.outerGlow,
+                                background: `radial-gradient(circle at left center, ${currentColorScheme.hex}15, transparent 50%)`
+                              }}
+                            />
+                          )}
+                          {isLoadingProgress ? (
+                            <div className="h-3 bg-white/10 rounded-full animate-pulse"></div>
+                          ) : (
+                            <div
+                              className="h-3 rounded-full transition-all duration-500 ease-out relative z-10"
+                              style={{ 
+                                width: `${Math.min(100, Math.max(0, progressToNext))}%`,
+                                backgroundColor: currentColorScheme.hex,
+                                boxShadow: glowParams.boxShadow
+                              }}
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                      );
+                    })()}
+                  </div>
                 </div>
               );
             })()}
