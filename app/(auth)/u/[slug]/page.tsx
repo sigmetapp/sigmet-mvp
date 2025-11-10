@@ -1277,61 +1277,40 @@ export default function PublicProfilePage() {
 
       {/* Info, Additional Info, and Stats blocks side by side */}
       {!loadingProfile && profile && (
-        <div className="grid gap-6 md:grid-cols-[1.6fr_1.2fr_1.2fr]">
+        <div className="grid gap-4 md:grid-cols-3">
           {/* Info block - Bio, Location, Website, Joined */}
-          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-2">
-            <div className="space-y-4">
+          <div className="card p-4 animate-fade-in-up animate-stagger-2">
+            <div className="space-y-3">
               {/* Bio */}
               {profile.bio && (
-                <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30' 
-                      : 'bg-gradient-to-br from-purple-500/15 to-pink-500/15 border border-purple-500/30'
+                <div className="pb-3 border-b border-white/10">
+                  <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                    isLight ? 'text-primary-text-secondary' : 'text-white/50'
                   }`}>
-                    <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
+                    Bio
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
-                    }`}>
-                      Bio
-                    </div>
-                    <div className={`text-sm leading-relaxed ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
-                      {profile.bio}
-                    </div>
+                  <div className={`text-sm leading-relaxed ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                    {profile.bio}
                   </div>
                 </div>
               )}
 
-              {/* Location */}
-              {profile.country && (
-                <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30' 
-                      : 'bg-gradient-to-br from-blue-500/15 to-cyan-500/15 border border-blue-500/30'
-                  }`}>
-                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
+              {/* Location & Website in grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {profile.country && (
+                  <div>
+                    <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-primary-text-secondary' : 'text-white/50'
                     }`}>
-                      Country - City
+                      Location
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                    <div className={`text-xs ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
                       {(() => {
                         const city = String(profile.country).split(",")[0].trim();
                         return (
                           <Link href={`/city/${encodeURIComponent(city)}`} className="hover:underline inline-flex items-center gap-1">
-                            <span>{profile.country}</span>
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <span className="truncate">{profile.country}</span>
+                            <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                             </svg>
                           </Link>
@@ -1339,28 +1318,16 @@ export default function PublicProfilePage() {
                       })()}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Website */}
-              {profile.website_url && (
-                <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-teal-500/20 to-emerald-500/20 border border-teal-500/30' 
-                      : 'bg-gradient-to-br from-teal-500/15 to-emerald-500/15 border border-teal-500/30'
-                  }`}>
-                    <svg className="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
+                {profile.website_url && (
+                  <div>
+                    <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-primary-text-secondary' : 'text-white/50'
                     }`}>
-                      Projects / Startups / Portfolio
+                      Portfolio
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                    <div className={`text-xs ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
                       <a 
                         href={profile.website_url} 
                         target="_blank" 
@@ -1368,44 +1335,33 @@ export default function PublicProfilePage() {
                         className="hover:underline inline-flex items-center gap-1 break-all"
                       >
                         <span className="truncate">
-                          {profile.website_url && profile.website_url.length > 20 
-                            ? profile.website_url.substring(0, 20) + '...' 
+                          {profile.website_url && profile.website_url.length > 15 
+                            ? profile.website_url.substring(0, 15) + '...' 
                             : profile.website_url}
                         </span>
-                        <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </a>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Joined */}
               {profile.created_at && (
-                <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30' 
-                      : 'bg-gradient-to-br from-amber-500/15 to-orange-500/15 border border-amber-500/30'
+                <div className="pt-2 border-t border-white/10">
+                  <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                    isLight ? 'text-primary-text-secondary' : 'text-white/50'
                   }`}>
-                    <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
+                    Joined
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
-                    }`}>
-                      Joined
-                    </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
-                      {new Date(profile.created_at).toLocaleDateString('en-GB', { 
-                        day: '2-digit', 
-                        month: '2-digit', 
-                        year: 'numeric' 
-                      })}
-                    </div>
+                  <div className={`text-xs ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
+                    {new Date(profile.created_at).toLocaleDateString('en-GB', { 
+                      day: '2-digit', 
+                      month: '2-digit', 
+                      year: 'numeric' 
+                    })}
                   </div>
                 </div>
               )}
@@ -1413,27 +1369,37 @@ export default function PublicProfilePage() {
           </div>
 
           {/* Additional Info block - Relationship Status, Place of Study, Date of birth, Work & Career */}
-          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-3">
-            <div className="space-y-4">
-              {/* Relationship Status */}
-              {profile.relationship_status && (
-                <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-rose-500/20 to-pink-500/20 border border-rose-500/30' 
-                      : 'bg-gradient-to-br from-rose-500/15 to-pink-500/15 border border-rose-500/30'
+          <div className="card p-4 animate-fade-in-up animate-stagger-3">
+            <div className="space-y-3">
+              {/* Work & Career - prominent */}
+              {profile.work_career_status && (
+                <div className="pb-3 border-b border-white/10">
+                  <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                    isLight ? 'text-primary-text-secondary' : 'text-white/50'
                   }`}>
-                    <svg className="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
+                    Work & Career
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
+                  <div className={`text-sm font-medium ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                    {profile.work_career_status === 'employed' ? 'Employed' :
+                     profile.work_career_status === 'entrepreneur' ? 'Entrepreneur' :
+                     profile.work_career_status === 'student' ? 'Student' :
+                     profile.work_career_status === 'looking_for_opportunities' ? 'Looking for Opportunities' :
+                     profile.work_career_status === 'unemployed' ? 'Unemployed' :
+                     profile.work_career_status}
+                  </div>
+                </div>
+              )}
+
+              {/* Relationship Status & Date of birth in grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {profile.relationship_status && (
+                  <div>
+                    <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-primary-text-secondary' : 'text-white/50'
                     }`}>
-                      Relationship Status
+                      Relationship
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                    <div className={`text-xs ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
                       {profile.relationship_status === 'single' ? 'Single' :
                        profile.relationship_status === 'looking' ? 'Looking' :
                        profile.relationship_status === 'dating' ? 'Dating' :
@@ -1441,53 +1407,16 @@ export default function PublicProfilePage() {
                        profile.relationship_status}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Place of Study */}
-              {educationalInstitution && (
-                <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-indigo-500/20 to-blue-500/20 border border-indigo-500/30' 
-                      : 'bg-gradient-to-br from-indigo-500/15 to-blue-500/15 border border-indigo-500/30'
-                  }`}>
-                    <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
-                    }`}>
-                      Place of Study
-                    </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
-                      {educationalInstitution.name} ({educationalInstitution.type === 'school' ? 'School' : educationalInstitution.type === 'college' ? 'College' : 'University'})
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Date of birth */}
-              {profile.date_of_birth && (
-                <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30' 
-                      : 'bg-gradient-to-br from-cyan-500/15 to-blue-500/15 border border-cyan-500/30'
-                  }`}>
-                    <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
+                {profile.date_of_birth && (
+                  <div>
+                    <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                      isLight ? 'text-primary-text-secondary' : 'text-white/50'
                     }`}>
                       Date of birth
                     </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                    <div className={`text-xs ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
                       {new Date(profile.date_of_birth).toLocaleDateString('en-GB', { 
                         day: '2-digit', 
                         month: '2-digit', 
@@ -1495,35 +1424,19 @@ export default function PublicProfilePage() {
                       })}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Work & Career */}
-              {profile.work_career_status && (
-                <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30' 
-                      : 'bg-gradient-to-br from-green-500/15 to-emerald-500/15 border border-green-500/30'
+              {/* Place of Study */}
+              {educationalInstitution && (
+                <div className="pt-2 border-t border-white/10">
+                  <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                    isLight ? 'text-primary-text-secondary' : 'text-white/50'
                   }`}>
-                    <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
+                    Place of Study
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-1 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
-                    }`}>
-                      Work & Career
-                    </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
-                      {profile.work_career_status === 'employed' ? 'Employed' :
-                       profile.work_career_status === 'entrepreneur' ? 'Entrepreneur' :
-                       profile.work_career_status === 'student' ? 'Student' :
-                       profile.work_career_status === 'looking_for_opportunities' ? 'Looking for Opportunities' :
-                       profile.work_career_status === 'unemployed' ? 'Unemployed' :
-                       profile.work_career_status}
-                    </div>
+                  <div className={`text-xs ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
+                    {educationalInstitution.name} ({educationalInstitution.type === 'school' ? 'School' : educationalInstitution.type === 'college' ? 'College' : 'University'})
                   </div>
                 </div>
               )}
@@ -1531,133 +1444,81 @@ export default function PublicProfilePage() {
           </div>
 
           {/* Stats block - Connections, Following, Followers, Referrals */}
-          <div className="card p-4 md:p-6 animate-fade-in-up animate-stagger-4">
-            <div className="space-y-3">
+          <div className="card p-4 animate-fade-in-up animate-stagger-4">
+            <div className="grid grid-cols-2 gap-3">
               {/* Connections */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30' 
-                      : 'bg-gradient-to-br from-violet-500/15 to-purple-500/15 border border-violet-500/30'
-                  }`}>
-                    <svg className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
-                    }`}>
-                      Connections
-                    </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-white/70'}`}>
-                      Mutual connections
-                    </div>
-                  </div>
+              <div className="flex flex-col">
+                <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                  isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                }`}>
+                  Connections
                 </div>
-                <div className={`text-2xl font-bold ${
+                <div className={`text-xl font-bold mb-0.5 ${
                   isLight 
                     ? 'bg-gradient-to-r from-violet-500 to-purple-500 bg-clip-text text-transparent' 
                     : 'bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent'
                 }`}>
                   {connectionsCount}
                 </div>
+                <div className={`text-[10px] ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
+                  Mutual
+                </div>
               </div>
 
               {/* Following */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30' 
-                      : 'bg-gradient-to-br from-indigo-500/15 to-purple-500/15 border border-indigo-500/30'
-                  }`}>
-                    <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
-                    }`}>
-                      Following
-                    </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-white/70'}`}>
-                      People you follow
-                    </div>
-                  </div>
+              <div className="flex flex-col">
+                <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                  isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                }`}>
+                  Following
                 </div>
-                <div className={`text-2xl font-bold ${
+                <div className={`text-xl font-bold mb-0.5 ${
                   isLight 
                     ? 'bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent' 
                     : 'bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent'
                 }`}>
                   {followingCount}
                 </div>
+                <div className={`text-[10px] ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
+                  You follow
+                </div>
               </div>
 
               {/* Followers */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30' 
-                      : 'bg-gradient-to-br from-blue-500/15 to-cyan-500/15 border border-blue-500/30'
-                  }`}>
-                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
-                    }`}>
-                      Followers
-                    </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-white/70'}`}>
-                      People following you
-                    </div>
-                  </div>
+              <div className="flex flex-col">
+                <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                  isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                }`}>
+                  Followers
                 </div>
-                <div className={`text-2xl font-bold ${
+                <div className={`text-xl font-bold mb-0.5 ${
                   isLight 
                     ? 'bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent' 
                     : 'bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent'
                 }`}>
                   {followersCount}
                 </div>
+                <div className={`text-[10px] ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
+                  Following you
+                </div>
               </div>
 
               {/* Referrals */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    isLight 
-                      ? 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30' 
-                      : 'bg-gradient-to-br from-emerald-500/15 to-teal-500/15 border border-emerald-500/30'
-                  }`}>
-                    <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium mb-0.5 uppercase tracking-wider ${
-                      isLight ? 'text-primary-text-secondary' : 'text-white/60'
-                    }`}>
-                      Referrals
-                    </div>
-                    <div className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-white/70'}`}>
-                      Invited users
-                    </div>
-                  </div>
+              <div className="flex flex-col">
+                <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                  isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                }`}>
+                  Referrals
                 </div>
-                <div className={`text-2xl font-bold ${
+                <div className={`text-xl font-bold mb-0.5 ${
                   isLight 
                     ? 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent' 
                     : 'bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent'
                 }`}>
                   {referralsCount}
+                </div>
+                <div className={`text-[10px] ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
+                  Invited
                 </div>
               </div>
             </div>
