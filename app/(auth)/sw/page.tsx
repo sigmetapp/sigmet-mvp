@@ -276,6 +276,10 @@ export default function SWPage() {
     city: string | null;
     country: string | null;
   }>>(getCachedData(CACHE_KEY_CITY_LEADERS) || []);
+  const [swGrowth, setSwGrowth] = useState<{
+    growth24h: number;
+    growth7d: number;
+  } | null>(null);
 
   useEffect(() => {
     // Если есть кэшированные данные, показываем их сразу
@@ -303,7 +307,7 @@ export default function SWPage() {
         }
 
         // Загружаем все данные параллельно
-        const [swDataResult, recentActivityData, cityLeadersData, adminData] = await Promise.allSettled([
+        const [swDataResult, recentActivityData, cityLeadersData, adminData, growthData] = await Promise.allSettled([
           // Основные данные SW
           fetch('/api/sw/calculate', {
             headers: { 'Authorization': `Bearer ${token}` },
@@ -324,6 +328,10 @@ export default function SWPage() {
             if (error) throw error;
             return data ?? false;
           }),
+          // SW Growth data
+          fetch('/api/sw/growth', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }).then(res => res.ok ? res.json() : null),
         ]);
 
         // Обрабатываем результаты и кэшируем
@@ -379,6 +387,10 @@ export default function SWPage() {
         } else {
           setIsAdmin(false);
           setCachedData(CACHE_KEY_ADMIN, false);
+        }
+
+        if (growthData.status === 'fulfilled' && growthData.value) {
+          setSwGrowth(growthData.value);
         }
 
         setLoading(false);
@@ -673,64 +685,91 @@ export default function SWPage() {
       {activeTab === 'overview' && (
         <div className="space-y-4">
           {/* Total SW */}
-          <div className="card p-6">
-            <div className="text-center">
-              <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
-              <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
-              {originalSW && originalSW !== totalSW && (
-                <div className="text-white/50 text-xs mb-2">
-                  Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
+          {(() => {
+            const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+            return (
+              <div className={`card p-6 border-2 ${currentColorScheme.border} ${currentColorScheme.borderGlow}`}>
+                <div className="text-center">
+                  <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
+                  <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
+                  {originalSW && originalSW !== totalSW && (
+                    <div className="text-white/50 text-xs mb-2">
+                      Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
+                    </div>
+                  )}
+                  <div className="text-white/60 text-sm mb-3">Total Points</div>
+                  {swGrowth && (
+                    <div className="flex justify-center gap-4 mt-4 pt-4 border-t border-white/10">
+                      <div className="text-center">
+                        <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
+                        <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {swGrowth.growth24h >= 0 ? '+' : ''}{swGrowth.growth24h.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-white/50 text-xs mb-1">Last 7 days</div>
+                        <div className={`text-sm font-semibold ${swGrowth.growth7d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {swGrowth.growth7d >= 0 ? '+' : ''}{swGrowth.growth7d.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-              <div className="text-white/60 text-sm">Total Points</div>
-            </div>
-          </div>
+              </div>
+            );
+          })()}
 
           {/* Current Level */}
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="text-white/60 text-sm mb-1">Current Level</div>
-                {(() => {
-                  const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                  return (
-                    <div className={`text-xl font-bold ${currentColorScheme.text}`}>{currentLevel.name}</div>
-                  );
-                })()}
+          {(() => {
+            const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+            return (
+              <div className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} ${currentColorScheme.borderGlow}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <div className="text-white/60 text-sm mb-1">Current Level</div>
+                    <div className={`text-2xl font-bold ${currentColorScheme.text} flex items-center gap-2`}>
+                      <span>{currentLevel.name}</span>
+                      <span className="text-lg animate-pulse">✨</span>
+                    </div>
+                  </div>
+                  {nextLevel && (
+                    <div className="text-right">
+                      <div className="text-white/60 text-sm mb-1">Next Level</div>
+                      {(() => {
+                        const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
+                        const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                        return (
+                          <>
+                            <div className={`text-xl font-semibold ${nextColorScheme.text} flex items-center gap-2 justify-end`}>
+                              <span>{nextLevel.name}</span>
+                              <span className="text-sm">🚀</span>
+                            </div>
+                            <div className={`text-sm font-medium mt-1 ${currentColorScheme.text}`}>
+                              {nextLevel.minSW - totalSW} points to next level
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+                {nextLevel && (
+                  <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="h-3 rounded-full transition-all duration-500 ease-out relative"
+                      style={{ 
+                        width: `${Math.min(100, Math.max(0, progressToNext))}%`,
+                        backgroundColor: currentColorScheme.hex,
+                        boxShadow: `0 0 10px ${currentColorScheme.hex}40`
+                      }}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                    </div>
+                  </div>
+                )}
               </div>
-              {nextLevel && (
-                <div className="text-right">
-                  <div className="text-white/60 text-sm mb-1">Next Level</div>
-                  {(() => {
-                    const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
-                    const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                    return (
-                      <>
-                        <div className={`text-lg font-semibold ${nextColorScheme.text}`}>{nextLevel.name}</div>
-                        <div className="text-white/50 text-xs mt-1">
-                          {nextLevel.minSW - totalSW} points to next level
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-            {nextLevel && (() => {
-              const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-              return (
-                <div className="w-full bg-white/10 rounded-full h-2">
-                  <div
-                    className="h-2 rounded-full transition-all"
-                    style={{ 
-                      width: `${Math.min(100, Math.max(0, progressToNext))}%`,
-                      backgroundColor: currentColorScheme.hex
-                    }}
-                  />
-                </div>
-              );
-            })()}
-          </div>
+            );
+          })()}
 
           {/* Inflation Indicator */}
           {inflationRate && inflationRate < 1 && (
@@ -808,8 +847,11 @@ export default function SWPage() {
       {/* Factors Tab */}
       {activeTab === 'factors' && (
         <div className="space-y-4">
-          <div className="card p-4">
-            <h2 className="text-lg font-semibold text-white mb-4">How to Increase Your SW</h2>
+          {(() => {
+            const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+            return (
+              <div className={`card p-4 border-2 ${currentColorScheme.border} ${currentColorScheme.borderGlow}`}>
+                <h2 className="text-lg font-semibold text-white mb-4">How to Increase Your SW</h2>
             <div className="space-y-4">
               {/* Profile Complete - Single action */}
               <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
@@ -954,7 +996,9 @@ export default function SWPage() {
                 </div>
               </div>
             </div>
-          </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
