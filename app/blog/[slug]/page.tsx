@@ -11,6 +11,7 @@ import { resolveAvatarUrl } from '@/lib/utils';
 import Button from '@/components/Button';
 import EmojiPicker from '@/components/EmojiPicker';
 import { formatTextWithMentions } from '@/lib/formatText';
+import CommentReactions, { ReactionType } from '@/components/CommentReactions';
 
 type BlogPost = {
   id: number;
@@ -167,6 +168,20 @@ export default function BlogPostPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [commenterSWScores, setCommenterSWScores] = useState<Record<string, number>>({});
+  
+  // Comment reactions state
+  const [commentReactions, setCommentReactions] = useState<Record<number, {
+    counts: Record<ReactionType, number>;
+    selected: ReactionType | null;
+  }>>({});
+  
+  const EMPTY_COUNTS: Record<ReactionType, number> = {
+    inspire: 0,
+    respect: 0,
+    relate: 0,
+    support: 0,
+    celebrate: 0,
+  };
 
   useEffect(() => {
     checkAuth();
@@ -178,6 +193,14 @@ export default function BlogPostPage() {
       fetchComments();
     }
   }, [post]);
+  
+  // Reload reactions when user changes
+  useEffect(() => {
+    if (comments.length > 0 && user) {
+      const commentIds = comments.map(c => c.id);
+      loadBlogCommentReactions(commentIds);
+    }
+  }, [user]);
 
   const checkAuth = async () => {
     const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -233,9 +256,113 @@ export default function BlogPostPage() {
             setCommenterSWScores({});
           }
         }
+        
+        // Load reactions for all comments
+        const commentIds = (data.comments || []).map((c: Comment) => c.id);
+        if (commentIds.length > 0 && user) {
+          loadBlogCommentReactions(commentIds);
+        }
       }
     } catch (error) {
       console.error('Error fetching comments:', error);
+    }
+  };
+  
+  const loadBlogCommentReactions = async (commentIds: number[]) => {
+    if (commentIds.length === 0) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('blog_comment_reactions')
+        .select('comment_id, kind, user_id')
+        .in('comment_id', commentIds);
+      
+      if (error) {
+        console.error('Failed to load blog comment reactions:', error);
+        return;
+      }
+
+      const reactionsMap: Record<number, {
+        counts: Record<ReactionType, number>;
+        selected: ReactionType | null;
+      }> = {};
+
+      // Initialize all comments with empty counts
+      commentIds.forEach(id => {
+        reactionsMap[id] = {
+          counts: { inspire: 0, respect: 0, relate: 0, support: 0, celebrate: 0 },
+          selected: null,
+        };
+      });
+
+      // Process reactions
+      const reactionMap: Record<string, ReactionType> = {
+        inspire: 'inspire',
+        respect: 'inspire',
+        relate: 'inspire',
+        support: 'inspire',
+        celebrate: 'inspire',
+      };
+
+      const userId = user?.id;
+      for (const row of (data || []) as Array<{ comment_id: number; kind: string; user_id: string }>) {
+        const commentId = row.comment_id;
+        if (!reactionsMap[commentId]) continue;
+        
+        const reactionType = reactionMap[row.kind];
+        if (!reactionType) continue;
+        
+        reactionsMap[commentId].counts.inspire = (reactionsMap[commentId].counts.inspire || 0) + 1;
+        
+        if (userId && row.user_id === userId) {
+          reactionsMap[commentId].selected = 'inspire';
+        }
+      }
+
+      setCommentReactions(prev => ({ ...prev, ...reactionsMap }));
+    } catch (error) {
+      console.error('Error loading blog comment reactions:', error);
+    }
+  };
+  
+  const handleBlogCommentReactionChange = async (commentId: number, reaction: ReactionType | null, counts?: Record<ReactionType, number>) => {
+    if (!user) {
+      alert('Sign in required');
+      return;
+    }
+
+    try {
+      await supabase
+        .from('blog_comment_reactions')
+        .delete()
+        .eq('comment_id', commentId)
+        .eq('user_id', user.id);
+
+      if (reaction) {
+        const { error: insertError } = await supabase
+          .from('blog_comment_reactions')
+          .insert({ comment_id: commentId, user_id: user.id, kind: reaction });
+        if (insertError) {
+          throw insertError;
+        }
+      }
+      
+      // Update local state
+      setCommentReactions(prev => ({
+        ...prev,
+        [commentId]: {
+          counts: counts || prev[commentId]?.counts || EMPTY_COUNTS,
+          selected: reaction,
+        },
+      }));
+    } catch (error: any) {
+      console.error('Failed to update blog comment reaction', error);
+      const message =
+        error?.message || error?.details || error?.hint || 'Failed to update reaction. Please try again later.';
+      alert(message);
+    } finally {
+      // Reload reactions for this comment
+      loadBlogCommentReactions([commentId]);
     }
   };
 
@@ -502,6 +629,16 @@ export default function BlogPostPage() {
                     </div>
                     <div className={`mt-3 whitespace-pre-wrap text-sm ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
                       {formatTextWithMentions(comment.content)}
+                    </div>
+                    
+                    {/* Comment reactions */}
+                    <div className="mt-3 flex items-center justify-start">
+                      <CommentReactions
+                        commentId={comment.id}
+                        initialCounts={commentReactions[comment.id]?.counts || EMPTY_COUNTS}
+                        initialSelected={commentReactions[comment.id]?.selected || null}
+                        onReactionChange={(reaction, counts) => handleBlogCommentReactionChange(comment.id, reaction, counts)}
+                      />
                     </div>
                   </div>
                 </div>
