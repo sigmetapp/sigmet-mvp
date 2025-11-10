@@ -47,15 +47,22 @@ begin
   where id = new.post_id;
 
   -- Check if post author has blocked the commenter
+  -- Default to false (not blocked) if we can't check
+  is_blocked := false;
   if post_author_id is not null and comment_author_id is not null then
-    select exists(
-      select 1
-      from public.dms_blocks
-      where blocker = post_author_id
-        and blocked = comment_author_id
-    ) into is_blocked;
-  else
-    is_blocked := true; -- Skip notification if we can't determine IDs
+    -- Check if dms_blocks table exists and if user is blocked
+    if exists (
+      select 1 from information_schema.tables 
+      where table_schema = 'public' 
+      and table_name = 'dms_blocks'
+    ) then
+      select exists(
+        select 1
+        from public.dms_blocks
+        where blocker = post_author_id
+          and blocked = comment_author_id
+      ) into is_blocked;
+    end if;
   end if;
 
   -- Don't notify if commenting on own post or if blocked
@@ -75,6 +82,14 @@ begin
   return new;
 end;
 $$;
+
+-- Recreate trigger for comments on posts
+drop trigger if exists notify_comment_on_post_trigger on public.comments;
+create trigger notify_comment_on_post_trigger
+  after insert on public.comments
+  for each row
+  when (new.parent_id is null)
+  execute function public.notify_comment_on_post();
 
 -- Update trigger for replies to comments to check if parent comment author has blocked the replier
 create or replace function public.notify_comment_on_comment()
@@ -130,15 +145,22 @@ begin
   end if;
 
   -- Check if parent comment author has blocked the replier
+  -- Default to false (not blocked) if we can't check
+  is_blocked := false;
   if parent_comment_author_id is not null and comment_author_id is not null then
-    select exists(
-      select 1
-      from public.dms_blocks
-      where blocker = parent_comment_author_id
-        and blocked = comment_author_id
-    ) into is_blocked;
-  else
-    is_blocked := true; -- Skip notification if we can't determine IDs
+    -- Check if dms_blocks table exists and if user is blocked
+    if exists (
+      select 1 from information_schema.tables 
+      where table_schema = 'public' 
+      and table_name = 'dms_blocks'
+    ) then
+      select exists(
+        select 1
+        from public.dms_blocks
+        where blocker = parent_comment_author_id
+          and blocked = comment_author_id
+      ) into is_blocked;
+    end if;
   end if;
 
   -- Don't notify if replying to own comment or if blocked
@@ -159,6 +181,14 @@ begin
 end;
 $$;
 
+-- Recreate trigger for replies to comments
+drop trigger if exists notify_comment_on_comment_trigger on public.comments;
+create trigger notify_comment_on_comment_trigger
+  after insert on public.comments
+  for each row
+  when (new.parent_id is not null)
+  execute function public.notify_comment_on_comment();
+
 -- Update trigger for reactions on posts to check if post author has blocked the reactor
 create or replace function public.notify_reaction_on_post()
 returns trigger
@@ -176,15 +206,22 @@ begin
   where id = new.post_id;
 
   -- Check if post author has blocked the reactor
+  -- Default to false (not blocked) if we can't check
+  is_blocked := false;
   if post_author_id is not null and new.user_id is not null then
-    select exists(
-      select 1
-      from public.dms_blocks
-      where blocker = post_author_id
-        and blocked = new.user_id
-    ) into is_blocked;
-  else
-    is_blocked := true; -- Skip notification if we can't determine IDs
+    -- Check if dms_blocks table exists and if user is blocked
+    if exists (
+      select 1 from information_schema.tables 
+      where table_schema = 'public' 
+      and table_name = 'dms_blocks'
+    ) then
+      select exists(
+        select 1
+        from public.dms_blocks
+        where blocker = post_author_id
+          and blocked = new.user_id
+      ) into is_blocked;
+    end if;
   end if;
 
   -- Don't notify if reacting to own post or if blocked
@@ -203,5 +240,12 @@ begin
   return new;
 end;
 $$;
+
+-- Recreate trigger for reactions on posts
+drop trigger if exists notify_reaction_on_post_trigger on public.post_reactions;
+create trigger notify_reaction_on_post_trigger
+  after insert on public.post_reactions
+  for each row
+  execute function public.notify_reaction_on_post();
 
 commit;
