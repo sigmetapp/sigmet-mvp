@@ -45,31 +45,33 @@ export default async function handler(
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { post_id, content } = req.body;
+    const { post_id, content, parent_id } = req.body;
 
     if (!post_id || !content) {
       return res.status(400).json({ error: 'Post ID and content are required' });
     }
 
     const admin = supabaseAdmin();
+    const insertData: any = {
+      post_id: parseInt(post_id, 10),
+      author_id: userData.user.id,
+      content: content.trim(),
+    };
+    
+    // Add parent_id if provided (for replies)
+    if (parent_id) {
+      insertData.parent_id = parseInt(parent_id, 10);
+    }
+
     const { data, error } = await admin
       .from('blog_comments')
-      .insert({
-        post_id: parseInt(post_id, 10),
-        author_id: userData.user.id,
-        content: content.trim(),
-      })
+      .insert(insertData)
       .select(`
         id,
         content,
         created_at,
         updated_at,
-        author_id,
-        profiles:author_id (
-          username,
-          full_name,
-          avatar_url
-        )
+        author_id
       `)
       .single();
 
@@ -90,7 +92,23 @@ export default async function handler(
       });
     }
 
-    return res.status(201).json({ comment: data });
+    // Fetch profile separately
+    let profile = null;
+    if (data?.author_id) {
+      const { data: profileData } = await admin
+        .from('profiles')
+        .select('username, full_name, avatar_url')
+        .eq('user_id', data.author_id)
+        .maybeSingle();
+      profile = profileData;
+    }
+
+    return res.status(201).json({ 
+      comment: {
+        ...data,
+        profiles: profile
+      }
+    });
   } catch (error: any) {
     console.error('Error in blog comment create API:', error);
     return res.status(500).json({ error: 'Internal server error' });
