@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabaseClient';
 import AvatarWithBadge from '@/components/AvatarWithBadge';
 import { resolveAvatarUrl } from '@/lib/utils';
 import Button from '@/components/Button';
+import EmojiPicker from '@/components/EmojiPicker';
 
 type BlogPost = {
   id: number;
@@ -210,7 +211,8 @@ export default function BlogPostPage() {
         setCommentContent('');
         fetchComments();
       } else {
-        alert(data.error || 'Failed to post comment');
+        console.error('Comment creation error:', data);
+        alert(data.details || data.error || 'Failed to post comment');
       }
     } catch (error) {
       console.error('Error posting comment:', error);
@@ -371,17 +373,29 @@ export default function BlogPostPage() {
 
         {user ? (
           <form onSubmit={handleSubmitComment} className="mb-8">
-            <textarea
-              value={commentContent}
-              onChange={(e) => setCommentContent(e.target.value)}
-              placeholder="Write a comment..."
-              rows={4}
-              className={`w-full p-4 rounded-lg border resize-none ${
-                isLight
-                  ? 'bg-white border-black/10 text-black placeholder-black/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/20'
-                  : 'bg-white/5 border-white/10 text-white placeholder-white/40 focus:border-primary-blue-light focus:ring-2 focus:ring-primary-blue-light/20'
-              }`}
-            />
+            <div className="relative">
+              <textarea
+                value={commentContent}
+                onChange={(e) => setCommentContent(e.target.value)}
+                placeholder="Write a comment..."
+                rows={4}
+                className={`w-full p-4 pr-12 rounded-lg border resize-none ${
+                  isLight
+                    ? 'bg-white border-black/10 text-black placeholder-black/40 focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/20'
+                    : 'bg-white/5 border-white/10 text-white placeholder-white/40 focus:border-primary-blue-light focus:ring-2 focus:ring-primary-blue-light/20'
+                }`}
+              />
+              <div className="absolute bottom-2 right-2">
+                <EmojiPicker
+                  onEmojiSelect={(emoji) => {
+                    setCommentContent((prev) => prev + emoji);
+                  }}
+                  variant={isLight ? 'light' : 'dark'}
+                  align="right"
+                  position="top"
+                />
+              </div>
+            </div>
             <div className="mt-4 flex justify-end">
               <Button
                 type="submit"
