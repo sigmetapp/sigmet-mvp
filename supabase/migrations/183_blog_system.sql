@@ -39,6 +39,18 @@ create index if not exists blog_comments_created_at_idx on public.blog_comments(
 alter table public.blog_posts enable row level security;
 alter table public.blog_comments enable row level security;
 
+-- Drop existing policies if they exist
+drop policy if exists "Anyone can view published blog posts" on public.blog_posts;
+drop policy if exists "Admins can view all blog posts" on public.blog_posts;
+drop policy if exists "Admins can create blog posts" on public.blog_posts;
+drop policy if exists "Admins can update blog posts" on public.blog_posts;
+drop policy if exists "Admins can delete blog posts" on public.blog_posts;
+drop policy if exists "Anyone can view blog comments" on public.blog_comments;
+drop policy if exists "Authenticated users can create blog comments" on public.blog_comments;
+drop policy if exists "Users can update own blog comments" on public.blog_comments;
+drop policy if exists "Users can delete own blog comments" on public.blog_comments;
+drop policy if exists "Admins can delete any blog comment" on public.blog_comments;
+
 -- Everyone can view published blog posts
 create policy "Anyone can view published blog posts"
   on public.blog_posts
@@ -120,6 +132,7 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists blog_posts_updated_at on public.blog_posts;
 create trigger blog_posts_updated_at
   before update on public.blog_posts
   for each row
@@ -134,6 +147,7 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists blog_comments_updated_at on public.blog_comments;
 create trigger blog_comments_updated_at
   before update on public.blog_comments
   for each row
