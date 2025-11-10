@@ -69,6 +69,63 @@ function formatDateWithTime(dateString: string): string {
   }).format(date);
 }
 
+function escapeHtml(text: string): string {
+  const map: { [key: string]: string } = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+  return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+function formatBlogContent(content: string): string {
+  if (!content) return '';
+  
+  // If content already contains HTML tags, return as is
+  if (content.includes('<') && content.includes('>')) {
+    return content;
+  }
+  
+  // Convert plain text to HTML with proper line breaks
+  // Split by double newlines (paragraphs) and single newlines (line breaks)
+  const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim());
+  
+  return paragraphs.map(paragraph => {
+    const trimmed = paragraph.trim();
+    
+    // Check if paragraph starts with emoji or special character (like section headers)
+    if (trimmed.match(/^[🧩⚙️🐞🔒📊🧠]/)) {
+      // This is a section header
+      const lines = trimmed.split('\n').filter(l => l.trim());
+      const header = lines[0];
+      const items = lines.slice(1);
+      
+      let html = `<h3 class="blog-section-header">${escapeHtml(header)}</h3>`;
+      if (items.length > 0) {
+        html += '<ul class="blog-section-list">';
+        items.forEach(item => {
+          const cleanItem = item.trim().replace(/^[-•]\s*/, '');
+          if (cleanItem) {
+            html += `<li>${escapeHtml(cleanItem)}</li>`;
+          }
+        });
+        html += '</ul>';
+      }
+      return html;
+    } else {
+      // Regular paragraph - preserve single line breaks as <br>
+      const lines = trimmed.split('\n').filter(l => l.trim());
+      if (lines.length === 1) {
+        return `<p>${escapeHtml(lines[0])}</p>`;
+      } else {
+        return `<p>${lines.map(line => escapeHtml(line)).join('<br>')}</p>`;
+      }
+    }
+  }).join('');
+}
+
 export default function BlogPostPage() {
   const params = useParams();
   const router = useRouter();
@@ -303,7 +360,7 @@ export default function BlogPostPage() {
 
         <div
           className={`blog-content ${isLight ? 'blog-content-light' : 'blog-content-dark'}`}
-          dangerouslySetInnerHTML={{ __html: post.content }}
+          dangerouslySetInnerHTML={{ __html: formatBlogContent(post.content) }}
         />
       </article>
 

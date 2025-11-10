@@ -690,8 +690,25 @@ html.theme-light .skeleton {
 .blog-content p {
   margin-bottom: 1.25em;
   line-height: 1.7;
-  white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+.blog-content .blog-section-header {
+  margin-top: 2em;
+  margin-bottom: 1em;
+  font-size: 1.5em;
+  font-weight: 600;
+}
+
+.blog-content .blog-section-list {
+  margin-bottom: 1.5em;
+  padding-left: 2em;
+  list-style-type: disc;
+}
+
+.blog-content .blog-section-list li {
+  margin-bottom: 0.75em;
+  line-height: 1.7;
 }
 
 .blog-content h1,
