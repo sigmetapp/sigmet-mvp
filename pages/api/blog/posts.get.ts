@@ -67,12 +67,7 @@ export default async function handler(
         published_at,
         created_at,
         updated_at,
-        author_id,
-        profiles:author_id (
-          username,
-          full_name,
-          avatar_url
-        )
+        author_id
       `);
     
     if (id) {
@@ -90,12 +85,21 @@ export default async function handler(
 
     const { data, error } = await query;
 
+    console.log('Blog post query result:', { 
+      slug: slug || id,
+      data: data ? { id: data.id, title: data.title } : null,
+      error: error ? JSON.stringify(error, null, 2) : null,
+      isAdmin
+    });
+
     if (error) {
       if (error.code === 'PGRST116') {
         return res.status(404).json({ error: 'Post not found' });
       }
       console.error('Error fetching blog post:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
       
       // Check if table doesn't exist
       if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
@@ -107,11 +111,28 @@ export default async function handler(
       
       return res.status(500).json({ 
         error: `Failed to fetch blog post: ${error.message || 'Unknown error'}`,
-        details: error
+        details: error,
+        code: error.code
       });
     }
 
-    return res.status(200).json({ post: data });
+    // Fetch profile separately if needed
+    let profile = null;
+    if (data?.author_id) {
+      const { data: profileData } = await admin
+        .from('profiles')
+        .select('username, full_name, avatar_url')
+        .eq('user_id', data.author_id)
+        .maybeSingle();
+      profile = profileData;
+    }
+
+    return res.status(200).json({ 
+      post: {
+        ...data,
+        profiles: profile
+      }
+    });
   } catch (error: any) {
     console.error('Error in blog post get API:', error);
     return res.status(500).json({ error: 'Internal server error' });
