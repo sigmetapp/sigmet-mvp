@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useTheme } from "@/components/ThemeProvider";
 import { Sun, Moon, Home, Rss, UserPlus, Bell } from "lucide-react";
 import SearchInput from "@/components/SearchInput";
+import { useUnreadNotificationCount } from "@/hooks/useUnreadNotificationCount";
 
 const navLinks = [
   { href: "/", label: "Home", icon: Home },
@@ -22,6 +23,7 @@ export default function Header() {
   // Mobile menu removed in favor of inline icons
   const { theme, toggleTheme } = useTheme();
   const preloadLinkRef = useRef<HTMLLinkElement | null>(null);
+  const { unreadCount: notificationUnreadCount } = useUnreadNotificationCount();
 
   // Preload logo image for faster loading
   useEffect(() => {
@@ -123,7 +125,9 @@ export default function Header() {
               : pathname === l.href || pathname.startsWith(l.href + "/");
             const isExternal = l.href.startsWith("http");
             const IconComponent = l.icon;
-            const className = `h-9 w-9 grid place-items-center rounded-lg border transition ${
+            const isAlert = l.href === "/alert";
+            const hasNotificationBadge = isAlert && notificationUnreadCount > 0;
+            const className = `h-9 w-9 grid place-items-center rounded-lg border transition relative ${
               active
                 ? isLight
                   ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-primary-blue"
@@ -142,6 +146,11 @@ export default function Header() {
                 aria-label={l.label}
               >
                 <IconComponent size={18} />
+                {hasNotificationBadge && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none border-2 border-white dark:border-[rgba(15,22,35,0.8)]">
+                    {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                  </span>
+                )}
               </a>
             ) : (
               <Link
@@ -151,6 +160,11 @@ export default function Header() {
                 aria-label={l.label}
               >
                 <IconComponent size={18} />
+                {hasNotificationBadge && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none border-2 border-white dark:border-[rgba(15,22,35,0.8)]">
+                    {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -274,7 +288,7 @@ export default function Header() {
             <Link
               href="/alert"
               aria-label="Alert"
-              className={`h-9 w-9 grid place-items-center rounded-lg border transition ${
+              className={`h-9 w-9 grid place-items-center rounded-lg border transition relative ${
                 pathname === "/alert" || pathname.startsWith("/alert/")
                   ? isLight
                     ? "bg-primary-blue text-white shadow-[0_2px_8px_rgba(51,144,236,0.25)] border-primary-blue"
@@ -285,6 +299,11 @@ export default function Header() {
               }`}
             >
               <Bell size={18} />
+              {notificationUnreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none border-2 border-white dark:border-[rgba(15,22,35,0.8)]">
+                  {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                </span>
+              )}
             </Link>
             <Link
               href="/invite"
