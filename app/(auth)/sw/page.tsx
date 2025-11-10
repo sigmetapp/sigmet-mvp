@@ -792,73 +792,68 @@ export default function SWPage() {
       {activeTab === 'overview' && (
         <div className="space-y-4">
           {/* Total SW and Current Level - Side by Side */}
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Total SW - 1/3 width */}
-            {(() => {
-              const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-              return (
-                <div className={`card p-6 border-2 ${currentColorScheme.border} ${currentColorScheme.borderGlow} w-full md:w-1/3`}>
-                  <div className="text-center w-full">
-                    <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
-                    <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
-                    {originalSW && originalSW !== totalSW && (
-                      <div className="text-white/50 text-xs mb-2">
-                        Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
+          {(() => {
+            const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+            const blockGlowParams = getCurrentLevelBlockGlowParameters(currentLevel.name, currentColorScheme);
+            return (
+              <div className="relative">
+                {/* Outer glow layer for both blocks - covers entire container */}
+                {blockGlowParams.outerGlow && (
+                  <div
+                    className="absolute -inset-4 rounded-lg pointer-events-none -z-10"
+                    style={{
+                      boxShadow: blockGlowParams.outerGlow,
+                      background: `radial-gradient(ellipse at center, ${currentColorScheme.hex}20, transparent 65%)`
+                    }}
+                  />
+                )}
+                <div className="flex flex-col md:flex-row gap-4 relative z-10">
+                  {/* Total SW - 1/3 width */}
+                  <div className={`card p-6 border-2 ${currentColorScheme.border} w-full md:w-1/3`}>
+                    <div className="text-center w-full">
+                      <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
+                      <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
+                      {originalSW && originalSW !== totalSW && (
+                        <div className="text-white/50 text-xs mb-2">
+                          Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
+                        </div>
+                      )}
+                      <div className="text-white/60 text-sm mb-3">Total Points</div>
+                      <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/10">
+                        {isLoadingGrowth ? (
+                          <>
+                            <div className="text-center">
+                              <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
+                              <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-white/50 text-xs mb-1">Last 7 days</div>
+                              <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
+                            </div>
+                          </>
+                        ) : swGrowth ? (
+                          <>
+                            <div className="text-center">
+                              <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
+                              <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {swGrowth.growth24h >= 0 ? '+' : ''}{swGrowth.growth24h.toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-white/50 text-xs mb-1">Last 7 days</div>
+                              <div className={`text-sm font-semibold ${swGrowth.growth7d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {swGrowth.growth7d >= 0 ? '+' : ''}{swGrowth.growth7d.toLocaleString()}
+                              </div>
+                            </div>
+                          </>
+                        ) : null}
                       </div>
-                    )}
-                    <div className="text-white/60 text-sm mb-3">Total Points</div>
-                    <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/10">
-                      {isLoadingGrowth ? (
-                        <>
-                          <div className="text-center">
-                            <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
-                            <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-white/50 text-xs mb-1">Last 7 days</div>
-                            <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
-                          </div>
-                        </>
-                      ) : swGrowth ? (
-                        <>
-                          <div className="text-center">
-                            <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
-                            <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {swGrowth.growth24h >= 0 ? '+' : ''}{swGrowth.growth24h.toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-white/50 text-xs mb-1">Last 7 days</div>
-                            <div className={`text-sm font-semibold ${swGrowth.growth7d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {swGrowth.growth7d >= 0 ? '+' : ''}{swGrowth.growth7d.toLocaleString()}
-                            </div>
-                          </div>
-                        </>
-                      ) : null}
                     </div>
                   </div>
-                </div>
-              );
-            })()}
 
-            {/* Current Level - 2/3 width */}
-            {(() => {
-              const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-              const blockGlowParams = getCurrentLevelBlockGlowParameters(currentLevel.name, currentColorScheme);
-              return (
-                <div className="relative w-full md:w-2/3">
-                  {/* Outer glow layer for the block - covers entire block including progress bar */}
-                  {blockGlowParams.outerGlow && (
-                    <div
-                      className="absolute -inset-4 rounded-lg pointer-events-none -z-10"
-                      style={{
-                        boxShadow: blockGlowParams.outerGlow,
-                        background: `radial-gradient(ellipse at center, ${currentColorScheme.hex}20, transparent 65%)`
-                      }}
-                    />
-                  )}
+                  {/* Current Level - 2/3 width */}
                   <div 
-                    className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} w-full relative z-10`}
+                    className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} w-full md:w-2/3`}
                     style={{
                       boxShadow: blockGlowParams.boxShadow
                     }}
@@ -929,8 +924,9 @@ export default function SWPage() {
                     })()}
                   </div>
                 </div>
-              );
-            })()}
+              </div>
+            );
+          })()}
           </div>
 
           {/* Inflation Indicator */}
