@@ -132,7 +132,7 @@ export default function CommentReactions({
               ? `${reaction.color}20` 
               : isLight 
                 ? 'rgba(255, 255, 255, 0.05)'
-                : 'rgba(17, 24, 39, 0.05)',
+                : 'rgba(255, 255, 255, 0.15)',
             boxShadow: isSelected 
               ? `0 4px 12px ${reaction.color}30, 0 2px 4px ${reaction.color}20`
               : undefined,

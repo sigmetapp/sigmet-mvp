@@ -132,14 +132,16 @@ export default function PostReactions({
               ? `${reaction.color}20` 
               : isLight 
                 ? 'rgba(255, 255, 255, 0.05)'
-                : 'rgba(17, 24, 39, 0.05)',
+                : 'rgba(255, 255, 255, 0.15)',
             boxShadow: isSelected 
               ? `0 4px 12px ${reaction.color}30, 0 2px 4px ${reaction.color}20`
               : undefined,
           }}
         >
           <span 
-            className="text-base md:text-lg leading-none select-none inline-flex items-center justify-center" 
+            className={`text-base md:text-lg leading-none select-none inline-flex items-center justify-center transition-all duration-200 ${
+              isSelected ? 'opacity-100' : 'opacity-30'
+            }`}
             role="img" 
             aria-label="Fire reaction"
             style={{ 
@@ -150,26 +152,29 @@ export default function PostReactions({
               alignItems: 'center',
               justifyContent: 'center',
               fontVariant: 'normal',
-              textRendering: 'optimizeLegibility'
+              textRendering: 'optimizeLegibility',
+              filter: isSelected ? 'none' : 'grayscale(100%) brightness(0.5)',
             }}
           >
             <span style={{ fontSize: 'inherit', lineHeight: '1', display: 'block' }}>{reaction.emoji}</span>
           </span>
           
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={count}
-              initial={{ scale: 1.3, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.7, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className={`text-xs font-medium ml-0.5 ${
-                isLight ? 'text-gray-700' : 'text-white/70'
-              }`}
-            >
-              {count}
-            </motion.span>
-          </AnimatePresence>
+          {count > 0 && (
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={count}
+                initial={{ scale: 1.3, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.7, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className={`text-xs font-medium ml-0.5 ${
+                  isLight ? 'text-gray-700' : 'text-white/70'
+                }`}
+              >
+                {count}
+              </motion.span>
+            </AnimatePresence>
+          )}
 
           {/* Glow effect when selected */}
           {isSelected && (
