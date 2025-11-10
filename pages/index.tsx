@@ -4,6 +4,7 @@ import { GetServerSideProps } from "next";
 import { createClient } from "@supabase/supabase-js";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import Button from "@/components/Button";
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
@@ -89,10 +90,20 @@ interface StatsData {
   newReactions: { '24h': number; '7d': number; '30d': number };
 }
 
+interface BlogPost {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  type: 'guideline' | 'changelog';
+  published_at: string;
+}
+
 export default function Home() {
   const router = useRouter();
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [latestPosts, setLatestPosts] = useState<BlogPost[]>([]);
 
   useEffect(() => {
     // Client-side auth check (fallback)
@@ -120,6 +131,20 @@ export default function Home() {
       }
     };
     fetchStats();
+
+    // Fetch latest blog posts
+    const fetchLatestPosts = async () => {
+      try {
+        const response = await fetch('/api/blog/posts.list?limit=3');
+        if (response.ok) {
+          const data = await response.json();
+          setLatestPosts(data.posts || []);
+        }
+      } catch (error) {
+        console.error('Error fetching latest posts:', error);
+      }
+    };
+    fetchLatestPosts();
   }, [router]);
 
   return (
@@ -294,11 +319,26 @@ export default function Home() {
             {/* Updates Section */}
             <div className="card-glow-primary p-5 sm:p-6 md:p-8 backdrop-blur-sm">
               <h3 className="text-primary-text text-lg sm:text-xl font-semibold mb-3 sm:mb-4">📢 Latest updates</h3>
-              <ul className="text-primary-text-secondary text-sm sm:text-base list-disc list-inside space-y-1.5 sm:space-y-2">
-                <li>New profile dashboard with analytics</li>
-                <li>Faster content loading in feed</li>
-                <li>Improved onboarding flow</li>
-              </ul>
+              {latestPosts.length > 0 ? (
+                <ul className="text-primary-text-secondary text-sm sm:text-base list-disc list-inside space-y-1.5 sm:space-y-2">
+                  {latestPosts.map((post) => (
+                    <li key={post.id}>
+                      <Link
+                        href={`/blog/${post.slug}`}
+                        className="text-primary-blue hover:text-primary-blue-light hover:underline transition-colors"
+                      >
+                        {post.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ul className="text-primary-text-secondary text-sm sm:text-base list-disc list-inside space-y-1.5 sm:space-y-2">
+                  <li>New profile dashboard with analytics</li>
+                  <li>Faster content loading in feed</li>
+                  <li>Improved onboarding flow</li>
+                </ul>
+              )}
               
               {/* Statistics Section */}
               <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-white/10">
