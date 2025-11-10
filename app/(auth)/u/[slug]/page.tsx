@@ -1354,48 +1354,79 @@ export default function PublicProfilePage() {
             {/* Tab content */}
             {activeTab === 'info' && (
               <div>
-                <div className="space-y-5">
-                  {/* Bio - Full width at top */}
-                  {profile.bio && (
-                    <div className="pb-5 border-b border-white/10">
-                      <div className={`text-[10px] font-semibold mb-2 uppercase tracking-wider ${
-                        isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                      }`}>
-                        Bio
-                      </div>
-                      <div className={`text-sm leading-relaxed ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
-                        {profile.bio}
+                <div className="space-y-3">
+                  {/* Bio, Work & Career, Place of Study - Inline with separators */}
+                  {(profile.bio || profile.work_career_status || educationalInstitution) && (
+                    <div className="pb-3 border-b border-white/10">
+                      <div className="flex flex-wrap items-start gap-3">
+                        {/* Bio */}
+                        {profile.bio && (
+                          <>
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                                isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                              }`}>
+                                Bio
+                              </div>
+                              <div className={`text-sm leading-snug ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                                {profile.bio}
+                              </div>
+                            </div>
+                            {(profile.work_career_status || educationalInstitution) && (
+                              <div className={`w-px h-12 ${isLight ? 'bg-gray-300' : 'bg-white/20'}`} />
+                            )}
+                          </>
+                        )}
+                        
+                        {/* Work & Career */}
+                        {profile.work_career_status && (
+                          <>
+                            <div className="flex-shrink-0">
+                              <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                                isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                              }`}>
+                                Work & Career
+                              </div>
+                              <div className={`text-sm font-medium ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                                {profile.work_career_status === 'employed' ? 'Employed' :
+                                 profile.work_career_status === 'entrepreneur' ? 'Entrepreneur' :
+                                 profile.work_career_status === 'student' ? 'Student' :
+                                 profile.work_career_status === 'looking_for_opportunities' ? 'Looking for Opportunities' :
+                                 profile.work_career_status === 'unemployed' ? 'Unemployed' :
+                                 profile.work_career_status}
+                              </div>
+                            </div>
+                            {educationalInstitution && (
+                              <div className={`w-px h-12 ${isLight ? 'bg-gray-300' : 'bg-white/20'}`} />
+                            )}
+                          </>
+                        )}
+                        
+                        {/* Place of Study */}
+                        {educationalInstitution && (
+                          <div className="flex-shrink-0">
+                            <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                              isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                            }`}>
+                              Place of Study
+                            </div>
+                            <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
+                              {educationalInstitution.name} ({educationalInstitution.type === 'school' ? 'School' : educationalInstitution.type === 'college' ? 'College' : 'University'})
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
 
                   {/* Main Info Grid - 3 columns, symmetric */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {/* Column 1 */}
-                    <div className="space-y-4">
-                      {/* Work & Career */}
-                      {profile.work_career_status && (
-                        <div>
-                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
-                            isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                          }`}>
-                            Work & Career
-                          </div>
-                          <div className={`text-sm font-medium ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
-                            {profile.work_career_status === 'employed' ? 'Employed' :
-                             profile.work_career_status === 'entrepreneur' ? 'Entrepreneur' :
-                             profile.work_career_status === 'student' ? 'Student' :
-                             profile.work_career_status === 'looking_for_opportunities' ? 'Looking for Opportunities' :
-                             profile.work_career_status === 'unemployed' ? 'Unemployed' :
-                             profile.work_career_status}
-                          </div>
-                        </div>
-                      )}
-
+                    <div className="space-y-3">
                       {/* Location */}
                       {profile.country && (
                         <div>
-                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                          <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
                             isLight ? 'text-primary-text-secondary' : 'text-white/50'
                           }`}>
                             Location
@@ -1418,11 +1449,11 @@ export default function PublicProfilePage() {
                     </div>
 
                     {/* Column 2 */}
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {/* Relationship Status */}
                       {profile.relationship_status && (
                         <div>
-                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                          <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
                             isLight ? 'text-primary-text-secondary' : 'text-white/50'
                           }`}>
                             Relationship
@@ -1440,7 +1471,7 @@ export default function PublicProfilePage() {
                       {/* Date of birth */}
                       {profile.date_of_birth && (
                         <div>
-                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                          <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
                             isLight ? 'text-primary-text-secondary' : 'text-white/50'
                           }`}>
                             Date of birth
@@ -1457,11 +1488,11 @@ export default function PublicProfilePage() {
                     </div>
 
                     {/* Column 3 */}
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {/* Portfolio */}
                       {profile.website_url && (
                         <div>
-                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                          <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
                             isLight ? 'text-primary-text-secondary' : 'text-white/50'
                           }`}>
                             Portfolio
@@ -1489,7 +1520,7 @@ export default function PublicProfilePage() {
                       {/* Joined */}
                       {profile.created_at && (
                         <div>
-                          <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                          <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
                             isLight ? 'text-primary-text-secondary' : 'text-white/50'
                           }`}>
                             Joined
@@ -1506,36 +1537,22 @@ export default function PublicProfilePage() {
                     </div>
                   </div>
 
-                  {/* Place of Study - Full width at bottom */}
-                  {educationalInstitution && (
-                    <div className="pt-5 border-t border-white/10">
-                      <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
-                        isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                      }`}>
-                        Place of Study
-                      </div>
-                      <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
-                        {educationalInstitution.name} ({educationalInstitution.type === 'school' ? 'School' : educationalInstitution.type === 'college' ? 'College' : 'University'})
-                      </div>
-                    </div>
-                  )}
-
                   {/* Stats block - Connections, Following, Followers, Referrals */}
-                  <div className="pt-5 border-t border-white/10">
-                    <div className={`text-[10px] font-semibold mb-4 uppercase tracking-wider ${
+                  <div className="pt-3 border-t border-white/10">
+                    <div className={`text-[10px] font-semibold mb-3 uppercase tracking-wider ${
                       isLight ? 'text-primary-text-secondary' : 'text-white/50'
                     }`}>
                       Statistics
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {/* Connections */}
                       <div className="flex flex-col">
-                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                        <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
                           isLight ? 'text-primary-text-secondary' : 'text-white/50'
                         }`}>
                           Connections
                         </div>
-                        <div className={`text-2xl font-bold mb-1 ${
+                        <div className={`text-2xl font-bold mb-0.5 ${
                           isLight 
                             ? 'bg-gradient-to-r from-violet-500 to-purple-500 bg-clip-text text-transparent' 
                             : 'bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent'
@@ -1549,12 +1566,12 @@ export default function PublicProfilePage() {
 
                       {/* Following */}
                       <div className="flex flex-col">
-                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                        <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
                           isLight ? 'text-primary-text-secondary' : 'text-white/50'
                         }`}>
                           Following
                         </div>
-                        <div className={`text-2xl font-bold mb-1 ${
+                        <div className={`text-2xl font-bold mb-0.5 ${
                           isLight 
                             ? 'bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent' 
                             : 'bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent'
@@ -1568,12 +1585,12 @@ export default function PublicProfilePage() {
 
                       {/* Followers */}
                       <div className="flex flex-col">
-                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                        <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
                           isLight ? 'text-primary-text-secondary' : 'text-white/50'
                         }`}>
                           Followers
                         </div>
-                        <div className={`text-2xl font-bold mb-1 ${
+                        <div className={`text-2xl font-bold mb-0.5 ${
                           isLight 
                             ? 'bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent' 
                             : 'bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent'
@@ -1587,12 +1604,12 @@ export default function PublicProfilePage() {
 
                       {/* Referrals */}
                       <div className="flex flex-col">
-                        <div className={`text-[10px] font-semibold mb-1.5 uppercase tracking-wider ${
+                        <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
                           isLight ? 'text-primary-text-secondary' : 'text-white/50'
                         }`}>
                           Referrals
                         </div>
-                        <div className={`text-2xl font-bold mb-1 ${
+                        <div className={`text-2xl font-bold mb-0.5 ${
                           isLight 
                             ? 'bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent' 
                             : 'bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent'
