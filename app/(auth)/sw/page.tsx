@@ -276,14 +276,13 @@ export default function SWPage() {
     city: string | null;
     country: string | null;
   }>>(getCachedData(CACHE_KEY_CITY_LEADERS) || []);
+  const [swGrowth, setSwGrowth] = useState<{
+    growth24h: number;
+    growth7d: number;
+  } | null>(null);
+  const [isLoadingGrowth, setIsLoadingGrowth] = useState(true);
 
   useEffect(() => {
-    // Если есть кэшированные данные, показываем их сразу
-    const hasCachedData = swData || isAdmin !== null;
-    if (hasCachedData) {
-      setLoading(false);
-    }
-
     // Оптимизированная загрузка: получаем auth данные один раз и загружаем все параллельно
     async function loadAllData() {
       try {
@@ -303,7 +302,7 @@ export default function SWPage() {
         }
 
         // Загружаем все данные параллельно
-        const [swDataResult, recentActivityData, cityLeadersData, adminData] = await Promise.allSettled([
+        const [swDataResult, recentActivityData, cityLeadersData, adminData, growthData] = await Promise.allSettled([
           // Основные данные SW
           fetch('/api/sw/calculate', {
             headers: { 'Authorization': `Bearer ${token}` },
@@ -324,6 +323,10 @@ export default function SWPage() {
             if (error) throw error;
             return data ?? false;
           }),
+          // SW Growth data
+          fetch('/api/sw/growth', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }).then(res => res.ok ? res.json() : null),
         ]);
 
         // Обрабатываем результаты и кэшируем
@@ -381,6 +384,15 @@ export default function SWPage() {
           setCachedData(CACHE_KEY_ADMIN, false);
         }
 
+        if (growthData.status === 'fulfilled' && growthData.value) {
+          setSwGrowth(growthData.value);
+        } else if (growthData.status === 'rejected') {
+          console.warn('Failed to load growth data:', growthData.reason);
+          // Set default values if failed
+          setSwGrowth({ growth24h: 0, growth7d: 0 });
+        }
+        setIsLoadingGrowth(false);
+
         setLoading(false);
       } catch (error: any) {
         console.error('Error loading data:', error);
@@ -391,6 +403,16 @@ export default function SWPage() {
 
     loadAllData();
   }, []);
+
+  // Update growth data and progress when switching to overview tab
+  useEffect(() => {
+    if (activeTab === 'overview' && swData) {
+      // Refresh growth data when opening overview tab
+      loadSWGrowth();
+      // Refresh SW data to update progress bar
+      loadSW();
+    }
+  }, [activeTab]);
 
   async function loadRecentActivity() {
     try {
@@ -435,6 +457,38 @@ export default function SWPage() {
       }
     } catch (error: any) {
       console.error('Error loading city leaders:', error);
+    }
+  }
+
+  async function loadSWGrowth() {
+    setIsLoadingGrowth(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setIsLoadingGrowth(false);
+        return;
+      }
+
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) {
+        setIsLoadingGrowth(false);
+        return;
+      }
+
+      const response = await fetch('/api/sw/growth', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSwGrowth(data);
+      }
+    } catch (error: any) {
+      console.error('Error loading SW growth:', error);
+    } finally {
+      setIsLoadingGrowth(false);
     }
   }
 
@@ -586,6 +640,7 @@ export default function SWPage() {
   const currentLevel = getSWLevel(totalSW, swLevels);
   const nextLevel = getNextLevel(totalSW, swLevels);
   const progressToNext = nextLevel ? ((totalSW - currentLevel.minSW) / (nextLevel.minSW - currentLevel.minSW)) * 100 : 100;
+  const isLoadingProgress = loading || isLoadingGrowth;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 md:p-6 space-y-4">
@@ -672,61 +727,112 @@ export default function SWPage() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-4">
-          {/* Total SW */}
-          <div className="card p-6">
-            <div className="text-center">
-              <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
-              <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
-              {originalSW && originalSW !== totalSW && (
-                <div className="text-white/50 text-xs mb-2">
-                  Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
-                </div>
-              )}
-              <div className="text-white/60 text-sm">Total Points</div>
-            </div>
-          </div>
-
-          {/* Current Level */}
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="text-white/60 text-sm mb-1">Current Level</div>
-                {(() => {
-                  const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                  return (
-                    <div className={`text-xl font-bold ${currentColorScheme.text}`}>{currentLevel.name}</div>
-                  );
-                })()}
-              </div>
-              {nextLevel && (
-                <div className="text-right">
-                  <div className="text-white/60 text-sm mb-1">Next Level</div>
-                  {(() => {
-                    const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
-                    const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                    return (
-                      <>
-                        <div className={`text-lg font-semibold ${nextColorScheme.text}`}>{nextLevel.name}</div>
-                        <div className="text-white/50 text-xs mt-1">
-                          {nextLevel.minSW - totalSW} points to next level
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-            {nextLevel && (() => {
+          {/* Total SW and Current Level - Side by Side */}
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Total SW - 1/3 width */}
+            {(() => {
               const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
               return (
-                <div className="w-full bg-white/10 rounded-full h-2">
-                  <div
-                    className="h-2 rounded-full transition-all"
-                    style={{ 
-                      width: `${Math.min(100, Math.max(0, progressToNext))}%`,
-                      backgroundColor: currentColorScheme.hex
-                    }}
-                  />
+                <div className={`card p-6 border-2 ${currentColorScheme.border} ${currentColorScheme.borderGlow} w-full md:w-1/3`}>
+                  <div className="text-center w-full">
+                    <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
+                    <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
+                    {originalSW && originalSW !== totalSW && (
+                      <div className="text-white/50 text-xs mb-2">
+                        Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
+                      </div>
+                    )}
+                    <div className="text-white/60 text-sm mb-3">Total Points</div>
+                    <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/10">
+                      {isLoadingGrowth ? (
+                        <>
+                          <div className="text-center">
+                            <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
+                            <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-white/50 text-xs mb-1">Last 7 days</div>
+                            <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
+                          </div>
+                        </>
+                      ) : swGrowth ? (
+                        <>
+                          <div className="text-center">
+                            <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
+                            <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {swGrowth.growth24h >= 0 ? '+' : ''}{swGrowth.growth24h.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-white/50 text-xs mb-1">Last 7 days</div>
+                            <div className={`text-sm font-semibold ${swGrowth.growth7d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {swGrowth.growth7d >= 0 ? '+' : ''}{swGrowth.growth7d.toLocaleString()}
+                            </div>
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Current Level - 2/3 width */}
+            {(() => {
+              const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+              return (
+                <div className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} ${currentColorScheme.borderGlow} w-full md:w-2/3`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <div className="text-white/60 text-sm mb-1">Current Level</div>
+                      <div className={`text-2xl font-bold ${currentColorScheme.text} flex items-center gap-2`}>
+                        <span>{currentLevel.name}</span>
+                        <span className="text-lg animate-pulse">✨</span>
+                      </div>
+                    </div>
+                    {nextLevel && (
+                      <div className="text-right">
+                        <div className="text-white/60 text-sm mb-1">Next Level</div>
+                        {(() => {
+                          const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
+                          const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                          return (
+                            <>
+                              <div className={`text-xl font-semibold ${nextColorScheme.text} flex items-center gap-2 justify-end`}>
+                                <span>{nextLevel.name}</span>
+                                <span className="text-sm">🚀</span>
+                              </div>
+                              <div className={`text-sm font-medium mt-1 ${currentColorScheme.text}`}>
+                                {isLoadingProgress ? (
+                                  <span className="inline-block h-4 w-24 bg-white/10 rounded animate-pulse"></span>
+                                ) : (
+                                  `${nextLevel.minSW - totalSW} points to next level`
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                {nextLevel && (
+                  <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                    {isLoadingProgress ? (
+                      <div className="h-3 bg-white/10 rounded-full animate-pulse"></div>
+                    ) : (
+                      <div
+                        className="h-3 rounded-full transition-all duration-500 ease-out relative"
+                        style={{ 
+                          width: `${Math.min(100, Math.max(0, progressToNext))}%`,
+                          backgroundColor: currentColorScheme.hex,
+                          boxShadow: `0 0 10px ${currentColorScheme.hex}40`
+                        }}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 </div>
               );
             })()}
@@ -808,8 +914,11 @@ export default function SWPage() {
       {/* Factors Tab */}
       {activeTab === 'factors' && (
         <div className="space-y-4">
-          <div className="card p-4">
-            <h2 className="text-lg font-semibold text-white mb-4">How to Increase Your SW</h2>
+          {(() => {
+            const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+            return (
+              <div className={`card p-4 border-2 ${currentColorScheme.border} ${currentColorScheme.borderGlow}`}>
+                <h2 className="text-lg font-semibold text-white mb-4">How to Increase Your SW</h2>
             <div className="space-y-4">
               {/* Profile Complete - Single action */}
               <div className="flex items-start justify-between p-3 rounded-lg bg-white/5">
@@ -954,52 +1063,166 @@ export default function SWPage() {
                 </div>
               </div>
             </div>
-          </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
       {/* Levels Tab */}
       {activeTab === 'levels' && (
-        <div className="space-y-3">
-          <div className="card p-3">
-            <h2 className="text-xl font-semibold text-white mb-4">SW Levels & Features</h2>
-            <div className="space-y-2">
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">SW Levels & Features</h2>
+            <p className="text-white/60 text-sm">Your progression path through Social Weight levels</p>
+          </div>
+          
+          {/* Vertical Timeline Roadmap */}
+          <div className="relative">
+            {/* Vertical timeline line */}
+            <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-white/10 hidden md:block" />
+            
+            <div className="space-y-6">
               {swLevels.map((level, index) => {
                 const isCurrent = currentLevel.name === level.name;
                 const isUnlocked = totalSW >= level.minSW;
+                const hasNextLevel = index < swLevels.length - 1;
+                const nextLevel = hasNextLevel ? swLevels[index + 1] : null;
                 const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                const progressToNext = nextLevel && isUnlocked 
+                  ? Math.min(100, ((totalSW - level.minSW) / (nextLevel.minSW - level.minSW)) * 100)
+                  : 0;
                 
                 return (
-                  <div
-                    key={level.name}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      isCurrent
-                        ? `${colorScheme.border} ${colorScheme.bgGradient ? `bg-gradient-to-br ${colorScheme.bgGradient}` : colorScheme.bg} ${colorScheme.borderGlow}`
-                        : isUnlocked
-                        ? `${colorScheme.border} ${colorScheme.bg} opacity-80`
-                        : `${colorScheme.border} ${colorScheme.bg} opacity-40`
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className={`text-xl font-bold ${colorScheme.text}`}>
-                        {level.name}
-                        {isCurrent && <span className={`ml-2 text-sm ${colorScheme.text} opacity-80`}>(Current)</span>}
-                      </div>
-                      <div className={`px-3 py-1.5 rounded-full ${colorScheme.badgeBg} border ${colorScheme.badgeBorder}`}>
-                        <span className={`${colorScheme.text} font-semibold text-base`}>
-                          {level.maxSW ? `${level.minSW.toLocaleString()} - ${level.maxSW.toLocaleString()} pts` : `${level.minSW.toLocaleString()}+ pts`}
-                        </span>
-                      </div>
+                  <div key={level.name} className="relative">
+                    {/* Timeline connector dot */}
+                    <div className="absolute left-8 top-6 transform -translate-x-1/2 -translate-y-1/2 z-10 hidden md:block">
+                      <div
+                        className="w-4 h-4 rounded-full border-2 transition-all"
+                        style={{
+                          backgroundColor: isUnlocked ? colorScheme.hex : 'transparent',
+                          borderColor: isUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.3)',
+                          boxShadow: isUnlocked ? `0 0 12px ${colorScheme.hex}60` : 'none'
+                        }}
+                      />
                     </div>
-                    <div className="space-y-1.5">
-                      {level.features.map((feature, featureIndex) => (
-                        <div key={featureIndex} className="flex items-start gap-2">
-                          <span className={`${colorScheme.checkmark} mt-0.5 text-sm`}>✓</span>
-                          <span className={`text-sm ${isUnlocked ? 'text-white/80' : 'text-white/50'}`}>
-                            {feature}
-                          </span>
+                    
+                    {/* Level Card */}
+                    <div
+                      className={`ml-0 md:ml-12 p-6 rounded-2xl border-2 transition-all relative overflow-hidden ${
+                        isCurrent
+                          ? `${colorScheme.border} ${colorScheme.bgGradient ? `bg-gradient-to-br ${colorScheme.bgGradient}` : colorScheme.bg} ${colorScheme.borderGlow} scale-105`
+                          : isUnlocked
+                          ? `${colorScheme.border} ${colorScheme.bg} opacity-90 hover:opacity-100`
+                          : `${colorScheme.border} ${colorScheme.bg} opacity-50`
+                      }`}
+                    >
+                      {/* Background glow effect for current level */}
+                      {isCurrent && (
+                        <div
+                          className="absolute inset-0 opacity-20"
+                          style={{
+                            background: `radial-gradient(circle at center, ${colorScheme.hex}, transparent 70%)`
+                          }}
+                        />
+                      )}
+                      
+                      <div className="relative z-10">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <div
+                                className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold border-2"
+                                style={{
+                                  backgroundColor: isUnlocked ? `${colorScheme.hex}20` : 'rgba(255, 255, 255, 0.05)',
+                                  borderColor: isUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)',
+                                  color: colorScheme.hex
+                                }}
+                              >
+                                {index + 1}
+                              </div>
+                              <div>
+                                <h3 className={`text-2xl font-bold ${colorScheme.text} flex items-center gap-2`}>
+                                  {level.name}
+                                  {isCurrent && (
+                                    <span className="text-sm px-2 py-1 rounded-full bg-white/10 text-white/90">
+                                      Current
+                                    </span>
+                                  )}
+                                </h3>
+                                <p className="text-white/50 text-sm mt-1">
+                                  {level.maxSW 
+                                    ? `${level.minSW.toLocaleString()} - ${level.maxSW.toLocaleString()} points`
+                                    : `${level.minSW.toLocaleString()}+ points`}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Status Badge */}
+                          <div className={`px-4 py-2 rounded-full border ${isUnlocked ? colorScheme.badgeBg : 'bg-white/5'} ${isUnlocked ? colorScheme.badgeBorder : 'border-white/10'}`}>
+                            <span className={`text-sm font-semibold ${isUnlocked ? colorScheme.text : 'text-white/40'}`}>
+                              {isUnlocked ? '✓ Unlocked' : '🔒 Locked'}
+                            </span>
+                          </div>
                         </div>
-                      ))}
+                        
+                        {/* Progress to next level */}
+                        {hasNextLevel && isUnlocked && (
+                          <div className="mb-4">
+                            <div className="flex items-center justify-between text-xs text-white/60 mb-2">
+                              <span>Progress to {nextLevel?.name}</span>
+                              <span>{Math.round(progressToNext)}%</span>
+                            </div>
+                            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{
+                                  width: `${progressToNext}%`,
+                                  backgroundColor: colorScheme.hex,
+                                  boxShadow: `0 0 8px ${colorScheme.hex}60`
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Features */}
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold text-white/70 mb-3">Features:</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {level.features.map((feature, featureIndex) => (
+                              <div key={featureIndex} className="flex items-start gap-2">
+                                <span 
+                                  className={`mt-0.5 text-base ${colorScheme.checkmark}`}
+                                  style={{ opacity: isUnlocked ? 1 : 0.4 }}
+                                >
+                                  ✓
+                                </span>
+                                <span className={`text-sm ${isUnlocked ? 'text-white/90' : 'text-white/40'}`}>
+                                  {feature}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Arrow to next level */}
+                      {hasNextLevel && (
+                        <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 z-20 hidden md:block">
+                          <div
+                            className="w-0 h-0 border-l-4 border-r-4 border-t-8"
+                            style={{
+                              borderLeftColor: 'transparent',
+                              borderRightColor: 'transparent',
+                              borderTopColor: isUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)',
+                              filter: isUnlocked ? `drop-shadow(0 0 4px ${colorScheme.hex}60)` : 'none'
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

@@ -609,6 +609,11 @@ html.theme-light .text-blue-400 { color: rgb(37 99 235) !important; } /* Blue-60
   }
 }
 
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+  background-size: 200% 100%;
+}
+
 .animate-fade-in-up {
   animation: fadeInUp 0.6s ease-out forwards;
   opacity: 0;
