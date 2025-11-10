@@ -69,7 +69,7 @@ export default function AlertPage() {
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(1000);
 
       if (simpleError) {
         console.error('Error loading simple notifications:', simpleError);
@@ -85,7 +85,7 @@ export default function AlertPage() {
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(1000);
 
       if (notificationsError) {
         console.error('Error loading notifications:', notificationsError);

@@ -10,8 +10,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { client, user } = await getAuthedClient(req);
     const userId = user.id;
 
-    const { limit = 50, offset = 0 } = req.query;
-    const limitNum = Math.min(Number(limit) || 50, 100);
+    const { limit = 1000, offset = 0 } = req.query;
+    const limitNum = Math.min(Number(limit) || 1000, 1000);
     const offsetNum = Number(offset) || 0;
 
     // Get notifications with related data
