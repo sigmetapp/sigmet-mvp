@@ -20,8 +20,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .select(`
         *,
         actor:profiles!notifications_actor_id_fkey(user_id, username, full_name, avatar_url),
-        post:posts!notifications_post_id_fkey(id, text, author_id),
-        comment:comments!notifications_comment_id_fkey(id, text, post_id, author_id),
+        post:posts!notifications_post_id_fkey(id, text, body, author_id, user_id),
+        comment:comments!notifications_comment_id_fkey(id, text, body, post_id, author_id, user_id, parent_id),
         trust_feedback:trust_feedback!notifications_trust_feedback_id_fkey(id, value, comment, author_id)
       `)
       .eq('user_id', userId)
