@@ -1355,8 +1355,8 @@ export default function PublicProfilePage() {
             {activeTab === 'info' && (
               <div>
                 <div className="space-y-3">
-                  {/* Bio, Work & Career, Place of Study - Inline with separators */}
-                  {(profile.bio || profile.work_career_status || educationalInstitution) && (
+                  {/* Bio and Place of Study - Inline with separator */}
+                  {(profile.bio || educationalInstitution) && (
                     <div className="pb-3 border-b border-white/10">
                       <div className="flex flex-wrap items-start gap-3">
                         {/* Bio */}
@@ -1370,30 +1370,6 @@ export default function PublicProfilePage() {
                               </div>
                               <div className={`text-sm leading-snug ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
                                 {profile.bio}
-                              </div>
-                            </div>
-                            {(profile.work_career_status || educationalInstitution) && (
-                              <div className={`w-px h-12 ${isLight ? 'bg-gray-300' : 'bg-white/20'}`} />
-                            )}
-                          </>
-                        )}
-                        
-                        {/* Work & Career */}
-                        {profile.work_career_status && (
-                          <>
-                            <div className="flex-shrink-0">
-                              <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
-                                isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                              }`}>
-                                Work & Career
-                              </div>
-                              <div className={`text-sm font-medium ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
-                                {profile.work_career_status === 'employed' ? 'Employed' :
-                                 profile.work_career_status === 'entrepreneur' ? 'Entrepreneur' :
-                                 profile.work_career_status === 'student' ? 'Student' :
-                                 profile.work_career_status === 'looking_for_opportunities' ? 'Looking for Opportunities' :
-                                 profile.work_career_status === 'unemployed' ? 'Unemployed' :
-                                 profile.work_career_status}
                               </div>
                             </div>
                             {educationalInstitution && (
@@ -1443,6 +1419,25 @@ export default function PublicProfilePage() {
                                 </Link>
                               );
                             })()}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Work & Career */}
+                      {profile.work_career_status && (
+                        <div>
+                          <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                            isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                          }`}>
+                            Work & Career
+                          </div>
+                          <div className={`text-sm font-medium ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                            {profile.work_career_status === 'employed' ? 'Employed' :
+                             profile.work_career_status === 'entrepreneur' ? 'Entrepreneur' :
+                             profile.work_career_status === 'student' ? 'Student' :
+                             profile.work_career_status === 'looking_for_opportunities' ? 'Looking for Opportunities' :
+                             profile.work_career_status === 'unemployed' ? 'Unemployed' :
+                             profile.work_career_status}
                           </div>
                         </div>
                       )}
