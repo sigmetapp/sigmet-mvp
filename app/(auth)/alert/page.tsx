@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import { Bell, MessageSquare, Heart, UserPlus, Shield, AtSign } from 'lucide-react';
@@ -9,11 +8,17 @@ import Link from 'next/link';
 
 interface Notification {
   id: number;
-  type: 'mention_in_post' | 'comment_on_post' | 'reaction_on_post' | 'comment_on_comment' | 'subscription' | 'trust_flow_entry';
+  type:
+    | 'mention_in_post'
+    | 'comment_on_post'
+    | 'reaction_on_post'
+    | 'comment_on_comment'
+    | 'subscription'
+    | 'trust_flow_entry';
   actor_id: string | null;
-  post_id: number | null;
-  comment_id: string | null;
-  trust_feedback_id: number | null;
+  post_id: number | string | null;
+  comment_id: number | string | null;
+  trust_feedback_id: number | string | null;
   read_at: string | null;
   created_at: string;
   actor?: {
@@ -23,26 +28,30 @@ interface Notification {
     avatar_url: string | null;
   };
   post?: {
-    id: number;
-    text: string | null;
-    author_id: string;
-  };
+    id: number | string;
+    text?: string | null;
+    body?: string | null;
+    author_id?: string | null;
+    user_id?: string | null;
+  } | null;
   comment?: {
-    id: number;
-    text: string;
-    post_id: number;
-    author_id: string;
-  };
+    id: number | string;
+    text?: string | null;
+    body?: string | null;
+    post_id: number | string;
+    author_id?: string | null;
+    user_id?: string | null;
+    parent_id?: number | string | null;
+  } | null;
   trust_feedback?: {
-    id: number;
+    id: number | string;
     value: number;
     comment: string | null;
     author_id: string | null;
-  };
+  } | null;
 }
 
 export default function AlertPage() {
-  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -54,134 +63,30 @@ export default function AlertPage() {
 
   const loadNotifications = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('No user found');
-        setLoading(false);
+        const response = await fetch('/api/notifications/list');
+        if (response.status === 401) {
+          console.log('Not authenticated');
+          setLoading(false);
+          return;
+      }
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || 'Failed to load notifications');
+        }
+
+        const payload = await response.json();
+        const fetchedNotifications: Notification[] = payload.notifications || [];
+        const unread = payload.unreadCount || 0;
+
+        if (!fetchedNotifications || fetchedNotifications.length === 0) {
+          setNotifications([]);
+          setUnreadCount(0);
         return;
       }
 
-      console.log('Loading notifications for user:', user.id);
-
-      // First, try to get notifications without joins to see if they exist
-      const { data: simpleData, error: simpleError } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1000);
-
-      if (simpleError) {
-        console.error('Error loading simple notifications:', simpleError);
-        throw simpleError;
-      }
-
-      console.log('Found notifications (simple):', simpleData?.length || 0);
-
-      // Load notifications with related data
-      // First, get all notifications
-      const { data: notificationsData, error: notificationsError } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1000);
-
-      if (notificationsError) {
-        console.error('Error loading notifications:', notificationsError);
-        setNotifications(simpleData || []);
-        const unread = (simpleData || []).filter(n => !n.read_at).length;
+        setNotifications(fetchedNotifications);
         setUnreadCount(unread);
-        return;
-      }
-
-      if (!notificationsData || notificationsData.length === 0) {
-        setNotifications([]);
-        setUnreadCount(0);
-        return;
-      }
-
-      // Get all unique actor IDs
-      const actorIds = notificationsData
-        .map(n => n.actor_id)
-        .filter((id): id is string => id !== null)
-        .filter((id, index, self) => self.indexOf(id) === index);
-
-      // Get all unique post IDs
-      const postIds = notificationsData
-        .map(n => n.post_id)
-        .filter((id): id is number => id !== null)
-        .filter((id, index, self) => self.indexOf(id) === index);
-
-      // Get all unique comment IDs
-      const commentIds = notificationsData
-        .map(n => n.comment_id)
-        .filter((id): id is string => id !== null)
-        .filter((id, index, self) => self.indexOf(id) === index);
-
-      // Get all unique trust feedback IDs
-      const trustFeedbackIds = notificationsData
-        .map(n => n.trust_feedback_id)
-        .filter((id): id is number => id !== null)
-        .filter((id, index, self) => self.indexOf(id) === index);
-
-      // Load all related data in parallel
-      const [actorsData, postsData, commentsData, trustFeedbackData] = await Promise.all([
-        actorIds.length > 0
-          ? supabase
-              .from('profiles')
-              .select('user_id, username, full_name, avatar_url')
-              .in('user_id', actorIds)
-          : Promise.resolve({ data: [] }),
-        postIds.length > 0
-          ? supabase
-              .from('posts')
-              .select('id, text, author_id')
-              .in('id', postIds)
-          : Promise.resolve({ data: [] }),
-        commentIds.length > 0
-          ? supabase
-              .from('comments')
-              .select('id, text, post_id, author_id')
-              .in('id', commentIds)
-          : Promise.resolve({ data: [] }),
-        trustFeedbackIds.length > 0
-          ? supabase
-              .from('trust_feedback')
-              .select('id, value, comment, author_id')
-              .in('id', trustFeedbackIds)
-          : Promise.resolve({ data: [] }),
-      ]);
-
-      // Create maps for quick lookup
-      const actorsMap = new Map(
-        (actorsData.data || []).map(a => [a.user_id, a])
-      );
-      const postsMap = new Map(
-        (postsData.data || []).map(p => [p.id, p])
-      );
-      const commentsMap = new Map(
-        (commentsData.data || []).map(c => [c.id, c])
-      );
-      const trustFeedbackMap = new Map(
-        (trustFeedbackData.data || []).map(tf => [tf.id, tf])
-      );
-
-      // Enrich notifications with related data
-      const enrichedNotifications = notificationsData.map(n => ({
-        ...n,
-        actor: n.actor_id ? actorsMap.get(n.actor_id) : undefined,
-        post: n.post_id ? postsMap.get(n.post_id) : undefined,
-        comment: n.comment_id ? commentsMap.get(n.comment_id) : undefined,
-        trust_feedback: n.trust_feedback_id ? trustFeedbackMap.get(n.trust_feedback_id) : undefined,
-      }));
-
-      console.log('Found notifications (enriched):', enrichedNotifications.length);
-      setNotifications(enrichedNotifications);
-
-      // Count unread
-      const unread = enrichedNotifications.filter(n => !n.read_at).length;
-      setUnreadCount(unread);
     } catch (err: any) {
       console.error('Error loading notifications:', err);
     } finally {
@@ -292,7 +197,7 @@ export default function AlertPage() {
       console.log('Actor not loaded for notification:', notification.id, 'actor_id:', notification.actor_id);
     }
     
-    switch (notification.type) {
+      switch (notification.type) {
       case 'mention_in_post':
         return `${actorName} mentioned you in a post`;
       case 'comment_on_post':
@@ -414,14 +319,14 @@ export default function AlertPage() {
                               • {formatDate(notification.created_at)}
                             </span>
                           </p>
-                          {notification.post?.text && (
+                            {notification.post && (notification.post.text || notification.post.body) && (
                             <p className="text-xs text-gray-400 mt-1 line-clamp-2">
-                              {notification.post.text}
+                                {notification.post.text || notification.post.body}
                             </p>
                           )}
-                          {notification.comment?.text && (
+                            {notification.comment && (notification.comment.text || notification.comment.body) && (
                             <p className="text-xs text-gray-400 mt-1 line-clamp-2">
-                              {notification.comment.text}
+                                {notification.comment.text || notification.comment.body}
                             </p>
                           )}
                           {notification.trust_feedback?.comment && (
