@@ -210,8 +210,8 @@ export default function Home() {
               
               <div className="space-y-4 sm:space-y-5">
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
-                    1
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">1</span>
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -221,8 +221,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
-                    2
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">2</span>
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -232,8 +232,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
-                    3
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">3</span>
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -243,8 +243,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
-                    4
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">4</span>
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -254,8 +254,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
-                    5
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">5</span>
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
