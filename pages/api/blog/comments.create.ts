@@ -58,12 +58,13 @@ export default async function handler(
       content: content.trim(),
     };
     
-    // Add parent_id if provided (for replies)
+    // Add parent_id if provided (for replies) - only if column exists
     if (parent_id) {
+      // Try to insert with parent_id, fallback to without if column doesn't exist
       insertData.parent_id = parseInt(parent_id, 10);
     }
 
-    const { data, error } = await admin
+    let result = await admin
       .from('blog_comments')
       .insert(insertData)
       .select(`
@@ -74,6 +75,30 @@ export default async function handler(
         author_id
       `)
       .single();
+    
+    let { data, error } = result;
+    
+    // If parent_id column doesn't exist (error code 42703), try without it
+    if (error && (error.code === '42703' || error.message?.includes('parent_id') || error.message?.includes('column'))) {
+      const insertDataWithoutParent: any = {
+        post_id: parseInt(post_id, 10),
+        author_id: userData.user.id,
+        content: content.trim(),
+      };
+      result = await admin
+        .from('blog_comments')
+        .insert(insertDataWithoutParent)
+        .select(`
+          id,
+          content,
+          created_at,
+          updated_at,
+          author_id
+        `)
+        .single();
+      data = result.data;
+      error = result.error;
+    }
 
     if (error) {
       console.error('Error creating blog comment:', error);
