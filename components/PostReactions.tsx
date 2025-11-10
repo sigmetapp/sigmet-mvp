@@ -154,7 +154,11 @@ export default function PostReactions({
               justifyContent: 'center',
               fontVariant: 'normal',
               textRendering: 'optimizeLegibility',
-              filter: isSelected ? 'none' : isLight ? 'grayscale(40%) brightness(0.8)' : 'grayscale(20%) brightness(1.2)',
+              filter: isSelected 
+                ? 'none' 
+                : isLight 
+                  ? 'grayscale(40%) brightness(0.8)' 
+                  : 'grayscale(100%) brightness(1.5)',
             }}
           >
             <span style={{ fontSize: 'inherit', lineHeight: '1', display: 'block' }}>{reaction.emoji}</span>
