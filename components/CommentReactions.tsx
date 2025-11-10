@@ -21,15 +21,15 @@ const FIRE_REACTION: Reaction = {
   color: '#ff7b00'
 };
 
-export interface PostReactionsProps {
-  postId: number;
+export interface CommentReactionsProps {
+  commentId: number | string;
   initialCounts?: Record<ReactionType, number>;
   initialSelected?: ReactionType | null;
   onReactionChange?: (reaction: ReactionType | null, counts: Record<ReactionType, number>) => void;
 }
 
-export default function PostReactions({
-  postId,
+export default function CommentReactions({
+  commentId,
   initialCounts = {
     inspire: 0,
     respect: 0,
@@ -39,7 +39,7 @@ export default function PostReactions({
   },
   initialSelected = null,
   onReactionChange,
-}: PostReactionsProps) {
+}: CommentReactionsProps) {
   const { theme } = useTheme();
   const isLight = theme === 'light';
   

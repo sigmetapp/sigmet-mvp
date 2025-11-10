@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Flag } from 'lucide-react';
 import Button from '@/components/Button';
 import PostReactions, { ReactionType } from '@/components/PostReactions';
+import CommentReactions from '@/components/CommentReactions';
 import { useTheme } from '@/components/ThemeProvider';
 import PostActionMenu from '@/components/PostActionMenu';
 import PostCard from '@/components/PostCard';
@@ -144,6 +145,12 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [replyOpen, setReplyOpen] = useState<Record<number, boolean>>({});
   const [replyInput, setReplyInput] = useState<Record<number, string>>({});
   const [replySubmitting, setReplySubmitting] = useState<Record<number, boolean>>({});
+  
+  // Comment reactions state
+  const [commentReactions, setCommentReactions] = useState<Record<string | number, {
+    counts: Record<ReactionType, number>;
+    selected: ReactionType | null;
+  }>>({});
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -387,11 +394,118 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     }
 
     setCommentsLoading(false);
+    
+    // Load reactions for all comments
+    if (list.length > 0) {
+      loadCommentReactions(list.map(c => c.id));
+    }
   }, [postId]);
 
   useEffect(() => {
     loadComments();
   }, [loadComments]);
+
+  const loadCommentReactions = useCallback(async (commentIds: (number | string)[]) => {
+    if (commentIds.length === 0) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('comment_reactions')
+        .select('comment_id, kind, user_id')
+        .in('comment_id', commentIds);
+      
+      if (error) {
+        console.error('Failed to load comment reactions:', error);
+        return;
+      }
+
+      const reactionsMap: Record<string | number, {
+        counts: Record<ReactionType, number>;
+        selected: ReactionType | null;
+      }> = {};
+
+      // Initialize all comments with empty counts
+      commentIds.forEach(id => {
+        reactionsMap[id] = {
+          counts: { inspire: 0, respect: 0, relate: 0, support: 0, celebrate: 0 },
+          selected: null,
+        };
+      });
+
+      // Process reactions
+      const reactionMap: Record<string, ReactionType> = {
+        inspire: 'inspire',
+        respect: 'inspire',
+        relate: 'inspire',
+        support: 'inspire',
+        celebrate: 'inspire',
+      };
+
+      for (const row of (data || []) as Array<{ comment_id: string | number; kind: string; user_id: string }>) {
+        const commentId = String(row.comment_id);
+        if (!reactionsMap[commentId] && !reactionsMap[row.comment_id]) continue;
+        
+        const reactionType = reactionMap[row.kind];
+        if (!reactionType) continue;
+        
+        const key = reactionsMap[commentId] ? commentId : row.comment_id;
+        reactionsMap[key].counts.inspire = (reactionsMap[key].counts.inspire || 0) + 1;
+        
+        if (uid && row.user_id === uid) {
+          reactionsMap[key].selected = 'inspire';
+        }
+      }
+
+      setCommentReactions(prev => ({ ...prev, ...reactionsMap }));
+    } catch (error) {
+      console.error('Error loading comment reactions:', error);
+    }
+  }, [uid]);
+
+  const handleCommentReactionChange = useCallback(
+    async (commentId: number | string, reaction: ReactionType | null, counts?: Record<ReactionType, number>) => {
+      if (!uid) {
+        alert('Sign in required');
+        return;
+      }
+
+      try {
+        await supabase
+          .from('comment_reactions')
+          .delete()
+          .eq('comment_id', commentId)
+          .eq('user_id', uid);
+
+        if (reaction) {
+          const { error: insertError } = await supabase
+            .from('comment_reactions')
+            .insert({ comment_id: commentId, user_id: uid, kind: reaction });
+          if (insertError) {
+            throw insertError;
+          }
+        }
+        
+        // Update local state
+        const commentIdKey = String(commentId);
+        setCommentReactions(prev => ({
+          ...prev,
+          [commentIdKey]: {
+            counts: counts || prev[commentIdKey]?.counts || prev[commentId]?.counts || EMPTY_COUNTS,
+            selected: reaction,
+          },
+        }));
+      } catch (error: any) {
+        console.error('Failed to update comment reaction', error);
+        const message =
+          error?.message || error?.details || error?.hint || 'Failed to update reaction. Please try again later.';
+        alert(message);
+      } finally {
+        // Reload reactions for this comment
+        loadCommentReactions([commentId]);
+      }
+    },
+    [uid, loadCommentReactions]
+  );
 
   // Load directions from growth-directions API
   useEffect(() => {
@@ -740,13 +854,23 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   </div>
                 </div>
               )}
+              
+              {/* Comment reactions */}
+              <div className="mt-3 flex items-center justify-start">
+                <CommentReactions
+                  commentId={comment.id}
+                  initialCounts={commentReactions[comment.id]?.counts || commentReactions[String(comment.id)]?.counts || EMPTY_COUNTS}
+                  initialSelected={commentReactions[comment.id]?.selected || commentReactions[String(comment.id)]?.selected || null}
+                  onReactionChange={(reaction, counts) => handleCommentReactionChange(comment.id, reaction, counts)}
+                />
+              </div>
             </div>
             {renderThread(comment.id, depth + 1)}
           </div>
         );
       });
     },
-    [commenterProfiles, commenterSWScores, isLight, replyInput, replyOpen, replySubmitting, submitComment, toggleReply, commentsByParent]
+    [commenterProfiles, commenterSWScores, isLight, replyInput, replyOpen, replySubmitting, submitComment, toggleReply, commentsByParent, commentReactions, handleCommentReactionChange]
   );
 
   const formattedDate = useMemo(() => {
