@@ -2,7 +2,7 @@
 import Head from "next/head";
 import { GetServerSideProps } from "next";
 import { createClient } from "@supabase/supabase-js";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Button from "@/components/Button";
 
@@ -82,8 +82,17 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   };
 };
 
+interface StatsData {
+  newUsers: { '24h': number; '7d': number; '30d': number };
+  newPosts: { '24h': number; '7d': number; '30d': number };
+  newComments: { '24h': number; '7d': number; '30d': number };
+  newReactions: { '24h': number; '7d': number; '30d': number };
+}
+
 export default function Home() {
   const router = useRouter();
+  const [stats, setStats] = useState<StatsData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Client-side auth check (fallback)
@@ -95,6 +104,22 @@ export default function Home() {
       }
     };
     checkAuth();
+
+    // Fetch statistics
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/stats/public');
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
   }, [router]);
 
   return (
@@ -145,8 +170,11 @@ export default function Home() {
                 <ol className="mt-3 sm:mt-4 space-y-2 sm:space-y-3 text-primary-text-secondary text-sm sm:text-base list-decimal list-inside">
                   <li className="pl-2">Sign up and confirm your email</li>
                   <li className="pl-2">Set up your profile and avatar</li>
-                  <li className="pl-2">Choose 3 key growth directions</li>
-                  <li className="pl-2">Start sharing and tracking progress</li>
+                  <li className="pl-2">Choose directions that interest you for development</li>
+                  <li className="pl-2">Move through tasks and goals, support and be supported by the community</li>
+                  <li className="pl-2">Develop your profile, get new SW results</li>
+                  <li className="pl-2">Unlock new features for advanced users</li>
+                  <li className="pl-2">Develop your personality comprehensively with our social network</li>
                 </ol>
                 <Button href="/signup" variant="primary" className="mt-5 sm:mt-6 w-full">Get started</Button>
               </div>
@@ -192,14 +220,174 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Updates Section */}
-          <div className="mt-12 sm:mt-16 md:mt-20 card-glow-primary p-5 sm:p-6 md:p-8 backdrop-blur-sm">
-            <h3 className="text-primary-text text-lg sm:text-xl font-semibold mb-3 sm:mb-4">📢 Latest updates</h3>
-            <ul className="text-primary-text-secondary text-sm sm:text-base list-disc list-inside space-y-1.5 sm:space-y-2">
-              <li>New profile dashboard with analytics</li>
-              <li>Faster content loading in feed</li>
-              <li>Improved onboarding flow</li>
-            </ul>
+          {/* Why Sigmet.app & Updates Section */}
+          <div className="mt-12 sm:mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            {/* Why Sigmet.app Section */}
+            <div className="card-glow-primary p-6 sm:p-8 md:p-10 backdrop-blur-sm">
+              <div className="text-center mb-6 sm:mb-8">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary-text mb-3 sm:mb-4">
+                  Why Sigmet.app?
+                </h2>
+                <p className="text-lg sm:text-xl text-primary-text-secondary">
+                  A calm, focused alternative to endless feeds.
+                </p>
+              </div>
+              
+              <div className="space-y-4 sm:space-y-5">
+                <div className="flex gap-4 sm:gap-5 items-start">
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">1</span>
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-primary-text">Social Weight (SW):</span> progress across multiple life areas - not a vanity score.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 sm:gap-5 items-start">
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">2</span>
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-primary-text">Personal roadmap & micro-challenges</span> that nudge you forward without pressure.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 sm:gap-5 items-start">
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">3</span>
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-primary-text">Customize your own feed</span> - more freedom, less noise.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 sm:gap-5 items-start">
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">4</span>
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-primary-text">Private today. Web3-ready tomorrow</span> (ENS/DID, SBT, VC) - you own your identity.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 sm:gap-5 items-start">
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">5</span>
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-primary-text">AI Compass</span> - your personal guide that helps maintain daily balance and awareness across chosen life areas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Updates Section */}
+            <div className="card-glow-primary p-5 sm:p-6 md:p-8 backdrop-blur-sm">
+              <h3 className="text-primary-text text-lg sm:text-xl font-semibold mb-3 sm:mb-4">📢 Latest updates</h3>
+              <ul className="text-primary-text-secondary text-sm sm:text-base list-disc list-inside space-y-1.5 sm:space-y-2">
+                <li>New profile dashboard with analytics</li>
+                <li>Faster content loading in feed</li>
+                <li>Improved onboarding flow</li>
+              </ul>
+              
+              {/* Statistics Section */}
+              <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-white/10">
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-primary-text text-center mb-4 sm:mb-6">
+                  📊 Network Statistics
+                </h2>
+                
+                {loading ? (
+                  <div className="text-center text-primary-text-secondary py-8">
+                    Loading statistics...
+                  </div>
+                ) : stats ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left py-3 px-4 text-primary-text font-semibold text-sm sm:text-base"></th>
+                          <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">24 hours</th>
+                          <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">7 days</th>
+                          <th className="text-center py-3 px-4 text-primary-text font-semibold text-sm sm:text-base">30 days</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">👥 New Users</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['24h'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['7d'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newUsers['30d'].toLocaleString()}</td>
+                        </tr>
+                        <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">📝 New Posts</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['24h'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['7d'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newPosts['30d'].toLocaleString()}</td>
+                        </tr>
+                        <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">💬 New Comments</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['24h'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['7d'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newComments['30d'].toLocaleString()}</td>
+                        </tr>
+                        <tr className="hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 text-primary-text font-medium text-sm sm:text-base">❤️ New Reactions</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['24h'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['7d'].toLocaleString()}</td>
+                          <td className="py-4 px-4 text-center text-primary-text-secondary text-sm sm:text-base font-semibold">{stats.newReactions['30d'].toLocaleString()}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center text-primary-text-secondary py-8">
+                    Failed to load statistics
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Social Media Follow Section */}
+          <div className="mt-12 sm:mt-16 md:mt-20">
+            <div className="card-glow-primary p-6 sm:p-8 md:p-10 backdrop-blur-sm text-center">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary-text mb-3 sm:mb-4">
+                Follow Sigmet for Updates
+              </h2>
+              <p className="text-primary-text-secondary text-base sm:text-lg mb-6 sm:mb-8">
+                Stay in the loop about the project launch, closed beta access, and upcoming releases.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <Button
+                  href="https://x.com/sigmetapp"
+                  variant="primary"
+                  className="w-full sm:w-auto min-w-[200px]"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Follow on X
+                </Button>
+                <Button
+                  href="https://t.me/sigmetapp"
+                  variant="secondary"
+                  className="w-full sm:w-auto min-w-[200px]"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Join Telegram
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
