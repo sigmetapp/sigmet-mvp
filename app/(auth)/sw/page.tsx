@@ -218,6 +218,70 @@ function getNextLevel(sw: number, levels: SWLevel[]): SWLevel | null {
   return null;
 }
 
+// Progressive glow parameters for progress bar by level
+function getProgressBarGlowParameters(levelName: string, colorScheme: { hex: string }) {
+  const levelParams = {
+    'Beginner': {
+      boxShadow: `0 0 8px ${colorScheme.hex}30`,
+      outerGlow: null
+    },
+    'Growing': {
+      boxShadow: `0 0 10px ${colorScheme.hex}40, 0 0 16px ${colorScheme.hex}30, 0 0 22px ${colorScheme.hex}20`,
+      outerGlow: `0 0 12px ${colorScheme.hex}20`
+    },
+    'Advance': {
+      boxShadow: `0 0 12px ${colorScheme.hex}50, 0 0 20px ${colorScheme.hex}38, 0 0 28px ${colorScheme.hex}28`,
+      outerGlow: `0 0 16px ${colorScheme.hex}28`
+    },
+    'Expert': {
+      boxShadow: `0 0 14px ${colorScheme.hex}60, 0 0 24px ${colorScheme.hex}46, 0 0 34px ${colorScheme.hex}36`,
+      outerGlow: `0 0 20px ${colorScheme.hex}36`
+    },
+    'Leader': {
+      boxShadow: `0 0 16px ${colorScheme.hex}70, 0 0 28px ${colorScheme.hex}54, 0 0 40px ${colorScheme.hex}44`,
+      outerGlow: `0 0 24px ${colorScheme.hex}44`
+    },
+    'Angel': {
+      boxShadow: `0 0 18px ${colorScheme.hex}80, 0 0 32px ${colorScheme.hex}62, 0 0 46px ${colorScheme.hex}52`,
+      outerGlow: `0 0 28px ${colorScheme.hex}52`
+    }
+  };
+
+  return levelParams[levelName as keyof typeof levelParams] || levelParams['Beginner'];
+}
+
+// Progressive glow parameters for Current Level block by level
+function getCurrentLevelBlockGlowParameters(levelName: string, colorScheme: { hex: string }) {
+  const levelParams = {
+    'Beginner': {
+      boxShadow: `0 0 12px ${colorScheme.hex}20, 0 0 20px ${colorScheme.hex}15`,
+      outerGlow: null
+    },
+    'Growing': {
+      boxShadow: `0 0 16px ${colorScheme.hex}40, 0 0 24px ${colorScheme.hex}30, 0 0 32px ${colorScheme.hex}20`,
+      outerGlow: `0 0 24px ${colorScheme.hex}30, 0 0 40px ${colorScheme.hex}20, 0 0 56px ${colorScheme.hex}15`
+    },
+    'Advance': {
+      boxShadow: `0 0 20px ${colorScheme.hex}50, 0 0 32px ${colorScheme.hex}38, 0 0 44px ${colorScheme.hex}28`,
+      outerGlow: `0 0 32px ${colorScheme.hex}40, 0 0 52px ${colorScheme.hex}28, 0 0 72px ${colorScheme.hex}20`
+    },
+    'Expert': {
+      boxShadow: `0 0 24px ${colorScheme.hex}60, 0 0 40px ${colorScheme.hex}46, 0 0 56px ${colorScheme.hex}36`,
+      outerGlow: `0 0 40px ${colorScheme.hex}50, 0 0 64px ${colorScheme.hex}36, 0 0 88px ${colorScheme.hex}25`
+    },
+    'Leader': {
+      boxShadow: `0 0 28px ${colorScheme.hex}70, 0 0 48px ${colorScheme.hex}54, 0 0 68px ${colorScheme.hex}44`,
+      outerGlow: `0 0 48px ${colorScheme.hex}60, 0 0 76px ${colorScheme.hex}44, 0 0 104px ${colorScheme.hex}30`
+    },
+    'Angel': {
+      boxShadow: `0 0 32px ${colorScheme.hex}80, 0 0 56px ${colorScheme.hex}62, 0 0 80px ${colorScheme.hex}52`,
+      outerGlow: `0 0 56px ${colorScheme.hex}70, 0 0 88px ${colorScheme.hex}52, 0 0 120px ${colorScheme.hex}35`
+    }
+  };
+
+  return levelParams[levelName as keyof typeof levelParams] || levelParams['Beginner'];
+}
+
 const CACHE_KEY_SW = 'sw_data_cache';
 const CACHE_KEY_RECENT_ACTIVITY = 'sw_recent_activity_cache';
 const CACHE_KEY_CITY_LEADERS = 'sw_city_leaders_cache';
@@ -732,45 +796,63 @@ export default function SWPage() {
             {/* Total SW - 1/3 width */}
             {(() => {
               const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+              const blockGlowParams = getCurrentLevelBlockGlowParameters(currentLevel.name, currentColorScheme);
               return (
-                <div className={`card p-6 border-2 ${currentColorScheme.border} ${currentColorScheme.borderGlow} w-full md:w-1/3`}>
-                  <div className="text-center w-full">
-                    <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
-                    <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
-                    {originalSW && originalSW !== totalSW && (
-                      <div className="text-white/50 text-xs mb-2">
-                        Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
+                <div className="relative w-full md:w-1/3">
+                  {/* Outer glow layer for Total SW block */}
+                  {blockGlowParams.outerGlow && (
+                    <div
+                      className="absolute -inset-4 rounded-lg pointer-events-none -z-10"
+                      style={{
+                        boxShadow: blockGlowParams.outerGlow,
+                        background: `radial-gradient(ellipse at center, ${currentColorScheme.hex}20, transparent 65%)`
+                      }}
+                    />
+                  )}
+                  <div 
+                    className={`card p-6 border-2 ${currentColorScheme.border} w-full relative z-10`}
+                    style={{
+                      boxShadow: blockGlowParams.boxShadow
+                    }}
+                  >
+                    <div className="text-center w-full">
+                      <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
+                      <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
+                      {originalSW && originalSW !== totalSW && (
+                        <div className="text-white/50 text-xs mb-2">
+                          Original SW: {originalSW.toLocaleString()} (inflation: {((1 - (inflationRate || 1)) * 100).toFixed(2)}%)
+                        </div>
+                      )}
+                      <div className="text-white/60 text-sm mb-3">Total Points</div>
+                      <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/10">
+                        {isLoadingGrowth ? (
+                          <>
+                            <div className="text-center">
+                              <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
+                              <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-white/50 text-xs mb-1">Last 7 days</div>
+                              <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
+                            </div>
+                          </>
+                        ) : swGrowth ? (
+                          <>
+                            <div className="text-center">
+                              <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
+                              <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {swGrowth.growth24h >= 0 ? '+' : ''}{swGrowth.growth24h.toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-white/50 text-xs mb-1">Last 7 days</div>
+                              <div className={`text-sm font-semibold ${swGrowth.growth7d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {swGrowth.growth7d >= 0 ? '+' : ''}{swGrowth.growth7d.toLocaleString()}
+                              </div>
+                            </div>
+                          </>
+                        ) : null}
                       </div>
-                    )}
-                    <div className="text-white/60 text-sm mb-3">Total Points</div>
-                    <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/10">
-                      {isLoadingGrowth ? (
-                        <>
-                          <div className="text-center">
-                            <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
-                            <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-white/50 text-xs mb-1">Last 7 days</div>
-                            <div className="h-5 w-12 bg-white/10 rounded animate-pulse mx-auto"></div>
-                          </div>
-                        </>
-                      ) : swGrowth ? (
-                        <>
-                          <div className="text-center">
-                            <div className="text-white/50 text-xs mb-1">Last 24 hours</div>
-                            <div className={`text-sm font-semibold ${swGrowth.growth24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {swGrowth.growth24h >= 0 ? '+' : ''}{swGrowth.growth24h.toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-white/50 text-xs mb-1">Last 7 days</div>
-                            <div className={`text-sm font-semibold ${swGrowth.growth7d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {swGrowth.growth7d >= 0 ? '+' : ''}{swGrowth.growth7d.toLocaleString()}
-                            </div>
-                          </div>
-                        </>
-                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -780,59 +862,90 @@ export default function SWPage() {
             {/* Current Level - 2/3 width */}
             {(() => {
               const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+              const blockGlowParams = getCurrentLevelBlockGlowParameters(currentLevel.name, currentColorScheme);
               return (
-                <div className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} ${currentColorScheme.borderGlow} w-full md:w-2/3`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <div className="text-white/60 text-sm mb-1">Current Level</div>
-                      <div className={`text-2xl font-bold ${currentColorScheme.text} flex items-center gap-2`}>
-                        <span>{currentLevel.name}</span>
-                        <span className="text-lg animate-pulse">✨</span>
+                <div className="relative w-full md:w-2/3">
+                  {/* Outer glow layer for Current Level block */}
+                  {blockGlowParams.outerGlow && (
+                    <div
+                      className="absolute -inset-4 rounded-lg pointer-events-none -z-10"
+                      style={{
+                        boxShadow: blockGlowParams.outerGlow,
+                        background: `radial-gradient(ellipse at center, ${currentColorScheme.hex}20, transparent 65%)`
+                      }}
+                    />
+                  )}
+                  <div 
+                    className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} w-full relative z-10`}
+                    style={{
+                      boxShadow: blockGlowParams.boxShadow
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <div className="text-white/60 text-sm mb-1">Current Level</div>
+                        <div className={`text-2xl font-bold ${currentColorScheme.text} flex items-center gap-2`}>
+                          <span>{currentLevel.name}</span>
+                          <span className="text-lg animate-pulse">✨</span>
+                        </div>
                       </div>
+                      {nextLevel && (
+                        <div className="text-right">
+                          <div className="text-white/60 text-sm mb-1">Next Level</div>
+                          {(() => {
+                            const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
+                            const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                            return (
+                              <>
+                                <div className={`text-xl font-semibold ${nextColorScheme.text} flex items-center gap-2 justify-end`}>
+                                  <span>{nextLevel.name}</span>
+                                  <span className="text-sm">🚀</span>
+                                </div>
+                                <div className={`text-sm font-medium mt-1 ${currentColorScheme.text}`}>
+                                  {isLoadingProgress ? (
+                                    <span className="inline-block h-4 w-24 bg-white/10 rounded animate-pulse"></span>
+                                  ) : (
+                                    `${nextLevel.minSW - totalSW} points to next level`
+                                  )}
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
-                    {nextLevel && (
-                      <div className="text-right">
-                        <div className="text-white/60 text-sm mb-1">Next Level</div>
-                        {(() => {
-                          const nextLevelObj = getSWLevel(nextLevel.minSW, swLevels);
-                          const nextColorScheme = LEVEL_COLOR_SCHEMES[nextLevelObj.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                          return (
-                            <>
-                              <div className={`text-xl font-semibold ${nextColorScheme.text} flex items-center gap-2 justify-end`}>
-                                <span>{nextLevel.name}</span>
-                                <span className="text-sm">🚀</span>
-                              </div>
-                              <div className={`text-sm font-medium mt-1 ${currentColorScheme.text}`}>
-                                {isLoadingProgress ? (
-                                  <span className="inline-block h-4 w-24 bg-white/10 rounded animate-pulse"></span>
-                                ) : (
-                                  `${nextLevel.minSW - totalSW} points to next level`
-                                )}
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    )}
+                    {nextLevel && (() => {
+                      const glowParams = getProgressBarGlowParameters(currentLevel.name, currentColorScheme);
+                      return (
+                        <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                          {/* Outer glow layer */}
+                          {glowParams.outerGlow && !isLoadingProgress && (
+                            <div
+                              className="absolute inset-0 rounded-full pointer-events-none"
+                              style={{
+                                boxShadow: glowParams.outerGlow,
+                                background: `radial-gradient(circle at left center, ${currentColorScheme.hex}15, transparent 50%)`
+                              }}
+                            />
+                          )}
+                          {isLoadingProgress ? (
+                            <div className="h-3 bg-white/10 rounded-full animate-pulse"></div>
+                          ) : (
+                            <div
+                              className="h-3 rounded-full transition-all duration-500 ease-out relative z-10"
+                              style={{ 
+                                width: `${Math.min(100, Math.max(0, progressToNext))}%`,
+                                backgroundColor: currentColorScheme.hex,
+                                boxShadow: glowParams.boxShadow
+                              }}
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
-                {nextLevel && (
-                  <div className="relative w-full bg-white/10 rounded-full h-3 overflow-hidden">
-                    {isLoadingProgress ? (
-                      <div className="h-3 bg-white/10 rounded-full animate-pulse"></div>
-                    ) : (
-                      <div
-                        className="h-3 rounded-full transition-all duration-500 ease-out relative"
-                        style={{ 
-                          width: `${Math.min(100, Math.max(0, progressToNext))}%`,
-                          backgroundColor: currentColorScheme.hex,
-                          boxShadow: `0 0 10px ${currentColorScheme.hex}40`
-                        }}
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-                      </div>
-                    )}
-                  </div>
-                )}
                 </div>
               );
             })()}
@@ -1169,24 +1282,37 @@ export default function SWPage() {
                         </div>
                         
                         {/* Progress to next level */}
-                        {hasNextLevel && isUnlocked && (
-                          <div className="mb-4">
-                            <div className="flex items-center justify-between text-xs text-white/60 mb-2">
-                              <span>Progress to {nextLevel?.name}</span>
-                              <span>{Math.round(progressToNext)}%</span>
+                        {hasNextLevel && isUnlocked && (() => {
+                          const glowParams = getProgressBarGlowParameters(level.name, colorScheme);
+                          return (
+                            <div className="mb-4">
+                              <div className="flex items-center justify-between text-xs text-white/60 mb-2">
+                                <span>Progress to {nextLevel?.name}</span>
+                                <span>{Math.round(progressToNext)}%</span>
+                              </div>
+                              <div className="relative w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                                {/* Outer glow layer */}
+                                {glowParams.outerGlow && (
+                                  <div
+                                    className="absolute inset-0 rounded-full pointer-events-none"
+                                    style={{
+                                      boxShadow: glowParams.outerGlow,
+                                      background: `radial-gradient(circle at left center, ${colorScheme.hex}15, transparent 50%)`
+                                    }}
+                                  />
+                                )}
+                                <div
+                                  className="h-full rounded-full transition-all duration-500 relative z-10"
+                                  style={{
+                                    width: `${progressToNext}%`,
+                                    backgroundColor: colorScheme.hex,
+                                    boxShadow: glowParams.boxShadow
+                                  }}
+                                />
+                              </div>
                             </div>
-                            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${progressToNext}%`,
-                                  backgroundColor: colorScheme.hex,
-                                  boxShadow: `0 0 8px ${colorScheme.hex}60`
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                         
                         {/* Features */}
                         <div className="space-y-2">
