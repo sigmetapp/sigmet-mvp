@@ -792,24 +792,29 @@ export default function SWPage() {
       {activeTab === 'overview' && (
         <div className="space-y-4">
           {/* Total SW and Current Level - Side by Side */}
-          {(() => {
-            const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-            const blockGlowParams = getCurrentLevelBlockGlowParameters(currentLevel.name, currentColorScheme);
-            return (
-              <div className="relative">
-                {/* Outer glow layer for both blocks - covers entire container */}
-                {blockGlowParams.outerGlow && (
-                  <div
-                    className="absolute -inset-4 rounded-lg pointer-events-none -z-10"
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Total SW - 1/3 width */}
+            {(() => {
+              const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+              const blockGlowParams = getCurrentLevelBlockGlowParameters(currentLevel.name, currentColorScheme);
+              return (
+                <div className="relative w-full md:w-1/3">
+                  {/* Outer glow layer for Total SW block */}
+                  {blockGlowParams.outerGlow && (
+                    <div
+                      className="absolute -inset-4 rounded-lg pointer-events-none -z-10"
+                      style={{
+                        boxShadow: blockGlowParams.outerGlow,
+                        background: `radial-gradient(ellipse at center, ${currentColorScheme.hex}20, transparent 65%)`
+                      }}
+                    />
+                  )}
+                  <div 
+                    className={`card p-6 border-2 ${currentColorScheme.border} w-full relative z-10`}
                     style={{
-                      boxShadow: blockGlowParams.outerGlow,
-                      background: `radial-gradient(ellipse at center, ${currentColorScheme.hex}20, transparent 65%)`
+                      boxShadow: blockGlowParams.boxShadow
                     }}
-                  />
-                )}
-                <div className="flex flex-col md:flex-row gap-4 relative z-10">
-                  {/* Total SW - 1/3 width */}
-                  <div className={`card p-6 border-2 ${currentColorScheme.border} w-full md:w-1/3`}>
+                  >
                     <div className="text-center w-full">
                       <div className="text-white/60 text-sm mb-2">Your Social Weight</div>
                       <div className="text-5xl font-bold text-white mb-2">{totalSW.toLocaleString()}</div>
@@ -850,10 +855,28 @@ export default function SWPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+              );
+            })()}
 
-                  {/* Current Level - 2/3 width */}
+            {/* Current Level - 2/3 width */}
+            {(() => {
+              const currentColorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+              const blockGlowParams = getCurrentLevelBlockGlowParameters(currentLevel.name, currentColorScheme);
+              return (
+                <div className="relative w-full md:w-2/3">
+                  {/* Outer glow layer for Current Level block */}
+                  {blockGlowParams.outerGlow && (
+                    <div
+                      className="absolute -inset-4 rounded-lg pointer-events-none -z-10"
+                      style={{
+                        boxShadow: blockGlowParams.outerGlow,
+                        background: `radial-gradient(ellipse at center, ${currentColorScheme.hex}20, transparent 65%)`
+                      }}
+                    />
+                  )}
                   <div 
-                    className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} w-full md:w-2/3`}
+                    className={`card p-4 border-2 ${currentColorScheme.border} bg-gradient-to-br ${currentColorScheme.bgGradient} w-full relative z-10`}
                     style={{
                       boxShadow: blockGlowParams.boxShadow
                     }}
@@ -924,9 +947,9 @@ export default function SWPage() {
                     })()}
                   </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
+          </div>
 
           {/* Inflation Indicator */}
           {inflationRate && inflationRate < 1 && (
