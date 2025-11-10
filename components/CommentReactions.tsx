@@ -22,7 +22,7 @@ const FIRE_REACTION: Reaction = {
 };
 
 export interface CommentReactionsProps {
-  commentId: number;
+  commentId: number | string;
   initialCounts?: Record<ReactionType, number>;
   initialSelected?: ReactionType | null;
   onReactionChange?: (reaction: ReactionType | null, counts: Record<ReactionType, number>) => void;

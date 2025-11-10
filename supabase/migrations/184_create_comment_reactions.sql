@@ -1,6 +1,7 @@
 -- Create comment_reactions table if it doesn't exist
+-- Note: comments.id is uuid type (as per migration 131)
 create table if not exists public.comment_reactions (
-  comment_id bigint references public.comments(id) on delete cascade,
+  comment_id uuid references public.comments(id) on delete cascade,
   user_id uuid references auth.users(id) on delete cascade,
   kind text not null,
   created_at timestamptz default now(),

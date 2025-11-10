@@ -147,7 +147,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [replySubmitting, setReplySubmitting] = useState<Record<number, boolean>>({});
   
   // Comment reactions state
-  const [commentReactions, setCommentReactions] = useState<Record<number, {
+  const [commentReactions, setCommentReactions] = useState<Record<string | number, {
     counts: Record<ReactionType, number>;
     selected: ReactionType | null;
   }>>({});
@@ -405,7 +405,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     loadComments();
   }, [loadComments]);
 
-  const loadCommentReactions = useCallback(async (commentIds: number[]) => {
+  const loadCommentReactions = useCallback(async (commentIds: (number | string)[]) => {
     if (commentIds.length === 0) return;
     
     try {
@@ -419,7 +419,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         return;
       }
 
-      const reactionsMap: Record<number, {
+      const reactionsMap: Record<string | number, {
         counts: Record<ReactionType, number>;
         selected: ReactionType | null;
       }> = {};
@@ -441,17 +441,18 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         celebrate: 'inspire',
       };
 
-      for (const row of (data || []) as Array<{ comment_id: number; kind: string; user_id: string }>) {
-        const commentId = row.comment_id;
-        if (!reactionsMap[commentId]) continue;
+      for (const row of (data || []) as Array<{ comment_id: string | number; kind: string; user_id: string }>) {
+        const commentId = String(row.comment_id);
+        if (!reactionsMap[commentId] && !reactionsMap[row.comment_id]) continue;
         
         const reactionType = reactionMap[row.kind];
         if (!reactionType) continue;
         
-        reactionsMap[commentId].counts.inspire = (reactionsMap[commentId].counts.inspire || 0) + 1;
+        const key = reactionsMap[commentId] ? commentId : row.comment_id;
+        reactionsMap[key].counts.inspire = (reactionsMap[key].counts.inspire || 0) + 1;
         
         if (uid && row.user_id === uid) {
-          reactionsMap[commentId].selected = 'inspire';
+          reactionsMap[key].selected = 'inspire';
         }
       }
 
@@ -462,7 +463,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   }, [uid]);
 
   const handleCommentReactionChange = useCallback(
-    async (commentId: number, reaction: ReactionType | null, counts?: Record<ReactionType, number>) => {
+    async (commentId: number | string, reaction: ReactionType | null, counts?: Record<ReactionType, number>) => {
       if (!uid) {
         alert('Sign in required');
         return;
@@ -485,10 +486,11 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         }
         
         // Update local state
+        const commentIdKey = String(commentId);
         setCommentReactions(prev => ({
           ...prev,
-          [commentId]: {
-            counts: counts || prev[commentId]?.counts || EMPTY_COUNTS,
+          [commentIdKey]: {
+            counts: counts || prev[commentIdKey]?.counts || prev[commentId]?.counts || EMPTY_COUNTS,
             selected: reaction,
           },
         }));
@@ -857,8 +859,8 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
               <div className="mt-3 flex items-center justify-start">
                 <CommentReactions
                   commentId={comment.id}
-                  initialCounts={commentReactions[comment.id]?.counts || EMPTY_COUNTS}
-                  initialSelected={commentReactions[comment.id]?.selected || null}
+                  initialCounts={commentReactions[comment.id]?.counts || commentReactions[String(comment.id)]?.counts || EMPTY_COUNTS}
+                  initialSelected={commentReactions[comment.id]?.selected || commentReactions[String(comment.id)]?.selected || null}
                   onReactionChange={(reaction, counts) => handleCommentReactionChange(comment.id, reaction, counts)}
                 />
               </div>
