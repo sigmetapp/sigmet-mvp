@@ -1010,47 +1010,149 @@ export default function SWPage() {
         <div className="space-y-3">
           <div className="card p-3">
             <h2 className="text-xl font-semibold text-white mb-4">SW Levels & Features</h2>
-            <div className="space-y-2">
-              {swLevels.map((level, index) => {
-                const isCurrent = currentLevel.name === level.name;
-                const isUnlocked = totalSW >= level.minSW;
-                const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                
-                return (
-                  <div
-                    key={level.name}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      isCurrent
-                        ? `${colorScheme.border} ${colorScheme.bgGradient ? `bg-gradient-to-br ${colorScheme.bgGradient}` : colorScheme.bg} ${colorScheme.borderGlow}`
-                        : isUnlocked
-                        ? `${colorScheme.border} ${colorScheme.bg} opacity-80`
-                        : `${colorScheme.border} ${colorScheme.bg} opacity-40`
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className={`text-xl font-bold ${colorScheme.text}`}>
-                        {level.name}
-                        {isCurrent && <span className={`ml-2 text-sm ${colorScheme.text} opacity-80`}>(Current)</span>}
-                      </div>
-                      <div className={`px-3 py-1.5 rounded-full ${colorScheme.badgeBg} border ${colorScheme.badgeBorder}`}>
-                        <span className={`${colorScheme.text} font-semibold text-base`}>
-                          {level.maxSW ? `${level.minSW.toLocaleString()} - ${level.maxSW.toLocaleString()} pts` : `${level.minSW.toLocaleString()}+ pts`}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      {level.features.map((feature, featureIndex) => (
-                        <div key={featureIndex} className="flex items-start gap-2">
-                          <span className={`${colorScheme.checkmark} mt-0.5 text-sm`}>✓</span>
-                          <span className={`text-sm ${isUnlocked ? 'text-white/80' : 'text-white/50'}`}>
-                            {feature}
+            <div className="relative">
+              {/* Levels grid - 2 columns with roadmap lines */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                {swLevels.map((level, index) => {
+                  const isCurrent = currentLevel.name === level.name;
+                  const isUnlocked = totalSW >= level.minSW;
+                  const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                  const row = Math.floor(index / 2);
+                  const col = index % 2;
+                  const isLastInRow = col === 1 || index === swLevels.length - 1;
+                  const isFirstInRow = col === 0;
+                  const hasNextLevel = index < swLevels.length - 1;
+                  const nextLevel = hasNextLevel ? swLevels[index + 1] : null;
+                  const nextIsUnlocked = nextLevel ? totalSW >= nextLevel.minSW : false;
+                  const nextRow = hasNextLevel ? Math.floor((index + 1) / 2) : null;
+                  const isLastRow = row === Math.floor((swLevels.length - 1) / 2);
+                  
+                  return (
+                    <div
+                      key={level.name}
+                      className={`p-4 rounded-lg border-2 transition-all relative ${
+                        isCurrent
+                          ? `${colorScheme.border} ${colorScheme.bgGradient ? `bg-gradient-to-br ${colorScheme.bgGradient}` : colorScheme.bg} ${colorScheme.borderGlow}`
+                          : isUnlocked
+                          ? `${colorScheme.border} ${colorScheme.bg} opacity-80`
+                          : `${colorScheme.border} ${colorScheme.bg} opacity-40`
+                      }`}
+                    >
+                      {/* Horizontal line to next level (same row) */}
+                      {hasNextLevel && nextRow === row && (
+                        <div
+                          className="absolute top-1/2 -right-2 transform -translate-y-1/2 translate-x-full z-0"
+                          style={{
+                            width: 'calc(1rem + 2px)',
+                            height: '2px',
+                            background: isUnlocked && nextIsUnlocked 
+                              ? colorScheme.hex 
+                              : 'repeating-linear-gradient(to right, rgba(255, 255, 255, 0.1) 0px, rgba(255, 255, 255, 0.1) 4px, transparent 4px, transparent 8px)',
+                            boxShadow: isUnlocked && nextIsUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
+                          }}
+                        />
+                      )}
+                      
+                      {/* Vertical line down (last in row, not last row) */}
+                      {isLastInRow && !isLastRow && hasNextLevel && (
+                        <div
+                          className="absolute -bottom-2 right-1/2 transform translate-x-1/2 translate-y-full z-0"
+                          style={{
+                            width: '2px',
+                            height: 'calc(1rem + 2px)',
+                            background: isUnlocked && nextIsUnlocked 
+                              ? colorScheme.hex 
+                              : 'repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 0px, rgba(255, 255, 255, 0.1) 4px, transparent 4px, transparent 8px)',
+                            boxShadow: isUnlocked && nextIsUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
+                          }}
+                        />
+                      )}
+                      
+                      {/* Horizontal line left (first in row, not first row) */}
+                      {isFirstInRow && row > 0 && (
+                        <div
+                          className="absolute top-1/2 -left-2 transform -translate-y-1/2 -translate-x-full z-0"
+                          style={{
+                            width: 'calc(1rem + 2px)',
+                            height: '2px',
+                            background: isUnlocked 
+                              ? colorScheme.hex 
+                              : 'repeating-linear-gradient(to right, rgba(255, 255, 255, 0.1) 0px, rgba(255, 255, 255, 0.1) 4px, transparent 4px, transparent 8px)',
+                            boxShadow: isUnlocked ? `0 0 4px ${colorScheme.hex}40` : 'none'
+                          }}
+                        />
+                      )}
+                      
+                      {/* Connector dot - right side */}
+                      {hasNextLevel && nextRow === row && (
+                        <div
+                          className="absolute -right-2 top-1/2 transform -translate-y-1/2 translate-x-1/2 z-20"
+                          style={{
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            backgroundColor: isUnlocked && nextIsUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)',
+                            border: `2px solid ${isUnlocked && nextIsUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.3)'}`,
+                            boxShadow: isUnlocked && nextIsUnlocked ? `0 0 8px ${colorScheme.hex}60` : 'none'
+                          }}
+                        />
+                      )}
+                      
+                      {/* Connector dot - left side (first in row, not first row) */}
+                      {isFirstInRow && row > 0 && (
+                        <div
+                          className="absolute -left-2 top-1/2 transform -translate-y-1/2 -translate-x-1/2 z-20"
+                          style={{
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            backgroundColor: isUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)',
+                            border: `2px solid ${isUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.3)'}`,
+                            boxShadow: isUnlocked ? `0 0 8px ${colorScheme.hex}60` : 'none'
+                          }}
+                        />
+                      )}
+                      
+                      {/* Connector dot - bottom (last in row, not last row) */}
+                      {isLastInRow && !isLastRow && hasNextLevel && (
+                        <div
+                          className="absolute -bottom-2 right-1/2 transform translate-x-1/2 translate-y-1/2 z-20"
+                          style={{
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            backgroundColor: isUnlocked && nextIsUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.2)',
+                            border: `2px solid ${isUnlocked && nextIsUnlocked ? colorScheme.hex : 'rgba(255, 255, 255, 0.3)'}`,
+                            boxShadow: isUnlocked && nextIsUnlocked ? `0 0 8px ${colorScheme.hex}60` : 'none'
+                          }}
+                        />
+                      )}
+                      
+                      <div className="flex items-center justify-between mb-3">
+                        <div className={`text-xl font-bold ${colorScheme.text}`}>
+                          {level.name}
+                          {isCurrent && <span className={`ml-2 text-sm ${colorScheme.text} opacity-80`}>(Current)</span>}
+                        </div>
+                        <div className={`px-3 py-1.5 rounded-full ${colorScheme.badgeBg} border ${colorScheme.badgeBorder}`}>
+                          <span className={`${colorScheme.text} font-semibold text-base`}>
+                            {level.maxSW ? `${level.minSW.toLocaleString()} - ${level.maxSW.toLocaleString()} pts` : `${level.minSW.toLocaleString()}+ pts`}
                           </span>
                         </div>
-                      ))}
+                      </div>
+                      <div className="space-y-1.5">
+                        {level.features.map((feature, featureIndex) => (
+                          <div key={featureIndex} className="flex items-start gap-2">
+                            <span className={`${colorScheme.checkmark} mt-0.5 text-sm`}>✓</span>
+                            <span className={`text-sm ${isUnlocked ? 'text-white/80' : 'text-white/50'}`}>
+                              {feature}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
