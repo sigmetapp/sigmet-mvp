@@ -299,19 +299,19 @@ export default function BlogPostPage() {
             <h1 className={`text-3xl md:text-4xl font-semibold mb-4 ${isLight ? 'text-black' : 'text-white'}`}>
               {post.title}
             </h1>
-            <div className={`flex items-center gap-4 text-sm ${isLight ? 'text-black/50' : 'text-white/50'}`}>
+            <div className={`flex flex-col gap-2 text-sm ${isLight ? 'text-black/50' : 'text-white/50'}`}>
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
                 {formatDate(post.published_at)}
               </div>
               {post.profiles && (
-                <div className="flex items-center gap-2">
-                  <AvatarWithBadge
-                    avatarUrl={resolveAvatarUrl(post.profiles.avatar_url)}
-                    username={post.profiles.username}
-                    size={24}
-                  />
-                  <span>{post.profiles.full_name || post.profiles.username || 'Unknown'}</span>
+                <div>
+                  <Link 
+                    href={`/u/${post.profiles.username || post.author_id}`}
+                    className={`${isLight ? 'text-primary-blue hover:text-primary-blue-dark' : 'text-primary-blue-light hover:text-primary-blue'} transition`}
+                  >
+                    {post.profiles.full_name || post.profiles.username || 'Unknown'}
+                  </Link>
                 </div>
               )}
             </div>
