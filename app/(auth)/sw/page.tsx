@@ -927,7 +927,6 @@ export default function SWPage() {
               </div>
             );
           })()}
-          </div>
 
           {/* Inflation Indicator */}
           {inflationRate && inflationRate < 1 && (
