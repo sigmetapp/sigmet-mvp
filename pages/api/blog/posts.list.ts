@@ -33,7 +33,7 @@ export default async function handler(
       `);
 
     // Only show published posts (published_at is not null)
-    // Use is() instead of not() for better compatibility
+    // Filter out null published_at values
     query = query.not('published_at', 'is', null);
 
     if (type && (type === 'guideline' || type === 'changelog')) {
@@ -73,6 +73,11 @@ export default async function handler(
     return res.status(200).json({ posts: data || [] });
   } catch (error: any) {
     console.error('Error in blog posts list API:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Error stack:', error?.stack);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error?.message || 'Unknown error',
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 }

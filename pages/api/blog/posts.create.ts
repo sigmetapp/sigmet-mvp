@@ -25,13 +25,19 @@ function getAccessTokenFromRequest(req: NextApiRequest): string | undefined {
   return undefined;
 }
 
-function generateSlug(title: string): string {
-  return title
+function generateSlug(title: string, suffix: number = 0): string {
+  let slug = title
     .toLowerCase()
     .trim()
     .replace(/[^\w\s-]/g, '')
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '');
+  
+  if (suffix > 0) {
+    slug = `${slug}-${suffix}`;
+  }
+  
+  return slug;
 }
 
 export default async function handler(
@@ -81,23 +87,35 @@ export default async function handler(
       return res.status(400).json({ error: 'Type is required and must be either "guideline" or "changelog"' });
     }
 
-    const slug = generateSlug(title);
     const admin = supabaseAdmin();
 
-    // Check if slug already exists
-    const { data: existing, error: checkError } = await admin
-      .from('blog_posts')
-      .select('id')
-      .eq('slug', slug)
-      .maybeSingle();
+    // Generate unique slug - try base slug first, then add suffix if needed
+    let slug = generateSlug(title);
+    let suffix = 0;
+    let isUnique = false;
+    
+    while (!isUnique && suffix < 100) {
+      const { data: existing, error: checkError } = await admin
+        .from('blog_posts')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle();
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.error('Error checking slug:', checkError);
-      return res.status(500).json({ error: 'Failed to check slug availability' });
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking slug:', checkError);
+        return res.status(500).json({ error: 'Failed to check slug availability' });
+      }
+
+      if (!existing) {
+        isUnique = true;
+      } else {
+        suffix++;
+        slug = generateSlug(title, suffix);
+      }
     }
 
-    if (existing) {
-      return res.status(400).json({ error: 'A post with this title already exists' });
+    if (!isUnique) {
+      return res.status(400).json({ error: 'Could not generate unique slug. Please try a different title.' });
     }
 
     // Handle published_at - convert empty string to null, validate date if provided
