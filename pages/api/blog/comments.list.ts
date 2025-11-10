@@ -16,7 +16,8 @@ export default async function handler(
     }
 
     const admin = supabaseAdmin();
-    const { data, error } = await admin
+    // Try to select with parent_id, fallback to without if column doesn't exist
+    let result = await admin
       .from('blog_comments')
       .select(`
         id,
@@ -28,6 +29,29 @@ export default async function handler(
       `)
       .eq('post_id', parseInt(post_id as string, 10))
       .order('created_at', { ascending: true });
+    
+    let { data, error } = result;
+    
+    // If parent_id column doesn't exist (error code 42703), select without it
+    if (error && (error.code === '42703' || error.message?.includes('parent_id') || error.message?.includes('column'))) {
+      result = await admin
+        .from('blog_comments')
+        .select(`
+          id,
+          content,
+          created_at,
+          updated_at,
+          author_id
+        `)
+        .eq('post_id', parseInt(post_id as string, 10))
+        .order('created_at', { ascending: true });
+      data = result.data;
+      error = result.error;
+      // Add null parent_id to all comments for backward compatibility
+      if (data) {
+        data = data.map((comment: any) => ({ ...comment, parent_id: null }));
+      }
+    }
 
     if (error) {
       console.error('Error fetching blog comments:', error);

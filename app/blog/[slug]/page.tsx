@@ -39,7 +39,7 @@ type Comment = {
   created_at: string;
   updated_at: string;
   author_id: string;
-  parent_id: number | null;
+  parent_id?: number | null;
   profiles: {
     username: string | null;
     full_name: string | null;
