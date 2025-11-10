@@ -69,6 +69,7 @@ export default function Footer() {
             <ul className="space-y-2">
               <li><Link className={`${isLight ? "hover:text-black" : "hover:text-white"}`} href="/feed">Feed</Link></li>
               <li><Link className={`${isLight ? "hover:text-black" : "hover:text-white"}`} href="/profile">Profile</Link></li>
+              <li><Link className={`${isLight ? "hover:text-black" : "hover:text-white"}`} href="/blog">Blog</Link></li>
             </ul>
           </div>
 
@@ -121,6 +122,10 @@ export default function Footer() {
                   isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
                           : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
                 }`} onClick={() => setAdminOpen(false)}>Tickets</Link>
+                <Link href="/blog/admin/create" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
+                  isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
+                          : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
+                }`} onClick={() => setAdminOpen(false)}>New Post</Link>
                 <Link href="/sw/weights" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
                   isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
                           : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
