@@ -195,6 +195,77 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Why Sigmet.app Section */}
+          <div className="mt-12 sm:mt-16 md:mt-20">
+            <div className="card-glow-primary p-6 sm:p-8 md:p-10 backdrop-blur-sm">
+              <div className="text-center mb-6 sm:mb-8">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary-text mb-3 sm:mb-4">
+                  Why Sigmet.app?
+                </h2>
+                <p className="text-lg sm:text-xl text-primary-text-secondary">
+                  A calm, focused alternative to endless feeds.
+                </p>
+              </div>
+              
+              <div className="space-y-4 sm:space-y-5">
+                <div className="flex gap-4 sm:gap-5 items-start">
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-base sm:text-lg">
+                    1
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-primary-text">Social Weight (SW):</span> progress across multiple life areas - not a vanity score.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 sm:gap-5 items-start">
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-base sm:text-lg">
+                    2
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-primary-text">Personal roadmap & micro-challenges</span> that nudge you forward without pressure.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 sm:gap-5 items-start">
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-base sm:text-lg">
+                    3
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-primary-text">Customize your own feed</span> - more freedom, less noise.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 sm:gap-5 items-start">
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-base sm:text-lg">
+                    4
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-primary-text">Private today. Web3-ready tomorrow</span> (ENS/DID, SBT, VC) - you own your identity.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 sm:gap-5 items-start">
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-base sm:text-lg">
+                    5
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                      <span className="font-semibold text-primary-text">AI Compass</span> - your personal guide that helps maintain daily balance and awareness across chosen life areas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Updates Section */}
           <div className="mt-12 sm:mt-16 md:mt-20 card-glow-primary p-5 sm:p-6 md:p-8 backdrop-blur-sm">
             <h3 className="text-primary-text text-lg sm:text-xl font-semibold mb-3 sm:mb-4">📢 Latest updates</h3>
