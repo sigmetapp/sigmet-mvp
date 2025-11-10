@@ -23,7 +23,8 @@ export default async function handler(
         content,
         created_at,
         updated_at,
-        author_id
+        author_id,
+        parent_id
       `)
       .eq('post_id', parseInt(post_id as string, 10))
       .order('created_at', { ascending: true });
