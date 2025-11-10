@@ -957,9 +957,22 @@ export default function PublicProfilePage() {
                   // Get color for progress circle based on level using color scheme
                   const colorScheme = LEVEL_COLOR_SCHEMES[currentLevel.name] || LEVEL_COLOR_SCHEMES['Beginner'];
                   const progressColor = colorScheme.hex;
+                  const shouldShowBadge = currentLevel.name !== 'Beginner';
                   
                   return (
                     <div className="relative inline-flex items-center justify-center">
+                      {/* Glow effect ring - outer glow layer */}
+                      {shouldShowBadge && (
+                        <div
+                          className="absolute inset-0 rounded-full pointer-events-none"
+                          style={{
+                            width: `${avatarSize}px`,
+                            height: `${avatarSize}px`,
+                            boxShadow: `0 0 20px ${progressColor}60, 0 0 32px ${progressColor}40, 0 0 48px ${progressColor}30`,
+                            background: `radial-gradient(circle at center, ${progressColor}20, transparent 70%)`,
+                          }}
+                        />
+                      )}
                       <svg 
                         className="absolute transform -rotate-90 animate-fade-in-scale" 
                         width={svgSize} 
@@ -1003,8 +1016,14 @@ export default function PublicProfilePage() {
                       <img
                         src={resolveAvatarUrl(profile.avatar_url) ?? AVATAR_FALLBACK}
                         alt="avatar"
-                        className="h-40 w-40 rounded-full object-cover border border-white/10 relative z-10 animate-fade-in-scale"
-                        style={{ animationDelay: '0.1s' }}
+                        className="h-40 w-40 rounded-full object-cover relative z-10 animate-fade-in-scale"
+                        style={{ 
+                          animationDelay: '0.1s',
+                          border: shouldShowBadge ? `3px solid ${progressColor}` : '1px solid rgba(255, 255, 255, 0.1)',
+                          boxShadow: shouldShowBadge 
+                            ? `0 0 16px ${progressColor}80, 0 0 28px ${progressColor}60, 0 0 40px ${progressColor}40, inset 0 0 12px ${progressColor}20`
+                            : undefined
+                        }}
                       />
                     </div>
                   );
