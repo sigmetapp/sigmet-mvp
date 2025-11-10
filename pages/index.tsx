@@ -301,8 +301,8 @@ export default function Home() {
               </ul>
               
               {/* Statistics Section */}
-              <div className="mt-6 sm:mt-8">
-                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary-text text-center mb-4 sm:mb-6">
+              <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-white/10">
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-primary-text text-center mb-4 sm:mb-6">
                   📊 Network Statistics
                 </h2>
                 
