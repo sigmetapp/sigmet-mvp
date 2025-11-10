@@ -134,11 +134,17 @@ function ProfileSettings() {
       }
     }
     
-    const profileToSave = {
+    const profileToSave: any = {
       ...profile,
       educational_institution_id: institutionId || null,
-      goals: goals,
     };
+    
+    // Only include goals if the column exists (will be added via migration)
+    // Filter out empty goals before saving
+    const validGoals = goals.filter(g => g.text && g.text.trim() !== '');
+    if (validGoals.length > 0 || goals.length > 0) {
+      profileToSave.goals = validGoals;
+    }
     
     const { error } = await supabase.from('profiles').upsert(profileToSave, { onConflict: 'user_id' });
     if (error) {
