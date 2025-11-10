@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
+import { useSiteSettings } from '@/components/SiteSettingsContext';
 
 export default function AuthPage() {
+  const { invites_only } = useSiteSettings();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +24,13 @@ export default function AuthPage() {
     setMsg(undefined);
     try {
       if (mode === 'signup') {
+        // Check if invite-only registration is enabled
+        if (invites_only && (!inviteCode || !inviteCode.trim())) {
+          setMsg('An invite code is required to register. Please enter a valid invite code.');
+          setPending(false);
+          return;
+        }
+
         const origin = process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin;
         const { data: signData, error } = await supabase.auth.signUp({
           email,
@@ -44,13 +53,19 @@ export default function AuthPage() {
               const { trackInviteAccepted } = await import('@/lib/invite-tracking');
               await trackInviteAccepted(inviteId, signData.user.id);
             }
-            // If invite code is invalid, don't fail registration - just log it
+            // If invite code is invalid and invites_only is enabled, this is an error
             if (inviteErr) {
-              console.warn('Invalid invite code:', inviteErr.message);
+              if (invites_only) {
+                throw new Error('Invalid or expired invite code. Registration requires a valid invite code.');
+              } else {
+                console.warn('Invalid invite code:', inviteErr.message);
+              }
             }
           } catch (inviteErr: any) {
+            if (invites_only) {
+              throw inviteErr;
+            }
             console.warn('Error accepting invite:', inviteErr);
-            // Don't fail registration if invite code is invalid
           }
         }
 
@@ -134,7 +149,8 @@ export default function AuthPage() {
             {mode === 'signup' && (
               <div>
                 <label className="label">
-                  Invite Code <span className="text-white/50 text-xs">(optional)</span>
+                  Invite Code {!invites_only && <span className="text-white/50 text-xs">(optional)</span>}
+                  {invites_only && <span className="text-red-400 text-xs">(required)</span>}
                 </label>
                 <input 
                   className="input" 
@@ -143,10 +159,13 @@ export default function AuthPage() {
                   onChange={e => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                   placeholder="ABCD1234"
                   maxLength={8}
+                  required={invites_only}
                   style={{ textTransform: 'uppercase', fontFamily: 'monospace', letterSpacing: '2px' }}
                 />
                 <p className="text-white/50 text-xs mt-1">
-                  If you have an invite code from a friend, enter it here.
+                  {invites_only 
+                    ? 'Registration is currently invite-only. Please enter a valid invite code to create an account.'
+                    : 'If you have an invite code from a friend, enter it here.'}
                 </p>
               </div>
             )}

@@ -7,10 +7,12 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
 import { useTheme } from '@/components/ThemeProvider';
+import { useSiteSettings } from '@/components/SiteSettingsContext';
 
 export default function SignupPage() {
   const router = useRouter();
   const { theme } = useTheme();
+  const { invites_only } = useSiteSettings();
   const isLight = theme === "light";
 
   const [email, setEmail] = useState('');
@@ -44,6 +46,12 @@ export default function SignupPage() {
       return;
     }
 
+    // Check if invite-only registration is enabled
+    if (invites_only && (!inviteCode || !inviteCode.trim())) {
+      setErrorMsg('An invite code is required to register. Please enter a valid invite code.');
+      return;
+    }
+
     setLoading(true);
     try {
       const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
@@ -72,13 +80,19 @@ export default function SignupPage() {
             const { trackInviteAccepted } = await import('@/lib/invite-tracking');
             await trackInviteAccepted(inviteId, signData.user.id);
           }
-          // If invite code is invalid, don't fail registration - just log it
+          // If invite code is invalid and invites_only is enabled, this is an error
           if (inviteErr) {
-            console.warn('Invalid invite code:', inviteErr.message);
+            if (invites_only) {
+              throw new Error('Invalid or expired invite code. Registration requires a valid invite code.');
+            } else {
+              console.warn('Invalid invite code:', inviteErr.message);
+            }
           }
         } catch (inviteErr: any) {
+          if (invites_only) {
+            throw inviteErr;
+          }
           console.warn('Error accepting invite:', inviteErr);
-          // Don't fail registration if invite code is invalid
         }
       }
 
@@ -177,7 +191,8 @@ export default function SignupPage() {
 
               <div className="formRow">
                 <label htmlFor="inviteCode" className="label">
-                  Invite Code <span className="text-white/50 text-xs">(optional)</span>
+                  Invite Code {!invites_only && <span className="text-white/50 text-xs">(optional)</span>}
+                  {invites_only && <span className="text-red-400 text-xs">(required)</span>}
                 </label>
                 <input
                   id="inviteCode"
@@ -187,10 +202,13 @@ export default function SignupPage() {
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                   maxLength={8}
+                  required={invites_only}
                   style={{ textTransform: 'uppercase', fontFamily: 'monospace', letterSpacing: '2px' }}
                 />
                 <p className="text-white/50 text-xs mt-1">
-                  If you have an invite code from a friend, enter it here.
+                  {invites_only 
+                    ? 'Registration is currently invite-only. Please enter a valid invite code to create an account.'
+                    : 'If you have an invite code from a friend, enter it here.'}
                 </p>
               </div>
 
