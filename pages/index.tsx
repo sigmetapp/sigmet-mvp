@@ -145,8 +145,11 @@ export default function Home() {
                 <ol className="mt-3 sm:mt-4 space-y-2 sm:space-y-3 text-primary-text-secondary text-sm sm:text-base list-decimal list-inside">
                   <li className="pl-2">Sign up and confirm your email</li>
                   <li className="pl-2">Set up your profile and avatar</li>
-                  <li className="pl-2">Choose 3 key growth directions</li>
-                  <li className="pl-2">Start sharing and tracking progress</li>
+                  <li className="pl-2">Choose directions that interest you for development</li>
+                  <li className="pl-2">Move through tasks and goals, support and be supported by the community</li>
+                  <li className="pl-2">Develop your profile, get new SW results</li>
+                  <li className="pl-2">Unlock new features for advanced users</li>
+                  <li className="pl-2">Develop your personality comprehensively with our social network</li>
                 </ol>
                 <Button href="/signup" variant="primary" className="mt-5 sm:mt-6 w-full">Get started</Button>
               </div>
