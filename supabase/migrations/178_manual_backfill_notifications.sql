@@ -74,7 +74,9 @@ begin
             select 1 from public.notifications n
             where n.user_id = p.author_id
               and n.type = ''comment_on_post''
-              and n.comment_id::text = c.id::text
+              and n.post_id = c.post_id
+              and n.actor_id = c.%I
+              and abs(extract(epoch from (n.created_at - c.created_at))) < 60
           )
           and not exists (
             select 1 from public.dms_blocks b
@@ -82,7 +84,7 @@ begin
               and b.blocked = c.%I
           )
         on conflict do nothing
-      ', comments_author_col, comments_author_col, comments_author_col);
+      ', comments_author_col, comments_author_col, comments_author_col, comments_author_col);
     else
       -- comment_id is uuid or doesn't exist, insert without comment_id
       raise notice 'comment_id type is % or doesn''t exist, inserting without comment_id', notifications_comment_id_type;
@@ -137,7 +139,9 @@ begin
             select 1 from public.notifications n
             where n.user_id = pc.%I
               and n.type = ''comment_on_comment''
-              and n.comment_id::text = c.id::text
+              and n.post_id = c.post_id
+              and n.actor_id = c.%I
+              and abs(extract(epoch from (n.created_at - c.created_at))) < 60
           )
           and not exists (
             select 1 from public.dms_blocks b
@@ -145,7 +149,7 @@ begin
               and b.blocked = c.%I
           )
         on conflict do nothing
-      ', comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col);
+      ', comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col, comments_author_col);
     else
       -- comment_id is uuid or doesn't exist, insert without comment_id
       execute format('
