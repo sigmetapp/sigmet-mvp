@@ -1,8 +1,91 @@
--- Add checks for ignored/blocked users in notification triggers
--- This prevents notifications from being created when the post author has blocked the actor
+-- Fix comment_id type mismatch: comments.id is bigint, but notifications.comment_id was uuid
+-- This migration fixes the type mismatch and updates the triggers accordingly
 begin;
 
--- Update trigger for comments on posts to check if post author has blocked the commenter
+-- Change comment_id from uuid to bigint to match comments.id type
+-- Handle existing data safely
+do $$
+begin
+  -- Check if column exists and what type it is
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'notifications'
+      and column_name = 'comment_id'
+      and data_type = 'uuid'
+  ) then
+    -- Column exists and is uuid, need to convert
+    -- First, clear any invalid data (comments that don't exist)
+    update public.notifications
+    set comment_id = null
+    where comment_id is not null
+      and not exists (
+        select 1 from public.comments c
+        where c.id::text = notifications.comment_id::text
+      );
+    
+    -- Now convert the type
+    alter table public.notifications 
+      alter column comment_id type bigint using 
+        case 
+          when comment_id is null then null
+          else (comment_id::text)::bigint
+        end;
+  elsif exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'notifications'
+      and column_name = 'comment_id'
+      and data_type = 'bigint'
+  ) then
+    -- Already correct type, just ensure constraint exists
+    raise notice 'comment_id is already bigint, skipping conversion';
+  end if;
+end $$;
+
+-- Update the foreign key constraint
+alter table public.notifications
+  drop constraint if exists notifications_comment_id_fkey;
+
+alter table public.notifications
+  add constraint notifications_comment_id_fkey
+  foreign key (comment_id) references public.comments(id) on delete cascade;
+
+-- Update create_notification function to accept bigint for comment_id
+create or replace function public.create_notification(
+  p_user_id uuid,
+  p_type text,
+  p_actor_id uuid default null,
+  p_post_id bigint default null,
+  p_comment_id bigint default null,
+  p_trust_feedback_id bigint default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- Security definer functions automatically bypass RLS
+  insert into public.notifications (
+    user_id,
+    type,
+    actor_id,
+    post_id,
+    comment_id,
+    trust_feedback_id
+  ) values (
+    p_user_id,
+    p_type,
+    p_actor_id,
+    p_post_id,
+    p_comment_id,
+    p_trust_feedback_id
+  );
+end;
+$$;
+
+-- Update notify_comment_on_post function to use bigint
 create or replace function public.notify_comment_on_post()
 returns trigger
 language plpgsql
@@ -83,15 +166,7 @@ begin
 end;
 $$;
 
--- Recreate trigger for comments on posts
-drop trigger if exists notify_comment_on_post_trigger on public.comments;
-create trigger notify_comment_on_post_trigger
-  after insert on public.comments
-  for each row
-  when (new.parent_id is null)
-  execute function public.notify_comment_on_post();
-
--- Update trigger for replies to comments to check if parent comment author has blocked the replier
+-- Update notify_comment_on_comment function to use bigint
 create or replace function public.notify_comment_on_comment()
 returns trigger
 language plpgsql
@@ -181,71 +256,19 @@ begin
 end;
 $$;
 
--- Recreate trigger for replies to comments
+-- Recreate triggers to ensure they use the updated functions
+drop trigger if exists notify_comment_on_post_trigger on public.comments;
+create trigger notify_comment_on_post_trigger
+  after insert on public.comments
+  for each row
+  when (new.parent_id is null)
+  execute function public.notify_comment_on_post();
+
 drop trigger if exists notify_comment_on_comment_trigger on public.comments;
 create trigger notify_comment_on_comment_trigger
   after insert on public.comments
   for each row
   when (new.parent_id is not null)
   execute function public.notify_comment_on_comment();
-
--- Update trigger for reactions on posts to check if post author has blocked the reactor
-create or replace function public.notify_reaction_on_post()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  post_author_id uuid;
-  is_blocked boolean;
-begin
-  -- Get post author
-  select author_id into post_author_id
-  from public.posts
-  where id = new.post_id;
-
-  -- Check if post author has blocked the reactor
-  -- Default to false (not blocked) if we can't check
-  is_blocked := false;
-  if post_author_id is not null and new.user_id is not null then
-    -- Check if dms_blocks table exists and if user is blocked
-    if exists (
-      select 1 from information_schema.tables 
-      where table_schema = 'public' 
-      and table_name = 'dms_blocks'
-    ) then
-      select exists(
-        select 1
-        from public.dms_blocks
-        where blocker = post_author_id
-          and blocked = new.user_id
-      ) into is_blocked;
-    end if;
-  end if;
-
-  -- Don't notify if reacting to own post or if blocked
-  if post_author_id is not null 
-     and new.user_id is not null 
-     and post_author_id != new.user_id 
-     and not is_blocked then
-    perform public.create_notification(
-      p_user_id := post_author_id,
-      p_type := 'reaction_on_post',
-      p_actor_id := new.user_id,
-      p_post_id := new.post_id
-    );
-  end if;
-
-  return new;
-end;
-$$;
-
--- Recreate trigger for reactions on posts
-drop trigger if exists notify_reaction_on_post_trigger on public.post_reactions;
-create trigger notify_reaction_on_post_trigger
-  after insert on public.post_reactions
-  for each row
-  execute function public.notify_reaction_on_post();
 
 commit;
