@@ -75,7 +75,19 @@ export default async function handler(
 
     if (error) {
       console.error('Error creating blog comment:', error);
-      return res.status(500).json({ error: 'Failed to create blog comment' });
+      console.error('Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        post_id: parseInt(post_id, 10),
+        author_id: userData.user.id,
+        content_length: content.trim().length,
+      });
+      return res.status(500).json({ 
+        error: 'Failed to create blog comment',
+        details: error.message || 'Unknown error',
+      });
     }
 
     return res.status(201).json({ comment: data });
