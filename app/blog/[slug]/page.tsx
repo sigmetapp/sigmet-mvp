@@ -12,6 +12,7 @@ import Button from '@/components/Button';
 import EmojiPicker from '@/components/EmojiPicker';
 import { formatTextWithMentions } from '@/lib/formatText';
 import CommentReactions, { ReactionType } from '@/components/CommentReactions';
+import PostReactions from '@/components/PostReactions';
 
 type BlogPost = {
   id: number;
@@ -169,6 +170,16 @@ export default function BlogPostPage() {
   const [user, setUser] = useState<any>(null);
   const [commenterSWScores, setCommenterSWScores] = useState<Record<string, number>>({});
   
+  // Post reactions state
+  const [postReactionCounts, setPostReactionCounts] = useState<Record<ReactionType, number>>({
+    inspire: 0,
+    respect: 0,
+    relate: 0,
+    support: 0,
+    celebrate: 0,
+  });
+  const [postSelectedReaction, setPostSelectedReaction] = useState<ReactionType | null>(null);
+  
   // Comment reactions state
   const [commentReactions, setCommentReactions] = useState<Record<number, {
     counts: Record<ReactionType, number>;
@@ -191,6 +202,7 @@ export default function BlogPostPage() {
   useEffect(() => {
     if (post) {
       fetchComments();
+      loadBlogPostReactions();
     }
   }, [post]);
   
@@ -200,7 +212,95 @@ export default function BlogPostPage() {
       const commentIds = comments.map(c => c.id);
       loadBlogCommentReactions(commentIds);
     }
+    if (post && user) {
+      loadBlogPostReactions();
+    }
   }, [user]);
+  
+  const loadBlogPostReactions = async () => {
+    if (!post) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('blog_post_reactions')
+        .select('kind, user_id')
+        .eq('post_id', post.id);
+      
+      if (error) {
+        console.error('Failed to load blog post reactions:', error);
+        return;
+      }
+
+      const counts: Record<ReactionType, number> = {
+        inspire: 0,
+        respect: 0,
+        relate: 0,
+        support: 0,
+        celebrate: 0,
+      };
+      let selected: ReactionType | null = null;
+
+      const reactionMap: Record<string, ReactionType> = {
+        inspire: 'inspire',
+        respect: 'inspire',
+        relate: 'inspire',
+        support: 'inspire',
+        celebrate: 'inspire',
+      };
+
+      const userId = user?.id;
+      for (const row of (data || []) as Array<{ kind: string; user_id: string }>) {
+        const reactionType = reactionMap[row.kind];
+        if (!reactionType) continue;
+        counts.inspire = (counts.inspire || 0) + 1;
+        if (userId && row.user_id === userId) {
+          selected = 'inspire';
+        }
+      }
+
+      setPostReactionCounts(counts);
+      setPostSelectedReaction(selected);
+    } catch (error) {
+      console.error('Error loading blog post reactions:', error);
+    }
+  };
+  
+  const handleBlogPostReactionChange = async (reaction: ReactionType | null, counts?: Record<ReactionType, number>) => {
+    if (!user || !post) {
+      alert('Sign in required');
+      return;
+    }
+
+    try {
+      await supabase
+        .from('blog_post_reactions')
+        .delete()
+        .eq('post_id', post.id)
+        .eq('user_id', user.id);
+
+      if (reaction) {
+        const { error: insertError } = await supabase
+          .from('blog_post_reactions')
+          .insert({ post_id: post.id, user_id: user.id, kind: reaction });
+        if (insertError) {
+          throw insertError;
+        }
+      }
+      
+      // Update local state
+      if (counts) {
+        setPostReactionCounts(counts);
+      }
+      setPostSelectedReaction(reaction);
+    } catch (error: any) {
+      console.error('Failed to update blog post reaction', error);
+      const message =
+        error?.message || error?.details || error?.hint || 'Failed to update reaction. Please try again later.';
+      alert(message);
+    } finally {
+      loadBlogPostReactions();
+    }
+  };
 
   const checkAuth = async () => {
     const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -544,6 +644,16 @@ export default function BlogPostPage() {
           className={`blog-content ${isLight ? 'blog-content-light' : 'blog-content-dark'}`}
           dangerouslySetInnerHTML={{ __html: formatBlogContent(post.content) }}
         />
+        
+        {/* Post reactions */}
+        <div className="mt-6 flex items-center justify-start">
+          <PostReactions
+            postId={post.id}
+            initialCounts={postReactionCounts}
+            initialSelected={postSelectedReaction}
+            onReactionChange={handleBlogPostReactionChange}
+          />
+        </div>
       </article>
 
       <section className="space-y-4">

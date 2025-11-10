@@ -99,43 +99,45 @@ export default function CommentReactions({
   const reaction = FIRE_REACTION;
 
   return (
-    <div className={`${isLight ? 'bg-white/10' : 'bg-gray-900/10'} rounded-lg p-1 md:p-1.5 backdrop-blur-sm`}>
+    <div className={`${isLight ? 'bg-gradient-to-br from-white/20 to-white/5' : 'bg-gradient-to-br from-white/15 to-white/5'} rounded-xl p-1.5 md:p-2 backdrop-blur-md border ${isLight ? 'border-black/10' : 'border-white/10'} shadow-lg`}>
       <div className="flex flex-row items-center justify-center gap-1 md:gap-2">
         <motion.button
           onClick={handleReactionClick}
           data-prevent-card-navigation="true"
           whileHover={{ 
-            scale: 1.1, 
-            y: -2,
-            transition: { duration: 0.2, ease: 'easeOut' }
+            scale: 1.08, 
+            y: -3,
+            transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] }
           }}
-          whileTap={{ scale: 1.0 }}
+          whileTap={{ scale: 0.95 }}
           animate={
             popAnimation
               ? {
-                  scale: [1, 1.2, 1],
-                  transition: { duration: 0.2, ease: 'easeOut' },
+                  scale: [1, 1.25, 1],
+                  transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
                 }
               : {}
           }
           className={`
-            relative flex items-center justify-center gap-1 md:gap-1.5 px-1.5 md:px-2 py-1 md:py-1.5 rounded-lg
-            transition-all duration-200 ease-out
+            relative flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-2.5 py-1.5 md:py-2 rounded-xl
+            transition-all duration-300 ease-out
             ${isSelected 
-              ? 'shadow-lg' 
-              : 'shadow-sm hover:shadow-md'
+              ? 'shadow-2xl' 
+              : 'shadow-md hover:shadow-xl'
             }
-            border-0
+            border-0 overflow-hidden
           `}
           style={{
-            backgroundColor: isSelected 
-              ? `${reaction.color}20` 
+            background: isSelected 
+              ? `linear-gradient(135deg, ${reaction.color}25, ${reaction.color}15)` 
               : isLight 
-                ? 'rgba(0, 0, 0, 0.15)'
-                : 'rgba(255, 255, 255, 0.3)',
+                ? 'linear-gradient(135deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.1))'
+                : 'linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.2))',
             boxShadow: isSelected 
-              ? `0 4px 12px ${reaction.color}30, 0 2px 4px ${reaction.color}20`
-              : undefined,
+              ? `0 8px 24px ${reaction.color}40, 0 4px 8px ${reaction.color}30, inset 0 1px 0 ${reaction.color}20`
+              : isLight
+                ? '0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.08)'
+                : '0 4px 12px rgba(255, 255, 255, 0.15), 0 2px 4px rgba(255, 255, 255, 0.1)',
           }}
         >
           <span 
@@ -176,17 +178,34 @@ export default function CommentReactions({
             </AnimatePresence>
           )}
 
-          {/* Glow effect when selected */}
+          {/* Animated glow effect when selected */}
           {isSelected && (
-            <motion.div
-              className="absolute inset-0 rounded-xl pointer-events-none"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.4 }}
-              exit={{ opacity: 0 }}
-              style={{
-                boxShadow: `0 0 16px ${reaction.color}50, 0 0 32px ${reaction.color}30`,
-              }}
-            />
+            <>
+              <motion.div
+                className="absolute inset-0 rounded-xl pointer-events-none"
+                initial={{ opacity: 0 }}
+                animate={{ 
+                  opacity: [0.3, 0.6, 0.3],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+                style={{
+                  background: `radial-gradient(circle at center, ${reaction.color}40, transparent 70%)`,
+                }}
+              />
+              <motion.div
+                className="absolute inset-0 rounded-xl pointer-events-none"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.5 }}
+                exit={{ opacity: 0 }}
+                style={{
+                  boxShadow: `0 0 20px ${reaction.color}60, 0 0 40px ${reaction.color}40, 0 0 60px ${reaction.color}20`,
+                }}
+              />
+            </>
           )}
         </motion.button>
       </div>
