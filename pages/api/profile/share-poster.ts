@@ -1,8 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createCanvas, loadImage, registerFont } from 'canvas';
+import { createCanvas, loadImage } from 'canvas';
 import sharp from 'sharp';
 import QRCode from 'qrcode';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { resolveAvatarUrl } from '@/lib/utils';
 
 // Размеры для разных платформ
 const PLATFORM_SIZES: Record<string, { width: number; height: number }> = {
@@ -64,55 +65,52 @@ async function generatePoster(
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Фон - более светлый градиент для лучшей читаемости
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, '#0f172a');
-  gradient.addColorStop(0.5, '#1e293b');
-  gradient.addColorStop(1, '#334155');
-  ctx.fillStyle = gradient;
+  // Простой темный фон (без градиента для надежности)
+  ctx.fillStyle = '#1a1a2e';
   ctx.fillRect(0, 0, width, height);
 
-  // Компактная компоновка - уменьшаем отступы
-  const padding = width * 0.04;
-  const avatarSize = Math.min(width * 0.3, height * 0.5);
+  // Компактная компоновка
+  const padding = Math.floor(width * 0.04);
+  const avatarSize = Math.floor(Math.min(width * 0.28, height * 0.48));
   const avatarX = padding;
-  const avatarY = padding + (height - avatarSize - padding * 2) / 2; // Центрируем по вертикали
+  const avatarY = Math.floor((height - avatarSize) / 2);
 
-  // Загружаем аватарку через sharp для лучшей обработки
+  // Загружаем аватарку - используем resolveAvatarUrl для правильной нормализации
   let avatarImage: any = null;
   if (profile.avatar_url) {
     try {
-      let avatarUrl = profile.avatar_url;
-      if (!avatarUrl.startsWith('http')) {
-        avatarUrl = `https://${avatarUrl.replace(/^https?:\/\//, '')}`;
-      }
-      
-      const avatarResponse = await fetch(avatarUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-      });
-      
-      if (avatarResponse.ok) {
-        const avatarBuffer = await avatarResponse.arrayBuffer();
-        try {
-          // Обрабатываем через sharp для гарантированной загрузки и конвертации
-          const processedAvatar = await sharp(Buffer.from(avatarBuffer))
-            .resize(Math.ceil(avatarSize * 2), Math.ceil(avatarSize * 2), {
-              fit: 'cover',
-              position: 'center',
-            })
-            .png()
-            .toBuffer();
-          avatarImage = await loadImage(processedAvatar);
-        } catch (sharpError) {
-          // Если sharp не смог обработать, пробуем напрямую
-          console.error('Sharp error, trying direct load:', sharpError);
+      const resolvedUrl = resolveAvatarUrl(profile.avatar_url);
+      if (resolvedUrl) {
+        console.log('Loading avatar from:', resolvedUrl);
+        const avatarResponse = await fetch(resolvedUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0',
+          },
+        });
+        
+        if (avatarResponse.ok) {
+          const avatarBuffer = await avatarResponse.arrayBuffer();
+          const buffer = Buffer.from(avatarBuffer);
+          
+          // Пробуем обработать через sharp
           try {
-            avatarImage = await loadImage(Buffer.from(avatarBuffer));
-          } catch (directError) {
-            console.error('Direct load also failed:', directError);
+            const processed = await sharp(buffer)
+              .resize(avatarSize * 2, avatarSize * 2, {
+                fit: 'cover',
+                position: 'center',
+              })
+              .toFormat('png')
+              .toBuffer();
+            avatarImage = await loadImage(processed);
+            console.log('Avatar loaded via sharp');
+          } catch (sharpErr) {
+            // Fallback: пробуем напрямую
+            console.log('Sharp failed, trying direct load');
+            avatarImage = await loadImage(buffer);
+            console.log('Avatar loaded directly');
           }
+        } else {
+          console.error('Avatar response not OK:', avatarResponse.status);
         }
       }
     } catch (err) {
@@ -125,13 +123,13 @@ async function generatePoster(
   const avatarCenterY = avatarY + avatarSize / 2;
   const avatarRadius = avatarSize / 2;
 
-  // Рисуем рамку для SW уровня (внешняя, более толстая)
+  // Рисуем рамку для SW уровня (внешняя)
   if (swRating !== null) {
     const swLevel = getSWLevel(swRating);
     ctx.strokeStyle = swLevel.color;
-    ctx.lineWidth = 12;
+    ctx.lineWidth = 14;
     ctx.beginPath();
-    ctx.arc(avatarCenterX, avatarCenterY, avatarRadius + 6, 0, Math.PI * 2);
+    ctx.arc(avatarCenterX, avatarCenterY, avatarRadius + 7, 0, Math.PI * 2);
     ctx.stroke();
   }
 
@@ -142,17 +140,27 @@ async function generatePoster(
   ctx.clip();
   
   if (avatarImage) {
-    ctx.drawImage(avatarImage, avatarX, avatarY, avatarSize, avatarSize);
+    try {
+      ctx.drawImage(avatarImage, avatarX, avatarY, avatarSize, avatarSize);
+      console.log('Avatar drawn successfully');
+    } catch (drawErr) {
+      console.error('Error drawing avatar:', drawErr);
+      // Fallback to placeholder
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
+    }
   } else {
-    // Placeholder с инициалами - более контрастный
+    // Placeholder с инициалами
     ctx.fillStyle = '#475569';
     ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.floor(avatarSize * 0.35)}px sans-serif`;
+    const fontSize = Math.floor(avatarSize * 0.4);
+    ctx.font = `bold ${fontSize}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const initials = (profile.full_name || profile.username || 'U').substring(0, 2).toUpperCase();
     ctx.fillText(initials, avatarCenterX, avatarCenterY);
+    console.log('Placeholder drawn with initials:', initials);
   }
   ctx.restore();
 
@@ -161,87 +169,96 @@ async function generatePoster(
   const contentY = avatarY;
   const contentWidth = width - contentX - padding;
 
-  // Имя пользователя - более крупное и контрастное
-  const nameY = contentY + avatarSize * 0.15;
+  // Имя пользователя - белый, жирный, крупный
+  const nameY = contentY + Math.floor(avatarSize * 0.2);
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.floor(width * 0.05)}px sans-serif`;
+  ctx.font = `bold ${Math.floor(width * 0.052)}px Arial`;
   ctx.textAlign = 'left';
-  const displayName = (profile.full_name || profile.username || 'User').substring(0, 30);
+  ctx.textBaseline = 'top';
+  const displayName = (profile.full_name || profile.username || 'User').substring(0, 25);
   ctx.fillText(displayName, contentX, nameY);
+  console.log('Name drawn:', displayName);
 
-  // Username - более заметный
-  const usernameY = nameY + Math.floor(width * 0.04);
+  // Username
+  const usernameY = nameY + Math.floor(width * 0.045);
   ctx.fillStyle = '#cbd5e1';
-  ctx.font = `${Math.floor(width * 0.032)}px sans-serif`;
-  ctx.fillText(`@${profile.username || profile.user_id.slice(0, 12)}`, contentX, usernameY);
+  ctx.font = `bold ${Math.floor(width * 0.035)}px Arial`;
+  const username = `@${profile.username || profile.user_id.slice(0, 12)}`;
+  ctx.fillText(username, contentX, usernameY);
+  console.log('Username drawn:', username);
 
   // SW рейтинг - компактно под username
-  const swY = usernameY + Math.floor(width * 0.055);
+  const swY = usernameY + Math.floor(width * 0.06);
   if (swRating !== null) {
     const swLevel = getSWLevel(swRating);
     const swColor = SW_LEVEL_COLORS[swLevel.name];
-    const swBoxHeight = Math.floor(width * 0.09);
+    const swBoxHeight = Math.floor(width * 0.095);
     const swBoxY = swY - swBoxHeight / 2;
-    const swBoxWidth = Math.min(contentWidth * 0.7, width * 0.4);
-    const borderRadius = 15;
+    const swBoxWidth = Math.min(contentWidth * 0.75, width * 0.42);
+    const borderRadius = 16;
     
-    // Более яркий фон для SW
+    // Яркий цветной фон для SW
     ctx.fillStyle = swColor.bg;
     roundRect(ctx, contentX, swBoxY, swBoxWidth, swBoxHeight, borderRadius);
     ctx.fill();
     
     // Белая рамка для контраста
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     roundRect(ctx, contentX, swBoxY, swBoxWidth, swBoxHeight, borderRadius);
     ctx.stroke();
     
-    // Текст SW - белый, жирный
+    // Текст SW - белый, жирный, крупный
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.floor(width * 0.038)}px sans-serif`;
-    ctx.fillText('SW', contentX + Math.floor(width * 0.02), swY + Math.floor(width * 0.018));
+    ctx.font = `bold ${Math.floor(width * 0.042)}px Arial`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText('SW', contentX + Math.floor(width * 0.025), swY);
     
     // Значение SW - крупное
-    ctx.fillText(swRating.toLocaleString(), contentX + Math.floor(width * 0.12), swY + Math.floor(width * 0.018));
+    const swValue = swRating.toLocaleString();
+    ctx.fillText(swValue, contentX + Math.floor(width * 0.13), swY);
     
     // Уровень SW справа
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.floor(width * 0.026)}px sans-serif`;
+    ctx.font = `bold ${Math.floor(width * 0.028)}px Arial`;
     const levelText = swLevel.name;
     const levelTextWidth = ctx.measureText(levelText).width;
-    ctx.fillText(levelText, contentX + swBoxWidth - levelTextWidth - Math.floor(width * 0.02), swY + Math.floor(width * 0.018));
+    ctx.fillText(levelText, contentX + swBoxWidth - levelTextWidth - Math.floor(width * 0.025), swY);
+    console.log('SW drawn:', swValue, swLevel.name);
   }
 
   // TF рейтинг - компактно под SW
-  const tfY = swY + Math.floor(width * 0.08);
+  const tfY = swY + Math.floor(width * 0.085);
   const tfColor = tfRating >= 100 ? '#c084fc' : tfRating >= 60 ? '#7affc0' : '#ff6677';
-  const tfBoxHeight = Math.floor(width * 0.09);
+  const tfBoxHeight = Math.floor(width * 0.095);
   const tfBoxY = tfY - tfBoxHeight / 2;
-  const tfBoxWidth = Math.min(contentWidth * 0.7, width * 0.4);
-  const borderRadius = 15;
+  const tfBoxWidth = Math.min(contentWidth * 0.75, width * 0.42);
+  const borderRadius = 16;
   
-  // Яркий фон для TF
+  // Яркий цветной фон для TF
   ctx.fillStyle = tfColor;
   roundRect(ctx, contentX, tfBoxY, tfBoxWidth, tfBoxHeight, borderRadius);
   ctx.fill();
   
   // Белая рамка для контраста
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3;
   roundRect(ctx, contentX, tfBoxY, tfBoxWidth, tfBoxHeight, borderRadius);
   ctx.stroke();
   
-  // Текст TF - белый, жирный
+  // Текст TF - белый, жирный, крупный
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.floor(width * 0.038)}px sans-serif`;
-  ctx.fillText('TF', contentX + Math.floor(width * 0.02), tfY + Math.floor(width * 0.018));
+  ctx.font = `bold ${Math.floor(width * 0.042)}px Arial`;
+  ctx.textBaseline = 'middle';
+  ctx.fillText('TF', contentX + Math.floor(width * 0.025), tfY);
   
   // Значение TF - крупное
-  ctx.fillText(`${tfRating}%`, contentX + Math.floor(width * 0.12), tfY + Math.floor(width * 0.018));
+  const tfValue = `${tfRating}%`;
+  ctx.fillText(tfValue, contentX + Math.floor(width * 0.13), tfY);
+  console.log('TF drawn:', tfValue);
 
-  // QR код - справа внизу, компактно
+  // QR код - справа внизу
   try {
-    const qrSize = Math.floor(Math.min(width * 0.2, height * 0.25));
+    const qrSize = Math.floor(Math.min(width * 0.22, height * 0.28));
     const qrCodeDataUrl = await QRCode.toDataURL(profileUrl, {
       width: qrSize,
       margin: 2,
@@ -254,44 +271,49 @@ async function generatePoster(
     
     const qrImage = await loadImage(qrCodeDataUrl);
     const qrX = width - qrSize - padding;
-    const qrY = height - qrSize - padding - Math.floor(width * 0.04);
+    const qrY = height - qrSize - padding - Math.floor(width * 0.05);
     
-    // Белый фон с тенью для QR кода
-    const qrPadding = 12;
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 4;
+    // Белый фон для QR кода
+    const qrPadding = 14;
     ctx.fillStyle = '#ffffff';
-    roundRect(ctx, qrX - qrPadding, qrY - qrPadding, qrSize + qrPadding * 2, qrSize + qrPadding * 2, 15);
+    roundRect(ctx, qrX - qrPadding, qrY - qrPadding, qrSize + qrPadding * 2, qrSize + qrPadding * 2, 16);
     ctx.fill();
-    ctx.shadowBlur = 0;
+    
+    // Черная рамка
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
+    roundRect(ctx, qrX - qrPadding, qrY - qrPadding, qrSize + qrPadding * 2, qrSize + qrPadding * 2, 16);
+    ctx.stroke();
     
     ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
     
-    // Текст под QR кодом - более контрастный
+    // Текст под QR кодом
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.floor(width * 0.022)}px sans-serif`;
+    ctx.font = `bold ${Math.floor(width * 0.024)}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText('Scan QR', qrX + qrSize / 2, qrY + qrSize + Math.floor(width * 0.025));
-    ctx.font = `${Math.floor(width * 0.016)}px sans-serif`;
+    ctx.textBaseline = 'top';
+    ctx.fillText('Scan QR', qrX + qrSize / 2, qrY + qrSize + Math.floor(width * 0.028));
+    ctx.font = `bold ${Math.floor(width * 0.018)}px Arial`;
     ctx.fillStyle = '#cbd5e1';
-    ctx.fillText('View Profile', qrX + qrSize / 2, qrY + qrSize + Math.floor(width * 0.045));
+    ctx.fillText('View Profile', qrX + qrSize / 2, qrY + qrSize + Math.floor(width * 0.05));
+    console.log('QR code drawn');
   } catch (err) {
     console.error('Error generating QR code:', err);
   }
 
-  // Логотип/текст Sigmet.app - слева внизу, компактно
-  const logoY = height - padding - Math.floor(width * 0.03);
+  // Логотип/текст Sigmet.app - слева внизу
+  const logoY = height - padding - Math.floor(width * 0.04);
   ctx.fillStyle = '#60a5fa';
-  ctx.font = `bold ${Math.floor(width * 0.045)}px sans-serif`;
+  ctx.font = `bold ${Math.floor(width * 0.048)}px Arial`;
   ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
   ctx.fillText('Sigmet.app', contentX, logoY);
   
-  // Подзаголовок - более заметный
+  // Подзаголовок
   ctx.fillStyle = '#94a3b8';
-  ctx.font = `${Math.floor(width * 0.022)}px sans-serif`;
-  ctx.fillText('Social Network', contentX, logoY + Math.floor(width * 0.035));
+  ctx.font = `bold ${Math.floor(width * 0.024)}px Arial`;
+  ctx.fillText('Social Network', contentX, logoY + Math.floor(width * 0.038));
+  console.log('Logo drawn');
 
   // Конвертируем canvas в buffer
   const buffer = canvas.toBuffer('image/png');
