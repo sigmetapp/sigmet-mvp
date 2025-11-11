@@ -298,7 +298,6 @@ begin
     from public.posts p
     where (%s)
       and (%s)
-    order by p.created_at desc
   ', text_expr, author_col, nonempty_condition, regex_condition);
 
   for post_record in execute query loop
