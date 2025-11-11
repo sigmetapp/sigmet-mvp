@@ -54,7 +54,6 @@ export default async function handler(
       return message.includes('column') && message.includes('does not exist');
     };
 
-    const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     const getCountByUserColumns = async (table: string, columns: string[]) => {
       let fallbackCount = 0;
@@ -205,159 +204,56 @@ export default async function handler(
 
     const followersPoints = followersCount * weights.follower_points;
 
-    // Calculate connections (same logic as calculate endpoint)
+    // Get connections count from optimized user_connections table
     let connectionsCount = 0;
     let firstConnectionsCount = 0;
     let repeatConnectionsCount = 0;
 
-    if (profile && profile.username) {
-      const { data: allPosts, error: allPostsError } = await supabase
-        .from('posts')
-        .select('id, body, text, user_id, author_id')
-        .order('created_at', { ascending: false })
-        .limit(1000);
+    try {
+      // Get all connections for this user from the optimized table
+      const { data: connections, error: connectionsError } = await supabase
+        .from('user_connections')
+        .select('connection_type')
+        .eq('user_id', userId);
 
-      if (allPostsError) {
+      if (connectionsError) {
         // For non-admins, skip access errors instead of throwing
-        if (isAccessError(allPostsError)) {
-          console.warn('Access error fetching all posts for connections calculation (skipping):', {
-            message: allPostsError?.message || '',
-            code: allPostsError?.code || '',
+        if (isAccessError(connectionsError)) {
+          console.warn('Access error fetching user_connections (skipping):', {
+            message: connectionsError?.message || '',
+            code: connectionsError?.code || '',
             userId,
           });
           // Continue without connections
+        } else {
+          console.error('Error fetching user_connections:', {
+            error: connectionsError,
+            message: connectionsError?.message || '',
+            code: connectionsError?.code || '',
+            details: connectionsError?.details || '',
+            userId,
+          });
+          // Continue without connections if there's an error
         }
-      } else if (allPosts) {
-        const myMentionPatterns: string[] = [];
-        if (profile.username && profile.username.trim() !== '') {
-          myMentionPatterns.push(`@${profile.username.toLowerCase()}`);
-          myMentionPatterns.push(`/u/${profile.username.toLowerCase()}`);
-        }
-        myMentionPatterns.push(`/u/${userId}`);
-
-          const hasMention = (text: string, patterns: string[]): boolean => {
-            for (const pattern of patterns) {
-              if (pattern.startsWith('@')) {
-                const username = escapeRegex(pattern.substring(1));
-                const regex = new RegExp(`@${username}(\\s|$|\\n)`, 'i');
-                if (regex.test(text)) return true;
-              }
-              if (pattern.startsWith('/u/')) {
-                const slug = escapeRegex(pattern.substring(3));
-                const regex = new RegExp(`/u/${slug}(\\s|$|\\n)`, 'i');
-                if (regex.test(text)) return true;
-              }
-            }
-            return false;
-          };
-
-        const theyMentionedMe: Record<string, Set<number>> = {};
-        const iMentionedThem: Record<string, Set<number>> = {};
-
-        for (const post of allPosts) {
-          const postAuthorId = (post as any).user_id || (post as any).author_id;
-          if (!postAuthorId || postAuthorId === userId) continue;
-          
-          const body = (post as any).body || (post as any).text || '';
-          if (hasMention(body, myMentionPatterns)) {
-            if (!theyMentionedMe[postAuthorId]) {
-              theyMentionedMe[postAuthorId] = new Set();
-            }
-            theyMentionedMe[postAuthorId].add(post.id);
-          }
-        }
-
-        const allUserIds = new Set<string>();
-        Object.keys(theyMentionedMe).forEach((uid) => allUserIds.add(uid));
-
-        if (allUserIds.size > 0) {
-          const { data: userProfiles } = await supabase
-            .from('profiles')
-            .select('user_id, username')
-            .in('user_id', Array.from(allUserIds));
-
-          const usernameToUserId: Record<string, string> = {};
-          if (userProfiles) {
-            for (const p of userProfiles as any[]) {
-              const uid = p.user_id as string;
-              const username = (p.username || '').toLowerCase();
-              if (username) {
-                usernameToUserId[`@${username}`] = uid;
-                usernameToUserId[`/u/${username}`] = uid;
-              }
-            }
-          }
-
-          for (const post of allPosts) {
-            const postAuthorId = (post as any).user_id || (post as any).author_id;
-            if (postAuthorId !== userId) continue;
-
-            const body = (post as any).body || (post as any).text || '';
-            
-            for (const [pattern, uid] of Object.entries(usernameToUserId)) {
-              const lowerPattern = pattern.toLowerCase();
-              let found = false;
-              
-              if (lowerPattern.startsWith('@')) {
-                const username = lowerPattern.substring(1);
-                const regex = new RegExp(`@${escapeRegex(username)}(\\s|$|\\n)`, 'i');
-                if (regex.test(body)) found = true;
-              }
-              if (lowerPattern.startsWith('/u/')) {
-                const username = lowerPattern.substring(3);
-                const regex = new RegExp(`/u/${escapeRegex(username)}(\\s|$|\\n)`, 'i');
-                if (regex.test(body)) found = true;
-              }
-              
-              if (found) {
-                if (!iMentionedThem[uid]) {
-                  iMentionedThem[uid] = new Set();
-                }
-                iMentionedThem[uid].add(post.id);
-              }
-            }
-          }
-
-          // Calculate connections (same logic as connections page)
-          // A connection is created when: user A tags me OR I tag user A
-          // Each tag counts as 1 connection
-          // If they tagged me 2 times, that's 2 connections
-          // If I tagged them 1 time, that's 1 connection
-          // Total connections = sum of all tags (their tags + my tags)
-          // First connection overall gets more points, repeat connections get less
-          // Check all users who mentioned me OR whom I mentioned
-          const allConnectedUsers = new Set<string>();
-          Object.keys(theyMentionedMe).forEach(uid => allConnectedUsers.add(uid));
-          Object.keys(iMentionedThem).forEach(uid => allConnectedUsers.add(uid));
-          
-          for (const userId_conn of allConnectedUsers) {
-            const theirPosts = theyMentionedMe[userId_conn] || new Set();
-            const myPosts = iMentionedThem[userId_conn] || new Set();
-
-            // Count connections: sum of all tags
-            // Each post where they mentioned me = 1 connection
-            // Each post where I mentioned them = 1 connection
-            const userConnectionsCount = theirPosts.size + myPosts.size;
-            
-            if (userConnectionsCount > 0) {
-              connectionsCount += userConnectionsCount;
-              
-              // For each connection with this user:
-              // - The first connection overall is "first"
-              // - All subsequent connections are "repeat"
-              for (let i = 0; i < userConnectionsCount; i++) {
-                if (firstConnectionsCount === 0) {
-                  // This is the first connection overall
-                  firstConnectionsCount++;
-                } else {
-                  // This is a repeat connection
-                  repeatConnectionsCount++;
-                }
-              }
-            }
+      } else if (connections && connections.length > 0) {
+        // Count total connections (each row in user_connections = 1 connection)
+        connectionsCount = connections.length;
+        
+        // Calculate first vs repeat connections
+        // The first connection overall gets more points, repeat connections get less
+        for (let i = 0; i < connectionsCount; i++) {
+          if (firstConnectionsCount === 0) {
+            // This is the first connection overall
+            firstConnectionsCount++;
+          } else {
+            // This is a repeat connection
+            repeatConnectionsCount++;
           }
         }
       }
+    } catch (connectionsErr) {
+      console.warn('Exception fetching user_connections:', connectionsErr);
+      // Continue without connections
     }
 
     const connectionsPoints = (firstConnectionsCount * weights.connection_first_points) + 

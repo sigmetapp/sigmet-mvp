@@ -301,10 +301,68 @@ export default function SWPage() {
           return;
         }
 
+        // Сначала проверяем кэш для быстрого отображения
+        let cachedSWData: any = null;
+        try {
+          const { data: cachedScore } = await supabase
+            .from('sw_scores')
+            .select('total, last_updated, breakdown')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (cachedScore && cachedScore.last_updated) {
+            const cacheAge = Date.now() - new Date(cachedScore.last_updated).getTime();
+            const cacheDuration = 15 * 60 * 1000; // 15 minutes
+            
+            // Always use cached data if available (even if stale) for instant display
+            cachedSWData = {
+              totalSW: cachedScore.total || 0,
+              breakdown: cachedScore.breakdown,
+              cached: cacheAge < cacheDuration,
+              cacheAge: Math.floor(cacheAge / 1000),
+            };
+            setSwData(cachedSWData);
+            setCachedData(CACHE_KEY_SW, cachedSWData);
+            setLoading(false); // Stop loading immediately when cache is found
+            
+            // If cache is stale, trigger background refresh
+            if (cacheAge >= cacheDuration) {
+              // Don't wait for refresh, just trigger it
+              fetch('/api/sw/recalculate', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ user_id: user.id }),
+              })
+              .then(res => res.ok ? res.json() : null)
+              .then(data => {
+                if (data?.totalSW !== undefined) {
+                  // Update with fresh data when ready
+                  const freshData = {
+                    totalSW: data.totalSW,
+                    breakdown: data.breakdown || cachedSWData.breakdown,
+                    cached: false,
+                  };
+                  setSwData(freshData);
+                  setCachedData(CACHE_KEY_SW, freshData);
+                }
+              })
+              .catch(() => {
+                // Ignore errors
+              });
+            }
+          }
+        } catch (cacheErr) {
+          // Ignore cache errors, will fetch fresh data
+        }
+
         // Загружаем все данные параллельно
+        // Only fetch SW data if we don't have cached data
         const [swDataResult, recentActivityData, cityLeadersData, adminData, growthData] = await Promise.allSettled([
-          // Основные данные SW
-          fetch('/api/sw/calculate', {
+          // Основные данные SW (only fetch if no cache)
+          cachedSWData ? Promise.resolve(cachedSWData) : fetch('/api/sw/calculate', {
             headers: { 'Authorization': `Bearer ${token}` },
           }).then(res => {
             if (!res.ok) throw new Error('Failed to load SW data');
@@ -332,11 +390,46 @@ export default function SWPage() {
         // Обрабатываем результаты и кэшируем
         if (swDataResult.status === 'fulfilled') {
           const data = swDataResult.value;
-          setSwData(data);
-          setCachedData(CACHE_KEY_SW, data);
+          // Only update if we got fresh data (not cached)
+          if (!cachedSWData || !data.cached) {
+            setSwData(data);
+            setCachedData(CACHE_KEY_SW, data);
+          }
           
-          // Load SW levels from weights if available
-          if (data.weights?.sw_levels) {
+          // Load SW levels from weights if available (separate call for better performance)
+          if (!data.weights?.sw_levels) {
+            // If weights not in response, load separately
+            fetch('/api/sw/weights', {
+              headers: { 'Authorization': `Bearer ${token}` },
+            })
+            .then(res => res.ok ? res.json() : null)
+            .then(weightsData => {
+              if (weightsData?.sw_levels) {
+                try {
+                  const mappedLevels = weightsData.sw_levels.map((level: any, index: number) => {
+                    const defaultLevel = SW_LEVELS.find(l => l.name === level.name) || SW_LEVELS[index] || SW_LEVELS[0];
+                    return {
+                      name: level.name || defaultLevel.name,
+                      minSW: level.minSW ?? defaultLevel.minSW,
+                      maxSW: level.maxSW ?? defaultLevel.maxSW,
+                      features: defaultLevel.features,
+                      color: defaultLevel.color,
+                    };
+                  });
+                  
+                  if (mappedLevels.length > 0) {
+                    setSwLevels(mappedLevels);
+                  }
+                } catch (err) {
+                  console.error('Error parsing sw_levels:', err);
+                }
+              }
+            })
+            .catch(() => {
+              // Ignore errors
+            });
+          } else {
+            // Use weights from response
             try {
               const levels = typeof data.weights.sw_levels === 'string' 
                 ? JSON.parse(data.weights.sw_levels)
@@ -519,6 +612,60 @@ export default function SWPage() {
         return;
       }
 
+      // Check cache first
+      const { data: cachedScore } = await supabase
+        .from('sw_scores')
+        .select('total, last_updated, breakdown')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (cachedScore && cachedScore.last_updated) {
+        const cacheAge = Date.now() - new Date(cachedScore.last_updated).getTime();
+        const cacheDuration = 15 * 60 * 1000; // 15 minutes
+        
+        // Always use cached data if available (even if stale) for instant display
+        const cachedData = {
+          totalSW: cachedScore.total || 0,
+          breakdown: cachedScore.breakdown,
+          cached: cacheAge < cacheDuration,
+          cacheAge: Math.floor(cacheAge / 1000),
+        };
+        setSwData(cachedData);
+        setCachedData(CACHE_KEY_SW, cachedData);
+        setLoading(false);
+        setError(null);
+        
+        // If cache is stale, trigger background refresh
+        if (cacheAge >= cacheDuration) {
+          fetch('/api/sw/recalculate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ user_id: user.id }),
+          })
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data?.totalSW !== undefined) {
+              const freshData = {
+                totalSW: data.totalSW,
+                breakdown: data.breakdown || cachedData.breakdown,
+                cached: false,
+              };
+              setSwData(freshData);
+              setCachedData(CACHE_KEY_SW, freshData);
+            }
+          })
+          .catch(() => {
+            // Ignore errors
+          });
+        }
+        
+        return;
+      }
+
+      // Cache is stale or missing - fetch fresh data
       const response = await fetch('/api/sw/calculate', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -534,6 +681,7 @@ export default function SWPage() {
 
       const data = await response.json();
       setSwData(data);
+      setCachedData(CACHE_KEY_SW, data);
       
       // Load SW levels from weights if available
       if (data.weights?.sw_levels) {
@@ -615,8 +763,9 @@ export default function SWPage() {
     }
   }
 
-  // Показываем скелетон только если нет кэшированных данных
-  if (loading && !swData && isAdmin === null) {
+  // Показываем скелетон только если нет кэшированных данных и загрузка еще идет
+  // Если есть кэшированные данные, показываем их сразу
+  if (loading && !swData && !getCachedData<SWData>(CACHE_KEY_SW)) {
     return <SWSkeleton />;
   }
 

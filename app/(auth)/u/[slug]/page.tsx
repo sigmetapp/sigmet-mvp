@@ -665,25 +665,60 @@ export default function PublicProfilePage() {
           return;
         }
 
-        const response = await fetch(`/api/sw/calculate?user_id=${encodeURIComponent(profile.user_id)}`, {
+        // Try to get SW from cache first (sw_scores table)
+        const { data: swScore, error: swScoreError } = await supabase
+          .from('sw_scores')
+          .select('total, last_updated')
+          .eq('user_id', profile.user_id)
+          .single();
+
+        // Check if cached data is fresh (less than 15 minutes old)
+        const isStale = !swScore || !swScore.last_updated || 
+          (Date.now() - new Date(swScore.last_updated).getTime()) > (15 * 60 * 1000);
+
+        if (swScore && !isStale) {
+          // Use cached data - it's fresh
+          setTotalSW(swScore.total || 0);
+          setLoadingSW(false); // Stop loading immediately
+        } else {
+          // Show cached data immediately (even if stale) for fast UI
+          if (swScore?.total !== undefined) {
+            setTotalSW(swScore.total);
+            setLoadingSW(false); // Stop loading immediately when showing cached data
+          }
+          
+          // Trigger background recalculation (don't wait for it)
+          fetch(`/api/sw/recalculate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ user_id: profile.user_id }),
+          })
+          .then(res => res.json())
+          .then(data => {
+            // Update UI when recalculation completes
+            if (data.totalSW !== undefined) {
+              setTotalSW(data.totalSW);
+            }
+          })
+          .catch(() => {
+            // Ignore errors in background recalculation
+          });
+        }
+        
+        // Load SW levels from weights (separate lightweight call, don't wait for it)
+        fetch('/api/sw/weights', {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
           },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setTotalSW(data.totalSW || 0);
-          
-          // Load SW levels from weights if available (same logic as /sw page)
-          if (data.weights?.sw_levels) {
+        })
+        .then(res => res.ok ? res.json() : null)
+        .then(weightsData => {
+          if (weightsData?.sw_levels) {
             try {
-              const levels = typeof data.weights.sw_levels === 'string' 
-                ? JSON.parse(data.weights.sw_levels)
-                : data.weights.sw_levels;
-              
-              // Map levels to include features (if not in DB, use defaults)
-              const mappedLevels = levels.map((level: any, index: number) => {
+              const mappedLevels = weightsData.sw_levels.map((level: any, index: number) => {
                 const defaultLevel = SW_LEVELS.find(l => l.name === level.name) || SW_LEVELS[index] || SW_LEVELS[0];
                 return {
                   name: level.name || defaultLevel.name,
@@ -701,13 +736,13 @@ export default function PublicProfilePage() {
               console.error('Error parsing sw_levels:', err);
             }
           }
-        } else {
-          setTotalSW(null);
-        }
+        })
+        .catch(() => {
+          // Ignore errors
+        });
       } catch (error) {
         console.error('Error loading SW:', error);
         setTotalSW(null);
-      } finally {
         setLoadingSW(false);
       }
     })();

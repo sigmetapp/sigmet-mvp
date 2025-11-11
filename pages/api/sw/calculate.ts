@@ -70,7 +70,7 @@ export default async function handler(
     }
 
     // Check cache: if sw_scores was updated less than cache_duration_minutes ago, return cached value
-    const cacheDurationMinutes = weights.cache_duration_minutes ?? 5;
+    const cacheDurationMinutes = weights.cache_duration_minutes ?? 15;
     const CACHE_DURATION_MS = cacheDurationMinutes * 60 * 1000;
     
     const { data: cachedScore, error: cacheError } = await supabase
@@ -272,226 +272,58 @@ export default async function handler(
 
     const followersPoints = followersCount * weights.follower_points;
 
-    // Get connections count (all mentions)
-    // Calculate connections based on mentions in posts (same logic as connections page)
+    // Get connections count from optimized user_connections table
     // A connection is created when: user A tags me OR I tag user A
     // Each tag counts as 1 connection
     let connectionsCount = 0;
     let firstConnectionsCount = 0;
     let repeatConnectionsCount = 0;
 
-    if (profile && profile.username) {
-      // Get all posts to check for mutual mentions
-      // Try both 'body' and 'text' fields to handle different schema versions
-      const { data: allPosts, error: allPostsError } = await supabase
-        .from('posts')
-        .select('id, body, text, user_id, author_id')
-        .order('created_at', { ascending: false })
-        .limit(1000);
+    try {
+      // Get all connections for this user from the optimized table
+      const { data: connections, error: connectionsError } = await supabase
+        .from('user_connections')
+        .select('connection_type')
+        .eq('user_id', userId);
 
-      if (allPostsError) {
+      if (connectionsError) {
         // For non-admins, skip access errors instead of throwing
-        if (isAccessError(allPostsError)) {
-          console.warn('Access error fetching all posts for connections calculation (skipping):', {
-            message: allPostsError?.message || '',
-            code: allPostsError?.code || '',
+        if (isAccessError(connectionsError)) {
+          console.warn('Access error fetching user_connections (skipping):', {
+            message: connectionsError?.message || '',
+            code: connectionsError?.code || '',
             userId,
           });
           // Continue without connections
         } else {
-          console.error('Error fetching all posts for connections calculation:', {
-            error: allPostsError,
-            message: allPostsError?.message || '',
-            code: allPostsError?.code || '',
-            details: allPostsError?.details || '',
+          console.error('Error fetching user_connections:', {
+            error: connectionsError,
+            message: connectionsError?.message || '',
+            code: connectionsError?.code || '',
+            details: connectionsError?.details || '',
             userId,
           });
           // Continue without connections if there's an error
         }
-      } else if (allPosts) {
-        const myMentionPatterns: string[] = [];
-        if (profile.username && profile.username.trim() !== '') {
-          myMentionPatterns.push(`@${profile.username.toLowerCase()}`);
-          myMentionPatterns.push(`/u/${profile.username.toLowerCase()}`);
-        }
-        myMentionPatterns.push(`/u/${userId}`);
-
-        // Helper function to check if text contains a mention (whole word match)
-          const hasMention = (text: string, patterns: string[]): boolean => {
-            for (const pattern of patterns) {
-              if (pattern.startsWith('@')) {
-                const username = escapeRegex(pattern.substring(1));
-                const regex = new RegExp(`@${username}(\\s|$|\\n)`, 'i');
-                if (regex.test(text)) return true;
-              }
-              if (pattern.startsWith('/u/')) {
-                const slug = escapeRegex(pattern.substring(3));
-                const regex = new RegExp(`/u/${slug}(\\s|$|\\n)`, 'i');
-                if (regex.test(text)) return true;
-              }
-            }
-            return false;
-          };
-
-        // Map: userId -> set of post IDs where they mentioned me
-        const theyMentionedMe: Record<string, Set<number>> = {};
+      } else if (connections && connections.length > 0) {
+        // Count total connections (each row in user_connections = 1 connection)
+        connectionsCount = connections.length;
         
-        // Map: userId -> set of post IDs where I mentioned them
-        const iMentionedThem: Record<string, Set<number>> = {};
-
-        // Find users who mentioned this user
-        for (const post of allPosts) {
-          const postAuthorId = (post as any).user_id || (post as any).author_id;
-          if (!postAuthorId || postAuthorId === userId) continue;
-          
-          const body = (post as any).body || (post as any).text || '';
-          if (hasMention(body, myMentionPatterns)) {
-            if (!theyMentionedMe[postAuthorId]) {
-              theyMentionedMe[postAuthorId] = new Set();
-            }
-            theyMentionedMe[postAuthorId].add(post.id);
+        // Calculate first vs repeat connections
+        // The first connection overall gets more points, repeat connections get less
+        for (let i = 0; i < connectionsCount; i++) {
+          if (firstConnectionsCount === 0) {
+            // This is the first connection overall
+            firstConnectionsCount++;
+          } else {
+            // This is a repeat connection
+            repeatConnectionsCount++;
           }
-        }
-
-        // Get all usernames for comparison
-        const allUserIds = new Set<string>();
-        Object.keys(theyMentionedMe).forEach((uid) => allUserIds.add(uid));
-
-        if (allUserIds.size > 0) {
-          const { data: userProfiles, error: userProfilesError } = await supabase
-            .from('profiles')
-            .select('user_id, username')
-            .in('user_id', Array.from(allUserIds));
-
-          if (userProfilesError) {
-            // For non-admins, skip access errors instead of throwing
-            if (isAccessError(userProfilesError)) {
-              console.warn('Access error fetching user profiles for connections calculation (skipping):', {
-                message: userProfilesError?.message || '',
-                code: userProfilesError?.code || '',
-                userId,
-                allUserIdsCount: allUserIds.size,
-              });
-            } else {
-              console.error('Error fetching user profiles for connections calculation:', {
-                error: userProfilesError,
-                message: userProfilesError?.message || '',
-                code: userProfilesError?.code || '',
-                details: userProfilesError?.details || '',
-                userId,
-                allUserIdsCount: allUserIds.size,
-              });
-            }
-            // Continue without user profiles - will skip connections calculation
-          }
-
-          const usernameToUserId: Record<string, string> = {};
-          if (userProfiles) {
-            for (const p of userProfiles as any[]) {
-              const uid = p.user_id as string;
-              const username = (p.username || '').toLowerCase();
-              if (username) {
-                usernameToUserId[`@${username}`] = uid;
-                usernameToUserId[`/u/${username}`] = uid;
-              }
-            }
-          }
-
-          // Find my posts that mention others
-          for (const post of allPosts) {
-            const postAuthorId = (post as any).user_id || (post as any).author_id;
-            if (postAuthorId !== userId) continue;
-
-            const body = (post as any).body || (post as any).text || '';
-            
-            // Check for mentions of other users (whole word match)
-            for (const [pattern, uid] of Object.entries(usernameToUserId)) {
-              const lowerPattern = pattern.toLowerCase();
-              let found = false;
-              
-              // Check for @username pattern
-              if (lowerPattern.startsWith('@')) {
-                const username = lowerPattern.substring(1);
-                const regex = new RegExp(`@${escapeRegex(username)}(\\s|$|\\n)`, 'i');
-                if (regex.test(body)) found = true;
-              }
-              // Check for /u/username pattern
-              if (lowerPattern.startsWith('/u/')) {
-                const username = lowerPattern.substring(3);
-                const regex = new RegExp(`/u/${escapeRegex(username)}(\\s|$|\\n)`, 'i');
-                if (regex.test(body)) found = true;
-              }
-              
-              if (found) {
-                if (!iMentionedThem[uid]) {
-                  iMentionedThem[uid] = new Set();
-                }
-                iMentionedThem[uid].add(post.id);
-              }
-            }
-          }
-
-          // Calculate connections (same logic as connections page)
-          // A connection is created when: user A tags me OR I tag user A
-          // Each tag counts as 1 connection
-          // If they tagged me 2 times, that's 2 connections
-          // If I tagged them 1 time, that's 1 connection
-          // Total connections = sum of all tags (their tags + my tags)
-          // First connection overall gets more points, repeat connections get less
-          // Check all users who mentioned me OR whom I mentioned
-          const allConnectedUsers = new Set<string>();
-          Object.keys(theyMentionedMe).forEach(uid => allConnectedUsers.add(uid));
-          Object.keys(iMentionedThem).forEach(uid => allConnectedUsers.add(uid));
-          
-          for (const userId_conn of allConnectedUsers) {
-            const theirPosts = theyMentionedMe[userId_conn] || new Set();
-            const myPosts = iMentionedThem[userId_conn] || new Set();
-
-            // Count connections: sum of all tags
-            // Each post where they mentioned me = 1 connection
-            // Each post where I mentioned them = 1 connection
-            const userConnectionsCount = theirPosts.size + myPosts.size;
-            
-            if (userConnectionsCount > 0) {
-              connectionsCount += userConnectionsCount;
-              
-              // For each connection with this user:
-              // - The first connection overall is "first"
-              // - All subsequent connections are "repeat"
-              for (let i = 0; i < userConnectionsCount; i++) {
-                if (firstConnectionsCount === 0) {
-                  // This is the first connection overall
-                  firstConnectionsCount++;
-                } else {
-                  // This is a repeat connection
-                  repeatConnectionsCount++;
-                }
-              }
-              
-              // Debug logging
-              console.log('Connection found:', {
-                userId: userId_conn,
-                theirPosts: theirPosts.size,
-                myPosts: myPosts.size,
-                userConnectionsCount,
-                firstConnectionsCount,
-                repeatConnectionsCount,
-                totalConnections: connectionsCount
-              });
-            }
-          }
-          
-          // Debug logging for all connections
-          console.log('All connections summary:', {
-            totalConnections: connectionsCount,
-            firstConnections: firstConnectionsCount,
-            repeatConnections: repeatConnectionsCount,
-            theyMentionedMeCount: Object.keys(theyMentionedMe).length,
-            iMentionedThemCount: Object.keys(iMentionedThem).length,
-            allConnectedUsersCount: allConnectedUsers.size
-          });
         }
       }
+    } catch (connectionsErr) {
+      console.warn('Exception fetching user_connections:', connectionsErr);
+      // Continue without connections
     }
 
     const connectionsPoints = (firstConnectionsCount * weights.connection_first_points) + 
@@ -679,12 +511,29 @@ export default async function handler(
     let inflationRate = 1.0;
     
     try {
-      // Get total number of users
-      const { count: totalUsers, error: usersError } = await supabase
-        .from('profiles')
-        .select('user_id', { count: 'exact', head: true });
+      // Get total number of users (with caching)
+      // Cache in memory for 1 hour to avoid repeated queries
+      let userCount = 0;
+      const cacheKey = 'total_users_count';
+      const cacheTTL = 60 * 60 * 1000; // 1 hour
+      
+      // Simple in-memory cache (in production, use Redis or similar)
+      if (typeof (global as any).__swCache === 'undefined') {
+        (global as any).__swCache = {};
+      }
+      const cache = (global as any).__swCache;
+      
+      const cached = cache[cacheKey];
+      if (cached && Date.now() - cached.timestamp < cacheTTL) {
+        userCount = cached.value;
+      } else {
+        const { count: totalUsers, error: usersError } = await supabase
+          .from('profiles')
+          .select('user_id', { count: 'exact', head: true });
 
-      const userCount = totalUsers || 0;
+        userCount = totalUsers || 0;
+        cache[cacheKey] = { value: userCount, timestamp: Date.now() };
+      }
       
       // Calculate days since registration (if profile exists)
       let daysSinceRegistration = 0;
