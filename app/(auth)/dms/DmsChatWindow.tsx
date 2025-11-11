@@ -11,6 +11,7 @@ import { assertThreadId } from '@/lib/dm/threadId';
 import { useTheme } from '@/components/ThemeProvider';
 import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 import { resolveAvatarUrl } from '@/lib/utils';
+import { listThreadReceipts } from '@/lib/dm/receipts';
 
 const INITIAL_MESSAGE_LIMIT = 30;
 const HISTORY_PAGE_LIMIT = 30;
@@ -1065,34 +1066,29 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     if (!thread?.id || !currentUserId || !partnerId) return;
 
     const refreshReceipts = async () => {
-      try {
-        // Get message IDs of messages sent by current user
-        const myMessageIds = messages
-          .filter((m) => m.sender_id === currentUserId && m.id !== -1)
-          .map((m) => m.id);
-        
-        const queryMessageIds = sanitizeMessageIdsForQuery(myMessageIds);
-        if (queryMessageIds.length === 0) return;
-        
-        // Load receipts where partner is the recipient
-        const { data: receipts } = await supabase
-          .from('dms_message_receipts')
-          .select('message_id, status')
-          .in('message_id', queryMessageIds)
-          .eq('user_id', partnerId);
-        
-        if (receipts) {
+        try {
+          const myMessageIds = messages
+            .filter((m) => m.sender_id === currentUserId && m.id !== -1)
+            .map((m) => m.id);
+
+          const queryMessageIds = sanitizeMessageIdsForQuery(myMessageIds);
+          if (queryMessageIds.length === 0 || !thread?.id) return;
+
+          const receipts = await listThreadReceipts(thread.id, {
+            messageIds: queryMessageIds,
+            recipientIds: [partnerId],
+          });
+
           for (const receipt of receipts) {
             const messageId = String(receipt.message_id);
             if (!messageId || messageId === '-1') {
               continue;
             }
 
-            const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
+            const status = receipt.status ?? 'delivered';
             updateMessageReceiptStatus(messageId, status, 'refresh');
           }
-        }
-      } catch (err) {
+        } catch (err) {
         console.error('Error refreshing receipts:', err);
       }
     };
@@ -1186,43 +1182,40 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         });
         
         // Load message receipts for messages sent by current user (to show partner's read status)
-          if (sorted.length > 0 && currentUserId && partnerId) {
-            try {
-              // Get message IDs of messages sent by current user
-              const myMessageIds = sorted
-                .filter((m) => m.sender_id === currentUserId)
-                .map((m) => m.id);
+            if (sorted.length > 0 && currentUserId && partnerId && threadId) {
+              try {
+                const myMessageIds = sorted
+                  .filter((m) => m.sender_id === currentUserId)
+                  .map((m) => m.id);
 
-              const queryMessageIds = sanitizeMessageIdsForQuery(myMessageIds);
+                const queryMessageIds = sanitizeMessageIdsForQuery(myMessageIds);
 
-              if (queryMessageIds.length > 0) {
-                // Load receipts where partner is the recipient (user_id = partnerId)
-                const { data: receipts } = await supabase
-                  .from('dms_message_receipts')
-                  .select('message_id, status')
-                  .in('message_id', queryMessageIds)
-                  .eq('user_id', partnerId);
-                
-                if (receipts) {
-                  const applied: Array<{ messageId: string; status: 'sent' | 'delivered' | 'read' }> = [];
-                  for (const receipt of receipts) {
-                    const messageId = String(receipt.message_id);
-                    if (!messageId || messageId === '-1') {
-                      continue;
+                if (queryMessageIds.length > 0) {
+                  const receipts = await listThreadReceipts(threadId, {
+                    messageIds: queryMessageIds,
+                    recipientIds: [partnerId],
+                  });
+
+                  if (receipts.length > 0) {
+                    const applied: Array<{ messageId: string; status: 'sent' | 'delivered' | 'read' }> = [];
+                    for (const receipt of receipts) {
+                      const messageId = String(receipt.message_id);
+                      if (!messageId || messageId === '-1') {
+                        continue;
+                      }
+                      const status = receipt.status ?? 'delivered';
+                      applied.push({ messageId, status });
+                      updateMessageReceiptStatus(messageId, status, 'bootstrap');
                     }
-                    const status = (receipt.status as 'sent' | 'delivered' | 'read') ?? 'delivered';
-                    applied.push({ messageId, status });
-                    updateMessageReceiptStatus(messageId, status, 'bootstrap');
-                  }
-                  if (applied.length > 0) {
-                    console.log('[DM] Loaded receipts via bootstrap', applied);
+                    if (applied.length > 0) {
+                      console.log('[DM] Loaded receipts via bootstrap', applied);
+                    }
                   }
                 }
+              } catch (err) {
+                console.error('Error loading message receipts:', err);
               }
-            } catch (err) {
-              console.error('Error loading message receipts:', err);
             }
-          }
         
         // Scroll to bottom immediately after messages are loaded
         // This happens synchronously to avoid visible scrolling
