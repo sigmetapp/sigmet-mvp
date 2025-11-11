@@ -183,6 +183,7 @@ create trigger post_connections_trigger
   execute function public.update_connections_on_post();
 
 -- Enhanced stats function with precalculated first/repeat totals
+drop function if exists public.get_user_connection_stats(uuid);
 create or replace function public.get_user_connection_stats(target_user_id uuid)
 returns table (
   total_count bigint,
