@@ -1,6 +1,9 @@
 -- Backfill user_connections table from existing posts
 begin;
 
+-- Drop old function if it exists (in case return type changed)
+drop function if exists public.backfill_user_connections();
+
 -- Function to backfill connections from all existing posts
 create or replace function public.backfill_user_connections()
 returns jsonb
