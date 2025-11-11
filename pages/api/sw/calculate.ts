@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { normalizeConnectionStats } from '@/lib/sw/connectionStats';
 
 export default async function handler(
   req: NextApiRequest,
@@ -307,18 +308,10 @@ export default async function handler(
             ? [connectionStatsData]
             : [];
 
-        if (connectionStatsArray.length > 0) {
-          const stats = connectionStatsArray[0] as {
-            total_count?: number | null;
-            unique_connections?: number | null;
-          };
-          const totalConnections = Number(stats?.total_count ?? 0);
-          const uniqueConnections = Number(stats?.unique_connections ?? 0);
-
-          connectionsCount = totalConnections;
-          firstConnectionsCount = uniqueConnections;
-          repeatConnectionsCount = Math.max(totalConnections - uniqueConnections, 0);
-        }
+        const normalized = normalizeConnectionStats(connectionStatsArray[0]);
+        connectionsCount = normalized.total;
+        firstConnectionsCount = normalized.first;
+        repeatConnectionsCount = normalized.repeat;
       }
     } catch (connectionStatsErr) {
       console.warn('Exception fetching user connection stats:', connectionStatsErr);
