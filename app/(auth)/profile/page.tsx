@@ -27,6 +27,7 @@ function ProfileSettings() {
   const isLight = theme === "light";
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
+  const [activeTab, setActiveTab] = useState<'main' | 'settings'>('main');
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -35,6 +36,13 @@ function ProfileSettings() {
   const [educationalInstitutionType, setEducationalInstitutionType] = useState<'school' | 'college' | 'university' | null>(null);
   const [educationalInstitutionName, setEducationalInstitutionName] = useState<string>('');
   const [goals, setGoals] = useState<Array<{ id: string; text: string; target_date: string | null }>>([]);
+  // Password change state
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordNote, setPasswordNote] = useState<string>();
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -179,14 +187,118 @@ function ProfileSettings() {
     }
   }
 
+  async function changePassword() {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordNote('Please fill in all password fields');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordNote('New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordNote('Password must be at least 6 characters');
+      return;
+    }
+
+    setChangingPassword(true);
+    setPasswordNote(undefined);
+
+    try {
+      // First, verify current password by attempting to sign in
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) {
+        setPasswordNote('Unable to get user information');
+        setChangingPassword(false);
+        return;
+      }
+
+      // Verify current password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        setPasswordNote('Current password is incorrect');
+        setChangingPassword(false);
+        return;
+      }
+
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        setPasswordNote(updateError.message);
+        setChangingPassword(false);
+        return;
+      }
+
+      setPasswordNote('Password changed successfully');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      // Clear success message and close form after 3 seconds
+      setTimeout(() => {
+        setPasswordNote(undefined);
+        setShowPasswordForm(false);
+      }, 3000);
+    } catch (err: any) {
+      setPasswordNote(err.message || 'Failed to change password');
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
   if (loading) {
     return <ProfileSkeleton />;
   }
 
   return (
-    <main className="max-w-2xl mx-auto px-0 md:px-4 py-4 md:p-4">
-      <div className="card-glow-primary p-4 md:p-5 space-y-3">
+    <main className="max-w-7xl mx-auto px-0 md:px-4 py-4 md:p-4">
+      <div className="card-glow-primary no-hover p-4 md:p-5 space-y-3">
         <h1 className={`text-lg font-semibold ${isLight ? "text-primary-text" : "text-primary-text"}`}>Profile settings</h1>
+
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-white/10 pb-2">
+          <button
+            onClick={() => setActiveTab('main')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'main'
+                ? isLight
+                  ? "text-primary-blue border-b-2 border-primary-blue"
+                  : "text-primary-blue-light border-b-2 border-primary-blue-light"
+                : isLight
+                ? "text-primary-text-secondary hover:text-primary-text"
+                : "text-white/60 hover:text-white/80"
+            }`}
+          >
+            Main
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'settings'
+                ? isLight
+                  ? "text-primary-blue border-b-2 border-primary-blue"
+                  : "text-primary-blue-light border-b-2 border-primary-blue-light"
+                : isLight
+                ? "text-primary-text-secondary hover:text-primary-text"
+                : "text-white/60 hover:text-white/80"
+            }`}
+          >
+            Settings
+          </button>
+        </div>
+
+        {/* Main Tab Content */}
+        {activeTab === 'main' && (
+          <div className="space-y-3">
 
         {/* Avatar section - more compact */}
         <div className="flex items-center gap-3 pb-2 border-b border-white/10">
@@ -445,128 +557,228 @@ function ProfileSettings() {
           </div>
         </div>
 
-        {/* Goals Section */}
-        <div className="pt-4 border-t border-white/10">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <label className="label text-xs mb-1">Goals</label>
-              <p className={`text-xs ${isLight ? "text-primary-text-secondary" : "text-white/60"}`}>
-                Set your personal goals with optional target dates (4-7 goals recommended)
-              </p>
-            </div>
-            {goals.length < 7 && (
-              <button
-                onClick={() => {
-                  const newGoal = { id: Date.now().toString(), text: '', target_date: null };
-                  setGoals([...goals, newGoal]);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  isLight
-                    ? "bg-primary-blue text-white hover:bg-primary-blue-dark"
-                    : "bg-primary-blue text-white hover:bg-primary-blue-dark"
-                }`}
-              >
-                + Add Goal
-              </button>
-            )}
-          </div>
-          
-          <div className="space-y-3">
-            {goals.length === 0 ? (
-              <div className={`text-center py-8 rounded-xl border border-dashed ${
-                isLight ? "border-gray-300 bg-gray-50/50" : "border-white/20 bg-white/5"
-              }`}>
-                <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-                <p className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-white/60"}`}>
-                  No goals set yet. Click "Add Goal" to get started.
-                </p>
-              </div>
-            ) : (
-              goals.map((goal, index) => (
-                <div
-                  key={goal.id}
-                  className={`p-4 rounded-xl border ${
-                    isLight
-                      ? "border-gray-200 bg-gray-50/50 hover:border-gray-300"
-                      : "border-white/10 bg-white/5 hover:border-white/20"
-                  } transition-all`}
+            {/* Password Change Section */}
+            <div className="pt-4 border-t border-white/10">
+              {!showPasswordForm ? (
+                <Button
+                  onClick={() => setShowPasswordForm(true)}
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 space-y-3">
-                      <div>
-                        <label className={`text-xs font-medium mb-1.5 block ${
-                          isLight ? "text-primary-text-secondary" : "text-white/70"
-                        }`}>
-                          Goal {index + 1}
-                        </label>
-                        <textarea
-                          className={`input text-sm py-2 min-h-[80px] resize-none ${
-                            isLight ? "" : ""
-                          }`}
-                          placeholder="Describe your goal..."
-                          value={goal.text}
-                          onChange={(e) => {
-                            const updatedGoals = [...goals];
-                            updatedGoals[index].text = e.target.value;
-                            setGoals(updatedGoals);
-                          }}
-                          rows={3}
-                        />
-                      </div>
-                      <div>
-                        <label className={`text-xs font-medium mb-1.5 block ${
-                          isLight ? "text-primary-text-secondary" : "text-white/70"
-                        }`}>
-                          Target Date (optional)
-                        </label>
-                        <input
-                          type="date"
-                          className="input text-sm py-2"
-                          value={goal.target_date || ''}
-                          onChange={(e) => {
-                            const updatedGoals = [...goals];
-                            updatedGoals[index].target_date = e.target.value || null;
-                            setGoals(updatedGoals);
-                          }}
-                        />
-                      </div>
-                    </div>
+                  Change Password
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="label text-xs">Change Password</label>
                     <button
                       onClick={() => {
-                        const updatedGoals = goals.filter((_, i) => i !== index);
-                        setGoals(updatedGoals);
+                        setShowPasswordForm(false);
+                        setCurrentPassword('');
+                        setNewPassword('');
+                        setConfirmPassword('');
+                        setPasswordNote(undefined);
                       }}
-                      className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
-                        isLight
-                          ? "text-red-500 hover:bg-red-50"
-                          : "text-red-400 hover:bg-red-500/10"
-                      }`}
-                      aria-label="Remove goal"
+                      className={`text-xs ${isLight ? "text-primary-text-secondary hover:text-primary-text" : "text-white/60 hover:text-white/80"}`}
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                      Cancel
                     </button>
                   </div>
+                  <div>
+                    <label className={`text-xs font-medium mb-1.5 block ${
+                      isLight ? "text-primary-text-secondary" : "text-white/70"
+                    }`}>
+                      Current Password
+                    </label>
+                    <input
+                      type="password"
+                      className="input text-sm py-2"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter current password"
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium mb-1.5 block ${
+                      isLight ? "text-primary-text-secondary" : "text-white/70"
+                    }`}>
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      className="input text-sm py-2"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password (min 6 characters)"
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium mb-1.5 block ${
+                      isLight ? "text-primary-text-secondary" : "text-white/70"
+                    }`}>
+                      Confirm New Password
+                    </label>
+                    <input
+                      type="password"
+                      className="input text-sm py-2"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                    />
+                  </div>
+                  {passwordNote && (
+                    <div className={`text-xs ${
+                      passwordNote.includes('successfully')
+                        ? isLight ? "text-green-600" : "text-green-400"
+                        : isLight ? "text-red-500" : "text-red-400"
+                    }`}>
+                      {passwordNote}
+                    </div>
+                  )}
+                  <Button
+                    onClick={changePassword}
+                    variant="secondary"
+                    size="sm"
+                    disabled={changingPassword}
+                    className="w-full"
+                  >
+                    {changingPassword ? 'Changing...' : 'Change Password'}
+                  </Button>
                 </div>
-              ))
-            )}
+              )}
+            </div>
           </div>
-          
-          {goals.length > 0 && goals.length < 4 && (
-            <p className={`text-xs mt-3 ${isLight ? "text-amber-600" : "text-amber-400"}`}>
-              💡 Tip: Setting 4-7 goals helps maintain focus and balance.
-            </p>
-          )}
-          {goals.length >= 7 && (
-            <p className={`text-xs mt-3 ${isLight ? "text-primary-text-secondary" : "text-white/60"}`}>
-              Maximum of 7 goals reached.
-            </p>
-          )}
-        </div>
+        )}
 
+        {/* Settings Tab Content */}
+        {activeTab === 'settings' && (
+          <div className="space-y-3">
+            {/* Goals Section */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <label className="label text-xs mb-1">Goals</label>
+                  <p className={`text-xs ${isLight ? "text-primary-text-secondary" : "text-white/60"}`}>
+                    Set your personal goals with optional target dates (4-7 goals recommended)
+                  </p>
+                </div>
+                {goals.length < 7 && (
+                  <button
+                    onClick={() => {
+                      const newGoal = { id: Date.now().toString(), text: '', target_date: null };
+                      setGoals([...goals, newGoal]);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      isLight
+                        ? "bg-primary-blue text-white hover:bg-primary-blue-dark"
+                        : "bg-primary-blue text-white hover:bg-primary-blue-dark"
+                    }`}
+                  >
+                    + Add Goal
+                  </button>
+                )}
+              </div>
+              
+              <div className="space-y-3">
+                {goals.length === 0 ? (
+                  <div className={`text-center py-8 rounded-xl border border-dashed ${
+                    isLight ? "border-gray-300 bg-gray-50/50" : "border-white/20 bg-white/5"
+                  }`}>
+                    <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    <p className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-white/60"}`}>
+                      No goals set yet. Click "Add Goal" to get started.
+                    </p>
+                  </div>
+                ) : (
+                  goals.map((goal, index) => (
+                    <div
+                      key={goal.id}
+                      className={`p-4 rounded-xl border ${
+                        isLight
+                          ? "border-gray-200 bg-gray-50/50 hover:border-gray-300"
+                          : "border-white/10 bg-white/5 hover:border-white/20"
+                      } transition-all`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 space-y-3">
+                          <div>
+                            <label className={`text-xs font-medium mb-1.5 block ${
+                              isLight ? "text-primary-text-secondary" : "text-white/70"
+                            }`}>
+                              Goal {index + 1}
+                            </label>
+                            <textarea
+                              className={`input text-sm py-2 min-h-[80px] resize-none ${
+                                isLight ? "" : ""
+                              }`}
+                              placeholder="Describe your goal..."
+                              value={goal.text}
+                              onChange={(e) => {
+                                const updatedGoals = [...goals];
+                                updatedGoals[index].text = e.target.value;
+                                setGoals(updatedGoals);
+                              }}
+                              rows={3}
+                            />
+                          </div>
+                          <div>
+                            <label className={`text-xs font-medium mb-1.5 block ${
+                              isLight ? "text-primary-text-secondary" : "text-white/70"
+                            }`}>
+                              Target Date (optional)
+                            </label>
+                            <input
+                              type="date"
+                              className="input text-sm py-2"
+                              value={goal.target_date || ''}
+                              onChange={(e) => {
+                                const updatedGoals = [...goals];
+                                updatedGoals[index].target_date = e.target.value || null;
+                                setGoals(updatedGoals);
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const updatedGoals = goals.filter((_, i) => i !== index);
+                            setGoals(updatedGoals);
+                          }}
+                          className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                            isLight
+                              ? "text-red-500 hover:bg-red-50"
+                              : "text-red-400 hover:bg-red-500/10"
+                          }`}
+                          aria-label="Remove goal"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              {goals.length > 0 && goals.length < 4 && (
+                <p className={`text-xs mt-3 ${isLight ? "text-amber-600" : "text-amber-400"}`}>
+                  💡 Tip: Setting 4-7 goals helps maintain focus and balance.
+                </p>
+              )}
+              {goals.length >= 7 && (
+                <p className={`text-xs mt-3 ${isLight ? "text-primary-text-secondary" : "text-white/60"}`}>
+                  Maximum of 7 goals reached.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Save button and messages - shown for both tabs */}
         {note && !showSuccess && (
           <div className={`text-sm ${isLight ? "text-red-500" : "text-red-400"}`}>{note}</div>
         )}
@@ -580,9 +792,16 @@ function ProfileSettings() {
             </div>
           </div>
         )}
-        <Button onClick={saveProfile} variant="primary" className="w-full">
-          Save
-        </Button>
+        {activeTab === 'main' && (
+          <Button onClick={saveProfile} variant="primary" className="w-full">
+            Save
+          </Button>
+        )}
+        {activeTab === 'settings' && (
+          <Button onClick={saveProfile} variant="primary" className="w-full">
+            Save Goals
+          </Button>
+        )}
       </div>
     </main>
   );

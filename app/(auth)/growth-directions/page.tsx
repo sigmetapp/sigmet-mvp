@@ -1249,7 +1249,7 @@ function GrowthDirectionsInner() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 transition-opacity duration-300">
+    <div className="max-w-7xl mx-auto px-0 md:px-4 py-4 md:p-4 transition-opacity duration-300">
       {/* Header */}
       <div className="mb-6 md:mb-8">
         <div className="flex items-center justify-between">

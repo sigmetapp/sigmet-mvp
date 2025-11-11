@@ -319,6 +319,23 @@ html.theme-light .card-glow-primary {
   box-shadow: 0 2px 12px rgba(51, 144, 236, 0.08), 0 0 0 1px rgba(51, 144, 236, 0.05);
 }
 
+.card-glow-primary.no-hover:hover {
+  border-color: rgba(51, 144, 236, 0.2);
+  box-shadow: 0 2px 12px rgba(51, 144, 236, 0.1), 0 0 0 1px rgba(51, 144, 236, 0.08);
+  transform: none;
+  background: rgba(31, 41, 55, 0.8);
+}
+
+.card-glow-primary.no-hover:hover::before {
+  opacity: 0;
+}
+
+html.theme-light .card-glow-primary.no-hover:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(51, 144, 236, 0.15);
+  box-shadow: 0 2px 12px rgba(51, 144, 236, 0.08), 0 0 0 1px rgba(51, 144, 236, 0.05);
+}
+
 html.theme-light .card-glow-primary:hover {
   border-color: rgba(51, 144, 236, 0.25);
   box-shadow: 0 8px 24px rgba(51, 144, 236, 0.15), 0 0 0 1px rgba(51, 144, 236, 0.1);
