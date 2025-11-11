@@ -15,6 +15,7 @@ declare
   processed_count int := 0;
   author_col text;
   total_posts int := 0;
+  all_posts_count int := 0;
   result jsonb;
 begin
   -- Determine which column exists (user_id or author_id)
@@ -28,22 +29,48 @@ begin
     );
   end if;
   
-  -- Count total posts first
-  select count(*) into total_posts
-  from public.posts
-  where text is not null and trim(text) != '';
+  -- First, check total posts in table
+  select count(*) into all_posts_count from public.posts;
+  raise notice 'Total posts in table: %', all_posts_count;
   
-  raise notice 'Using column: %, Total posts to process: %', author_col, total_posts;
+  -- Count total posts with text/body (check both text and body fields)
+  -- Use dynamic SQL to handle body column if it exists
+  begin
+    execute format('
+      select count(*) 
+      from public.posts 
+      where (
+        (text is not null and trim(text) != '''') 
+        or (body is not null and trim(body) != '''')
+      )
+    ') into total_posts;
+  exception
+    when undefined_column then
+      -- body column doesn't exist, use only text
+      select count(*) into total_posts
+      from public.posts
+      where text is not null and trim(text) != '';
+  end;
   
-  -- Process posts using the correct column
+  raise notice 'Using column: %, Total posts to process (with text/body): %', author_col, total_posts;
+  
+  -- Process posts using the correct column (try text first, then body)
   for post_record in 
     execute format('
       select 
         id,
-        coalesce(text, '''') as post_text,
+        coalesce(
+          nullif(trim(text), ''''),
+          nullif(trim(body), ''''),
+          ''''
+        ) as post_text,
         %I as post_author_id
       from public.posts
-      where text is not null and trim(text) != ''''
+      where (
+        (text is not null and trim(text) != '''') 
+        or 
+        (body is not null and trim(body) != '''')
+      )
       order by created_at desc
     ', author_col)
   loop
@@ -74,9 +101,10 @@ begin
   result := jsonb_build_object(
     'success', true,
     'processed_count', processed_count,
-    'total_posts', total_posts,
+    'total_posts_in_table', all_posts_count,
+    'total_posts_with_text', total_posts,
     'author_column', author_col,
-    'message', format('Successfully processed %s posts', processed_count)
+    'message', format('Successfully processed %s posts out of %s total', processed_count, total_posts)
   );
   
   return result;
