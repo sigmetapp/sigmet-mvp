@@ -1425,8 +1425,8 @@ export default function PublicProfilePage() {
                     </div>
                   )}
 
-                  {/* Main Info Grid - 3 columns, symmetric */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Main Info Grid - 1 column on mobile, 3 columns on desktop */}
+                  <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-3 gap-3">
                     {/* Column 1 */}
                     <div className="space-y-3">
                       {/* Location */}
