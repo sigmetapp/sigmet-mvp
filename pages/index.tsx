@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import Button from "@/components/Button";
+import { SW_LEVELS, LEVEL_COLOR_SCHEMES, type SWLevel } from "@/lib/swLevels";
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const supabase = createClient(
@@ -331,107 +332,110 @@ export default function Home() {
                     <thead>
                       <tr className="border-b border-primary-blue/30">
                         <th className="text-left py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">Level</th>
-                        <th className="text-left py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">SW Range</th>
                         <th className="text-center py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">Avatar Glow</th>
-                        <th className="text-left py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">Benefits</th>
+                        <th className="text-left py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">Description</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-primary-blue/20">
-                      {/* Level 1 */}
-                      <tr className="hover:bg-primary-blue/5 transition-colors">
-                        <td className="py-4 px-4 sm:px-6">
-                          <span className="text-primary-text font-bold text-lg">Novice</span>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">0 - 100</td>
-                        <td className="py-4 px-4 sm:px-6">
-                          <div className="flex justify-center">
-                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center text-white font-bold text-sm sm:text-base" style={{ boxShadow: '0 0 8px rgba(156, 163, 175, 0.3)' }}>
-                              N
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">Start your journey</td>
-                      </tr>
-                      
-                      {/* Level 2 */}
-                      <tr className="hover:bg-primary-blue/5 transition-colors">
-                        <td className="py-4 px-4 sm:px-6">
-                          <span className="text-primary-text font-bold text-lg">Rising</span>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">100 - 500</td>
-                        <td className="py-4 px-4 sm:px-6">
-                          <div className="flex justify-center">
-                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue/60 to-primary-blue-light/60 flex items-center justify-center text-white font-bold text-sm sm:text-base" style={{ boxShadow: '0 0 12px rgba(51, 144, 236, 0.4)' }}>
-                              R
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">First recognition</td>
-                      </tr>
-                      
-                      {/* Level 3 */}
-                      <tr className="hover:bg-primary-blue/5 transition-colors">
-                        <td className="py-4 px-4 sm:px-6">
-                          <span className="text-primary-text font-bold text-lg">Established</span>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">500 - 1,000</td>
-                        <td className="py-4 px-4 sm:px-6">
-                          <div className="flex justify-center">
-                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-sm sm:text-base" style={{ boxShadow: '0 0 16px rgba(51, 144, 236, 0.6)' }}>
-                              E
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">Growing influence</td>
-                      </tr>
-                      
-                      {/* Level 4 */}
-                      <tr className="hover:bg-primary-blue/5 transition-colors">
-                        <td className="py-4 px-4 sm:px-6">
-                          <span className="text-primary-text font-bold text-lg">Influencer</span>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">1,000 - 5,000</td>
-                        <td className="py-4 px-4 sm:px-6">
-                          <div className="flex justify-center">
-                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-sm sm:text-base" style={{ boxShadow: '0 0 20px rgba(51, 144, 236, 0.8), 0 0 30px rgba(91, 168, 240, 0.4)' }}>
-                              I
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">Community leader</td>
-                      </tr>
-                      
-                      {/* Level 5 */}
-                      <tr className="hover:bg-primary-blue/5 transition-colors">
-                        <td className="py-4 px-4 sm:px-6">
-                          <span className="text-primary-text font-bold text-lg">Master</span>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">5,000 - 10,000</td>
-                        <td className="py-4 px-4 sm:px-6">
-                          <div className="flex justify-center">
-                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-sm sm:text-base" style={{ boxShadow: '0 0 24px rgba(51, 144, 236, 1), 0 0 40px rgba(91, 168, 240, 0.6), 0 0 60px rgba(51, 144, 236, 0.3)' }}>
-                              M
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">Elite status</td>
-                      </tr>
-                      
-                      {/* Level 6 */}
-                      <tr className="hover:bg-primary-blue/5 transition-colors">
-                        <td className="py-4 px-4 sm:px-6">
-                          <span className="text-primary-text font-bold text-lg bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent">Legend</span>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">10,000+</td>
-                        <td className="py-4 px-4 sm:px-6">
-                          <div className="flex justify-center">
-                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-sm sm:text-base animate-pulse" style={{ boxShadow: '0 0 30px rgba(51, 144, 236, 1), 0 0 50px rgba(91, 168, 240, 0.8), 0 0 70px rgba(51, 144, 236, 0.5)' }}>
-                              L
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">Ultimate recognition</td>
-                      </tr>
+                      {SW_LEVELS.map((level, index) => {
+                        const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                        const showGlow = level.name !== 'Beginner';
+                        
+                        // Progressive glow parameters by level (from AvatarWithBadge)
+                        const getGlowParams = (levelName: string) => {
+                          const levelParams: Record<string, any> = {
+                            'Growing': {
+                              borderWidth: 1.5,
+                              outerGlow: { r1: 8, r2: 12, r3: 16, o1: '30', o2: '20', o3: '15' },
+                              imageGlow: { r1: 6, r2: 10, r3: 14, r4: 4, o1: '40', o2: '30', o3: '20', o4: '10' },
+                              gradient: '15'
+                            },
+                            'Advance': {
+                              borderWidth: 2,
+                              outerGlow: { r1: 10, r2: 16, r3: 22, o1: '40', o2: '28', o3: '20' },
+                              imageGlow: { r1: 8, r2: 14, r3: 20, r4: 5, o1: '50', o2: '38', o3: '28', o4: '15' },
+                              gradient: '20'
+                            },
+                            'Expert': {
+                              borderWidth: 2.5,
+                              outerGlow: { r1: 12, r2: 20, r3: 28, o1: '50', o2: '36', o3: '25' },
+                              imageGlow: { r1: 10, r2: 18, r3: 26, r4: 6, o1: '60', o2: '46', o3: '36', o4: '20' },
+                              gradient: '25'
+                            },
+                            'Leader': {
+                              borderWidth: 3,
+                              outerGlow: { r1: 14, r2: 24, r3: 34, o1: '60', o2: '44', o3: '30' },
+                              imageGlow: { r1: 12, r2: 22, r3: 32, r4: 7, o1: '70', o2: '54', o3: '44', o4: '25' },
+                              gradient: '30'
+                            },
+                            'Angel': {
+                              borderWidth: 3.5,
+                              outerGlow: { r1: 16, r2: 28, r3: 40, o1: '70', o2: '52', o3: '35' },
+                              imageGlow: { r1: 14, r2: 26, r3: 38, r4: 8, o1: '80', o2: '62', o3: '52', o4: '30' },
+                              gradient: '35'
+                            }
+                          };
+                          return levelParams[levelName] || null;
+                        };
+                        
+                        const glowParams = showGlow ? getGlowParams(level.name) : null;
+                        const og = glowParams?.outerGlow;
+                        const ig = glowParams?.imageGlow;
+                        
+                        return (
+                          <tr key={level.name} className="hover:bg-primary-blue/5 transition-colors">
+                            <td className="py-4 px-4 sm:px-6">
+                              <span className={`font-bold text-lg ${colorScheme.text}`}>
+                                {level.name}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 sm:px-6">
+                              <div className="flex justify-center">
+                                <div className="relative w-16 h-16 sm:w-20 sm:h-20">
+                                  {/* Outer glow ring */}
+                                  {glowParams && (
+                                    <div
+                                      className="absolute inset-0 rounded-full pointer-events-none"
+                                      style={{
+                                        boxShadow: `0 0 ${og.r1}px ${colorScheme.hex}${og.o1}, 0 0 ${og.r2}px ${colorScheme.hex}${og.o2}, 0 0 ${og.r3}px ${colorScheme.hex}${og.o3}`,
+                                        background: `radial-gradient(circle at center, ${colorScheme.hex}${glowParams.gradient}, transparent 70%)`
+                                      }}
+                                    />
+                                  )}
+                                  {/* Avatar circle */}
+                                  <div
+                                    className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-lg sm:text-xl ${
+                                      showGlow ? '' : 'border border-white/10 bg-gray-600/30'
+                                    }`}
+                                    style={
+                                      glowParams && colorScheme
+                                        ? {
+                                            border: `${glowParams.borderWidth} solid ${colorScheme.hex}`,
+                                            boxShadow: `0 0 ${ig.r1}px ${colorScheme.hex}${ig.o1}, 0 0 ${ig.r2}px ${colorScheme.hex}${ig.o2}, 0 0 ${ig.r3}px ${colorScheme.hex}${ig.o3}, inset 0 0 ${ig.r4}px ${colorScheme.hex}${ig.o4}`,
+                                            background: `radial-gradient(circle, ${colorScheme.hex}40, ${colorScheme.hex}20)`
+                                          }
+                                        : { backgroundColor: 'rgba(156, 163, 175, 0.3)' }
+                                    }
+                                  >
+                                    {level.name.charAt(0)}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">
+                              {level.features.length > 0 ? (
+                                <ul className="list-disc list-inside space-y-1">
+                                  {level.features.slice(0, 3).map((feature, idx) => (
+                                    <li key={idx}>{feature}</li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                'Unlock new features as you progress'
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
