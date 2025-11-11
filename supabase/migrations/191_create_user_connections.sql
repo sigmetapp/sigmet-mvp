@@ -149,7 +149,11 @@ begin
 end;
 $$;
 
+-- Enable hstore extension if not already enabled (for dynamic column access)
+create extension if not exists hstore;
+
 -- Trigger function to update connections when post is created or updated
+-- Uses hstore to handle both user_id and author_id columns dynamically
 create or replace function public.update_connections_on_post()
 returns trigger
 language plpgsql
@@ -158,10 +162,24 @@ as $$
 declare
   post_text text;
   post_author_id uuid;
+  post_row hstore;
 begin
   -- Get post text (use text field - body might not exist in all schemas)
   post_text := coalesce(new.text, '');
-  post_author_id := new.author_id;
+  
+  -- Convert NEW row to hstore for dynamic column access
+  post_row := hstore(new);
+  
+  -- Try to get author_id from either user_id or author_id column
+  post_author_id := (post_row -> 'user_id')::uuid;
+  if post_author_id is null then
+    post_author_id := (post_row -> 'author_id')::uuid;
+  end if;
+  
+  -- If no author column found, skip
+  if post_author_id is null then
+    return new;
+  end if;
   
   -- Delete old connections for this post
   delete from public.user_connections where post_id = new.id;
@@ -176,15 +194,37 @@ end;
 $$;
 
 -- Create trigger on posts table
+-- Trigger will fire on any insert or update, function will handle column detection
 drop trigger if exists post_connections_trigger on public.posts;
 create trigger post_connections_trigger
-  after insert or update of text, author_id on public.posts
+  after insert or update on public.posts
   for each row
   execute function public.update_connections_on_post();
 
 -- Add indexes for posts table to optimize queries
-create index if not exists posts_author_id_created_at_idx 
-  on public.posts(author_id, created_at desc);
+-- Create index on user_id if it exists, otherwise on author_id
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns 
+    where table_schema = 'public' 
+    and table_name = 'posts' 
+    and column_name = 'user_id'
+  ) then
+    create index if not exists posts_user_id_created_at_idx 
+      on public.posts(user_id, created_at desc);
+  end if;
+  
+  if exists (
+    select 1 from information_schema.columns 
+    where table_schema = 'public' 
+    and table_name = 'posts' 
+    and column_name = 'author_id'
+  ) then
+    create index if not exists posts_author_id_created_at_idx 
+      on public.posts(author_id, created_at desc);
+  end if;
+end $$;
 
 -- Additional indexes for SW calculation optimization
 create index if not exists sw_ledger_user_id_idx 

@@ -10,16 +10,34 @@ as $$
 declare
   post_record record;
   processed_count int := 0;
+  author_col text;
 begin
-  -- Process all posts to extract mentions and create connections
+  -- Determine which column exists (user_id or author_id)
+  select column_name into author_col
+  from information_schema.columns
+  where table_schema = 'public'
+  and table_name = 'posts'
+  and column_name in ('user_id', 'author_id')
+  limit 1;
+  
+  if author_col is null then
+    raise notice 'No author column found in posts table';
+    return;
+  end if;
+  
+  raise notice 'Using column: %', author_col;
+  
+  -- Process posts using the correct column
   for post_record in 
-    select 
-      id,
-      coalesce(text, '') as post_text,
-      author_id as post_author_id
-    from public.posts
-    where text is not null and trim(text) != ''
-    order by created_at desc
+    execute format('
+      select 
+        id,
+        coalesce(text, '''') as post_text,
+        %I as post_author_id
+      from public.posts
+      where text is not null and trim(text) != ''''
+      order by created_at desc
+    ', author_col)
   loop
     -- Extract mentions and create connections for this post
     perform public.extract_mentions_from_post(
