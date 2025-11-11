@@ -328,7 +328,7 @@ export default function Home() {
               
               <div className="overflow-x-auto overflow-y-visible">
                 <div className="min-w-full">
-                  <div className="flex items-center justify-center gap-2 sm:gap-4 pb-8">
+                  <div className="flex items-center justify-center gap-2 sm:gap-4">
                     {SW_LEVELS.map((level, index) => {
                       const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
                       const showGlow = level.name !== 'Beginner';
@@ -385,7 +385,7 @@ export default function Home() {
                               </span>
                             </div>
                             {/* Avatar with glow */}
-                            <div className="relative" style={{ paddingBottom: '40px' }}>
+                            <div className="relative">
                               <div className="relative w-12 h-12 sm:w-14 sm:h-14">
                                 {/* Outer glow ring */}
                                 {glowParams && (
@@ -421,7 +421,7 @@ export default function Home() {
                           </div>
                           {/* Arrow between avatars - centered relative to avatars */}
                           {!isLast && (
-                            <div className="flex items-center justify-center" style={{ minWidth: '24px', marginBottom: '40px', alignSelf: 'center' }}>
+                            <div className="flex items-center justify-center" style={{ minWidth: '24px', marginTop: '15px', alignSelf: 'center' }}>
                               <div className="text-primary-blue-light text-xl sm:text-2xl">
                                 →
                               </div>
@@ -431,10 +431,15 @@ export default function Home() {
                       );
                     })}
                   </div>
+                  <div className="mt-3 text-center">
+                    <p className="text-primary-text-secondary text-xs">
+                      * Expanding functionality with each level, new opportunities
+                    </p>
+                  </div>
                 </div>
               </div>
               
-              <div className="mt-4 sm:mt-5 text-center">
+              <div className="mt-4 text-center">
                 <p className="text-primary-text-secondary text-xs sm:text-sm mb-3">
                   Every action counts. Build your reputation through meaningful contributions.
                 </p>
