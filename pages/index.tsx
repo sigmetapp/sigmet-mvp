@@ -7,6 +7,7 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import Button from "@/components/Button";
 import { SW_LEVELS, LEVEL_COLOR_SCHEMES, type SWLevel } from "@/lib/swLevels";
+import { useTheme } from "@/components/ThemeProvider";
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const supabase = createClient(
@@ -102,6 +103,8 @@ interface BlogPost {
 
 export default function Home() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [latestPosts, setLatestPosts] = useState<BlogPost[]>([]);
@@ -195,9 +198,9 @@ export default function Home() {
                 <h3 className="text-primary-text font-bold text-2xl sm:text-3xl md:text-4xl mb-6 sm:mb-8 text-center md:text-left bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent">Quick start</h3>
                 <div className="space-y-2 mb-6 sm:mb-8">
                   {/* Step 1 */}
-                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                  <div className={`group relative backdrop-blur-sm border ${isLight ? 'border-primary-blue/40 bg-white/80' : 'border-primary-blue/20'} rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]`} style={{ padding: '8px 12px', background: isLight ? 'rgba(255, 255, 255, 0.8)' : 'rgba(31, 41, 55, 0.4)' }}>
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
+                      <div className={`flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full ${isLight ? 'bg-primary-blue text-white' : 'bg-primary-blue/20'} flex items-center justify-center font-bold text-xs sm:text-sm ${isLight ? 'group-hover:bg-primary-blue-dark' : 'group-hover:bg-primary-blue/30'} transition-colors`}>
                         1
                       </div>
                       <p className="text-primary-text text-xs sm:text-sm flex-1">
@@ -207,9 +210,9 @@ export default function Home() {
                   </div>
 
                   {/* Step 2 */}
-                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                  <div className={`group relative backdrop-blur-sm border ${isLight ? 'border-primary-blue/40 bg-white/80' : 'border-primary-blue/20'} rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]`} style={{ padding: '8px 12px', background: isLight ? 'rgba(255, 255, 255, 0.8)' : 'rgba(31, 41, 55, 0.4)' }}>
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
+                      <div className={`flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full ${isLight ? 'bg-primary-blue text-white' : 'bg-primary-blue/20'} flex items-center justify-center font-bold text-xs sm:text-sm ${isLight ? 'group-hover:bg-primary-blue-dark' : 'group-hover:bg-primary-blue/30'} transition-colors`}>
                         2
                       </div>
                       <p className="text-primary-text text-xs sm:text-sm flex-1">
@@ -219,9 +222,9 @@ export default function Home() {
                   </div>
 
                   {/* Step 3 */}
-                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                  <div className={`group relative backdrop-blur-sm border ${isLight ? 'border-primary-blue/40 bg-white/80' : 'border-primary-blue/20'} rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]`} style={{ padding: '8px 12px', background: isLight ? 'rgba(255, 255, 255, 0.8)' : 'rgba(31, 41, 55, 0.4)' }}>
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
+                      <div className={`flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full ${isLight ? 'bg-primary-blue text-white' : 'bg-primary-blue/20'} flex items-center justify-center font-bold text-xs sm:text-sm ${isLight ? 'group-hover:bg-primary-blue-dark' : 'group-hover:bg-primary-blue/30'} transition-colors`}>
                         3
                       </div>
                       <p className="text-primary-text text-xs sm:text-sm flex-1">
@@ -231,9 +234,9 @@ export default function Home() {
                   </div>
 
                   {/* Step 4 */}
-                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                  <div className={`group relative backdrop-blur-sm border ${isLight ? 'border-primary-blue/40 bg-white/80' : 'border-primary-blue/20'} rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]`} style={{ padding: '8px 12px', background: isLight ? 'rgba(255, 255, 255, 0.8)' : 'rgba(31, 41, 55, 0.4)' }}>
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
+                      <div className={`flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full ${isLight ? 'bg-primary-blue text-white' : 'bg-primary-blue/20'} flex items-center justify-center font-bold text-xs sm:text-sm ${isLight ? 'group-hover:bg-primary-blue-dark' : 'group-hover:bg-primary-blue/30'} transition-colors`}>
                         4
                       </div>
                       <p className="text-primary-text text-xs sm:text-sm flex-1">
@@ -243,9 +246,9 @@ export default function Home() {
                   </div>
 
                   {/* Step 5 */}
-                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                  <div className={`group relative backdrop-blur-sm border ${isLight ? 'border-primary-blue/40 bg-white/80' : 'border-primary-blue/20'} rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]`} style={{ padding: '8px 12px', background: isLight ? 'rgba(255, 255, 255, 0.8)' : 'rgba(31, 41, 55, 0.4)' }}>
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
+                      <div className={`flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full ${isLight ? 'bg-primary-blue text-white' : 'bg-primary-blue/20'} flex items-center justify-center font-bold text-xs sm:text-sm ${isLight ? 'group-hover:bg-primary-blue-dark' : 'group-hover:bg-primary-blue/30'} transition-colors`}>
                         5
                       </div>
                       <p className="text-primary-text text-xs sm:text-sm flex-1">
@@ -261,7 +264,7 @@ export default function Home() {
 
           {/* Features Grid */}
           <div className="mt-12 sm:mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-            <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(51, 144, 236, 0.08) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(91, 168, 240, 0.06) 100%)' }}>
+            <div className={`group relative backdrop-blur-sm border ${isLight ? 'border-primary-blue/30 bg-white/90' : 'border-primary-blue/20'} rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden`} style={{ padding: '24px', background: isLight ? 'linear-gradient(135deg, rgba(51, 144, 236, 0.1) 0%, rgba(255, 255, 255, 0.9) 50%, rgba(91, 168, 240, 0.08) 100%)' : 'linear-gradient(135deg, rgba(51, 144, 236, 0.08) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(91, 168, 240, 0.06) 100%)' }}>
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(51, 144, 236, 0.15), transparent 70%)' }}></div>
               <div className="relative z-10">
                 <div className="icon-wrapper mb-4">
@@ -276,7 +279,7 @@ export default function Home() {
               </div>
             </div>
             
-            <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(91, 168, 240, 0.08) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(51, 144, 236, 0.06) 100%)' }}>
+            <div className={`group relative backdrop-blur-sm border ${isLight ? 'border-primary-blue/30 bg-white/90' : 'border-primary-blue/20'} rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden`} style={{ padding: '24px', background: isLight ? 'linear-gradient(135deg, rgba(91, 168, 240, 0.1) 0%, rgba(255, 255, 255, 0.9) 50%, rgba(51, 144, 236, 0.08) 100%)' : 'linear-gradient(135deg, rgba(91, 168, 240, 0.08) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(51, 144, 236, 0.06) 100%)' }}>
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(91, 168, 240, 0.15), transparent 70%)' }}></div>
               <div className="relative z-10">
                 <div className="icon-wrapper mb-4">
@@ -295,7 +298,7 @@ export default function Home() {
               </div>
             </div>
             
-            <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(51, 144, 236, 0.06) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(91, 168, 240, 0.08) 100%)' }}>
+            <div className={`group relative backdrop-blur-sm border ${isLight ? 'border-primary-blue/30 bg-white/90' : 'border-primary-blue/20'} rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden`} style={{ padding: '24px', background: isLight ? 'linear-gradient(135deg, rgba(51, 144, 236, 0.08) 0%, rgba(255, 255, 255, 0.9) 50%, rgba(91, 168, 240, 0.1) 100%)' : 'linear-gradient(135deg, rgba(51, 144, 236, 0.06) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(91, 168, 240, 0.08) 100%)' }}>
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(51, 144, 236, 0.15), transparent 70%)' }}></div>
               <div className="relative z-10">
                 <div className="icon-wrapper mb-4">
