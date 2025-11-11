@@ -1706,27 +1706,6 @@ function GrowthDirectionsInner() {
                                 </div>
                               </div>
 
-                              {isActive && habit.userTask && (
-                                <div className={`grid grid-cols-2 gap-4 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-white/5'}`}>
-                                  <div>
-                                    <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                                      Current Streak
-                                    </div>
-                                    <div className={`text-lg font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
-                                      {`${String.fromCodePoint(0x1F525)} ${habit.userTask.current_streak}`}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                                      Total Check-ins
-                                    </div>
-                                    <div className={`text-lg font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
-                                      {habit.userTask.total_checkins}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
                               <div className="flex gap-2">
                                 {isActive ? (
                                   <>
