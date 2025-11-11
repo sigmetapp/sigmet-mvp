@@ -328,14 +328,14 @@ export default function Home() {
               
               <div className="overflow-x-auto overflow-y-visible">
                 <div className="min-w-full">
-                  <div className="flex items-end justify-center gap-2 sm:gap-4 pb-8">
+                  <div className="flex items-center justify-center gap-2 sm:gap-4 pb-8">
                     {SW_LEVELS.map((level, index) => {
                       const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
                       const showGlow = level.name !== 'Beginner';
                       const isLast = index === SW_LEVELS.length - 1;
                       
-                      // Progressive glow parameters by level (from AvatarWithBadge)
-                      const getGlowParams = (levelName: string) => {
+                      // Progressive glow parameters by level (from AvatarWithBadge - exact copy)
+                      const getGlowParams = (levelName: string, colorScheme: { hex: string }) => {
                         const levelParams: Record<string, any> = {
                           'Growing': {
                             borderWidth: 1.5,
@@ -371,7 +371,7 @@ export default function Home() {
                         return levelParams[levelName] || null;
                       };
                       
-                      const glowParams = showGlow ? getGlowParams(level.name) : null;
+                      const glowParams = showGlow ? getGlowParams(level.name, colorScheme) : null;
                       const og = glowParams?.outerGlow;
                       const ig = glowParams?.imageGlow;
                       
@@ -419,28 +419,11 @@ export default function Home() {
                               </div>
                             </div>
                           </div>
-                          {/* Arrow between avatars */}
+                          {/* Arrow between avatars - centered relative to avatars */}
                           {!isLast && (
-                            <div className="flex items-center justify-center mb-8" style={{ minWidth: '24px' }}>
-                              <div className="relative">
-                                <div 
-                                  className="text-primary-blue-light text-xl sm:text-2xl"
-                                  style={{
-                                    animation: 'arrowFlow 1.5s ease-in-out infinite',
-                                    animationDelay: `${index * 0.15}s`
-                                  }}
-                                >
-                                  →
-                                </div>
-                                <div 
-                                  className="absolute inset-0 text-primary-blue-light/30 text-xl sm:text-2xl blur-sm pointer-events-none"
-                                  style={{
-                                    animation: 'arrowFlow 1.5s ease-in-out infinite',
-                                    animationDelay: `${index * 0.15}s`
-                                  }}
-                                >
-                                  →
-                                </div>
+                            <div className="flex items-center justify-center" style={{ minWidth: '24px', marginBottom: '40px', alignSelf: 'center' }}>
+                              <div className="text-primary-blue-light text-xl sm:text-2xl">
+                                →
                               </div>
                             </div>
                           )}
