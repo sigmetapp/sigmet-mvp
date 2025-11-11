@@ -55,25 +55,27 @@ begin
   raise notice 'Using column: %, Total posts to process (with text/body): %', author_col, total_posts;
   
   -- Process posts using the correct column (try text first, then body)
+  -- Use simpler query without body check in WHERE (handle it in COALESCE)
   for post_record in 
     execute format('
       select 
-        id,
+        p.id,
         coalesce(
-          nullif(trim(text), ''''),
-          nullif(trim(body), ''''),
+          nullif(trim(p.text), ''''),
+          nullif(trim(p.body), ''''),
           ''''
         ) as post_text,
-        %I as post_author_id
-      from public.posts
-      where (
-        (text is not null and trim(text) != '''') 
-        or 
-        (body is not null and trim(body) != '''')
-      )
-      order by created_at desc
+        p.%I as post_author_id
+      from public.posts p
+      where p.text is not null and trim(p.text) != ''''
+      order by p.created_at desc
     ', author_col)
   loop
+    -- Skip if post_text is empty after processing
+    if post_record.post_text is null or trim(post_record.post_text) = '' then
+      continue;
+    end if;
+    
     -- Extract mentions and create connections for this post
     begin
       perform public.extract_mentions_from_post(
@@ -84,16 +86,56 @@ begin
       
       processed_count := processed_count + 1;
       
-      -- Log progress every 100 posts
-      if processed_count % 100 = 0 then
+      -- Log progress every 10 posts (for smaller datasets)
+      if processed_count % 10 = 0 then
         raise notice 'Processed % posts', processed_count;
       end if;
     exception
       when others then
         -- Log error but continue processing
         raise notice 'Error processing post %: %', post_record.id, sqlerrm;
+        processed_count := processed_count + 1; -- Count even if error
     end;
   end loop;
+  
+  -- Also process posts with body but no text (if body column exists)
+  begin
+    for post_record in 
+      execute format('
+        select 
+          p.id,
+          trim(p.body) as post_text,
+          p.%I as post_author_id
+        from public.posts p
+        where p.body is not null 
+          and trim(p.body) != ''''
+          and (p.text is null or trim(p.text) = '''')
+        order by p.created_at desc
+      ', author_col)
+    loop
+      begin
+        perform public.extract_mentions_from_post(
+          post_record.post_text,
+          post_record.post_author_id,
+          post_record.id
+        );
+        
+        processed_count := processed_count + 1;
+        
+        if processed_count % 10 = 0 then
+          raise notice 'Processed % posts', processed_count;
+        end if;
+      exception
+        when others then
+          raise notice 'Error processing post %: %', post_record.id, sqlerrm;
+          processed_count := processed_count + 1;
+      end;
+    end loop;
+  exception
+    when undefined_column then
+      -- body column doesn't exist, skip
+      null;
+  end;
   
   raise notice 'Backfill completed. Processed % posts total', processed_count;
   
