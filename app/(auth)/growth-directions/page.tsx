@@ -1586,8 +1586,8 @@ function GrowthDirectionsInner() {
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
                           <span className="text-base flex-shrink-0">{resolveDirectionEmoji(dir.slug, dir.emoji)}</span>
                           <div className="flex-1 min-w-0">
-                            <span className="font-medium text-xs block truncate leading-tight">{dir.title}</span>
-                            <div className={`text-[9px] uppercase tracking-wide leading-tight ${isSelected ? 'text-white/70' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                            <span className="font-medium text-[15px] block truncate leading-tight">{dir.title}</span>
+                            <div className={`text-[12px] uppercase tracking-wide leading-tight ${isSelected ? 'text-white/70' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                               {isInDevelopment ? 'In dev' : dir.isSelected ? 'Priority' : 'Available'}
                             </div>
                           </div>
@@ -1607,7 +1607,7 @@ function GrowthDirectionsInner() {
                               ? 'Cannot add more than 3 priority directions' 
                               : undefined
                           }
-                          className={`flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium transition whitespace-nowrap ${
+                          className={`flex-shrink-0 px-1.5 py-0.5 rounded-full text-[13px] font-medium transition whitespace-nowrap ${
                             isInDevelopment
                               ? 'border border-gray-400/30 text-gray-400 cursor-not-allowed'
                               : dir.isSelected
@@ -1621,7 +1621,7 @@ function GrowthDirectionsInner() {
                         </button>
                       </div>
                       {dir.stats.swPoints > 0 && (
-                        <div className={`mt-1 text-[10px] ${isSelected ? 'text-white/80' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                        <div className={`mt-1 text-[13px] ${isSelected ? 'text-white/80' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           {dir.stats.swPoints} SW
                         </div>
                       )}
