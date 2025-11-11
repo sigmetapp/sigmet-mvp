@@ -260,7 +260,7 @@ function ProfileSettings() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto px-0 md:px-4 py-4 md:p-4">
+    <main className="max-w-7xl mx-auto px-0 md:px-4 py-4 md:p-4">
       <div className="card-glow-primary no-hover p-4 md:p-5 space-y-3">
         <h1 className={`text-lg font-semibold ${isLight ? "text-primary-text" : "text-primary-text"}`}>Profile settings</h1>
 
