@@ -47,6 +47,12 @@ create policy "users can view own connections"
   on public.user_connections for select 
   using (user_id = auth.uid() or connected_user_id = auth.uid());
 
+-- Allow trigger function to insert connections (security definer should work, but explicit policy helps)
+-- Note: security definer functions bypass RLS, but having explicit policy is safer
+create policy "system can insert connections" 
+  on public.user_connections for insert 
+  with check (true);  -- Trigger function uses security definer, so this allows inserts
+
 -- Function to extract mentions from text and create connections
 create or replace function public.extract_mentions_from_post(
   post_text text,
