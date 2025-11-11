@@ -9,6 +9,17 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Settings",
+  icons: {
+    icon: [
+      { url: '/api/favicon', type: 'image/png', sizes: '32x32' },
+      { url: '/api/favicon-closed', type: 'image/png', sizes: '32x32' },
+      { url: '/api/favicon.ico', sizes: 'any' },
+    ],
+    apple: [
+      { url: '/api/favicon', type: 'image/png', sizes: '180x180' },
+    ],
+    shortcut: '/api/favicon.ico',
+  },
 };
 
 export const viewport: Viewport = {
