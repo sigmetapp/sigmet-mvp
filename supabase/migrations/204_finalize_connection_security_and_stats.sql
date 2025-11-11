@@ -3,6 +3,7 @@ begin;
 
 -- Restrict insert policy to service role and trigger invocations
 drop policy if exists "allow all inserts" on public.user_connections;
+drop policy if exists "allow trigger inserts" on public.user_connections;
 create policy "allow trigger inserts"
   on public.user_connections
   for insert
