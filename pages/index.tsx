@@ -326,9 +326,9 @@ export default function Home() {
                 </p>
               </div>
               
-              <div className="overflow-x-auto overflow-y-visible">
+              <div className="overflow-x-auto overflow-y-visible -mx-2 px-2">
                 <div className="min-w-full">
-                  <div className="flex items-center justify-center gap-2 sm:gap-4">
+                  <div className="flex items-center justify-center gap-1 sm:gap-2 md:gap-4">
                     {SW_LEVELS.map((level, index) => {
                       const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
                       const showGlow = level.name !== 'Beginner';
@@ -379,14 +379,14 @@ export default function Home() {
                         <React.Fragment key={level.name}>
                           <div className="flex flex-col items-center">
                             {/* Level name */}
-                            <div className="mb-3">
-                              <span className={`font-bold text-xs sm:text-sm ${colorScheme.text}`}>
+                            <div className="mb-2 sm:mb-3">
+                              <span className={`font-bold text-[10px] sm:text-xs md:text-sm ${colorScheme.text}`}>
                                 {level.name}
                               </span>
                             </div>
                             {/* Avatar with glow */}
                             <div className="relative">
-                              <div className="relative w-12 h-12 sm:w-14 sm:h-14">
+                              <div className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14">
                                 {/* Outer glow ring */}
                                 {glowParams && (
                                   <div
@@ -401,7 +401,7 @@ export default function Home() {
                                 )}
                                 {/* Avatar circle */}
                                 <div
-                                  className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm transition-all duration-500 hover:scale-110 ${
+                                  className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-[10px] sm:text-xs md:text-sm transition-all duration-500 hover:scale-110 ${
                                     showGlow ? '' : 'border border-white/10 bg-gray-600/30'
                                   }`}
                                   style={
@@ -421,8 +421,8 @@ export default function Home() {
                           </div>
                           {/* Arrow between avatars - centered relative to avatars */}
                           {!isLast && (
-                            <div className="flex items-center justify-center" style={{ minWidth: '24px', marginTop: '15px', alignSelf: 'center' }}>
-                              <div className="text-primary-blue-light text-xl sm:text-2xl">
+                            <div className="flex items-center justify-center" style={{ minWidth: '12px', marginTop: '15px', alignSelf: 'center' }}>
+                              <div className="text-primary-blue-light text-sm sm:text-lg md:text-xl lg:text-2xl">
                                 →
                               </div>
                             </div>
@@ -463,8 +463,8 @@ export default function Home() {
               
               <div className="space-y-4 sm:space-y-5">
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
-                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">1</span>
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.8)] ring-2 ring-primary-blue/70 border-2 border-white/30">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-black">1</span>
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -474,8 +474,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
-                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">2</span>
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.8)] ring-2 ring-primary-blue/70 border-2 border-white/30">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-black">2</span>
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -485,8 +485,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
-                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">3</span>
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.8)] ring-2 ring-primary-blue/70 border-2 border-white/30">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-black">3</span>
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -496,8 +496,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
-                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">4</span>
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.8)] ring-2 ring-primary-blue/70 border-2 border-white/30">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-black">4</span>
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -507,8 +507,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 sm:gap-5 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.6)] ring-2 ring-primary-blue/50 border-2 border-white/20">
-                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">5</span>
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary-blue flex items-center justify-center font-extrabold text-xl sm:text-2xl shadow-[0_0_20px_rgba(51,144,236,0.8)] ring-2 ring-primary-blue/70 border-2 border-white/30">
+                    <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-black">5</span>
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
@@ -546,7 +546,7 @@ export default function Home() {
               {/* Statistics Section */}
               <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-white/10">
                 <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-primary-text text-center mb-4 sm:mb-6">
-                  📊 Network Statistics
+                  Network Statistics
                 </h2>
                 
                 {loading ? (
@@ -567,25 +567,25 @@ export default function Home() {
                         </thead>
                         <tbody>
                           <tr className="border-b border-primary-blue/20 hover:bg-primary-blue/5 transition-colors">
-                            <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">👥 New Users</td>
+                            <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">New Users</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newUsers['24h'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newUsers['7d'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newUsers['30d'].toLocaleString()}</td>
                           </tr>
                           <tr className="border-b border-primary-blue/20 hover:bg-primary-blue/5 transition-colors">
-                            <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">📝 New Posts</td>
+                            <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">New Posts</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newPosts['24h'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newPosts['7d'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newPosts['30d'].toLocaleString()}</td>
                           </tr>
                           <tr className="border-b border-primary-blue/20 hover:bg-primary-blue/5 transition-colors">
-                            <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">💬 New Comments</td>
+                            <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">New Comments</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newComments['24h'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newComments['7d'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newComments['30d'].toLocaleString()}</td>
                           </tr>
                           <tr className="hover:bg-primary-blue/5 transition-colors">
-                            <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">❤️ New Reactions</td>
+                            <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">New Reactions</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newReactions['24h'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newReactions['7d'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newReactions['30d'].toLocaleString()}</td>
