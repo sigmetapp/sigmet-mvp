@@ -149,6 +149,8 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [replyInput, setReplyInput] = useState<Record<number, string>>({});
   const [replySubmitting, setReplySubmitting] = useState<Record<number, boolean>>({});
   const [mediaGalleryOpen, setMediaGalleryOpen] = useState<{ media: Array<{ type: 'image' | 'video'; url: string }>; currentIndex: number } | null>(null);
+  const [swipeStart, setSwipeStart] = useState<{ x: number; y: number } | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
   
   // Keyboard navigation for media gallery
   useEffect(() => {
@@ -1472,23 +1474,89 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
             )}
             
             <div className="w-full max-w-6xl max-h-[90vh] flex flex-col items-center">
-              <div className="relative w-full flex-1 flex items-center justify-center">
-                {mediaGalleryOpen.media[mediaGalleryOpen.currentIndex].type === 'image' ? (
-                  <img 
-                    src={mediaGalleryOpen.media[mediaGalleryOpen.currentIndex].url} 
-                    className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg" 
-                    alt={`Media ${mediaGalleryOpen.currentIndex + 1} of ${mediaGalleryOpen.media.length}`} 
-                  />
-                ) : (
-                  <video 
-                    controls 
-                    autoPlay
-                    className="max-w-full max-h-[85vh] w-auto h-auto rounded-lg" 
-                    src={mediaGalleryOpen.media[mediaGalleryOpen.currentIndex].url}
-                  >
-                    <source src={mediaGalleryOpen.media[mediaGalleryOpen.currentIndex].url} type="video/mp4" />
-                  </video>
-                )}
+              <div 
+                className="relative w-full flex-1 flex items-center justify-center overflow-hidden"
+                onTouchStart={(e) => {
+                  if (mediaGalleryOpen && mediaGalleryOpen.media.length > 1) {
+                    const touch = e.touches[0];
+                    setSwipeStart({ x: touch.clientX, y: touch.clientY });
+                    setSwipeOffset(0);
+                  }
+                }}
+                onTouchMove={(e) => {
+                  if (swipeStart && mediaGalleryOpen && mediaGalleryOpen.media.length > 1) {
+                    const touch = e.touches[0];
+                    const deltaX = touch.clientX - swipeStart.x;
+                    const deltaY = touch.clientY - swipeStart.y;
+                    
+                    // Only allow horizontal swipe if horizontal movement is greater than vertical
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                      e.preventDefault();
+                      setSwipeOffset(deltaX);
+                    }
+                  }
+                }}
+                onTouchEnd={(e) => {
+                  if (swipeStart && mediaGalleryOpen && mediaGalleryOpen.media.length > 1) {
+                    const touch = e.changedTouches[0];
+                    const deltaX = touch.clientX - swipeStart.x;
+                    const deltaY = touch.clientY - swipeStart.y;
+                    const minSwipeDistance = 50; // Minimum distance for swipe
+                    
+                    // Only trigger swipe if horizontal movement is greater than vertical
+                    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minSwipeDistance) {
+                      if (deltaX > 0) {
+                        // Swipe right - go to previous
+                        const newIndex = mediaGalleryOpen.currentIndex > 0 
+                          ? mediaGalleryOpen.currentIndex - 1 
+                          : mediaGalleryOpen.media.length - 1;
+                        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                      } else {
+                        // Swipe left - go to next
+                        const newIndex = mediaGalleryOpen.currentIndex < mediaGalleryOpen.media.length - 1
+                          ? mediaGalleryOpen.currentIndex + 1
+                          : 0;
+                        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                      }
+                    }
+                    
+                    setSwipeStart(null);
+                    setSwipeOffset(0);
+                  }
+                }}
+              >
+                <div 
+                  className={`flex ${swipeOffset === 0 ? 'transition-transform duration-300 ease-out' : ''}`}
+                  style={{ 
+                    transform: `translateX(calc(-${mediaGalleryOpen.currentIndex * 100}% + ${swipeOffset}px))`,
+                    width: `${mediaGalleryOpen.media.length * 100}%`,
+                  }}
+                >
+                  {mediaGalleryOpen.media.map((media, idx) => (
+                    <div 
+                      key={idx}
+                      className="w-full flex-shrink-0 flex items-center justify-center"
+                      style={{ width: `${100 / mediaGalleryOpen.media.length}%` }}
+                    >
+                      {media.type === 'image' ? (
+                        <img 
+                          src={media.url} 
+                          className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg" 
+                          alt={`Media ${idx + 1} of ${mediaGalleryOpen.media.length}`} 
+                        />
+                      ) : (
+                        <video 
+                          controls 
+                          autoPlay={idx === mediaGalleryOpen.currentIndex}
+                          className="max-w-full max-h-[85vh] w-auto h-auto rounded-lg" 
+                          src={media.url}
+                        >
+                          <source src={media.url} type="video/mp4" />
+                        </video>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
               
               {mediaGalleryOpen.media.length > 1 && (
