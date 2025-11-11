@@ -1208,7 +1208,7 @@ function GrowthDirectionsInner() {
               type="button"
               onClick={() => handleSummaryTaskClick(item)}
               className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition relative ${
-                isLight ? 'bg-gray-50 hover:bg-primary-blue/10' : 'bg-white/5 hover:bg-white/10'
+                isLight ? 'bg-white hover:bg-primary-blue/10' : 'bg-white/5 hover:bg-white/10'
               } ${item.directionIsPrimary ? 'ring-2 ring-primary-blue/30' : ''}`}
             >
               {item.directionIsPrimary && (
@@ -1300,7 +1300,7 @@ function GrowthDirectionsInner() {
 
       {/* Completed Tasks & Total Points Section */}
       {!loading && (
-        <div className={`p-4 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+        <div className={`p-4 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <div>
               <h2 className={`font-semibold text-base mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
@@ -1370,7 +1370,7 @@ function GrowthDirectionsInner() {
                           isLight
                             ? 'hover:bg-primary-blue/5 border-b border-primary-blue/5'
                             : 'hover:bg-white/5 border-b border-white/5'
-                        } ${index % 2 === 0 ? (isLight ? 'bg-gray-50/40' : 'bg-white/5') : ''}`}
+                        } ${index % 2 === 0 ? (isLight ? 'bg-white/40' : 'bg-white/5') : ''}`}
                       >
                         <td className="py-2 px-3 align-middle">
                           <div className="flex items-center gap-2">
@@ -1488,7 +1488,7 @@ function GrowthDirectionsInner() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
           {/* Directions List Skeleton */}
           <div className="lg:col-span-1">
-            <div className={`p-4 rounded-lg border ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+            <div className={`p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
               <div className={`h-6 w-24 mb-3 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
@@ -1507,13 +1507,13 @@ function GrowthDirectionsInner() {
           </div>
           {/* Tasks View Skeleton */}
           <div className="lg:col-span-2 space-y-6">
-            <div className={`p-4 rounded-lg border ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+            <div className={`p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
               <div className={`h-6 w-40 mb-2 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
               <div className={`h-4 w-32 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
             </div>
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className={`p-4 md:p-6 space-y-4 rounded-lg border ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+                <div key={i} className={`p-4 md:p-6 space-y-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
                   <div className={`h-5 w-3/4 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
                   <div className={`h-4 w-full rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
                   <div className={`h-4 w-2/3 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
@@ -1527,7 +1527,7 @@ function GrowthDirectionsInner() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Directions List */}
           <div className="lg:col-span-1 space-y-4">
-            <div className={`p-4 rounded-lg border ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+            <div className={`p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
               <h2 className={`font-semibold mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Directions
               </h2>
@@ -1632,7 +1632,7 @@ function GrowthDirectionsInner() {
           <div className="lg:col-span-2 space-y-6">
             {selectedDirection ? (
               <>
-                  <div className={`p-4 rounded-lg border mb-6 ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+                  <div className={`p-4 rounded-lg border mb-6 ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
                     <div className="flex items-center gap-3 mb-4">
                       <div>
                         <h2 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
@@ -1681,7 +1681,7 @@ function GrowthDirectionsInner() {
                               id={elementId}
                               className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
                                 isHighlighted ? 'ring-2 ring-primary-blue' : ''
-                              } ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
+                              } ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -1721,7 +1721,7 @@ function GrowthDirectionsInner() {
                               </div>
 
                               {isActive && habit.userTask && (
-                                <div className={`grid grid-cols-2 gap-4 p-3 rounded-xl ${isLight ? 'bg-gray-50' : 'bg-white/5'}`}>
+                                <div className={`grid grid-cols-2 gap-4 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-white/5'}`}>
                                   <div>
                                     <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                       Current Streak
@@ -1808,7 +1808,7 @@ function GrowthDirectionsInner() {
                               id={elementId}
                               className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
                                 isHighlighted ? 'ring-2 ring-primary-blue' : ''
-                              } ${isLight ? 'bg-gray-50 border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
+                              } ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
                             >
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -2095,7 +2095,7 @@ function GrowthDirectionsInner() {
             </div>
             
             {/* Task Info Display */}
-            <div className={`p-2 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-white/5'}`}>
+            <div className={`p-2 rounded-lg ${isLight ? 'bg-white' : 'bg-white/5'}`}>
               <div className={`text-[10px] font-medium mb-0.5 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                 Task Information
               </div>
@@ -2161,7 +2161,7 @@ function GrowthDirectionsInner() {
                 <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Category (automatically set)
                 </label>
-                <div className={`p-2 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-white/5'}`}>
+                <div className={`p-2 rounded-lg ${isLight ? 'bg-white' : 'bg-white/5'}`}>
                   <span className={`text-sm ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                     {(() => {
                       const taskDirection = directions.find((d) => d.id === showCheckInModal.task.direction_id);
