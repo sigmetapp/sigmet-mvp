@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { User } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { Trophy, Rss, User, Users, MessageSquare, Sprout, Settings as SettingsIcon } from 'lucide-react';
@@ -35,9 +36,14 @@ export default function Sidebar({ user }: SidebarProps) {
   const { theme } = useTheme();
   const isLight = theme === "light";
   const [adminOpen, setAdminOpen] = useState(false);
+  const [canRenderPortal, setCanRenderPortal] = useState(false);
 
   const userEmail = user.email || null;
   const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
+
+  useEffect(() => {
+    setCanRenderPortal(true);
+  }, []);
 
   return (
     <>
@@ -81,8 +87,8 @@ export default function Sidebar({ user }: SidebarProps) {
         )}
       </aside>
 
-      {/* Admin sheet */}
-      {isAdmin && adminOpen && (
+      {/* Admin sheet - rendered via portal to escape stacking context */}
+      {isAdmin && adminOpen && canRenderPortal && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[99999]">
           <div
             className={`${isLight ? 'bg-black/40' : 'bg-black/60'} absolute inset-0`}
@@ -124,7 +130,8 @@ export default function Sidebar({ user }: SidebarProps) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
