@@ -1460,8 +1460,8 @@ export default function PublicProfilePage() {
                     </div>
                   )}
 
-                  {/* Main Info Grid - 1 column on mobile, 2 columns on desktop */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Main Info Grid - 2 columns on mobile, 3 columns on desktop */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {/* Column 1 */}
                     <div className="space-y-3">
                       {/* Location */}
@@ -1506,24 +1506,6 @@ export default function PublicProfilePage() {
                           </div>
                         </div>
                       )}
-
-                      {/* Date of birth */}
-                      {profile.date_of_birth && (
-                        <div>
-                          <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
-                            isLight ? 'text-primary-text-secondary' : 'text-white/50'
-                          }`}>
-                            Date of birth
-                          </div>
-                          <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
-                            {new Date(profile.date_of_birth).toLocaleDateString('en-GB', { 
-                              day: '2-digit', 
-                              month: '2-digit', 
-                              year: 'numeric' 
-                            })}
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     {/* Column 2 */}
@@ -1546,6 +1528,27 @@ export default function PublicProfilePage() {
                         </div>
                       )}
 
+                      {/* Date of birth */}
+                      {profile.date_of_birth && (
+                        <div>
+                          <div className={`text-[10px] font-semibold mb-1 uppercase tracking-wider ${
+                            isLight ? 'text-primary-text-secondary' : 'text-white/50'
+                          }`}>
+                            Date of birth
+                          </div>
+                          <div className={`text-sm ${isLight ? 'text-primary-text' : 'text-white/80'}`}>
+                            {new Date(profile.date_of_birth).toLocaleDateString('en-GB', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric' 
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Column 3 */}
+                    <div className="space-y-3">
                       {/* Portfolio */}
                       {profile.website_url && (
                         <div>
