@@ -316,12 +316,12 @@ export default function Home() {
 
           {/* SW Levels Table */}
           <div className="mt-12 sm:mt-16 md:mt-20">
-            <div className="card-glow-primary p-6 sm:p-8 md:p-10 backdrop-blur-sm">
-              <div className="text-center mb-6 sm:mb-8">
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary-text mb-3 sm:mb-4 bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent">
+            <div className="card-glow-primary p-4 sm:p-6 backdrop-blur-sm">
+              <div className="text-center mb-4 sm:mb-5">
+                <h2 className="text-xl sm:text-2xl font-bold text-primary-text mb-2 bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent">
                   Social Weight Levels
                 </h2>
-                <p className="text-lg sm:text-xl text-primary-text-secondary">
+                <p className="text-sm sm:text-base text-primary-text-secondary">
                   Your progress is visible. Grow your SW and unlock new visual recognition.
                 </p>
               </div>
@@ -331,8 +331,8 @@ export default function Home() {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-primary-blue/30">
-                        <th className="text-left py-2 px-3 text-primary-text font-semibold text-xs sm:text-sm">Level</th>
-                        <th className="text-center py-2 px-3 text-primary-text font-semibold text-xs sm:text-sm">Avatar Glow</th>
+                        <th className="text-left py-1.5 px-2 text-primary-text font-semibold text-xs">Level</th>
+                        <th className="text-center py-1.5 px-2 text-primary-text font-semibold text-xs">Avatar Glow</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-primary-blue/20">
@@ -383,14 +383,14 @@ export default function Home() {
                         
                         return (
                           <tr key={level.name} className="hover:bg-primary-blue/5 transition-colors">
-                            <td className="py-2 px-3">
-                              <span className={`font-bold text-sm sm:text-base ${colorScheme.text}`}>
+                            <td className="py-1.5 px-2">
+                              <span className={`font-bold text-xs sm:text-sm ${colorScheme.text}`}>
                                 {level.name}
                               </span>
                             </td>
-                            <td className="py-2 px-3">
+                            <td className="py-1.5 px-2">
                               <div className="flex justify-center">
-                                <div className="relative w-12 h-12 sm:w-14 sm:h-14">
+                                <div className="relative w-10 h-10 sm:w-12 sm:h-12">
                                   {/* Outer glow ring */}
                                   {glowParams && (
                                     <div
@@ -403,7 +403,7 @@ export default function Home() {
                                   )}
                                   {/* Avatar circle */}
                                   <div
-                                    className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-base ${
+                                    className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm ${
                                       showGlow ? '' : 'border border-white/10 bg-gray-600/30'
                                     }`}
                                     style={
@@ -429,11 +429,11 @@ export default function Home() {
                 </div>
               </div>
               
-              <div className="mt-6 sm:mt-8 text-center">
-                <p className="text-primary-text-secondary text-sm sm:text-base mb-4">
+              <div className="mt-4 sm:mt-5 text-center">
+                <p className="text-primary-text-secondary text-xs sm:text-sm mb-3">
                   Every action counts. Build your reputation through meaningful contributions.
                 </p>
-                <Button href="/signup" variant="primary" className="w-full sm:w-auto">Start Building Your SW</Button>
+                <Button href="/signup" variant="primary" className="w-full sm:w-auto text-sm">Start Building Your SW</Button>
               </div>
             </div>
           </div>
