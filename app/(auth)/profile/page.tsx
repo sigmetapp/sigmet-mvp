@@ -37,6 +37,7 @@ function ProfileSettings() {
   const [educationalInstitutionName, setEducationalInstitutionName] = useState<string>('');
   const [goals, setGoals] = useState<Array<{ id: string; text: string; target_date: string | null }>>([]);
   // Password change state
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -242,9 +243,10 @@ function ProfileSettings() {
       setNewPassword('');
       setConfirmPassword('');
       
-      // Clear success message after 3 seconds
+      // Clear success message and close form after 3 seconds
       setTimeout(() => {
         setPasswordNote(undefined);
+        setShowPasswordForm(false);
       }, 3000);
     } catch (err: any) {
       setPasswordNote(err.message || 'Failed to change password');
@@ -259,7 +261,7 @@ function ProfileSettings() {
 
   return (
     <main className="max-w-2xl mx-auto px-0 md:px-4 py-4 md:p-4">
-      <div className="card-glow-primary p-4 md:p-5 space-y-3">
+      <div className="card-glow-primary no-hover p-4 md:p-5 space-y-3">
         <h1 className={`text-lg font-semibold ${isLight ? "text-primary-text" : "text-primary-text"}`}>Profile settings</h1>
 
         {/* Tabs */}
@@ -557,69 +559,94 @@ function ProfileSettings() {
 
             {/* Password Change Section */}
             <div className="pt-4 border-t border-white/10">
-              <label className="label text-xs mb-3">Change Password</label>
-              <div className="space-y-3">
-                <div>
-                  <label className={`text-xs font-medium mb-1.5 block ${
-                    isLight ? "text-primary-text-secondary" : "text-white/70"
-                  }`}>
-                    Current Password
-                  </label>
-                  <input
-                    type="password"
-                    className="input text-sm py-2"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter current password"
-                  />
-                </div>
-                <div>
-                  <label className={`text-xs font-medium mb-1.5 block ${
-                    isLight ? "text-primary-text-secondary" : "text-white/70"
-                  }`}>
-                    New Password
-                  </label>
-                  <input
-                    type="password"
-                    className="input text-sm py-2"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password (min 6 characters)"
-                  />
-                </div>
-                <div>
-                  <label className={`text-xs font-medium mb-1.5 block ${
-                    isLight ? "text-primary-text-secondary" : "text-white/70"
-                  }`}>
-                    Confirm New Password
-                  </label>
-                  <input
-                    type="password"
-                    className="input text-sm py-2"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm new password"
-                  />
-                </div>
-                {passwordNote && (
-                  <div className={`text-xs ${
-                    passwordNote.includes('successfully')
-                      ? isLight ? "text-green-600" : "text-green-400"
-                      : isLight ? "text-red-500" : "text-red-400"
-                  }`}>
-                    {passwordNote}
-                  </div>
-                )}
+              {!showPasswordForm ? (
                 <Button
-                  onClick={changePassword}
+                  onClick={() => setShowPasswordForm(true)}
                   variant="secondary"
                   size="sm"
-                  disabled={changingPassword}
                   className="w-full"
                 >
-                  {changingPassword ? 'Changing...' : 'Change Password'}
+                  Change Password
                 </Button>
-              </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="label text-xs">Change Password</label>
+                    <button
+                      onClick={() => {
+                        setShowPasswordForm(false);
+                        setCurrentPassword('');
+                        setNewPassword('');
+                        setConfirmPassword('');
+                        setPasswordNote(undefined);
+                      }}
+                      className={`text-xs ${isLight ? "text-primary-text-secondary hover:text-primary-text" : "text-white/60 hover:text-white/80"}`}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium mb-1.5 block ${
+                      isLight ? "text-primary-text-secondary" : "text-white/70"
+                    }`}>
+                      Current Password
+                    </label>
+                    <input
+                      type="password"
+                      className="input text-sm py-2"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter current password"
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium mb-1.5 block ${
+                      isLight ? "text-primary-text-secondary" : "text-white/70"
+                    }`}>
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      className="input text-sm py-2"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password (min 6 characters)"
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium mb-1.5 block ${
+                      isLight ? "text-primary-text-secondary" : "text-white/70"
+                    }`}>
+                      Confirm New Password
+                    </label>
+                    <input
+                      type="password"
+                      className="input text-sm py-2"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                    />
+                  </div>
+                  {passwordNote && (
+                    <div className={`text-xs ${
+                      passwordNote.includes('successfully')
+                        ? isLight ? "text-green-600" : "text-green-400"
+                        : isLight ? "text-red-500" : "text-red-400"
+                    }`}>
+                      {passwordNote}
+                    </div>
+                  )}
+                  <Button
+                    onClick={changePassword}
+                    variant="secondary"
+                    size="sm"
+                    disabled={changingPassword}
+                    className="w-full"
+                  >
+                    {changingPassword ? 'Changing...' : 'Change Password'}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}
