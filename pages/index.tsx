@@ -190,18 +190,94 @@ export default function Home() {
             </div>
 
             <div className="relative mt-8 md:mt-0">
-              <div className="card-glow-primary p-5 sm:p-6 md:p-8 backdrop-blur-sm">
-                <h3 className="text-primary-text font-semibold text-lg sm:text-xl mb-3 sm:mb-4">🚀 Quick start</h3>
-                <ol className="mt-3 sm:mt-4 space-y-2 sm:space-y-3 text-primary-text-secondary text-sm sm:text-base list-decimal list-inside">
-                  <li className="pl-2">Sign up and confirm your email</li>
-                  <li className="pl-2">Set up your profile and avatar</li>
-                  <li className="pl-2">Choose directions that interest you for development</li>
-                  <li className="pl-2">Move through tasks and goals, support and be supported by the community</li>
-                  <li className="pl-2">Develop your profile, get new SW results</li>
-                  <li className="pl-2">Unlock new features for advanced users</li>
-                  <li className="pl-2">Develop your personality comprehensively with our social network</li>
-                </ol>
-                <Button href="/signup" variant="primary" className="mt-5 sm:mt-6 w-full">Get started</Button>
+              <div className="backdrop-blur-sm">
+                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-6 sm:mb-8 text-center md:text-left">🚀 Quick start</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
+                  {/* Step 1 */}
+                  <div className="card-glow-primary p-4 sm:p-5 group hover:scale-[1.02] transition-all duration-300">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-bold text-white text-sm sm:text-base shadow-[0_0_12px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                        1
+                      </div>
+                      <p className="text-primary-text text-sm sm:text-base leading-relaxed pt-0.5 sm:pt-1">
+                        Sign up and confirm your email
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="card-glow-primary p-4 sm:p-5 group hover:scale-[1.02] transition-all duration-300">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-bold text-white text-sm sm:text-base shadow-[0_0_12px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                        2
+                      </div>
+                      <p className="text-primary-text text-sm sm:text-base leading-relaxed pt-0.5 sm:pt-1">
+                        Set up your profile and avatar
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="card-glow-primary p-4 sm:p-5 group hover:scale-[1.02] transition-all duration-300">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-bold text-white text-sm sm:text-base shadow-[0_0_12px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                        3
+                      </div>
+                      <p className="text-primary-text text-sm sm:text-base leading-relaxed pt-0.5 sm:pt-1">
+                        Choose directions that interest you for development
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className="card-glow-primary p-4 sm:p-5 group hover:scale-[1.02] transition-all duration-300">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-bold text-white text-sm sm:text-base shadow-[0_0_12px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                        4
+                      </div>
+                      <p className="text-primary-text text-sm sm:text-base leading-relaxed pt-0.5 sm:pt-1">
+                        Move through tasks and goals, support and be supported by the community
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 5 */}
+                  <div className="card-glow-primary p-4 sm:p-5 group hover:scale-[1.02] transition-all duration-300">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-bold text-white text-sm sm:text-base shadow-[0_0_12px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                        5
+                      </div>
+                      <p className="text-primary-text text-sm sm:text-base leading-relaxed pt-0.5 sm:pt-1">
+                        Develop your profile, get new SW results
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 6 */}
+                  <div className="card-glow-primary p-4 sm:p-5 group hover:scale-[1.02] transition-all duration-300">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-bold text-white text-sm sm:text-base shadow-[0_0_12px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                        6
+                      </div>
+                      <p className="text-primary-text text-sm sm:text-base leading-relaxed pt-0.5 sm:pt-1">
+                        Unlock new features for advanced users
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 7 */}
+                  <div className="card-glow-primary p-4 sm:p-5 group hover:scale-[1.02] transition-all duration-300 sm:col-span-2">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center font-bold text-white text-sm sm:text-base shadow-[0_0_12px_rgba(51,144,236,0.5)] ring-2 ring-primary-blue/30">
+                        7
+                      </div>
+                      <p className="text-primary-text text-sm sm:text-base leading-relaxed pt-0.5 sm:pt-1">
+                        Develop your personality comprehensively with our social network
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <Button href="/signup" variant="primary" className="w-full">Get started</Button>
               </div>
             </div>
           </div>
