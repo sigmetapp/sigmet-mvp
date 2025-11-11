@@ -547,7 +547,7 @@ export default function Home() {
               )}
               
               {/* Statistics Section */}
-              <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-white/10">
+              <div className={`mt-6 sm:mt-8 pt-6 sm:pt-8 border-t ${isLight ? 'border-black/10' : 'border-white/10'}`}>
                 <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-primary-text text-center mb-4 sm:mb-6">
                   Network Statistics
                 </h2>
@@ -558,10 +558,10 @@ export default function Home() {
                   </div>
                 ) : stats ? (
                   <div className="overflow-x-auto">
-                    <div className="bg-black/20 border border-primary-blue/30 rounded p-4 font-mono text-sm">
+                    <div className={`${isLight ? 'bg-white/90 border-primary-blue/40' : 'bg-black/20 border-primary-blue/30'} border rounded p-4 font-mono text-sm shadow-sm`}>
                       <table className="w-full border-collapse">
                         <thead>
-                          <tr className="border-b border-primary-blue/40">
+                          <tr className={`border-b ${isLight ? 'border-primary-blue/50' : 'border-primary-blue/40'}`}>
                             <th className="text-left py-2 px-3 text-primary-text font-semibold text-xs sm:text-sm"></th>
                             <th className="text-center py-2 px-3 text-primary-text font-semibold text-xs sm:text-sm">24 hours</th>
                             <th className="text-center py-2 px-3 text-primary-text font-semibold text-xs sm:text-sm">7 days</th>
@@ -569,25 +569,25 @@ export default function Home() {
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="border-b border-primary-blue/20 hover:bg-primary-blue/5 transition-colors">
+                          <tr className={`border-b ${isLight ? 'border-primary-blue/30 hover:bg-primary-blue/10' : 'border-primary-blue/20 hover:bg-primary-blue/5'} transition-colors`}>
                             <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">New Users</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newUsers['24h'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newUsers['7d'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newUsers['30d'].toLocaleString()}</td>
                           </tr>
-                          <tr className="border-b border-primary-blue/20 hover:bg-primary-blue/5 transition-colors">
+                          <tr className={`border-b ${isLight ? 'border-primary-blue/30 hover:bg-primary-blue/10' : 'border-primary-blue/20 hover:bg-primary-blue/5'} transition-colors`}>
                             <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">New Posts</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newPosts['24h'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newPosts['7d'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newPosts['30d'].toLocaleString()}</td>
                           </tr>
-                          <tr className="border-b border-primary-blue/20 hover:bg-primary-blue/5 transition-colors">
+                          <tr className={`border-b ${isLight ? 'border-primary-blue/30 hover:bg-primary-blue/10' : 'border-primary-blue/20 hover:bg-primary-blue/5'} transition-colors`}>
                             <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">New Comments</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newComments['24h'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newComments['7d'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newComments['30d'].toLocaleString()}</td>
                           </tr>
-                          <tr className="hover:bg-primary-blue/5 transition-colors">
+                          <tr className={`${isLight ? 'hover:bg-primary-blue/10' : 'hover:bg-primary-blue/5'} transition-colors`}>
                             <td className="py-2 px-3 text-primary-text font-medium text-xs sm:text-sm">New Reactions</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newReactions['24h'].toLocaleString()}</td>
                             <td className="py-2 px-3 text-center text-primary-blue-light text-xs sm:text-sm font-mono font-semibold">{stats.newReactions['7d'].toLocaleString()}</td>
