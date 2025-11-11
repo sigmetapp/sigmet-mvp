@@ -867,3 +867,15 @@ textarea {
     scroll-padding-block: 0 !important;
   }
 }
+
+/* SW Levels animations */
+@keyframes glowPulse {
+  0%, 100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}

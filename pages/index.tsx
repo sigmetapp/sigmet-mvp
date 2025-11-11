@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import Button from "@/components/Button";
+import { SW_LEVELS, LEVEL_COLOR_SCHEMES, type SWLevel } from "@/lib/swLevels";
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const supabase = createClient(
@@ -190,58 +191,260 @@ export default function Home() {
             </div>
 
             <div className="relative mt-8 md:mt-0">
-              <div className="card-glow-primary p-5 sm:p-6 md:p-8 backdrop-blur-sm">
-                <h3 className="text-primary-text font-semibold text-lg sm:text-xl mb-3 sm:mb-4">🚀 Quick start</h3>
-                <ol className="mt-3 sm:mt-4 space-y-2 sm:space-y-3 text-primary-text-secondary text-sm sm:text-base list-decimal list-inside">
-                  <li className="pl-2">Sign up and confirm your email</li>
-                  <li className="pl-2">Set up your profile and avatar</li>
-                  <li className="pl-2">Choose directions that interest you for development</li>
-                  <li className="pl-2">Move through tasks and goals, support and be supported by the community</li>
-                  <li className="pl-2">Develop your profile, get new SW results</li>
-                  <li className="pl-2">Unlock new features for advanced users</li>
-                  <li className="pl-2">Develop your personality comprehensively with our social network</li>
-                </ol>
-                <Button href="/signup" variant="primary" className="mt-5 sm:mt-6 w-full">Get started</Button>
+              <div className="backdrop-blur-sm">
+                <h3 className="text-primary-text font-bold text-2xl sm:text-3xl md:text-4xl mb-6 sm:mb-8 text-center md:text-left bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent">Quick start</h3>
+                <div className="space-y-2 mb-6 sm:mb-8">
+                  {/* Step 1 */}
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
+                        1
+                      </div>
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
+                        Choose directions that interest you for development
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
+                        2
+                      </div>
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
+                        Move through tasks and goals, support and be supported by the community
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
+                        3
+                      </div>
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
+                        Develop your profile, get new SW results
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
+                        4
+                      </div>
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
+                        Unlock new features for advanced users
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 5 */}
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
+                        5
+                      </div>
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
+                        Develop your personality comprehensively with our social network
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <Button href="/signup" variant="primary" className="w-full">Get started</Button>
               </div>
             </div>
           </div>
 
           {/* Features Grid */}
           <div className="mt-12 sm:mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-            <div className="card-feature group">
-              <div className="icon-wrapper mb-3 sm:mb-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center text-xl sm:text-2xl group-hover:bg-primary-blue/30 transition-colors">
-                  🎯
+            <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(51, 144, 236, 0.08) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(91, 168, 240, 0.06) 100%)' }}>
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(51, 144, 236, 0.15), transparent 70%)' }}></div>
+              <div className="relative z-10">
+                <div className="icon-wrapper mb-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-gradient-to-br from-primary-blue/30 to-primary-blue-light/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(51,144,236,0.3)]">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 border-2 border-primary-text rounded-sm rotate-45"></div>
+                  </div>
                 </div>
+                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">New Paradigm</h3>
+                <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                  The old concept of social networks is outdated. Society needs a new, productive system of interaction where the time you spend online brings real results and value, not just a break from reality.
+                </p>
               </div>
-              <h3 className="text-primary-text font-semibold text-lg sm:text-xl mb-2">Purpose-driven communities</h3>
-              <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
-                Focus on what matters. Join groups that align with your goals — less noise, more meaning.
-              </p>
             </div>
             
-            <div className="card-feature group">
-              <div className="icon-wrapper mb-3 sm:mb-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center text-xl sm:text-2xl group-hover:bg-primary-blue/30 transition-colors">
-                  ⚖️
+            <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(91, 168, 240, 0.08) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(51, 144, 236, 0.06) 100%)' }}>
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(91, 168, 240, 0.15), transparent 70%)' }}></div>
+              <div className="relative z-10">
+                <div className="icon-wrapper mb-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-gradient-to-br from-primary-blue-light/30 to-primary-blue/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(91,168,240,0.3)]">
+                    <div className="flex flex-col gap-1">
+                      <div className="w-5 h-1 bg-primary-text rounded-full"></div>
+                      <div className="w-4 h-1 bg-primary-text rounded-full"></div>
+                      <div className="w-3 h-1 bg-primary-text rounded-full"></div>
+                    </div>
+                  </div>
                 </div>
+                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">SW</h3>
+                <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                  A complex combined metric that reflects a person's contribution within the network, and in the future, beyond it. Every action and effort you make is recorded and visible — never lost in the void.
+                </p>
               </div>
-              <h3 className="text-primary-text font-semibold text-lg sm:text-xl mb-2">Transparent social weight</h3>
-              <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
-                Reputation built from verified activity, contributions, and learning.
-              </p>
             </div>
             
-            <div className="card-feature group">
-              <div className="icon-wrapper mb-3 sm:mb-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center text-xl sm:text-2xl group-hover:bg-primary-blue/30 transition-colors">
-                  🪶
+            <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(51, 144, 236, 0.06) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(91, 168, 240, 0.08) 100%)' }}>
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(51, 144, 236, 0.15), transparent 70%)' }}></div>
+              <div className="relative z-10">
+                <div className="icon-wrapper mb-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-gradient-to-br from-primary-blue/25 to-primary-blue-light/25 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(51,144,236,0.3)]">
+                    <div className="relative w-6 h-6 sm:w-7 sm:h-7">
+                      <div className="absolute top-0 left-0 w-3 h-3 border-2 border-primary-text border-r-0 border-b-0 rounded-tl"></div>
+                      <div className="absolute bottom-0 right-0 w-3 h-3 border-2 border-primary-text border-l-0 border-t-0 rounded-br"></div>
+                    </div>
+                  </div>
+                </div>
+                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">TF</h3>
+                <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                  In today's digital world, trust and honesty require new verification formats. We introduce a new indicator that makes it possible. Now, when you evaluate someone, you'll look at their verified profile, not guess who they really are.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* SW Levels Table */}
+          <div className="mt-12 sm:mt-16 md:mt-20">
+            <div className="card-glow-primary p-4 sm:p-6 backdrop-blur-sm">
+              <div className="text-center mb-4 sm:mb-5">
+                <h2 className="text-xl sm:text-2xl font-bold text-primary-text mb-2 bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent">
+                  Social Weight Levels
+                </h2>
+                <p className="text-sm sm:text-base text-primary-text-secondary">
+                  Your progress is visible. Grow your SW and unlock new visual recognition.
+                </p>
+              </div>
+              
+              <div className="overflow-x-auto overflow-y-visible">
+                <div className="min-w-full">
+                  <div className="flex items-center justify-center gap-2 sm:gap-4">
+                    {SW_LEVELS.map((level, index) => {
+                      const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                      const showGlow = level.name !== 'Beginner';
+                      const isLast = index === SW_LEVELS.length - 1;
+                      
+                      // Progressive glow parameters by level (from AvatarWithBadge - exact copy)
+                      const getGlowParams = (levelName: string, colorScheme: { hex: string }) => {
+                        const levelParams: Record<string, any> = {
+                          'Growing': {
+                            borderWidth: 1.5,
+                            outerGlow: { r1: 8, r2: 12, r3: 16, o1: '30', o2: '20', o3: '15' },
+                            imageGlow: { r1: 6, r2: 10, r3: 14, r4: 4, o1: '40', o2: '30', o3: '20', o4: '10' },
+                            gradient: '15'
+                          },
+                          'Advance': {
+                            borderWidth: 2,
+                            outerGlow: { r1: 10, r2: 16, r3: 22, o1: '40', o2: '28', o3: '20' },
+                            imageGlow: { r1: 8, r2: 14, r3: 20, r4: 5, o1: '50', o2: '38', o3: '28', o4: '15' },
+                            gradient: '20'
+                          },
+                          'Expert': {
+                            borderWidth: 2.5,
+                            outerGlow: { r1: 12, r2: 20, r3: 28, o1: '50', o2: '36', o3: '25' },
+                            imageGlow: { r1: 10, r2: 18, r3: 26, r4: 6, o1: '60', o2: '46', o3: '36', o4: '20' },
+                            gradient: '25'
+                          },
+                          'Leader': {
+                            borderWidth: 3,
+                            outerGlow: { r1: 14, r2: 24, r3: 34, o1: '60', o2: '44', o3: '30' },
+                            imageGlow: { r1: 12, r2: 22, r3: 32, r4: 7, o1: '70', o2: '54', o3: '44', o4: '25' },
+                            gradient: '30'
+                          },
+                          'Angel': {
+                            borderWidth: 3.5,
+                            outerGlow: { r1: 16, r2: 28, r3: 40, o1: '70', o2: '52', o3: '35' },
+                            imageGlow: { r1: 14, r2: 26, r3: 38, r4: 8, o1: '80', o2: '62', o3: '52', o4: '30' },
+                            gradient: '35'
+                          }
+                        };
+                        return levelParams[levelName] || null;
+                      };
+                      
+                      const glowParams = showGlow ? getGlowParams(level.name, colorScheme) : null;
+                      const og = glowParams?.outerGlow;
+                      const ig = glowParams?.imageGlow;
+                      
+                      return (
+                        <React.Fragment key={level.name}>
+                          <div className="flex flex-col items-center">
+                            {/* Level name */}
+                            <div className="mb-3">
+                              <span className={`font-bold text-xs sm:text-sm ${colorScheme.text}`}>
+                                {level.name}
+                              </span>
+                            </div>
+                            {/* Avatar with glow */}
+                            <div className="relative">
+                              <div className="relative w-12 h-12 sm:w-14 sm:h-14">
+                                {/* Outer glow ring */}
+                                {glowParams && (
+                                  <div
+                                    className="absolute inset-0 rounded-full pointer-events-none"
+                                    style={{
+                                      boxShadow: `0 0 ${og.r1}px ${colorScheme.hex}${og.o1}, 0 0 ${og.r2}px ${colorScheme.hex}${og.o2}, 0 0 ${og.r3}px ${colorScheme.hex}${og.o3}`,
+                                      background: `radial-gradient(circle at center, ${colorScheme.hex}${glowParams.gradient}, transparent 70%)`,
+                                      animation: 'glowPulse 2s ease-in-out infinite',
+                                      animationDelay: `${index * 0.2}s`
+                                    }}
+                                  />
+                                )}
+                                {/* Avatar circle */}
+                                <div
+                                  className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm transition-all duration-500 hover:scale-110 ${
+                                    showGlow ? '' : 'border border-white/10 bg-gray-600/30'
+                                  }`}
+                                  style={
+                                    glowParams && colorScheme
+                                      ? {
+                                          border: `${glowParams.borderWidth} solid ${colorScheme.hex}`,
+                                          boxShadow: `0 0 ${ig.r1}px ${colorScheme.hex}${ig.o1}, 0 0 ${ig.r2}px ${colorScheme.hex}${ig.o2}, 0 0 ${ig.r3}px ${colorScheme.hex}${ig.o3}, inset 0 0 ${ig.r4}px ${colorScheme.hex}${ig.o4}`,
+                                          background: `radial-gradient(circle, ${colorScheme.hex}40, ${colorScheme.hex}20)`
+                                        }
+                                      : { backgroundColor: 'rgba(156, 163, 175, 0.3)' }
+                                  }
+                                >
+                                  {level.name.charAt(0)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Arrow between avatars - centered relative to avatars */}
+                          {!isLast && (
+                            <div className="flex items-center justify-center" style={{ minWidth: '24px', marginTop: '15px', alignSelf: 'center' }}>
+                              <div className="text-primary-blue-light text-xl sm:text-2xl">
+                                →
+                              </div>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 text-center">
+                    <p className="text-primary-text-secondary text-xs">
+                      * Expanding functionality with each level, new opportunities
+                    </p>
+                  </div>
                 </div>
               </div>
-              <h3 className="text-primary-text font-semibold text-lg sm:text-xl mb-2">Creator-first ecosystem</h3>
-              <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
-                Full analytics, fair authorship, and visibility for every creator.
-              </p>
+              
+              <div className="mt-4 text-center">
+                <p className="text-primary-text-secondary text-xs sm:text-sm mb-3">
+                  Every action counts. Build your reputation through meaningful contributions.
+                </p>
+                <Button href="/signup" variant="primary" className="w-full sm:w-auto text-sm">Start Building Your SW</Button>
+              </div>
             </div>
           </div>
 
