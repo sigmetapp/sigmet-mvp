@@ -3,7 +3,7 @@ begin;
 
 -- Function to backfill connections from all existing posts
 create or replace function public.backfill_user_connections()
-returns table(processed_count bigint, message text)
+returns jsonb
 language plpgsql
 security definer
 as $$
@@ -12,16 +12,20 @@ declare
   processed_count int := 0;
   author_col text;
   total_posts int := 0;
+  result jsonb;
 begin
   -- Determine which column exists (user_id or author_id)
   author_col := public._get_posts_author_column();
   
   if author_col is null then
-    return query select 0::bigint, 'No author column found in posts table'::text;
-    return;
+    return jsonb_build_object(
+      'success', false,
+      'processed_count', 0,
+      'message', 'No author column found in posts table'
+    );
   end if;
   
-  -- Count total posts first (no need for author_col in count)
+  -- Count total posts first
   select count(*) into total_posts
   from public.posts
   where text is not null and trim(text) != '';
@@ -63,15 +67,23 @@ begin
   
   raise notice 'Backfill completed. Processed % posts total', processed_count;
   
-  -- Return result
-  return query select processed_count::bigint, format('Processed %s posts successfully', processed_count)::text;
+  -- Return result as JSON
+  result := jsonb_build_object(
+    'success', true,
+    'processed_count', processed_count,
+    'total_posts', total_posts,
+    'author_column', author_col,
+    'message', format('Successfully processed %s posts', processed_count)
+  );
+  
+  return result;
 end;
 $$;
 
 -- Run the backfill and show results
-select * from public.backfill_user_connections();
+select public.backfill_user_connections() as result;
 
--- Drop the temporary function (optional - can keep for future use)
+-- Keep the function for future use (can be called manually if needed)
 -- drop function if exists public.backfill_user_connections();
 
 commit;
