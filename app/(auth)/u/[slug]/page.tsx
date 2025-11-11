@@ -939,9 +939,9 @@ export default function PublicProfilePage() {
   }, [profile?.user_id]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-0 md:px-4 py-6 md:py-8 space-y-6">
       {/* Profile header */}
-      <div className={`card p-4 md:p-6 ${!loadingProfile && profile ? 'animate-fade-in-up' : ''}`}>
+      <div className={`card p-4 md:p-6 mx-4 md:mx-0 ${!loadingProfile && profile ? 'animate-fade-in-up' : ''}`}>
         {loadingProfile ? (
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-4">
@@ -1373,7 +1373,7 @@ export default function PublicProfilePage() {
       {/* Unified Profile Info Block - Full width with tabs */}
       {!loadingProfile && profile && (
         <div className="w-full">
-          <div className="card p-5 md:p-6 animate-fade-in-up animate-stagger-2">
+          <div className="card p-5 md:p-6 mx-4 md:mx-0 animate-fade-in-up animate-stagger-2">
             {/* Tabs */}
             <div className="flex items-center gap-2 mb-5 border-b border-white/10">
               <button
@@ -1747,7 +1747,7 @@ export default function PublicProfilePage() {
 
       {/* Badges block */}
       {!loadingProfile && profile && displayedBadges.length > 0 && (
-        <div className="card p-4 md:p-6 animate-fade-in-up">
+        <div className="card p-4 md:p-6 mx-4 md:mx-0 animate-fade-in-up">
           <h2 className="text-lg font-medium text-white/90 mb-4">Badges</h2>
           <div className="flex flex-wrap items-center gap-3">
             {displayedBadges.map((badge) => (
@@ -1936,10 +1936,10 @@ export default function PublicProfilePage() {
       {/* Posts */}
       <div className={`space-y-4 ${!loadingProfile && profile ? 'animate-fade-in-up' : ''}`}>
         {!loadingProfile && profile && (
-          <h2 className="text-lg text-white/90 animate-fade-in">Posts</h2>
+          <h2 className="text-lg text-white/90 animate-fade-in px-4 md:px-0">Posts</h2>
         )}
         {!loadingProfile && profile && (
-          <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+          <div className="w-full">
             <PostFeed
               filterUserId={profile.user_id}
               showFilters={false}
