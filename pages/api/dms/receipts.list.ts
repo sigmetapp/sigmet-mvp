@@ -9,15 +9,20 @@ type ReceiptRow = {
   updated_at: string | null;
 };
 
-function normalizeMessageId(value: unknown): number | null {
+function normalizeMessageId(value: unknown): string | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.trunc(value);
+    return Number.isInteger(value) ? value.toString() : null;
+  }
+  if (typeof value === 'bigint') {
+    return value.toString();
   }
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return null;
-    const parsed = Number.parseInt(trimmed, 10);
-    return Number.isNaN(parsed) ? null : parsed;
+    if (!/^\d+$/.test(trimmed)) {
+      return null;
+    }
+    return trimmed;
   }
   return null;
 }
@@ -88,7 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const rawMessageIds = Array.isArray(req.body?.message_ids) ? req.body.message_ids : [];
     const normalizedMessageIds = rawMessageIds
       .map(normalizeMessageId)
-      .filter((id): id is number => Number.isFinite(id));
+      .filter((id): id is string => Boolean(id));
 
     if (normalizedMessageIds.length === 0) {
       return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
@@ -103,7 +108,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Ensure all message IDs belong to the requested thread
-    const { data: messageRows, error: messagesError } = await receiptsClient
+      const { data: messageRows, error: messagesError } = await receiptsClient
       .from('dms_messages')
       .select('id, thread_id')
       .in('id', normalizedMessageIds);
@@ -121,7 +126,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       })
       .map((row: any) => normalizeMessageId(row.id))
-      .filter((id): id is number => Number.isFinite(id));
+      .filter((id): id is string => Boolean(id));
 
     if (validMessageIds.length === 0) {
       return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });

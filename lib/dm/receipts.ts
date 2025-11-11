@@ -23,11 +23,11 @@ export async function listThreadReceipts(
   }
 
   try {
-    const payload = {
-      thread_id: threadId,
-      message_ids: options.messageIds ?? [],
-      recipient_ids: options.recipientIds ?? undefined,
-    };
+      const payload = {
+        thread_id: threadId,
+        message_ids: (options.messageIds ?? []).map((id) => String(id)),
+        recipient_ids: options.recipientIds ?? undefined,
+      };
 
     const response = await fetch('/api/dms/receipts.list', {
       method: 'POST',
