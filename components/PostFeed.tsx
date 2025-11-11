@@ -28,6 +28,7 @@ import ViewsChart from "@/components/ViewsChart";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
 import PostSkeleton from "@/components/PostSkeleton";
 import { resolveAvatarUrl } from "@/lib/utils";
+import { useSWLevels } from "@/hooks/useSWLevels";
 
 function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
@@ -131,6 +132,7 @@ export default function PostFeed({
   const router = useRouter();
   const { theme } = useTheme();
   const isLight = theme === "light";
+  const swLevels = useSWLevels(); // Load SW levels from database
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -1262,6 +1264,7 @@ export default function PostFeed({
                       <AvatarWithBadge
                         avatarUrl={avatar}
                         swScore={p.user_id ? (swScoresByUserId[p.user_id] || 0) : 0}
+                        swLevels={swLevels}
                         size="sm"
                         alt="avatar"
                         href={`/u/${encodeURIComponent(profile?.username || p.user_id || '')}`}

@@ -3,6 +3,7 @@
 import React from 'react';
 import { getSWLevel, getLevelColorScheme, shouldShowBadge, type SWLevel } from '@/lib/swLevels';
 import { resolveAvatarUrl } from '@/lib/utils';
+import { useSWLevels } from '@/hooks/useSWLevels';
 
 type AvatarWithBadgeProps = {
   avatarUrl: string;
@@ -73,7 +74,7 @@ function getProgressiveGlowParameters(levelName: string, colorScheme: { hex: str
 export default function AvatarWithBadge({
   avatarUrl,
   swScore = 0,
-  swLevels,
+  swLevels: providedSwLevels,
   size = 'md',
   className = '',
   alt = 'avatar',
@@ -81,6 +82,10 @@ export default function AvatarWithBadge({
   href,
   priority = false,
 }: AvatarWithBadgeProps & { priority?: boolean }) {
+  // Load levels from database if not provided
+  const defaultSwLevels = useSWLevels();
+  const swLevels = providedSwLevels || defaultSwLevels;
+  
   const showBadge = shouldShowBadge(swScore, swLevels);
   const level = getSWLevel(swScore, swLevels);
   const colorScheme = getLevelColorScheme(level.name);

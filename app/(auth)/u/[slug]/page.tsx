@@ -133,20 +133,20 @@ const SW_LEVELS: SWLevel[] = [
   {
     name: 'Growing',
     minSW: 100,
-    maxSW: 500,
+    maxSW: 1250,
     features: [],
     color: 'text-blue-400'
   },
   {
     name: 'Advance',
-    minSW: 500,
-    maxSW: 2000,
+    minSW: 1251,
+    maxSW: 6250,
     features: [],
     color: 'text-purple-400'
   },
   {
     name: 'Expert',
-    minSW: 2000,
+    minSW: 6251,
     maxSW: 10000,
     features: [],
     color: 'text-yellow-400'
