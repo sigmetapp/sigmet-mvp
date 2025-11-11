@@ -191,7 +191,7 @@ export default function Home() {
 
             <div className="relative mt-8 md:mt-0">
               <div className="backdrop-blur-sm">
-                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-6 sm:mb-8 text-center md:text-left">🚀 Quick start</h3>
+                <h3 className="text-primary-text font-bold text-2xl sm:text-3xl md:text-4xl mb-6 sm:mb-8 text-center md:text-left bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent">Quick start</h3>
                 <div className="space-y-2 mb-6 sm:mb-8">
                   {/* Step 1 */}
                   <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
