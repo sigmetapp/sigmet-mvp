@@ -226,14 +226,14 @@ export default async function handler(
 
     const checkin = checkinResult.data;
 
-    // Update user_task with new streak and counters, ensure status remains active
+    // Update user_task with new streak and counters, then deactivate it
     const { data: updatedTask, error: updateError } = await supabase
       .from('user_tasks')
       .update({
         current_streak: newStreak,
         longest_streak: newLongestStreak,
         total_checkins: newTotalCheckins,
-        status: 'active', // Ensure status remains active after check-in
+        status: 'archived', // Deactivate task after check-in
       })
       .eq('id', userTaskId)
       .select()
