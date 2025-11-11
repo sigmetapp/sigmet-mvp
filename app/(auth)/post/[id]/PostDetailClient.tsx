@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Flag } from 'lucide-react';
+import { ArrowLeft, Flag, X as CloseIcon, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import Button from '@/components/Button';
 import PostReactions, { ReactionType } from '@/components/PostReactions';
 import CommentReactions from '@/components/CommentReactions';
@@ -26,6 +27,8 @@ type PostRecord = {
   body: string | null;
   image_url: string | null;
   video_url: string | null;
+  image_urls?: string[] | null;
+  video_urls?: string[] | null;
   category: string | null;
   created_at: string;
   updated_at?: string | null;
@@ -145,6 +148,36 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [replyOpen, setReplyOpen] = useState<Record<number, boolean>>({});
   const [replyInput, setReplyInput] = useState<Record<number, string>>({});
   const [replySubmitting, setReplySubmitting] = useState<Record<number, boolean>>({});
+  const [mediaGalleryOpen, setMediaGalleryOpen] = useState<{ media: Array<{ type: 'image' | 'video'; url: string }>; currentIndex: number } | null>(null);
+  const [swipeStart, setSwipeStart] = useState<{ x: number; y: number } | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  
+  // Keyboard navigation for media gallery
+  useEffect(() => {
+    if (!mediaGalleryOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const newIndex = mediaGalleryOpen.currentIndex > 0 
+          ? mediaGalleryOpen.currentIndex - 1 
+          : mediaGalleryOpen.media.length - 1;
+        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const newIndex = mediaGalleryOpen.currentIndex < mediaGalleryOpen.media.length - 1
+          ? mediaGalleryOpen.currentIndex + 1
+          : 0;
+        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setMediaGalleryOpen(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mediaGalleryOpen]);
   
   // Comment reactions state
   const [commentReactions, setCommentReactions] = useState<Record<string | number, {
@@ -1081,26 +1114,81 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           </p>
 
           {/* Media */}
-          {(post.image_url || post.video_url) && (
-            <div className="overflow-hidden rounded-none border border-slate-200 dark:border-slate-700">
-              {post.image_url && (
-                <ProgressiveImage
-                  src={post.image_url}
-                  alt="Post media"
-                  className="w-full"
-                  placeholder="blur"
-                  priority={true}
-                  objectFit="cover"
-                />
-              )}
-              {post.video_url && (
-                <video controls preload="metadata" playsInline className="w-full">
-                  <source src={post.video_url} type="video/mp4" />
-                  <source src={post.video_url} />
-                </video>
-              )}
-            </div>
-          )}
+          {(() => {
+            const imageUrls = (post.image_urls && post.image_urls.length > 0) ? post.image_urls : (post.image_url ? [post.image_url] : []);
+            const videoUrls = (post.video_urls && post.video_urls.length > 0) ? post.video_urls : (post.video_url ? [post.video_url] : []);
+            const allMedia = [...imageUrls.map(url => ({ type: 'image' as const, url })), ...videoUrls.map(url => ({ type: 'video' as const, url }))];
+            
+            if (allMedia.length === 0) return null;
+            
+            const mediaCount = allMedia.length;
+            const firstMedia = allMedia[0];
+            
+            return (
+              <div 
+                className="relative cursor-pointer group"
+                onClick={() => setMediaGalleryOpen({ media: allMedia, currentIndex: 0 })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setMediaGalleryOpen({ media: allMedia, currentIndex: 0 });
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`View ${mediaCount} media file${mediaCount > 1 ? 's' : ''}`}
+              >
+                <div className={`relative rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700`} style={{ maxHeight: '600px', aspectRatio: '16/9' }}>
+                  {firstMedia.type === 'image' ? (
+                    <ProgressiveImage
+                      src={firstMedia.url}
+                      alt={`Post preview (${mediaCount} file${mediaCount > 1 ? 's' : ''})`}
+                      className="w-full h-full"
+                      placeholder="blur"
+                      priority={true}
+                      objectFit="cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full relative bg-gray-900">
+                      <video 
+                        preload="metadata"
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                        poster={imageUrls[0] || undefined}
+                      >
+                        <source src={firstMedia.url} type="video/mp4" />
+                      </video>
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className={`w-16 h-16 rounded-full ${isLight ? "bg-black/50" : "bg-white/20"} flex items-center justify-center`}>
+                          <svg className={`w-8 h-8 ${isLight ? "text-white" : "text-white"}`} fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Overlay with media count indicator */}
+                  {mediaCount > 1 && (
+                    <div className="absolute top-2 right-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-white" />
+                      <span className="text-sm font-medium text-white">{mediaCount}</span>
+                    </div>
+                  )}
+                  
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center">
+                    {mediaCount > 1 && (
+                      <span className="opacity-0 group-hover:opacity-100 transition-opacity text-white font-medium text-sm bg-black/50 px-4 py-2 rounded-lg">
+                        View all {mediaCount} files
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Stats and actions */}
           <div className="flex items-center gap-3" data-prevent-card-navigation="true">
@@ -1336,6 +1424,171 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
             await handleReportSubmit(complaintType, description);
           }}
         />
+      )}
+
+      {/* Media Gallery Modal */}
+      {mediaGalleryOpen && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+          <div
+            className={`absolute inset-0 ${isLight ? "bg-black/90" : "bg-black/95"}`}
+            onClick={() => setMediaGalleryOpen(null)}
+          />
+          <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
+            <button
+              onClick={() => setMediaGalleryOpen(null)}
+              className={`absolute top-4 right-4 p-2 rounded-full ${isLight ? "bg-white/20 hover:bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+              aria-label="Close gallery"
+            >
+              <CloseIcon className="h-6 w-6" />
+            </button>
+            
+            {mediaGalleryOpen.media.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newIndex = mediaGalleryOpen.currentIndex > 0 
+                      ? mediaGalleryOpen.currentIndex - 1 
+                      : mediaGalleryOpen.media.length - 1;
+                    setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                  }}
+                  className={`absolute left-4 p-3 rounded-full ${isLight ? "bg-white/20 hover:bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+                  aria-label="Previous media"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newIndex = mediaGalleryOpen.currentIndex < mediaGalleryOpen.media.length - 1
+                      ? mediaGalleryOpen.currentIndex + 1
+                      : 0;
+                    setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                  }}
+                  className={`absolute right-4 p-3 rounded-full ${isLight ? "bg-white/20 hover:bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+                  aria-label="Next media"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              </>
+            )}
+            
+            <div className="w-full max-w-6xl max-h-[90vh] flex flex-col items-center">
+              <div 
+                className="relative w-full flex-1 flex items-center justify-center overflow-hidden"
+                style={{ width: '100%' }}
+                onTouchStart={(e) => {
+                  if (mediaGalleryOpen && mediaGalleryOpen.media.length > 1) {
+                    const touch = e.touches[0];
+                    setSwipeStart({ x: touch.clientX, y: touch.clientY });
+                    setSwipeOffset(0);
+                  }
+                }}
+                onTouchMove={(e) => {
+                  if (swipeStart && mediaGalleryOpen && mediaGalleryOpen.media.length > 1) {
+                    const touch = e.touches[0];
+                    const deltaX = touch.clientX - swipeStart.x;
+                    const deltaY = touch.clientY - swipeStart.y;
+                    
+                    // Only allow horizontal swipe if horizontal movement is greater than vertical
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                      e.preventDefault();
+                      setSwipeOffset(deltaX);
+                    }
+                  }
+                }}
+                onTouchEnd={(e) => {
+                  if (swipeStart && mediaGalleryOpen && mediaGalleryOpen.media.length > 1) {
+                    const touch = e.changedTouches[0];
+                    const deltaX = touch.clientX - swipeStart.x;
+                    const deltaY = touch.clientY - swipeStart.y;
+                    const minSwipeDistance = 50; // Minimum distance for swipe
+                    
+                    // Only trigger swipe if horizontal movement is greater than vertical
+                    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minSwipeDistance) {
+                      if (deltaX > 0) {
+                        // Swipe right - go to previous
+                        const newIndex = mediaGalleryOpen.currentIndex > 0 
+                          ? mediaGalleryOpen.currentIndex - 1 
+                          : mediaGalleryOpen.media.length - 1;
+                        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                      } else {
+                        // Swipe left - go to next
+                        const newIndex = mediaGalleryOpen.currentIndex < mediaGalleryOpen.media.length - 1
+                          ? mediaGalleryOpen.currentIndex + 1
+                          : 0;
+                        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                      }
+                    }
+                    
+                    setSwipeStart(null);
+                    setSwipeOffset(0);
+                  }
+                }}
+              >
+                <div 
+                  className={`flex ${swipeOffset === 0 ? 'transition-transform duration-300 ease-out' : ''}`}
+                  style={{ 
+                    transform: `translateX(calc(-${mediaGalleryOpen.currentIndex * 100}% + ${swipeOffset}px))`,
+                    width: `${mediaGalleryOpen.media.length * 100}%`,
+                    height: '100%',
+                  }}
+                >
+                  {mediaGalleryOpen.media.map((media, idx) => (
+                    <div 
+                      key={idx}
+                      className="w-full h-full flex-shrink-0 flex items-center justify-center"
+                      style={{ width: '100%', minWidth: '100%' }}
+                    >
+                      {media.type === 'image' ? (
+                        <img 
+                          src={media.url} 
+                          className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg" 
+                          alt={`Media ${idx + 1} of ${mediaGalleryOpen.media.length}`} 
+                        />
+                      ) : (
+                        <video 
+                          controls 
+                          autoPlay={idx === mediaGalleryOpen.currentIndex}
+                          className="max-w-full max-h-[85vh] w-auto h-auto rounded-lg" 
+                          src={media.url}
+                        >
+                          <source src={media.url} type="video/mp4" />
+                        </video>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {mediaGalleryOpen.media.length > 1 && (
+                <div className="mt-4 flex items-center gap-2">
+                  <span className={`text-sm ${isLight ? "text-white/80" : "text-white/80"}`}>
+                    {mediaGalleryOpen.currentIndex + 1} / {mediaGalleryOpen.media.length}
+                  </span>
+                  <div className="flex gap-1.5">
+                    {mediaGalleryOpen.media.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: idx });
+                        }}
+                        className={`h-1.5 rounded-full transition-all ${
+                          idx === mediaGalleryOpen.currentIndex
+                            ? `${isLight ? "bg-white" : "bg-white"} w-8`
+                            : `${isLight ? "bg-white/40" : "bg-white/40"} w-1.5`
+                        }`}
+                        aria-label={`Go to media ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

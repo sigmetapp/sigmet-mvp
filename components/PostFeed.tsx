@@ -22,7 +22,7 @@ import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
-import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag, UserPlus, HelpCircle } from "lucide-react";
+import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag, UserPlus, HelpCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
@@ -88,6 +88,8 @@ type Post = {
   body: string | null;
   image_url: string | null;
   video_url: string | null;
+  image_urls?: string[] | null;
+  video_urls?: string[] | null;
   category: string | null;
   created_at: string;
   views: number;
@@ -138,8 +140,8 @@ export default function PostFeed({
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const DISCUSS_EMOJI = String.fromCodePoint(0x1F4AC); // speech bubble emoji
   const [text, setText] = useState("");
-  const [img, setImg] = useState<File | null>(null);
-  const [vid, setVid] = useState<File | null>(null);
+  const [images, setImages] = useState<File[]>([]);
+  const [videos, setVideos] = useState<File[]>([]);
   const unifiedFileRef = useRef<HTMLInputElement>(null);
 
   const [uid, setUid] = useState<string | null>(null);
@@ -175,10 +177,40 @@ export default function PostFeed({
   const [viewsChartOpen, setViewsChartOpen] = useState<number | null>(null);
   const [reportModalOpen, setReportModalOpen] = useState<number | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [mediaGalleryOpen, setMediaGalleryOpen] = useState<{ postId: number; media: Array<{ type: 'image' | 'video'; url: string }>; currentIndex: number } | null>(null);
+  const [swipeStart, setSwipeStart] = useState<{ x: number; y: number } | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
   
   const handleEmojiSelect = useCallback((emoji: string) => {
     setText((prev) => prev + emoji);
   }, []);
+
+  // Keyboard navigation for media gallery
+  useEffect(() => {
+    if (!mediaGalleryOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const newIndex = mediaGalleryOpen.currentIndex > 0 
+          ? mediaGalleryOpen.currentIndex - 1 
+          : mediaGalleryOpen.media.length - 1;
+        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const newIndex = mediaGalleryOpen.currentIndex < mediaGalleryOpen.media.length - 1
+          ? mediaGalleryOpen.currentIndex + 1
+          : 0;
+        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setMediaGalleryOpen(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mediaGalleryOpen]);
   
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
@@ -758,16 +790,37 @@ export default function PostFeed({
   // --- create post
   async function onPublish() {
     if (!uid) return alert("Sign in required");
-    if (!text && !img && !vid) return alert("Post cannot be empty");
+    if (!text && images.length === 0 && videos.length === 0) return alert("Post cannot be empty");
     setPublishing(true);
     try {
-      let image_url: string | null = null;
-      let video_url: string | null = null;
-      if (img) image_url = await uploadToStorage(img, "images");
-      if (vid) video_url = await uploadToStorage(vid, "videos");
+      // Upload all images
+      const image_urls: string[] = [];
+      for (const img of images) {
+        const url = await uploadToStorage(img, "images");
+        image_urls.push(url);
+      }
+      
+      // Upload all videos
+      const video_urls: string[] = [];
+      for (const vid of videos) {
+        const url = await uploadToStorage(vid, "videos");
+        video_urls.push(url);
+      }
+      
+      // For backward compatibility, set image_url and video_url to first item if exists
+      const image_url = image_urls.length > 0 ? image_urls[0] : null;
+      const video_url = video_urls.length > 0 ? video_urls[0] : null;
+      
       const { data, error } = await supabase
         .from("posts")
-        .insert({ user_id: uid, body: text || null, image_url, video_url })
+        .insert({ 
+          user_id: uid, 
+          body: text || null, 
+          image_url, 
+          video_url,
+          image_urls: image_urls.length > 0 ? image_urls : null,
+          video_urls: video_urls.length > 0 ? video_urls : null
+        })
         .select("*")
         .single();
       if (error) throw error;
@@ -781,8 +834,8 @@ export default function PostFeed({
         await trackUserActivity(uid, "first_post");
       }
       setText("");
-      setImg(null);
-      setVid(null);
+      setImages([]);
+      setVideos([]);
       setComposerOpen(false);
     } catch (err: any) {
       alert(err.message || "Publish error");
@@ -1406,64 +1459,84 @@ export default function PostFeed({
                       aria-label="Open post"
                     >
                       {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-primary-text" : "text-primary-text"}`}>{formatTextWithMentions(p.body)}</p>}
-                      {p.image_url && (
-                        <div className="mt-3 flex justify-center">
-                          <img 
-                            src={p.image_url} 
-                            loading="lazy" 
-                            className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border object-contain ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`} 
-                            alt="post image" 
-                          />
-                        </div>
-                      )}
-                      {p.video_url && (
-                        <div className="mt-3 flex justify-center w-full relative">
-                          <div className="relative w-full max-w-full" style={{ maxHeight: '500px' }}>
-                            <video 
-                              controls 
-                              preload="metadata"
-                              playsInline
-                              poster={p.image_url || undefined}
-                              className={`w-full max-w-full max-h-[500px] h-auto rounded-none border relative ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`}
-                              style={{ objectFit: 'contain' }}
-                              onLoadedMetadata={(e) => {
-                                // Once video metadata is loaded, hide the placeholder
-                                const target = e.currentTarget;
-                                const placeholder = target.parentElement?.querySelector('.video-placeholder');
-                                if (placeholder) {
-                                  (placeholder as HTMLElement).style.display = 'none';
-                                }
-                              }}
-                              onLoadedData={(e) => {
-                                // Also hide placeholder when video data is loaded (for mobile)
-                                const target = e.currentTarget;
-                                const placeholder = target.parentElement?.querySelector('.video-placeholder');
-                                if (placeholder) {
-                                  (placeholder as HTMLElement).style.display = 'none';
-                                }
-                              }}
-                              onPlay={(e) => {
-                                // Hide placeholder when video starts playing
-                                const target = e.currentTarget;
-                                const placeholder = target.parentElement?.querySelector('.video-placeholder');
-                                if (placeholder) {
-                                  (placeholder as HTMLElement).style.display = 'none';
-                                }
-                              }}
-                            >
-                              <source src={p.video_url} type="video/mp4" />
-                              <source src={p.video_url} />
-                            </video>
-                            {!p.image_url && (
-                              <div className={`video-placeholder absolute inset-0 flex items-center justify-center pointer-events-none z-10 ${isLight ? "bg-slate-100/80" : "bg-slate-900/80"}`}>
-                                <svg className={`w-16 h-16 ${isLight ? "text-slate-400" : "text-white/50"}`} fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M8 5v14l11-7z"/>
-                                </svg>
+                      {/* Display compact media preview with indicator */}
+                      {(() => {
+                        const imageUrls = (p.image_urls && p.image_urls.length > 0) ? p.image_urls : (p.image_url ? [p.image_url] : []);
+                        const videoUrls = (p.video_urls && p.video_urls.length > 0) ? p.video_urls : (p.video_url ? [p.video_url] : []);
+                        const allMedia = [...imageUrls.map(url => ({ type: 'image' as const, url })), ...videoUrls.map(url => ({ type: 'video' as const, url }))];
+                        
+                        if (allMedia.length === 0) return null;
+                        
+                        const mediaCount = allMedia.length;
+                        const firstMedia = allMedia[0];
+                        
+                        return (
+                          <div 
+                            className="mt-3 relative cursor-pointer group"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMediaGalleryOpen({ postId: p.id, media: allMedia, currentIndex: 0 });
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setMediaGalleryOpen({ postId: p.id, media: allMedia, currentIndex: 0 });
+                              }
+                            }}
+                            tabIndex={0}
+                            role="button"
+                            aria-label={`View ${mediaCount} media file${mediaCount > 1 ? 's' : ''}`}
+                          >
+                            <div className={`relative rounded-lg overflow-hidden ${isLight ? "border border-primary-blue/20" : "border border-primary-blue/30"}`} style={{ maxHeight: '500px', aspectRatio: '16/9' }}>
+                              {firstMedia.type === 'image' ? (
+                                <img 
+                                  src={firstMedia.url} 
+                                  loading="lazy" 
+                                  className="w-full h-full object-cover" 
+                                  alt={`Post preview (${mediaCount} file${mediaCount > 1 ? 's' : ''})`} 
+                                />
+                              ) : (
+                                <div className="w-full h-full relative bg-gray-900">
+                                  <video 
+                                    preload="metadata"
+                                    playsInline
+                                    muted
+                                    className="w-full h-full object-cover"
+                                    poster={imageUrls[0] || undefined}
+                                  >
+                                    <source src={firstMedia.url} type="video/mp4" />
+                                  </video>
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <div className={`w-16 h-16 rounded-full ${isLight ? "bg-black/50" : "bg-white/20"} flex items-center justify-center`}>
+                                      <svg className={`w-8 h-8 ${isLight ? "text-white" : "text-white"}`} fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M8 5v14l11-7z"/>
+                                      </svg>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Overlay with media count indicator */}
+                              {mediaCount > 1 && (
+                                <div className="absolute top-2 right-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm flex items-center gap-1.5">
+                                  <ImageIcon className="w-4 h-4 text-white" />
+                                  <span className="text-sm font-medium text-white">{mediaCount}</span>
+                                </div>
+                              )}
+                              
+                              {/* Hover overlay */}
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center">
+                                {mediaCount > 1 && (
+                                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-white font-medium text-sm bg-black/50 px-4 py-2 rounded-lg">
+                                    View all {mediaCount} files
+                                  </span>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -1820,13 +1893,32 @@ export default function PostFeed({
                 ref={unifiedFileRef}
                 type="file"
                 accept="image/*,video/*"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  if (!file) { setImg(null); setVid(null); return; }
-                  if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
-                  else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
-                  else { setImg(null); setVid(null); }
+                  const files = Array.from(e.target.files || []);
+                  if (files.length === 0) {
+                    return;
+                  }
+                  
+                  const newImages: File[] = [...images];
+                  const newVideos: File[] = [...videos];
+                  
+                  files.forEach((file) => {
+                    if (file.type.startsWith("image/")) {
+                      newImages.push(file);
+                    } else if (file.type.startsWith("video/")) {
+                      newVideos.push(file);
+                    }
+                  });
+                  
+                  setImages(newImages);
+                  setVideos(newVideos);
+                  
+                  // Reset input to allow selecting the same files again
+                  if (e.target) {
+                    e.target.value = '';
+                  }
                 }}
               />
               <div className="flex items-center gap-3">
@@ -1847,10 +1939,45 @@ export default function PostFeed({
                   <ImageIcon className="h-4 w-4" aria-hidden="true" />
                   <span>Media</span>
                 </button>
-                {(img || vid) && (
-                  <span className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
-                    {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
-                  </span>
+                {(images.length > 0 || videos.length > 0) && (
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {images.map((img, idx) => (
+                      <span 
+                        key={`img-${idx}`}
+                        className={`text-xs px-2 py-1 rounded-md ${isLight ? "bg-blue-100 text-blue-700" : "bg-blue-900/30 text-blue-300"}`}
+                      >
+                        📷 {img.name}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setImages(images.filter((_, i) => i !== idx));
+                          }}
+                          className="ml-2 hover:opacity-70"
+                          aria-label="Remove image"
+                        >
+                          <CloseIcon className="h-3 w-3 inline" />
+                        </button>
+                      </span>
+                    ))}
+                    {videos.map((vid, idx) => (
+                      <span 
+                        key={`vid-${idx}`}
+                        className={`text-xs px-2 py-1 rounded-md ${isLight ? "bg-purple-100 text-purple-700" : "bg-purple-900/30 text-purple-300"}`}
+                      >
+                        🎥 {vid.name}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setVideos(videos.filter((_, i) => i !== idx));
+                          }}
+                          className="ml-2 hover:opacity-70"
+                          aria-label="Remove video"
+                        >
+                          <CloseIcon className="h-3 w-3 inline" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 )}
                 <div className="ml-auto">
                   <Button onClick={onPublish} disabled={publishing} variant="primary">
@@ -1893,6 +2020,171 @@ export default function PostFeed({
           type={toast.type}
           onClose={() => setToast(null)}
         />
+      )}
+
+      {/* Media Gallery Modal */}
+      {mediaGalleryOpen && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+          <div
+            className={`absolute inset-0 ${isLight ? "bg-black/90" : "bg-black/95"}`}
+            onClick={() => setMediaGalleryOpen(null)}
+          />
+          <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
+            <button
+              onClick={() => setMediaGalleryOpen(null)}
+              className={`absolute top-4 right-4 p-2 rounded-full ${isLight ? "bg-white/20 hover:bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+              aria-label="Close gallery"
+            >
+              <CloseIcon className="h-6 w-6" />
+            </button>
+            
+            {mediaGalleryOpen.media.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newIndex = mediaGalleryOpen.currentIndex > 0 
+                      ? mediaGalleryOpen.currentIndex - 1 
+                      : mediaGalleryOpen.media.length - 1;
+                    setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                  }}
+                  className={`absolute left-4 p-3 rounded-full ${isLight ? "bg-white/20 hover:bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+                  aria-label="Previous media"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newIndex = mediaGalleryOpen.currentIndex < mediaGalleryOpen.media.length - 1
+                      ? mediaGalleryOpen.currentIndex + 1
+                      : 0;
+                    setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                  }}
+                  className={`absolute right-4 p-3 rounded-full ${isLight ? "bg-white/20 hover:bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+                  aria-label="Next media"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              </>
+            )}
+            
+            <div className="w-full max-w-6xl max-h-[90vh] flex flex-col items-center">
+              <div 
+                className="relative w-full flex-1 flex items-center justify-center overflow-hidden"
+                style={{ width: '100%' }}
+                onTouchStart={(e) => {
+                  if (mediaGalleryOpen && mediaGalleryOpen.media.length > 1) {
+                    const touch = e.touches[0];
+                    setSwipeStart({ x: touch.clientX, y: touch.clientY });
+                    setSwipeOffset(0);
+                  }
+                }}
+                onTouchMove={(e) => {
+                  if (swipeStart && mediaGalleryOpen && mediaGalleryOpen.media.length > 1) {
+                    const touch = e.touches[0];
+                    const deltaX = touch.clientX - swipeStart.x;
+                    const deltaY = touch.clientY - swipeStart.y;
+                    
+                    // Only allow horizontal swipe if horizontal movement is greater than vertical
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                      e.preventDefault();
+                      setSwipeOffset(deltaX);
+                    }
+                  }
+                }}
+                onTouchEnd={(e) => {
+                  if (swipeStart && mediaGalleryOpen && mediaGalleryOpen.media.length > 1) {
+                    const touch = e.changedTouches[0];
+                    const deltaX = touch.clientX - swipeStart.x;
+                    const deltaY = touch.clientY - swipeStart.y;
+                    const minSwipeDistance = 50; // Minimum distance for swipe
+                    
+                    // Only trigger swipe if horizontal movement is greater than vertical
+                    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minSwipeDistance) {
+                      if (deltaX > 0) {
+                        // Swipe right - go to previous
+                        const newIndex = mediaGalleryOpen.currentIndex > 0 
+                          ? mediaGalleryOpen.currentIndex - 1 
+                          : mediaGalleryOpen.media.length - 1;
+                        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                      } else {
+                        // Swipe left - go to next
+                        const newIndex = mediaGalleryOpen.currentIndex < mediaGalleryOpen.media.length - 1
+                          ? mediaGalleryOpen.currentIndex + 1
+                          : 0;
+                        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                      }
+                    }
+                    
+                    setSwipeStart(null);
+                    setSwipeOffset(0);
+                  }
+                }}
+              >
+                <div 
+                  className={`flex ${swipeOffset === 0 ? 'transition-transform duration-300 ease-out' : ''}`}
+                  style={{ 
+                    transform: `translateX(calc(-${mediaGalleryOpen.currentIndex * 100}% + ${swipeOffset}px))`,
+                    width: `${mediaGalleryOpen.media.length * 100}%`,
+                    height: '100%',
+                  }}
+                >
+                  {mediaGalleryOpen.media.map((media, idx) => (
+                    <div 
+                      key={idx}
+                      className="w-full h-full flex-shrink-0 flex items-center justify-center"
+                      style={{ width: '100%', minWidth: '100%' }}
+                    >
+                      {media.type === 'image' ? (
+                        <img 
+                          src={media.url} 
+                          className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg" 
+                          alt={`Media ${idx + 1} of ${mediaGalleryOpen.media.length}`} 
+                        />
+                      ) : (
+                        <video 
+                          controls 
+                          autoPlay={idx === mediaGalleryOpen.currentIndex}
+                          className="max-w-full max-h-[85vh] w-auto h-auto rounded-lg" 
+                          src={media.url}
+                        >
+                          <source src={media.url} type="video/mp4" />
+                        </video>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {mediaGalleryOpen.media.length > 1 && (
+                <div className="mt-4 flex items-center gap-2">
+                  <span className={`text-sm ${isLight ? "text-white/80" : "text-white/80"}`}>
+                    {mediaGalleryOpen.currentIndex + 1} / {mediaGalleryOpen.media.length}
+                  </span>
+                  <div className="flex gap-1.5">
+                    {mediaGalleryOpen.media.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: idx });
+                        }}
+                        className={`h-1.5 rounded-full transition-all ${
+                          idx === mediaGalleryOpen.currentIndex
+                            ? `${isLight ? "bg-white" : "bg-white"} w-8`
+                            : `${isLight ? "bg-white/40" : "bg-white/40"} w-1.5`
+                        }`}
+                        aria-label={`Go to media ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
