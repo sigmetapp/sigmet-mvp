@@ -260,40 +260,49 @@ export default function Home() {
 
           {/* Features Grid */}
           <div className="mt-12 sm:mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-            <div className="card-feature group">
-              <div className="icon-wrapper mb-3 sm:mb-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center text-xl sm:text-2xl group-hover:bg-primary-blue/30 transition-colors">
-                  🎯
+            <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(51, 144, 236, 0.08) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(91, 168, 240, 0.06) 100%)' }}>
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(51, 144, 236, 0.15), transparent 70%)' }}></div>
+              <div className="relative z-10">
+                <div className="icon-wrapper mb-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue/30 to-primary-blue-light/20 flex items-center justify-center text-2xl sm:text-3xl group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(51,144,236,0.3)]">
+                    🌐
+                  </div>
                 </div>
+                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">Purpose-Driven Communities</h3>
+                <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                  Sigmet isn't about endless scrolling or shallow likes — it's about growth. Every community on the platform is built around a shared purpose, whether that's learning a new skill, building a project, or improving your health. You join groups that actually move you forward. The result is less noise and more genuine progress, surrounded by people who care about the same things you do.
+                </p>
               </div>
-              <h3 className="text-primary-text font-semibold text-lg sm:text-xl mb-2">Purpose-driven communities</h3>
-              <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
-                Focus on what matters. Join groups that align with your goals — less noise, more meaning.
-              </p>
             </div>
             
-            <div className="card-feature group">
-              <div className="icon-wrapper mb-3 sm:mb-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center text-xl sm:text-2xl group-hover:bg-primary-blue/30 transition-colors">
-                  ⚖️
+            <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(91, 168, 240, 0.08) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(51, 144, 236, 0.06) 100%)' }}>
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(91, 168, 240, 0.15), transparent 70%)' }}></div>
+              <div className="relative z-10">
+                <div className="icon-wrapper mb-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue-light/30 to-primary-blue/20 flex items-center justify-center text-2xl sm:text-3xl group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(91,168,240,0.3)]">
+                    ⚖️
+                  </div>
                 </div>
+                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">Transparent Social Weight</h3>
+                <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                  Your reputation on Sigmet is earned, not bought. The platform introduces Social Weight (SW) — a visible metric that reflects your verified activity, learning, and contributions across multiple growth directions. Every post, connection, and collaboration adds to your authentic digital footprint, helping others see your real progress and expertise, not just popularity.
+                </p>
               </div>
-              <h3 className="text-primary-text font-semibold text-lg sm:text-xl mb-2">Transparent social weight</h3>
-              <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
-                Reputation built from verified activity, contributions, and learning.
-              </p>
             </div>
             
-            <div className="card-feature group">
-              <div className="icon-wrapper mb-3 sm:mb-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center text-xl sm:text-2xl group-hover:bg-primary-blue/30 transition-colors">
-                  🪶
+            <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-xl transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_8px_24px_rgba(51,144,236,0.2)] overflow-hidden" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(51, 144, 236, 0.06) 0%, rgba(31, 41, 55, 0.6) 50%, rgba(91, 168, 240, 0.08) 100%)' }}>
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(51, 144, 236, 0.15), transparent 70%)' }}></div>
+              <div className="relative z-10">
+                <div className="icon-wrapper mb-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue/25 to-primary-blue-light/25 flex items-center justify-center text-2xl sm:text-3xl group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(51,144,236,0.3)]">
+                    🪶
+                  </div>
                 </div>
+                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">Creator-First Ecosystem</h3>
+                <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
+                  Sigmet empowers creators, not algorithms. Every author and contributor gets full visibility into their reach, engagement, and impact through advanced analytics. Authorship is transparent and fair — ideas are credited, not buried. Whether you're writing insights, hosting discussions, or building something new, your voice matters and your growth is recognized.
+                </p>
               </div>
-              <h3 className="text-primary-text font-semibold text-lg sm:text-xl mb-2">Creator-first ecosystem</h3>
-              <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
-                Full analytics, fair authorship, and visibility for every creator.
-              </p>
             </div>
           </div>
 
