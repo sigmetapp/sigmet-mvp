@@ -1237,14 +1237,15 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             threadId;
 
           if (shouldMarkRead) {
-            fetch('/api/dms/messages.read', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                thread_id: String(threadId),
-                up_to_message_id: messageId,
-              }),
-            })
+              fetch('/api/dms/messages.read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  thread_id: String(threadId),
+                  up_to_message_id: messageId,
+                  up_to_sequence_number: newestMessage.sequence_number ?? null,
+                }),
+              })
               .then((response) => {
                 if (response.ok) {
                   window.dispatchEvent(
@@ -1383,15 +1384,21 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         if (thread?.id) {
           if (isAtBottom) {
             // Mark message as read via API to update receipts
-            acknowledgeMessage(lastMessage.id, thread.id, 'read');
-            fetch('/api/dms/messages.read', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                thread_id: String(thread.id),
-                up_to_message_id: String(lastMessage.id),
-              }),
-            })
+              acknowledgeMessage(
+                lastMessage.id,
+                thread.id,
+                'read',
+                lastMessage.sequence_number ?? null
+              );
+              fetch('/api/dms/messages.read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  thread_id: String(thread.id),
+                  up_to_message_id: String(lastMessage.id),
+                  up_to_sequence_number: lastMessage.sequence_number ?? null,
+                }),
+              })
             .then((response) => {
               if (response.ok) {
                 // Dispatch event to update unread count in partner list
@@ -1600,14 +1607,15 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       if (lastMessage && thread?.id) {
         // Mark all messages as read immediately when chat is opened
         // This ensures that on page refresh, these messages won't be unread
-        fetch('/api/dms/messages.read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            thread_id: String(thread.id),
-            up_to_message_id: String(lastMessage.id),
-          }),
-        })
+          fetch('/api/dms/messages.read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              thread_id: String(thread.id),
+              up_to_message_id: String(lastMessage.id),
+              up_to_sequence_number: lastMessage.sequence_number ?? null,
+            }),
+          })
         .then((response) => {
           if (response.ok) {
             // Dispatch event to update unread count in partner list
@@ -1645,15 +1653,21 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       // Mark all messages as read when auto-scrolling to bottom
       const lastMessage = messages[messages.length - 1];
       if (lastMessage && thread?.id) {
-        acknowledgeMessage(lastMessage.id, thread.id, 'read');
-        fetch('/api/dms/messages.read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            thread_id: String(thread.id),
-            up_to_message_id: String(lastMessage.id),
-          }),
-        })
+          acknowledgeMessage(
+            lastMessage.id,
+            thread.id,
+            'read',
+            lastMessage.sequence_number ?? null
+          );
+          fetch('/api/dms/messages.read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              thread_id: String(thread.id),
+              up_to_message_id: String(lastMessage.id),
+              up_to_sequence_number: lastMessage.sequence_number ?? null,
+            }),
+          })
         .then((response) => {
           if (response.ok) {
             // Dispatch event to update unread count in partner list
@@ -1710,19 +1724,25 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             }
             markReadTimeout = setTimeout(() => {
               // Only mark as read if message is from partner
-              if (lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId && thread?.id) {
-                acknowledgeMessage(lastMessage.id, thread.id, 'read');
+                if (lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId && thread?.id) {
+                  acknowledgeMessage(
+                    lastMessage.id,
+                    thread.id,
+                    'read',
+                    lastMessage.sequence_number ?? null
+                  );
                 lastMarkedReadMessageId = lastMessage.id;
                 
                 // Also call the API to update last_read_message_id
-                fetch('/api/dms/messages.read', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    thread_id: String(thread.id),
-                    up_to_message_id: String(lastMessage.id),
-                  }),
-                })
+                  fetch('/api/dms/messages.read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      thread_id: String(thread.id),
+                      up_to_message_id: String(lastMessage.id),
+                      up_to_sequence_number: lastMessage.sequence_number ?? null,
+                    }),
+                  })
                 .then((response) => {
                   if (response.ok) {
                     // Dispatch event to update unread count in partner list
@@ -1773,17 +1793,23 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     
     // Mark all messages as read when jumping to bottom
     if (messages.length > 0 && thread?.id) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage) {
-        acknowledgeMessage(lastMessage.id, thread.id, 'read');
-        fetch('/api/dms/messages.read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            thread_id: String(thread.id),
-            up_to_message_id: String(lastMessage.id),
-          }),
-        })
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage) {
+          acknowledgeMessage(
+            lastMessage.id,
+            thread.id,
+            'read',
+            lastMessage.sequence_number ?? null
+          );
+          fetch('/api/dms/messages.read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              thread_id: String(thread.id),
+              up_to_message_id: String(lastMessage.id),
+              up_to_sequence_number: lastMessage.sequence_number ?? null,
+            }),
+          })
         .then((response) => {
           if (response.ok) {
             // Dispatch event to update unread count in partner list
