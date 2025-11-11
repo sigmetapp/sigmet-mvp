@@ -31,7 +31,7 @@ union all select
   'habit'::public.task_type,
   'weekly'::public.habit_period,
   'Discuss an idea with someone',
-  'Share what you've learned and get feedback. Knowledge grows through dialogue.',
+  'Share what you''ve learned and get feedback. Knowledge grows through dialogue.',
   20,
   3
 union all select
@@ -55,7 +55,7 @@ union all select
   'goal'::public.task_type,
   null,
   'Complete an online course',
-  'Earn a certificate on platforms like Coursera or Udemy and apply what you've learned.',
+  'Earn a certificate on platforms like Coursera or Udemy and apply what you''ve learned.',
   80,
   6
 union all select
@@ -63,14 +63,14 @@ union all select
   'goal'::public.task_type,
   null,
   'Create a personal learning plan for the month',
-  'Outline what topics you want to explore and how you'll measure your progress.',
+  'Outline what topics you want to explore and how you''ll measure your progress.',
   70,
   7
 union all select
   (select id from learning_dir),
   'goal'::public.task_type,
   null,
-  'Build a visual map of what you've learned',
+  'Build a visual map of what you''ve learned',
   'Use a mind map or infographic to connect ideas and visualize your understanding.',
   80,
   8;
