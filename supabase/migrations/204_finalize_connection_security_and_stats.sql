@@ -16,7 +16,7 @@ create policy "allow trigger inserts"
 create or replace function public.extract_mentions_from_post(
   post_text text,
   post_author_id uuid,
-  post_id bigint
+  target_post_id bigint
 )
 returns void
 language plpgsql
@@ -60,12 +60,12 @@ begin
 
       if user_id_found is not null and user_id_found <> current_user_id then
         insert into public.user_connections (user_id, connected_user_id, post_id, connection_type)
-        values (user_id_found, current_user_id, post_id, 'they_mentioned_me')
-        on conflict (user_id, connected_user_id, post_id, connection_type) do nothing;
+        values (user_id_found, current_user_id, target_post_id, 'they_mentioned_me')
+        on conflict on constraint user_connections_user_id_connected_user_id_post_id_connecti_key do nothing;
 
         insert into public.user_connections (user_id, connected_user_id, post_id, connection_type)
-        values (current_user_id, user_id_found, post_id, 'i_mentioned_them')
-        on conflict (user_id, connected_user_id, post_id, connection_type) do nothing;
+        values (current_user_id, user_id_found, target_post_id, 'i_mentioned_them')
+        on conflict on constraint user_connections_user_id_connected_user_id_post_id_connecti_key do nothing;
       end if;
     end loop;
   end if;
@@ -87,12 +87,12 @@ begin
 
       if user_id_found is not null and user_id_found <> current_user_id then
         insert into public.user_connections (user_id, connected_user_id, post_id, connection_type)
-        values (user_id_found, current_user_id, post_id, 'they_mentioned_me')
-        on conflict (user_id, connected_user_id, post_id, connection_type) do nothing;
+        values (user_id_found, current_user_id, target_post_id, 'they_mentioned_me')
+        on conflict on constraint user_connections_user_id_connected_user_id_post_id_connecti_key do nothing;
 
         insert into public.user_connections (user_id, connected_user_id, post_id, connection_type)
-        values (current_user_id, user_id_found, post_id, 'i_mentioned_them')
-        on conflict (user_id, connected_user_id, post_id, connection_type) do nothing;
+        values (current_user_id, user_id_found, target_post_id, 'i_mentioned_them')
+        on conflict on constraint user_connections_user_id_connected_user_id_post_id_connecti_key do nothing;
       end if;
     end loop;
   end if;
@@ -110,12 +110,12 @@ begin
            and user_id_found <> current_user_id
            and exists (select 1 from auth.users where id = user_id_found) then
           insert into public.user_connections (user_id, connected_user_id, post_id, connection_type)
-          values (user_id_found, current_user_id, post_id, 'they_mentioned_me')
-          on conflict (user_id, connected_user_id, post_id, connection_type) do nothing;
+          values (user_id_found, current_user_id, target_post_id, 'they_mentioned_me')
+          on conflict on constraint user_connections_user_id_connected_user_id_post_id_connecti_key do nothing;
 
           insert into public.user_connections (user_id, connected_user_id, post_id, connection_type)
-          values (current_user_id, user_id_found, post_id, 'i_mentioned_them')
-          on conflict (user_id, connected_user_id, post_id, connection_type) do nothing;
+          values (current_user_id, user_id_found, target_post_id, 'i_mentioned_them')
+          on conflict on constraint user_connections_user_id_connected_user_id_post_id_connecti_key do nothing;
         end if;
       exception
         when others then
