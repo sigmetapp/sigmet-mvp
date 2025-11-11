@@ -14,6 +14,7 @@ create policy "allow trigger inserts"
   );
 
 -- Final version of extract_mentions_from_post without excessive logging
+drop function if exists public.extract_mentions_from_post(text, uuid, bigint);
 create or replace function public.extract_mentions_from_post(
   post_text text,
   post_author_id uuid,
