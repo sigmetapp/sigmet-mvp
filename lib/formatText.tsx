@@ -6,10 +6,12 @@ import Link from 'next/link';
  * @param text - Text to check
  * @returns true if there are mentions, otherwise false
  */
+const MENTION_REGEX = /@([a-zA-Z0-9_.-]+)/g;
+
 export function hasMentions(text: string | null | undefined): boolean {
   if (!text) return false;
-  const mentionRegex = /@(\w+)/g;
-  return mentionRegex.test(text);
+  MENTION_REGEX.lastIndex = 0;
+  return MENTION_REGEX.test(text);
 }
 
 /**
@@ -23,8 +25,9 @@ export function formatTextWithMentions(text: string): React.ReactNode {
   // Regex to find mentions: @username (letters, digits, underscores)
   // Pattern: @ followed by one or more word characters
   // Capture until a space, punctuation, or end of line
-  const mentionRegex = /@(\w+)/g;
-  
+  const mentionRegex = MENTION_REGEX;
+  mentionRegex.lastIndex = 0;
+
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;

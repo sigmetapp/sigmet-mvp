@@ -2,6 +2,24 @@
 -- and update mention extraction to honor historical usernames.
 begin;
 
+-- Ensure helper prefers user_id when both columns exist on posts table
+create or replace function public._get_posts_author_column()
+returns text
+language sql
+stable
+as $$
+  select column_name
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'posts'
+    and column_name in ('user_id', 'author_id')
+  order by case column_name
+    when 'user_id' then 1
+    else 2
+  end
+  limit 1;
+$$;
+
 -- Create table to store username history snapshots
 create table if not exists public.profile_username_history (
   id bigserial primary key,
