@@ -1485,15 +1485,15 @@ function GrowthDirectionsInner() {
       )}
 
       {loading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
+        <div className="space-y-6 animate-pulse">
           {/* Directions List Skeleton */}
-          <div className="lg:col-span-1">
+          <div>
             <div className={`p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
               <div className={`h-6 w-24 mb-3 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
-              <div className="space-y-2">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className={`p-3 rounded-xl border ${isLight ? 'bg-white border-primary-blue/20' : 'bg-white/5 border-primary-blue/30'}`}>
-                    <div className="flex items-center justify-between">
+              <div className="flex flex-wrap gap-2">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className={`flex-shrink-0 p-3 rounded-xl border min-w-[200px] ${isLight ? 'bg-white border-primary-blue/20' : 'bg-white/5 border-primary-blue/30'}`}>
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex-1">
                         <div className={`h-4 w-32 mb-2 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
                         <div className={`h-3 w-20 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
@@ -1506,7 +1506,7 @@ function GrowthDirectionsInner() {
             </div>
           </div>
           {/* Tasks View Skeleton */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="space-y-6">
             <div className={`p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
               <div className={`h-6 w-40 mb-2 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
               <div className={`h-4 w-32 rounded ${isLight ? 'bg-gray-200' : 'bg-white/10'}`}></div>
@@ -1524,14 +1524,14 @@ function GrowthDirectionsInner() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="space-y-6">
           {/* Directions List */}
-          <div className="lg:col-span-1 space-y-4">
+          <div>
             <div className={`p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
               <h2 className={`font-semibold mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Directions
               </h2>
-              <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
                 {directions
                   .filter((dir) => {
                     // Filter out directions in development
@@ -1560,7 +1560,7 @@ function GrowthDirectionsInner() {
                   return (
                     <div
                       key={dir.id}
-                      className={`p-3 rounded-xl transition ${
+                      className={`flex-shrink-0 p-3 rounded-xl transition min-w-[200px] ${
                         isInDevelopment 
                           ? 'cursor-not-allowed opacity-60' 
                           : 'cursor-pointer'
@@ -1579,14 +1579,22 @@ function GrowthDirectionsInner() {
                         }
                       }}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div>
-                            <span className="font-medium text-sm">{dir.title}</span>
-                            <div className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-white/70' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                              {isInDevelopment ? 'In development' : dir.isSelected ? 'Priority direction' : 'Available'}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{resolveDirectionEmoji(dir.slug, dir.emoji)}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium text-sm block truncate">{dir.title}</span>
+                              <div className={`text-[10px] uppercase tracking-wide ${isSelected ? 'text-white/70' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                                {isInDevelopment ? 'In development' : dir.isSelected ? 'Priority' : 'Available'}
+                              </div>
                             </div>
                           </div>
+                          {dir.stats.swPoints > 0 && (
+                            <div className={`mt-1 text-xs ${isSelected ? 'text-white/80' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                              {dir.stats.swPoints} SW points
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -1603,7 +1611,7 @@ function GrowthDirectionsInner() {
                               ? 'Cannot add more than 3 priority directions' 
                               : undefined
                           }
-                          className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
+                          className={`flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-medium transition ${
                             isInDevelopment
                               ? 'border border-gray-400/30 text-gray-400 cursor-not-allowed'
                               : dir.isSelected
@@ -1616,11 +1624,6 @@ function GrowthDirectionsInner() {
                           {buttonLabel}
                         </button>
                       </div>
-                      {dir.stats.swPoints > 0 && (
-                        <div className={`mt-2 text-xs ${isSelected ? 'text-white/80' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                          {dir.stats.swPoints} SW points
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -1629,7 +1632,7 @@ function GrowthDirectionsInner() {
           </div>
 
           {/* Tasks View */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="space-y-6">
             {selectedDirection ? (
               <>
                   <div className={`p-4 rounded-lg border mb-6 ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
