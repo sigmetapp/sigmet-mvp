@@ -1090,27 +1090,89 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
             
             if (allMedia.length === 0) return null;
             
+            const mediaCount = allMedia.length;
+            const maxDisplay = 4;
+            const displayMedia = allMedia.slice(0, maxDisplay);
+            const remainingCount = mediaCount > maxDisplay ? mediaCount - maxDisplay : 0;
+            
+            let gridClass = '';
+            let gridRows = '';
+            if (mediaCount === 1) {
+              gridClass = 'grid-cols-1';
+            } else if (mediaCount === 2) {
+              gridClass = 'grid-cols-2';
+            } else if (mediaCount === 3) {
+              gridClass = 'grid-cols-3';
+              gridRows = 'grid-rows-2';
+            } else {
+              gridClass = 'grid-cols-2';
+              gridRows = 'grid-rows-2';
+            }
+            
             return (
-              <div className="space-y-3">
-                {allMedia.map((media, idx) => (
-                  <div key={`media-${idx}`} className="overflow-hidden rounded-none border border-slate-200 dark:border-slate-700">
-                    {media.type === 'image' ? (
-                      <ProgressiveImage
-                        src={media.url}
-                        alt={`Post media ${idx + 1}`}
-                        className="w-full"
-                        placeholder="blur"
-                        priority={idx === 0}
-                        objectFit="cover"
-                      />
-                    ) : (
-                      <video controls preload="metadata" playsInline className="w-full">
-                        <source src={media.url} type="video/mp4" />
-                        <source src={media.url} />
-                      </video>
-                    )}
-                  </div>
-                ))}
+              <div className={`grid ${gridClass} ${gridRows} gap-1 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden`} style={{ maxHeight: '600px', aspectRatio: mediaCount === 1 ? 'auto' : mediaCount === 2 ? '1/1' : mediaCount === 3 ? '3/2' : '1/1' }}>
+                {displayMedia.map((media, idx) => {
+                  const isLast = idx === displayMedia.length - 1;
+                  const showOverlay = isLast && remainingCount > 0;
+                  
+                  // Special handling for 3 media: first is large (2x2), others are small (1x1)
+                  let cellClass = '';
+                  if (mediaCount === 3) {
+                    if (idx === 0) {
+                      cellClass = 'col-span-2 row-span-2';
+                    } else {
+                      cellClass = 'col-span-1 row-span-1';
+                    }
+                  } else if (mediaCount === 2) {
+                    cellClass = 'aspect-square';
+                  } else if (mediaCount >= 4) {
+                    cellClass = 'aspect-square';
+                  }
+                  
+                  return (
+                    <div 
+                      key={`media-${idx}`} 
+                      className={`relative ${cellClass} overflow-hidden bg-gray-100 dark:bg-gray-800`}
+                      style={{ 
+                        maxHeight: mediaCount === 1 ? '600px' : mediaCount === 3 && idx === 0 ? '600px' : mediaCount === 3 ? '300px' : '300px'
+                      }}
+                    >
+                      {media.type === 'image' ? (
+                        <>
+                          <ProgressiveImage
+                            src={media.url}
+                            alt={`Post media ${idx + 1}`}
+                            className="w-full h-full"
+                            placeholder="blur"
+                            priority={idx === 0}
+                            objectFit="cover"
+                          />
+                          {showOverlay && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                              <span className="text-2xl font-bold text-white">
+                                +{remainingCount}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="w-full h-full relative">
+                          <video controls preload="metadata" playsInline className="w-full h-full object-cover">
+                            <source src={media.url} type="video/mp4" />
+                            <source src={media.url} />
+                          </video>
+                          {showOverlay && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
+                              <span className="text-2xl font-bold text-white">
+                                +{remainingCount}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           })()}
