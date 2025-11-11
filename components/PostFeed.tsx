@@ -2072,6 +2072,7 @@ export default function PostFeed({
             <div className="w-full max-w-6xl max-h-[90vh] flex flex-col items-center">
               <div 
                 className="relative w-full flex-1 flex items-center justify-center overflow-hidden"
+                style={{ width: '100%' }}
                 onTouchStart={(e) => {
                   if (mediaGalleryOpen && mediaGalleryOpen.media.length > 1) {
                     const touch = e.touches[0];
@@ -2126,13 +2127,14 @@ export default function PostFeed({
                   style={{ 
                     transform: `translateX(calc(-${mediaGalleryOpen.currentIndex * 100}% + ${swipeOffset}px))`,
                     width: `${mediaGalleryOpen.media.length * 100}%`,
+                    height: '100%',
                   }}
                 >
                   {mediaGalleryOpen.media.map((media, idx) => (
                     <div 
                       key={idx}
-                      className="w-full flex-shrink-0 flex items-center justify-center"
-                      style={{ width: `${100 / mediaGalleryOpen.media.length}%` }}
+                      className="w-full h-full flex-shrink-0 flex items-center justify-center"
+                      style={{ width: '100%', minWidth: '100%' }}
                     >
                       {media.type === 'image' ? (
                         <img 
