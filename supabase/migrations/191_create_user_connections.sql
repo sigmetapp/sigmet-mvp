@@ -162,7 +162,7 @@ begin
   end if;
   
   -- Build function body with correct column name
-  -- Pre-quote the column name to avoid nested format issues
+  -- Use simple approach: directly embed column name in function
   func_body := format('
     create or replace function public.update_connections_on_post()
     returns trigger
@@ -173,15 +173,12 @@ begin
       post_text text;
       post_author_id uuid;
       post_id_val bigint;
-      sql_query text;
-      col_name text := %L;
     begin
       post_id_val := new.id;
       
-      -- Build SQL query with column name using quote_ident for safety
-      -- Use dollar quoting with unique tag to avoid conflicts
-      sql_query := $sqlq$select coalesce(text, ''::text)::text, $sqlq$ || quote_ident(col_name) || $sqlq$::uuid from public.posts where id = $1$sqlq$;
-      execute sql_query using post_id_val into post_text, post_author_id;
+      -- Get post text and author_id directly (column name is known at function creation time)
+      post_text := coalesce(new.text, ''''::text);
+      post_author_id := new.%I;
       
       delete from public.user_connections where post_id = post_id_val;
       
