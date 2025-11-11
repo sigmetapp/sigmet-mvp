@@ -88,6 +88,8 @@ type Post = {
   body: string | null;
   image_url: string | null;
   video_url: string | null;
+  image_urls?: string[] | null;
+  video_urls?: string[] | null;
   category: string | null;
   created_at: string;
   views: number;
@@ -138,8 +140,8 @@ export default function PostFeed({
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
   const DISCUSS_EMOJI = String.fromCodePoint(0x1F4AC); // speech bubble emoji
   const [text, setText] = useState("");
-  const [img, setImg] = useState<File | null>(null);
-  const [vid, setVid] = useState<File | null>(null);
+  const [images, setImages] = useState<File[]>([]);
+  const [videos, setVideos] = useState<File[]>([]);
   const unifiedFileRef = useRef<HTMLInputElement>(null);
 
   const [uid, setUid] = useState<string | null>(null);
@@ -758,16 +760,37 @@ export default function PostFeed({
   // --- create post
   async function onPublish() {
     if (!uid) return alert("Sign in required");
-    if (!text && !img && !vid) return alert("Post cannot be empty");
+    if (!text && images.length === 0 && videos.length === 0) return alert("Post cannot be empty");
     setPublishing(true);
     try {
-      let image_url: string | null = null;
-      let video_url: string | null = null;
-      if (img) image_url = await uploadToStorage(img, "images");
-      if (vid) video_url = await uploadToStorage(vid, "videos");
+      // Upload all images
+      const image_urls: string[] = [];
+      for (const img of images) {
+        const url = await uploadToStorage(img, "images");
+        image_urls.push(url);
+      }
+      
+      // Upload all videos
+      const video_urls: string[] = [];
+      for (const vid of videos) {
+        const url = await uploadToStorage(vid, "videos");
+        video_urls.push(url);
+      }
+      
+      // For backward compatibility, set image_url and video_url to first item if exists
+      const image_url = image_urls.length > 0 ? image_urls[0] : null;
+      const video_url = video_urls.length > 0 ? video_urls[0] : null;
+      
       const { data, error } = await supabase
         .from("posts")
-        .insert({ user_id: uid, body: text || null, image_url, video_url })
+        .insert({ 
+          user_id: uid, 
+          body: text || null, 
+          image_url, 
+          video_url,
+          image_urls: image_urls.length > 0 ? image_urls : null,
+          video_urls: video_urls.length > 0 ? video_urls : null
+        })
         .select("*")
         .single();
       if (error) throw error;
@@ -781,8 +804,8 @@ export default function PostFeed({
         await trackUserActivity(uid, "first_post");
       }
       setText("");
-      setImg(null);
-      setVid(null);
+      setImages([]);
+      setVideos([]);
       setComposerOpen(false);
     } catch (err: any) {
       alert(err.message || "Publish error");
@@ -1406,64 +1429,73 @@ export default function PostFeed({
                       aria-label="Open post"
                     >
                       {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-primary-text" : "text-primary-text"}`}>{formatTextWithMentions(p.body)}</p>}
-                      {p.image_url && (
-                        <div className="mt-3 flex justify-center">
-                          <img 
-                            src={p.image_url} 
-                            loading="lazy" 
-                            className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border object-contain ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`} 
-                            alt="post image" 
-                          />
-                        </div>
-                      )}
-                      {p.video_url && (
-                        <div className="mt-3 flex justify-center w-full relative">
-                          <div className="relative w-full max-w-full" style={{ maxHeight: '500px' }}>
-                            <video 
-                              controls 
-                              preload="metadata"
-                              playsInline
-                              poster={p.image_url || undefined}
-                              className={`w-full max-w-full max-h-[500px] h-auto rounded-none border relative ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`}
-                              style={{ objectFit: 'contain' }}
-                              onLoadedMetadata={(e) => {
-                                // Once video metadata is loaded, hide the placeholder
-                                const target = e.currentTarget;
-                                const placeholder = target.parentElement?.querySelector('.video-placeholder');
-                                if (placeholder) {
-                                  (placeholder as HTMLElement).style.display = 'none';
-                                }
-                              }}
-                              onLoadedData={(e) => {
-                                // Also hide placeholder when video data is loaded (for mobile)
-                                const target = e.currentTarget;
-                                const placeholder = target.parentElement?.querySelector('.video-placeholder');
-                                if (placeholder) {
-                                  (placeholder as HTMLElement).style.display = 'none';
-                                }
-                              }}
-                              onPlay={(e) => {
-                                // Hide placeholder when video starts playing
-                                const target = e.currentTarget;
-                                const placeholder = target.parentElement?.querySelector('.video-placeholder');
-                                if (placeholder) {
-                                  (placeholder as HTMLElement).style.display = 'none';
-                                }
-                              }}
-                            >
-                              <source src={p.video_url} type="video/mp4" />
-                              <source src={p.video_url} />
-                            </video>
-                            {!p.image_url && (
-                              <div className={`video-placeholder absolute inset-0 flex items-center justify-center pointer-events-none z-10 ${isLight ? "bg-slate-100/80" : "bg-slate-900/80"}`}>
-                                <svg className={`w-16 h-16 ${isLight ? "text-slate-400" : "text-white/50"}`} fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M8 5v14l11-7z"/>
-                                </svg>
+                      {/* Display multiple images if available, otherwise fall back to single image_url */}
+                      {(() => {
+                        const imageUrls = (p.image_urls && p.image_urls.length > 0) ? p.image_urls : (p.image_url ? [p.image_url] : []);
+                        const videoUrls = (p.video_urls && p.video_urls.length > 0) ? p.video_urls : (p.video_url ? [p.video_url] : []);
+                        const allMedia = [...imageUrls.map(url => ({ type: 'image', url })), ...videoUrls.map(url => ({ type: 'video', url }))];
+                        
+                        if (allMedia.length === 0) return null;
+                        
+                        return (
+                          <div className="mt-3 space-y-3">
+                            {allMedia.map((media, idx) => (
+                              <div key={`media-${idx}`} className="flex justify-center">
+                                {media.type === 'image' ? (
+                                  <img 
+                                    src={media.url} 
+                                    loading="lazy" 
+                                    className={`max-w-full max-h-[500px] w-auto h-auto rounded-none border object-contain ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`} 
+                                    alt={`post image ${idx + 1}`} 
+                                  />
+                                ) : (
+                                  <div className="w-full max-w-full relative" style={{ maxHeight: '500px' }}>
+                                    <video 
+                                      controls 
+                                      preload="metadata"
+                                      playsInline
+                                      poster={imageUrls[0] || undefined}
+                                      className={`w-full max-w-full max-h-[500px] h-auto rounded-none border relative ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`}
+                                      style={{ objectFit: 'contain' }}
+                                      onLoadedMetadata={(e) => {
+                                        const target = e.currentTarget;
+                                        const placeholder = target.parentElement?.querySelector('.video-placeholder');
+                                        if (placeholder) {
+                                          (placeholder as HTMLElement).style.display = 'none';
+                                        }
+                                      }}
+                                      onLoadedData={(e) => {
+                                        const target = e.currentTarget;
+                                        const placeholder = target.parentElement?.querySelector('.video-placeholder');
+                                        if (placeholder) {
+                                          (placeholder as HTMLElement).style.display = 'none';
+                                        }
+                                      }}
+                                      onPlay={(e) => {
+                                        const target = e.currentTarget;
+                                        const placeholder = target.parentElement?.querySelector('.video-placeholder');
+                                        if (placeholder) {
+                                          (placeholder as HTMLElement).style.display = 'none';
+                                        }
+                                      }}
+                                    >
+                                      <source src={media.url} type="video/mp4" />
+                                      <source src={media.url} />
+                                    </video>
+                                    {!imageUrls[0] && (
+                                      <div className={`video-placeholder absolute inset-0 flex items-center justify-center pointer-events-none z-10 ${isLight ? "bg-slate-100/80" : "bg-slate-900/80"}`}>
+                                        <svg className={`w-16 h-16 ${isLight ? "text-slate-400" : "text-white/50"}`} fill="currentColor" viewBox="0 0 24 24">
+                                          <path d="M8 5v14l11-7z"/>
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            ))}
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -1820,13 +1852,32 @@ export default function PostFeed({
                 ref={unifiedFileRef}
                 type="file"
                 accept="image/*,video/*"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  if (!file) { setImg(null); setVid(null); return; }
-                  if (file.type.startsWith("image/")) { setImg(file); setVid(null); }
-                  else if (file.type.startsWith("video/")) { setVid(file); setImg(null); }
-                  else { setImg(null); setVid(null); }
+                  const files = Array.from(e.target.files || []);
+                  if (files.length === 0) {
+                    return;
+                  }
+                  
+                  const newImages: File[] = [...images];
+                  const newVideos: File[] = [...videos];
+                  
+                  files.forEach((file) => {
+                    if (file.type.startsWith("image/")) {
+                      newImages.push(file);
+                    } else if (file.type.startsWith("video/")) {
+                      newVideos.push(file);
+                    }
+                  });
+                  
+                  setImages(newImages);
+                  setVideos(newVideos);
+                  
+                  // Reset input to allow selecting the same files again
+                  if (e.target) {
+                    e.target.value = '';
+                  }
                 }}
               />
               <div className="flex items-center gap-3">
@@ -1847,10 +1898,45 @@ export default function PostFeed({
                   <ImageIcon className="h-4 w-4" aria-hidden="true" />
                   <span>Media</span>
                 </button>
-                {(img || vid) && (
-                  <span className={`text-sm ${isLight ? "text-primary-text-secondary" : "text-primary-text-secondary"}`}>
-                    {img ? `Image: ${img.name}` : vid ? `Video: ${vid.name}` : ""}
-                  </span>
+                {(images.length > 0 || videos.length > 0) && (
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {images.map((img, idx) => (
+                      <span 
+                        key={`img-${idx}`}
+                        className={`text-xs px-2 py-1 rounded-md ${isLight ? "bg-blue-100 text-blue-700" : "bg-blue-900/30 text-blue-300"}`}
+                      >
+                        📷 {img.name}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setImages(images.filter((_, i) => i !== idx));
+                          }}
+                          className="ml-2 hover:opacity-70"
+                          aria-label="Remove image"
+                        >
+                          <CloseIcon className="h-3 w-3 inline" />
+                        </button>
+                      </span>
+                    ))}
+                    {videos.map((vid, idx) => (
+                      <span 
+                        key={`vid-${idx}`}
+                        className={`text-xs px-2 py-1 rounded-md ${isLight ? "bg-purple-100 text-purple-700" : "bg-purple-900/30 text-purple-300"}`}
+                      >
+                        🎥 {vid.name}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setVideos(videos.filter((_, i) => i !== idx));
+                          }}
+                          className="ml-2 hover:opacity-70"
+                          aria-label="Remove video"
+                        >
+                          <CloseIcon className="h-3 w-3 inline" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 )}
                 <div className="ml-auto">
                   <Button onClick={onPublish} disabled={publishing} variant="primary">

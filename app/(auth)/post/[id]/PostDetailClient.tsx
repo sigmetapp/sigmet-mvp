@@ -26,6 +26,8 @@ type PostRecord = {
   body: string | null;
   image_url: string | null;
   video_url: string | null;
+  image_urls?: string[] | null;
+  video_urls?: string[] | null;
   category: string | null;
   created_at: string;
   updated_at?: string | null;
@@ -1081,26 +1083,37 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           </p>
 
           {/* Media */}
-          {(post.image_url || post.video_url) && (
-            <div className="overflow-hidden rounded-none border border-slate-200 dark:border-slate-700">
-              {post.image_url && (
-                <ProgressiveImage
-                  src={post.image_url}
-                  alt="Post media"
-                  className="w-full"
-                  placeholder="blur"
-                  priority={true}
-                  objectFit="cover"
-                />
-              )}
-              {post.video_url && (
-                <video controls preload="metadata" playsInline className="w-full">
-                  <source src={post.video_url} type="video/mp4" />
-                  <source src={post.video_url} />
-                </video>
-              )}
-            </div>
-          )}
+          {(() => {
+            const imageUrls = (post.image_urls && post.image_urls.length > 0) ? post.image_urls : (post.image_url ? [post.image_url] : []);
+            const videoUrls = (post.video_urls && post.video_urls.length > 0) ? post.video_urls : (post.video_url ? [post.video_url] : []);
+            const allMedia = [...imageUrls.map(url => ({ type: 'image', url })), ...videoUrls.map(url => ({ type: 'video', url }))];
+            
+            if (allMedia.length === 0) return null;
+            
+            return (
+              <div className="space-y-3">
+                {allMedia.map((media, idx) => (
+                  <div key={`media-${idx}`} className="overflow-hidden rounded-none border border-slate-200 dark:border-slate-700">
+                    {media.type === 'image' ? (
+                      <ProgressiveImage
+                        src={media.url}
+                        alt={`Post media ${idx + 1}`}
+                        className="w-full"
+                        placeholder="blur"
+                        priority={idx === 0}
+                        objectFit="cover"
+                      />
+                    ) : (
+                      <video controls preload="metadata" playsInline className="w-full">
+                        <source src={media.url} type="video/mp4" />
+                        <source src={media.url} />
+                      </video>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Stats and actions */}
           <div className="flex items-center gap-3" data-prevent-card-navigation="true">
