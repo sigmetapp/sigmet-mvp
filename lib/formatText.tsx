@@ -15,7 +15,7 @@ export function hasMentions(text: string | null | undefined): boolean {
 }
 
 /**
- * Parses text and highlights @mentions with a light green underline.
+ * Parses text and highlights @mentions with a link to user profile (no underline).
  * @param text - Text to process
  * @returns React nodes with highlighted mentions
  */
@@ -41,7 +41,7 @@ export function formatTextWithMentions(text: string): React.ReactNode {
       parts.push(text.substring(lastIndex, matchIndex));
     }
 
-    // Add mention with underline and link to user profile
+    // Add mention with link to user profile (no underline)
     parts.push(
       <Link
         key={`mention-${matchIndex}`}
@@ -49,18 +49,10 @@ export function formatTextWithMentions(text: string): React.ReactNode {
         className="relative inline-block font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors"
         onClick={(e) => e.stopPropagation()}
         data-prevent-card-navigation="true"
-        style={{
-          textDecoration: 'underline',
-          textDecorationColor: '#86efac', // green-300
-          textDecorationThickness: '2px',
-          textUnderlineOffset: '3px',
-        }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.textDecorationColor = '#4ade80'; // green-400
           e.currentTarget.style.backgroundColor = 'rgba(134, 239, 172, 0.1)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.textDecorationColor = '#86efac'; // green-300
           e.currentTarget.style.backgroundColor = 'transparent';
         }}
       >
