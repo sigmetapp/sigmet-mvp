@@ -1834,6 +1834,7 @@ export default function PostFeed({
                   onEmojiSelect={handleEmojiSelect}
                   variant={isLight ? 'light' : 'dark'}
                   align="left"
+                  position="top"
                 />
                 <button
                   onClick={() => unifiedFileRef.current?.click()}
