@@ -665,25 +665,62 @@ export default function PublicProfilePage() {
           return;
         }
 
-        const response = await fetch(`/api/sw/calculate?user_id=${encodeURIComponent(profile.user_id)}`, {
+        // Try to get SW from cache first (sw_scores table)
+        const { data: swScore, error: swScoreError } = await supabase
+          .from('sw_scores')
+          .select('total, last_updated')
+          .eq('user_id', profile.user_id)
+          .single();
+
+        // Check if cached data is fresh (less than 15 minutes old)
+        const isStale = !swScore || !swScore.last_updated || 
+          (Date.now() - new Date(swScore.last_updated).getTime()) > (15 * 60 * 1000);
+
+        if (swScore && !isStale) {
+          // Use cached data - it's fresh
+          setTotalSW(swScore.total || 0);
+        } else {
+          // Data is stale or missing - trigger background recalculation (don't wait for it)
+          if (isStale && swScore) {
+            fetch(`/api/sw/recalculate`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ user_id: profile.user_id }),
+            }).catch(() => {
+              // Ignore errors in background recalculation
+            });
+          }
+          
+          // No cache or stale - fetch fresh data
+          const response = await fetch(`/api/sw/calculate?user_id=${encodeURIComponent(profile.user_id)}`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            setTotalSW(data.totalSW || 0);
+          } else {
+            setTotalSW(swScore?.total || null);
+          }
+        }
+        
+        // Load SW levels from weights (separate lightweight call)
+        const weightsResponse = await fetch('/api/sw/weights', {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
           },
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          setTotalSW(data.totalSW || 0);
-          
-          // Load SW levels from weights if available (same logic as /sw page)
-          if (data.weights?.sw_levels) {
+        
+        if (weightsResponse.ok) {
+          const weightsData = await weightsResponse.json();
+          if (weightsData.sw_levels) {
             try {
-              const levels = typeof data.weights.sw_levels === 'string' 
-                ? JSON.parse(data.weights.sw_levels)
-                : data.weights.sw_levels;
-              
-              // Map levels to include features (if not in DB, use defaults)
-              const mappedLevels = levels.map((level: any, index: number) => {
+              const mappedLevels = weightsData.sw_levels.map((level: any, index: number) => {
                 const defaultLevel = SW_LEVELS.find(l => l.name === level.name) || SW_LEVELS[index] || SW_LEVELS[0];
                 return {
                   name: level.name || defaultLevel.name,
@@ -701,8 +738,6 @@ export default function PublicProfilePage() {
               console.error('Error parsing sw_levels:', err);
             }
           }
-        } else {
-          setTotalSW(null);
         }
       } catch (error) {
         console.error('Error loading SW:', error);

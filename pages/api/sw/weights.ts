@@ -37,7 +37,14 @@ export default async function handler(
         return res.status(500).json({ error: error.message });
       }
 
-      return res.status(200).json({ weights });
+      // Return weights with sw_levels at top level for easier access
+      const response: any = { weights };
+      if (weights?.sw_levels) {
+        response.sw_levels = typeof weights.sw_levels === 'string' 
+          ? JSON.parse(weights.sw_levels)
+          : weights.sw_levels;
+      }
+      return res.status(200).json(response);
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }
@@ -102,7 +109,14 @@ export default async function handler(
         return res.status(500).json({ error: error.message });
       }
 
-      return res.status(200).json({ weights });
+      // Return weights with sw_levels at top level for easier access
+      const response: any = { weights };
+      if (weights?.sw_levels) {
+        response.sw_levels = typeof weights.sw_levels === 'string' 
+          ? JSON.parse(weights.sw_levels)
+          : weights.sw_levels;
+      }
+      return res.status(200).json(response);
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }

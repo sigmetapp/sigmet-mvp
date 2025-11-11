@@ -40,7 +40,7 @@ export function useSWLevels(): SWLevel[] {
           return;
         }
 
-        const response = await fetch('/api/sw/calculate', {
+        const response = await fetch('/api/sw/weights', {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
           },
@@ -54,11 +54,9 @@ export function useSWLevels(): SWLevel[] {
         const data = await response.json();
         
         // Load SW levels from weights if available
-        if (data.weights?.sw_levels) {
+        if (data.sw_levels) {
           try {
-            const levels = typeof data.weights.sw_levels === 'string' 
-              ? JSON.parse(data.weights.sw_levels)
-              : data.weights.sw_levels;
+            const levels = data.sw_levels;
             
             // Map levels to include features and colors from defaults
             const mappedLevels = levels.map((level: any, index: number) => {
