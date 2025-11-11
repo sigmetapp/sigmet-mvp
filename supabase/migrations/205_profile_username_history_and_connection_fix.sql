@@ -34,6 +34,7 @@ create policy "profile_username_history_read"
   using (true);
 
 -- Function to log username changes into history table
+drop trigger if exists profiles_username_history_au on public.profiles;
 drop function if exists public.log_profile_username_history();
 create or replace function public.log_profile_username_history()
 returns trigger
