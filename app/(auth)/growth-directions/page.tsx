@@ -1607,14 +1607,14 @@ function GrowthDirectionsInner() {
                               ? 'Cannot add more than 3 priority directions' 
                               : undefined
                           }
-                          className={`flex-shrink-0 px-1.5 py-0.5 rounded-full text-[13px] font-medium transition whitespace-nowrap ${
+                          className={`flex-shrink-0 px-2 py-1 rounded-full text-[13px] font-semibold transition whitespace-nowrap ${
                             isInDevelopment
-                              ? 'border border-gray-400/30 text-gray-400 cursor-not-allowed'
+                              ? 'border-2 border-gray-400/50 text-gray-500 bg-gray-100/50 cursor-not-allowed'
                               : dir.isSelected
-                              ? 'bg-white/20 text-white'
+                              ? 'bg-white/30 text-white border-2 border-white/40'
                               : isLight
-                              ? 'border border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10'
-                              : 'border border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/15'
+                              ? 'border-2 border-primary-blue text-primary-blue bg-primary-blue/10 hover:bg-primary-blue/20 hover:border-primary-blue/80'
+                              : 'border-2 border-primary-blue-light text-primary-blue-light bg-primary-blue/20 hover:bg-primary-blue/30 hover:border-primary-blue-light/80'
                           } ${(disableSelection || isInDevelopment) && !dir.isSelected ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           {buttonLabel}
