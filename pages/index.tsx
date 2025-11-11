@@ -331,9 +331,8 @@ export default function Home() {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-primary-blue/30">
-                        <th className="text-left py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">Level</th>
-                        <th className="text-center py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">Avatar Glow</th>
-                        <th className="text-left py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">Description</th>
+                        <th className="text-left py-2 px-3 text-primary-text font-semibold text-xs sm:text-sm">Level</th>
+                        <th className="text-center py-2 px-3 text-primary-text font-semibold text-xs sm:text-sm">Avatar Glow</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-primary-blue/20">
@@ -384,14 +383,14 @@ export default function Home() {
                         
                         return (
                           <tr key={level.name} className="hover:bg-primary-blue/5 transition-colors">
-                            <td className="py-4 px-4 sm:px-6">
-                              <span className={`font-bold text-lg ${colorScheme.text}`}>
+                            <td className="py-2 px-3">
+                              <span className={`font-bold text-sm sm:text-base ${colorScheme.text}`}>
                                 {level.name}
                               </span>
                             </td>
-                            <td className="py-4 px-4 sm:px-6">
+                            <td className="py-2 px-3">
                               <div className="flex justify-center">
-                                <div className="relative w-16 h-16 sm:w-20 sm:h-20">
+                                <div className="relative w-12 h-12 sm:w-14 sm:h-14">
                                   {/* Outer glow ring */}
                                   {glowParams && (
                                     <div
@@ -404,7 +403,7 @@ export default function Home() {
                                   )}
                                   {/* Avatar circle */}
                                   <div
-                                    className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-lg sm:text-xl ${
+                                    className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-base ${
                                       showGlow ? '' : 'border border-white/10 bg-gray-600/30'
                                     }`}
                                     style={
@@ -421,17 +420,6 @@ export default function Home() {
                                   </div>
                                 </div>
                               </div>
-                            </td>
-                            <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">
-                              {level.features.length > 0 ? (
-                                <ul className="list-disc list-inside space-y-1">
-                                  {level.features.slice(0, 3).map((feature, idx) => (
-                                    <li key={idx}>{feature}</li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                'Unlock new features as you progress'
-                              )}
                             </td>
                           </tr>
                         );
