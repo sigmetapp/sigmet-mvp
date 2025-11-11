@@ -329,68 +329,71 @@ export default function Home() {
               <div className="overflow-x-auto">
                 <div className="min-w-full">
                   <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b border-primary-blue/30">
-                        <th className="text-left py-1.5 px-2 text-primary-text font-semibold text-xs">Level</th>
-                        <th className="text-center py-1.5 px-2 text-primary-text font-semibold text-xs">Avatar Glow</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-primary-blue/20">
-                      {SW_LEVELS.map((level, index) => {
-                        const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                        const showGlow = level.name !== 'Beginner';
-                        
-                        // Progressive glow parameters by level (from AvatarWithBadge)
-                        const getGlowParams = (levelName: string) => {
-                          const levelParams: Record<string, any> = {
-                            'Growing': {
-                              borderWidth: 1.5,
-                              outerGlow: { r1: 8, r2: 12, r3: 16, o1: '30', o2: '20', o3: '15' },
-                              imageGlow: { r1: 6, r2: 10, r3: 14, r4: 4, o1: '40', o2: '30', o3: '20', o4: '10' },
-                              gradient: '15'
-                            },
-                            'Advance': {
-                              borderWidth: 2,
-                              outerGlow: { r1: 10, r2: 16, r3: 22, o1: '40', o2: '28', o3: '20' },
-                              imageGlow: { r1: 8, r2: 14, r3: 20, r4: 5, o1: '50', o2: '38', o3: '28', o4: '15' },
-                              gradient: '20'
-                            },
-                            'Expert': {
-                              borderWidth: 2.5,
-                              outerGlow: { r1: 12, r2: 20, r3: 28, o1: '50', o2: '36', o3: '25' },
-                              imageGlow: { r1: 10, r2: 18, r3: 26, r4: 6, o1: '60', o2: '46', o3: '36', o4: '20' },
-                              gradient: '25'
-                            },
-                            'Leader': {
-                              borderWidth: 3,
-                              outerGlow: { r1: 14, r2: 24, r3: 34, o1: '60', o2: '44', o3: '30' },
-                              imageGlow: { r1: 12, r2: 22, r3: 32, r4: 7, o1: '70', o2: '54', o3: '44', o4: '25' },
-                              gradient: '30'
-                            },
-                            'Angel': {
-                              borderWidth: 3.5,
-                              outerGlow: { r1: 16, r2: 28, r3: 40, o1: '70', o2: '52', o3: '35' },
-                              imageGlow: { r1: 14, r2: 26, r3: 38, r4: 8, o1: '80', o2: '62', o3: '52', o4: '30' },
-                              gradient: '35'
-                            }
-                          };
-                          return levelParams[levelName] || null;
-                        };
-                        
-                        const glowParams = showGlow ? getGlowParams(level.name) : null;
-                        const og = glowParams?.outerGlow;
-                        const ig = glowParams?.imageGlow;
-                        
-                        return (
-                          <tr key={level.name} className="hover:bg-primary-blue/5 transition-colors">
-                            <td className="py-1.5 px-2">
+                    <tbody>
+                      {/* First row: Level names */}
+                      <tr>
+                        {SW_LEVELS.map((level) => {
+                          const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                          return (
+                            <td key={`name-${level.name}`} className="py-2 px-2 text-center align-bottom">
                               <span className={`font-bold text-xs sm:text-sm ${colorScheme.text}`}>
                                 {level.name}
                               </span>
                             </td>
-                            <td className="py-1.5 px-2">
+                          );
+                        })}
+                      </tr>
+                      {/* Second row: Avatar glows */}
+                      <tr>
+                        {SW_LEVELS.map((level) => {
+                          const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                          const showGlow = level.name !== 'Beginner';
+                          
+                          // Progressive glow parameters by level (from AvatarWithBadge)
+                          const getGlowParams = (levelName: string) => {
+                            const levelParams: Record<string, any> = {
+                              'Growing': {
+                                borderWidth: 1.5,
+                                outerGlow: { r1: 8, r2: 12, r3: 16, o1: '30', o2: '20', o3: '15' },
+                                imageGlow: { r1: 6, r2: 10, r3: 14, r4: 4, o1: '40', o2: '30', o3: '20', o4: '10' },
+                                gradient: '15'
+                              },
+                              'Advance': {
+                                borderWidth: 2,
+                                outerGlow: { r1: 10, r2: 16, r3: 22, o1: '40', o2: '28', o3: '20' },
+                                imageGlow: { r1: 8, r2: 14, r3: 20, r4: 5, o1: '50', o2: '38', o3: '28', o4: '15' },
+                                gradient: '20'
+                              },
+                              'Expert': {
+                                borderWidth: 2.5,
+                                outerGlow: { r1: 12, r2: 20, r3: 28, o1: '50', o2: '36', o3: '25' },
+                                imageGlow: { r1: 10, r2: 18, r3: 26, r4: 6, o1: '60', o2: '46', o3: '36', o4: '20' },
+                                gradient: '25'
+                              },
+                              'Leader': {
+                                borderWidth: 3,
+                                outerGlow: { r1: 14, r2: 24, r3: 34, o1: '60', o2: '44', o3: '30' },
+                                imageGlow: { r1: 12, r2: 22, r3: 32, r4: 7, o1: '70', o2: '54', o3: '44', o4: '25' },
+                                gradient: '30'
+                              },
+                              'Angel': {
+                                borderWidth: 3.5,
+                                outerGlow: { r1: 16, r2: 28, r3: 40, o1: '70', o2: '52', o3: '35' },
+                                imageGlow: { r1: 14, r2: 26, r3: 38, r4: 8, o1: '80', o2: '62', o3: '52', o4: '30' },
+                                gradient: '35'
+                              }
+                            };
+                            return levelParams[levelName] || null;
+                          };
+                          
+                          const glowParams = showGlow ? getGlowParams(level.name) : null;
+                          const og = glowParams?.outerGlow;
+                          const ig = glowParams?.imageGlow;
+                          
+                          return (
+                            <td key={`avatar-${level.name}`} className="py-2 px-2 text-center">
                               <div className="flex justify-center">
-                                <div className="relative w-10 h-10 sm:w-12 sm:h-12">
+                                <div className="relative w-12 h-12 sm:w-14 sm:h-14">
                                   {/* Outer glow ring */}
                                   {glowParams && (
                                     <div
@@ -421,9 +424,9 @@ export default function Home() {
                                 </div>
                               </div>
                             </td>
-                          </tr>
-                        );
-                      })}
+                          );
+                        })}
+                      </tr>
                     </tbody>
                   </table>
                 </div>
