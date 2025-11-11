@@ -574,12 +574,12 @@ function GrowthDirectionsInner() {
         : undefined;
 
     if (!targetId) {
-      return list.slice(0, 3);
+      return list;
     }
 
     const targetIndex = list.findIndex((task) => task.id === targetId);
     if (targetIndex === -1) {
-      return list.slice(0, 3);
+      return list;
     }
 
     const prioritized = [
@@ -588,7 +588,7 @@ function GrowthDirectionsInner() {
       ...list.slice(targetIndex + 1),
     ];
 
-    return prioritized.slice(0, 3);
+    return prioritized;
   }, [pinnedTask, selectedDirection]);
 
   function focusTaskCard(targetId: string) {
@@ -1648,11 +1648,6 @@ function GrowthDirectionsInner() {
                         <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           Habits ({totalHabits})
                         </h3>
-                        {extraHabits > 0 && (
-                          <span className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                            +{extraHabits} more available
-                          </span>
-                        )}
                       </div>
                       {displayedHabits.length === 0 ? (
                         <div className={`text-center py-8 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
@@ -1774,11 +1769,6 @@ function GrowthDirectionsInner() {
                         <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           Goals ({totalGoals})
                         </h3>
-                        {extraGoals > 0 && (
-                          <span className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                            +{extraGoals} more available
-                          </span>
-                        )}
                       </div>
                       {displayedGoals.length === 0 ? (
                         <div className={`text-center py-8 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
