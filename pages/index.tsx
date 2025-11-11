@@ -313,6 +313,139 @@ export default function Home() {
             </div>
           </div>
 
+          {/* SW Levels Table */}
+          <div className="mt-12 sm:mt-16 md:mt-20">
+            <div className="card-glow-primary p-6 sm:p-8 md:p-10 backdrop-blur-sm">
+              <div className="text-center mb-6 sm:mb-8">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary-text mb-3 sm:mb-4 bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent">
+                  Social Weight Levels
+                </h2>
+                <p className="text-lg sm:text-xl text-primary-text-secondary">
+                  Your progress is visible. Grow your SW and unlock new visual recognition.
+                </p>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <div className="min-w-full">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-primary-blue/30">
+                        <th className="text-left py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">Level</th>
+                        <th className="text-left py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">SW Range</th>
+                        <th className="text-center py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">Avatar Glow</th>
+                        <th className="text-left py-4 px-4 sm:px-6 text-primary-text font-semibold text-sm sm:text-base">Benefits</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-primary-blue/20">
+                      {/* Level 1 */}
+                      <tr className="hover:bg-primary-blue/5 transition-colors">
+                        <td className="py-4 px-4 sm:px-6">
+                          <span className="text-primary-text font-bold text-lg">Novice</span>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">0 - 100</td>
+                        <td className="py-4 px-4 sm:px-6">
+                          <div className="flex justify-center">
+                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center text-white font-bold text-sm sm:text-base" style={{ boxShadow: '0 0 8px rgba(156, 163, 175, 0.3)' }}>
+                              N
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">Start your journey</td>
+                      </tr>
+                      
+                      {/* Level 2 */}
+                      <tr className="hover:bg-primary-blue/5 transition-colors">
+                        <td className="py-4 px-4 sm:px-6">
+                          <span className="text-primary-text font-bold text-lg">Rising</span>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">100 - 500</td>
+                        <td className="py-4 px-4 sm:px-6">
+                          <div className="flex justify-center">
+                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue/60 to-primary-blue-light/60 flex items-center justify-center text-white font-bold text-sm sm:text-base" style={{ boxShadow: '0 0 12px rgba(51, 144, 236, 0.4)' }}>
+                              R
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">First recognition</td>
+                      </tr>
+                      
+                      {/* Level 3 */}
+                      <tr className="hover:bg-primary-blue/5 transition-colors">
+                        <td className="py-4 px-4 sm:px-6">
+                          <span className="text-primary-text font-bold text-lg">Established</span>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">500 - 1,000</td>
+                        <td className="py-4 px-4 sm:px-6">
+                          <div className="flex justify-center">
+                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue to-primary-blue-light flex items-center justify-center text-white font-bold text-sm sm:text-base" style={{ boxShadow: '0 0 16px rgba(51, 144, 236, 0.6)' }}>
+                              E
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">Growing influence</td>
+                      </tr>
+                      
+                      {/* Level 4 */}
+                      <tr className="hover:bg-primary-blue/5 transition-colors">
+                        <td className="py-4 px-4 sm:px-6">
+                          <span className="text-primary-text font-bold text-lg">Influencer</span>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">1,000 - 5,000</td>
+                        <td className="py-4 px-4 sm:px-6">
+                          <div className="flex justify-center">
+                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-sm sm:text-base" style={{ boxShadow: '0 0 20px rgba(51, 144, 236, 0.8), 0 0 30px rgba(91, 168, 240, 0.4)' }}>
+                              I
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">Community leader</td>
+                      </tr>
+                      
+                      {/* Level 5 */}
+                      <tr className="hover:bg-primary-blue/5 transition-colors">
+                        <td className="py-4 px-4 sm:px-6">
+                          <span className="text-primary-text font-bold text-lg">Master</span>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">5,000 - 10,000</td>
+                        <td className="py-4 px-4 sm:px-6">
+                          <div className="flex justify-center">
+                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-sm sm:text-base" style={{ boxShadow: '0 0 24px rgba(51, 144, 236, 1), 0 0 40px rgba(91, 168, 240, 0.6), 0 0 60px rgba(51, 144, 236, 0.3)' }}>
+                              M
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">Elite status</td>
+                      </tr>
+                      
+                      {/* Level 6 */}
+                      <tr className="hover:bg-primary-blue/5 transition-colors">
+                        <td className="py-4 px-4 sm:px-6">
+                          <span className="text-primary-text font-bold text-lg bg-gradient-to-r from-primary-blue to-primary-blue-light bg-clip-text text-transparent">Legend</span>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">10,000+</td>
+                        <td className="py-4 px-4 sm:px-6">
+                          <div className="flex justify-center">
+                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue via-primary-blue-light to-primary-blue flex items-center justify-center text-white font-bold text-sm sm:text-base animate-pulse" style={{ boxShadow: '0 0 30px rgba(51, 144, 236, 1), 0 0 50px rgba(91, 168, 240, 0.8), 0 0 70px rgba(51, 144, 236, 0.5)' }}>
+                              L
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 sm:px-6 text-primary-text-secondary text-sm sm:text-base">Ultimate recognition</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              <div className="mt-6 sm:mt-8 text-center">
+                <p className="text-primary-text-secondary text-sm sm:text-base mb-4">
+                  Every action counts. Build your reputation through meaningful contributions.
+                </p>
+                <Button href="/signup" variant="primary" className="w-full sm:w-auto">Start Building Your SW</Button>
+              </div>
+            </div>
+          </div>
+
           {/* Why Sigmet.app & Updates Section */}
           <div className="mt-12 sm:mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {/* Why Sigmet.app Section */}
