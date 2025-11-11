@@ -162,7 +162,7 @@ begin
   end if;
   
   -- Build function body with correct column name
-  -- Use double dollar quoting to avoid escaping issues
+  -- Pre-quote the column name to avoid nested format issues
   func_body := format('
     create or replace function public.update_connections_on_post()
     returns trigger
@@ -173,12 +173,13 @@ begin
       post_text text;
       post_author_id uuid;
       post_id_val bigint;
-      author_col_name text := %L;
+      sql_query text;
     begin
       post_id_val := new.id;
       
-      execute format($sql$select coalesce(text, '')::text, %I::uuid from public.posts where id = $1$sql$, author_col_name) 
-        using post_id_val into post_text, post_author_id;
+      -- Build SQL query with pre-quoted column name
+      sql_query := ''select coalesce(text, ''''::text)::text, '' || %s || ''::uuid from public.posts where id = $1'';
+      execute sql_query using post_id_val into post_text, post_author_id;
       
       delete from public.user_connections where post_id = post_id_val;
       
@@ -189,7 +190,7 @@ begin
       return new;
     end;
     $trigger_func$;
-  ', author_col);
+  ', quote_ident(author_col));
   
   execute func_body;
 end $$;
