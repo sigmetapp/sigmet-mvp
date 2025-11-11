@@ -105,7 +105,7 @@ export const SW_LEVELS: SWLevel[] = [
   {
     name: 'Growing',
     minSW: 100,
-    maxSW: 500,
+    maxSW: 1250,
     features: [
       'Grow 8 panel',
       'Badge near nickname / Avatar frame',
@@ -118,8 +118,8 @@ export const SW_LEVELS: SWLevel[] = [
   },
   {
     name: 'Advance',
-    minSW: 500,
-    maxSW: 2000,
+    minSW: 1251,
+    maxSW: 6250,
     features: [
       'Create more than 20 posts per day',
       'Increased ranking priority (x2)',
@@ -131,7 +131,7 @@ export const SW_LEVELS: SWLevel[] = [
   },
   {
     name: 'Expert',
-    minSW: 2000,
+    minSW: 6251,
     maxSW: 10000,
     features: [
       'Increased ranking priority (x3)',
