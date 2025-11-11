@@ -1058,30 +1058,30 @@ export default function PublicProfilePage() {
               )}
             </div>
             <div className="min-w-0 flex-1 w-full animate-fade-in-up animate-stagger-2">
-              <div className="flex md:items-center gap-2 md:gap-3 md:flex-wrap md:justify-start justify-center text-center md:text-left">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-semibold text-white truncate animate-fade-in">
+              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 md:justify-between">
+                <div className="flex items-center gap-2 flex-wrap justify-center md:justify-start">
+                  <h1 className="text-xl md:text-2xl font-semibold text-white truncate animate-fade-in">
                     {profile.full_name || profile.username || profile.user_id.slice(0, 8)}
                   </h1>
                   {(() => {
                     const showStatus = profile.show_online_status !== false;
                     if (!showStatus) {
                       return (
-                        <span className="px-2 py-1 rounded-full text-xs border border-white/20 bg-white/10 text-white/80">
+                        <span className="px-2 py-1 rounded-full text-xs border border-white/20 bg-white/10 text-white/80 whitespace-nowrap">
                           Private online
                         </span>
                       );
                     }
                     if (isOnline === true) {
                       return (
-                        <span className="px-2 py-1 rounded-full text-xs border border-emerald-500/50 bg-emerald-500/20 text-emerald-300">
+                        <span className="px-2 py-1 rounded-full text-xs border border-emerald-500/50 bg-emerald-500/20 text-emerald-300 whitespace-nowrap">
                           Online
                         </span>
                       );
                     }
                     if (isOnline === false) {
                       return (
-                        <span className="px-2 py-1 rounded-full text-xs border border-white/20 bg-white/10 text-white/60">
+                        <span className="px-2 py-1 rounded-full text-xs border border-white/20 bg-white/10 text-white/60 whitespace-nowrap">
                           Offline
                         </span>
                       );
@@ -1090,25 +1090,25 @@ export default function PublicProfilePage() {
                   })()}
                 </div>
                 {isMe ? (
-                  <div className="md:ml-auto mt-2 md:mt-0 flex justify-center gap-2">
+                  <div className="flex justify-center md:justify-end gap-2 flex-shrink-0">
                     <button
                       onClick={() => setShareModalOpen(true)}
-                      className="px-3 py-1.5 rounded-lg text-sm border border-white/20 text-white/80 hover:bg-white/10 flex items-center gap-1.5"
+                      className="px-2.5 md:px-3 py-1.5 rounded-lg text-xs md:text-sm border border-white/20 text-white/80 hover:bg-white/10 flex items-center gap-1.5 whitespace-nowrap"
                       title="Share profile"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                       </svg>
-                      Share
+                      <span className="hidden sm:inline">Share</span>
                     </button>
-                    <Link href="/profile" className="px-3 py-1.5 rounded-lg text-sm border border-white/20 text-white/80 hover:bg-white/10">
+                    <Link href="/profile" className="px-2.5 md:px-3 py-1.5 rounded-lg text-xs md:text-sm border border-white/20 text-white/80 hover:bg-white/10 whitespace-nowrap">
                       Edit
                     </Link>
                   </div>
                 ) : (
-                  <div className="md:ml-auto mt-2 md:mt-0 flex gap-2 justify-center">
-                    <Button variant="secondary">Connections</Button>
-                    <Button variant={iFollow ? 'secondary' : 'primary'} onClick={toggleFollow} disabled={updatingFollow}>
+                  <div className="flex gap-2 justify-center md:justify-end flex-shrink-0">
+                    <Button variant="secondary" className="text-xs md:text-sm px-2.5 md:px-4">Connections</Button>
+                    <Button variant={iFollow ? 'secondary' : 'primary'} onClick={toggleFollow} disabled={updatingFollow} className="text-xs md:text-sm px-2.5 md:px-4">
                       {iFollow ? 'Following' : 'Follow'}
                     </Button>
                   </div>
