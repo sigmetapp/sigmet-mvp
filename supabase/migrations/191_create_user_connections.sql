@@ -174,11 +174,13 @@ begin
       post_author_id uuid;
       post_id_val bigint;
       sql_query text;
+      col_name text := %L;
     begin
       post_id_val := new.id;
       
-      -- Build SQL query with pre-quoted column name
-      sql_query := ''select coalesce(text, ''''::text)::text, '' || %s || ''::uuid from public.posts where id = $1'';
+      -- Build SQL query with column name using quote_ident for safety
+      -- Use dollar quoting with unique tag to avoid conflicts
+      sql_query := $sqlq$select coalesce(text, ''::text)::text, $sqlq$ || quote_ident(col_name) || $sqlq$::uuid from public.posts where id = $1$sqlq$;
       execute sql_query using post_id_val into post_text, post_author_id;
       
       delete from public.user_connections where post_id = post_id_val;
@@ -190,7 +192,7 @@ begin
       return new;
     end;
     $trigger_func$;
-  ', quote_ident(author_col));
+  ', author_col);
   
   execute func_body;
 end $$;
