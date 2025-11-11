@@ -1636,19 +1636,6 @@ function GrowthDirectionsInner() {
           <div className="space-y-6">
             {selectedDirection ? (
               <>
-                  <div className={`p-4 rounded-lg border mb-6 ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
-                    <div className="flex items-center gap-3 mb-4">
-                      <div>
-                        <h2 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
-                          {currentDirection?.title}
-                        </h2>
-                        <p className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                          {currentDirection?.stats.activeHabits} habits, {currentDirection?.stats.activeGoals} goals active
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
                 {loadingTasks ? (
                   <div className={`text-center py-12 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                     Loading tasks...
