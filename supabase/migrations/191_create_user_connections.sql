@@ -1,6 +1,32 @@
 -- Create user_connections table for optimized SW calculation
 begin;
 
+-- First, determine which column exists in posts table (user_id or author_id)
+do $$
+declare
+  author_col text;
+begin
+  -- Determine which column exists
+  select column_name into author_col
+  from information_schema.columns
+  where table_schema = 'public'
+  and table_name = 'posts'
+  and column_name in ('user_id', 'author_id')
+  limit 1;
+  
+  -- Store in a temporary table for use in subsequent functions
+  drop table if exists _sw_migration_config;
+  create temporary table _sw_migration_config (
+    posts_author_column text
+  );
+  
+  if author_col is not null then
+    insert into _sw_migration_config (posts_author_column) values (author_col);
+  else
+    raise exception 'Neither user_id nor author_id column found in posts table';
+  end if;
+end $$;
+
 -- Create table for storing user connections (mentions)
 create table if not exists public.user_connections (
   id bigserial primary key,
@@ -149,11 +175,8 @@ begin
 end;
 $$;
 
--- Enable hstore extension if not already enabled (for dynamic column access)
-create extension if not exists hstore;
-
 -- Trigger function to update connections when post is created or updated
--- Uses hstore to handle both user_id and author_id columns dynamically
+-- Uses dynamic SQL based on which column exists
 create or replace function public.update_connections_on_post()
 returns trigger
 language plpgsql
@@ -162,31 +185,47 @@ as $$
 declare
   post_text text;
   post_author_id uuid;
-  post_row hstore;
+  author_col text;
+  post_id_val bigint;
 begin
-  -- Get post text (use text field - body might not exist in all schemas)
-  post_text := coalesce(new.text, '');
+  -- Get post ID (this column always exists)
+  post_id_val := new.id;
   
-  -- Convert NEW row to hstore for dynamic column access
-  post_row := hstore(new);
+  -- Get the author column name from config
+  select posts_author_column into author_col
+  from _sw_migration_config
+  limit 1;
   
-  -- Try to get author_id from either user_id or author_id column
-  post_author_id := (post_row -> 'user_id')::uuid;
-  if post_author_id is null then
-    post_author_id := (post_row -> 'author_id')::uuid;
+  if author_col is null then
+    -- Fallback: determine which column exists
+    select column_name into author_col
+    from information_schema.columns
+    where table_schema = 'public'
+    and table_name = 'posts'
+    and column_name in ('user_id', 'author_id')
+    limit 1;
   end if;
   
-  -- If no author column found, skip
-  if post_author_id is null then
+  if author_col is null then
+    -- No author column found, skip
     return new;
   end if;
   
+  -- Get post text and author_id using dynamic SQL
+  execute format('
+    select 
+      coalesce(text, '''')::text,
+      %I::uuid
+    from public.posts
+    where id = $1
+  ', author_col) using post_id_val into post_text, post_author_id;
+  
   -- Delete old connections for this post
-  delete from public.user_connections where post_id = new.id;
+  delete from public.user_connections where post_id = post_id_val;
   
   -- Extract mentions and create connections
   if post_text is not null and trim(post_text) != '' and post_author_id is not null then
-    perform public.extract_mentions_from_post(post_text, post_author_id, new.id);
+    perform public.extract_mentions_from_post(post_text, post_author_id, post_id_val);
   end if;
   
   return new;
@@ -202,27 +241,25 @@ create trigger post_connections_trigger
   execute function public.update_connections_on_post();
 
 -- Add indexes for posts table to optimize queries
--- Create index on user_id if it exists, otherwise on author_id
+-- Create index on the author column that exists
 do $$
+declare
+  author_col text;
 begin
-  if exists (
-    select 1 from information_schema.columns 
-    where table_schema = 'public' 
-    and table_name = 'posts' 
-    and column_name = 'user_id'
-  ) then
-    create index if not exists posts_user_id_created_at_idx 
-      on public.posts(user_id, created_at desc);
-  end if;
+  -- Get the author column name from config
+  select posts_author_column into author_col
+  from _sw_migration_config
+  limit 1;
   
-  if exists (
-    select 1 from information_schema.columns 
-    where table_schema = 'public' 
-    and table_name = 'posts' 
-    and column_name = 'author_id'
-  ) then
-    create index if not exists posts_author_id_created_at_idx 
-      on public.posts(author_id, created_at desc);
+  if author_col is not null then
+    -- Create index using dynamic SQL
+    execute format('
+      create index if not exists posts_%s_created_at_idx 
+      on public.posts(%I, created_at desc)
+    ', 
+      case when author_col = 'user_id' then 'user_id' else 'author_id' end,
+      author_col
+    );
   end if;
 end $$;
 
@@ -241,5 +278,8 @@ create index if not exists invites_inviter_user_id_status_idx
 
 create index if not exists comments_user_id_idx 
   on public.comments(author_id);
+
+-- Clean up temporary config table
+drop table if exists _sw_migration_config;
 
 commit;
