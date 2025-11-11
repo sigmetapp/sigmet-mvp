@@ -206,7 +206,7 @@ begin
 
   -- Handle @username mentions
   select array_agg(match[1]) into matches
-  from regexp_matches(text_lower, '@([a-z0-9_]+)', 'g') as match;
+  from regexp_matches(text_lower, '@([a-z0-9_.-]+)', 'g') as match;
 
   if matches is not null then
     foreach match_record in array matches loop
@@ -251,7 +251,7 @@ begin
 
   -- Handle /u/username mentions
   select array_agg(match[1]) into matches
-  from regexp_matches(text_lower, '/u/([a-z0-9_]+)(\s|$|\n|/)', 'g') as match;
+  from regexp_matches(text_lower, '/u/([a-z0-9_.-]+)(\s|$|\n|/)', 'g') as match;
 
   if matches is not null then
     foreach match_record in array matches loop
@@ -458,29 +458,29 @@ begin
 
   if has_text then
     text_expr_parts := array_append(text_expr_parts, 'nullif(trim(p.text), '''')');
-    regex_parts := array_append(regex_parts, 'p.text ~ ''@[A-Za-z0-9_]+''');
-    regex_parts := array_append(regex_parts, 'p.text ~ ''/u/[A-Za-z0-9_]+''');
+    regex_parts := array_append(regex_parts, 'p.text ~ ''@[A-Za-z0-9_.-]+''');
+    regex_parts := array_append(regex_parts, 'p.text ~ ''/u/[A-Za-z0-9_.-]+''');
     nonempty_parts := array_append(nonempty_parts, '(p.text is not null and trim(p.text) != '''')');
   end if;
 
   if has_body then
     text_expr_parts := array_append(text_expr_parts, 'nullif(trim(p.body), '''')');
-    regex_parts := array_append(regex_parts, 'p.body ~ ''@[A-Za-z0-9_]+''');
-    regex_parts := array_append(regex_parts, 'p.body ~ ''/u/[A-Za-z0-9_]+''');
+    regex_parts := array_append(regex_parts, 'p.body ~ ''@[A-Za-z0-9_.-]+''');
+    regex_parts := array_append(regex_parts, 'p.body ~ ''/u/[A-Za-z0-9_.-]+''');
     nonempty_parts := array_append(nonempty_parts, '(p.body is not null and trim(p.body) != '''')');
   end if;
 
   if has_content then
     text_expr_parts := array_append(text_expr_parts, 'nullif(trim(p.content), '''')');
-    regex_parts := array_append(regex_parts, 'p.content ~ ''@[A-Za-z0-9_]+''');
-    regex_parts := array_append(regex_parts, 'p.content ~ ''/u/[A-Za-z0-9_]+''');
+    regex_parts := array_append(regex_parts, 'p.content ~ ''@[A-Za-z0-9_.-]+''');
+    regex_parts := array_append(regex_parts, 'p.content ~ ''/u/[A-Za-z0-9_.-]+''');
     nonempty_parts := array_append(nonempty_parts, '(p.content is not null and trim(p.content) != '''')');
   end if;
 
   if has_raw_text then
     text_expr_parts := array_append(text_expr_parts, 'nullif(trim(p.raw_text), '''')');
-    regex_parts := array_append(regex_parts, 'p.raw_text ~ ''@[A-Za-z0-9_]+''');
-    regex_parts := array_append(regex_parts, 'p.raw_text ~ ''/u/[A-Za-z0-9_]+''');
+    regex_parts := array_append(regex_parts, 'p.raw_text ~ ''@[A-Za-z0-9_.-]+''');
+    regex_parts := array_append(regex_parts, 'p.raw_text ~ ''/u/[A-Za-z0-9_.-]+''');
     nonempty_parts := array_append(nonempty_parts, '(p.raw_text is not null and trim(p.raw_text) != '''')');
   end if;
 
