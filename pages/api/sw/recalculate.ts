@@ -204,55 +204,56 @@ export default async function handler(
 
     const followersPoints = followersCount * weights.follower_points;
 
-    // Get connections count from optimized user_connections table
+    // Get connections count from optimized user_connections table via RPC
     let connectionsCount = 0;
     let firstConnectionsCount = 0;
     let repeatConnectionsCount = 0;
 
     try {
-      // Get all connections for this user from the optimized table
-      const { data: connections, error: connectionsError } = await supabase
-        .from('user_connections')
-        .select('connection_type')
-        .eq('user_id', userId);
+      const { data: connectionStatsData, error: connectionStatsError } = await supabase
+        .rpc('get_user_connection_stats', { target_user_id: userId });
 
-      if (connectionsError) {
+      if (connectionStatsError) {
         // For non-admins, skip access errors instead of throwing
-        if (isAccessError(connectionsError)) {
+        if (isAccessError(connectionStatsError)) {
           console.warn('Access error fetching user_connections (skipping):', {
-            message: connectionsError?.message || '',
-            code: connectionsError?.code || '',
+            message: connectionStatsError?.message || '',
+            code: connectionStatsError?.code || '',
             userId,
           });
           // Continue without connections
         } else {
           console.error('Error fetching user_connections:', {
-            error: connectionsError,
-            message: connectionsError?.message || '',
-            code: connectionsError?.code || '',
-            details: connectionsError?.details || '',
+            error: connectionStatsError,
+            message: connectionStatsError?.message || '',
+            code: connectionStatsError?.code || '',
+            details: connectionStatsError?.details || '',
             userId,
           });
           // Continue without connections if there's an error
         }
-      } else if (connections && connections.length > 0) {
-        // Count total connections (each row in user_connections = 1 connection)
-        connectionsCount = connections.length;
-        
-        // Calculate first vs repeat connections
-        // The first connection overall gets more points, repeat connections get less
-        for (let i = 0; i < connectionsCount; i++) {
-          if (firstConnectionsCount === 0) {
-            // This is the first connection overall
-            firstConnectionsCount++;
-          } else {
-            // This is a repeat connection
-            repeatConnectionsCount++;
-          }
+      } else {
+        const connectionStatsArray = Array.isArray(connectionStatsData)
+          ? connectionStatsData
+          : connectionStatsData
+            ? [connectionStatsData]
+            : [];
+
+        if (connectionStatsArray.length > 0) {
+          const stats = connectionStatsArray[0] as {
+            total_count?: number | null;
+            unique_connections?: number | null;
+          };
+          const totalConnections = Number(stats?.total_count ?? 0);
+          const uniqueConnections = Number(stats?.unique_connections ?? 0);
+
+          connectionsCount = totalConnections;
+          firstConnectionsCount = uniqueConnections;
+          repeatConnectionsCount = Math.max(totalConnections - uniqueConnections, 0);
         }
       }
-    } catch (connectionsErr) {
-      console.warn('Exception fetching user_connections:', connectionsErr);
+    } catch (connectionStatsErr) {
+      console.warn('Exception fetching user connection stats:', connectionStatsErr);
       // Continue without connections
     }
 
