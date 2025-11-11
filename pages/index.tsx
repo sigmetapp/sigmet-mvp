@@ -264,13 +264,13 @@ export default function Home() {
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(51, 144, 236, 0.15), transparent 70%)' }}></div>
               <div className="relative z-10">
                 <div className="icon-wrapper mb-4">
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue/30 to-primary-blue-light/20 flex items-center justify-center text-2xl sm:text-3xl group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(51,144,236,0.3)]">
-                    🌐
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-gradient-to-br from-primary-blue/30 to-primary-blue-light/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(51,144,236,0.3)]">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 border-2 border-primary-text rounded-sm rotate-45"></div>
                   </div>
                 </div>
-                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">Purpose-Driven Communities</h3>
+                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">New Paradigm</h3>
                 <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
-                  Sigmet isn't about endless scrolling or shallow likes — it's about growth. Every community on the platform is built around a shared purpose, whether that's learning a new skill, building a project, or improving your health. You join groups that actually move you forward. The result is less noise and more genuine progress, surrounded by people who care about the same things you do.
+                  The old concept of social networks is outdated. Society needs a new, productive system of interaction where the time you spend online brings real results and value, not just a break from reality.
                 </p>
               </div>
             </div>
@@ -279,13 +279,17 @@ export default function Home() {
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(91, 168, 240, 0.15), transparent 70%)' }}></div>
               <div className="relative z-10">
                 <div className="icon-wrapper mb-4">
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue-light/30 to-primary-blue/20 flex items-center justify-center text-2xl sm:text-3xl group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(91,168,240,0.3)]">
-                    ⚖️
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-gradient-to-br from-primary-blue-light/30 to-primary-blue/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(91,168,240,0.3)]">
+                    <div className="flex flex-col gap-1">
+                      <div className="w-5 h-1 bg-primary-text rounded-full"></div>
+                      <div className="w-4 h-1 bg-primary-text rounded-full"></div>
+                      <div className="w-3 h-1 bg-primary-text rounded-full"></div>
+                    </div>
                   </div>
                 </div>
-                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">Transparent Social Weight</h3>
+                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">SW</h3>
                 <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
-                  Your reputation on Sigmet is earned, not bought. The platform introduces Social Weight (SW) — a visible metric that reflects your verified activity, learning, and contributions across multiple growth directions. Every post, connection, and collaboration adds to your authentic digital footprint, helping others see your real progress and expertise, not just popularity.
+                  A complex combined metric that reflects a person's contribution within the network, and in the future, beyond it. Every action and effort you make is recorded and visible — never lost in the void.
                 </p>
               </div>
             </div>
@@ -294,13 +298,16 @@ export default function Home() {
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(51, 144, 236, 0.15), transparent 70%)' }}></div>
               <div className="relative z-10">
                 <div className="icon-wrapper mb-4">
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary-blue/25 to-primary-blue-light/25 flex items-center justify-center text-2xl sm:text-3xl group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(51,144,236,0.3)]">
-                    🪶
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-gradient-to-br from-primary-blue/25 to-primary-blue-light/25 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-[0_4px_12px_rgba(51,144,236,0.3)]">
+                    <div className="relative w-6 h-6 sm:w-7 sm:h-7">
+                      <div className="absolute top-0 left-0 w-3 h-3 border-2 border-primary-text border-r-0 border-b-0 rounded-tl"></div>
+                      <div className="absolute bottom-0 right-0 w-3 h-3 border-2 border-primary-text border-l-0 border-t-0 rounded-br"></div>
+                    </div>
                   </div>
                 </div>
-                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">Creator-First Ecosystem</h3>
+                <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-3">TF</h3>
                 <p className="text-primary-text-secondary text-sm sm:text-base leading-relaxed">
-                  Sigmet empowers creators, not algorithms. Every author and contributor gets full visibility into their reach, engagement, and impact through advanced analytics. Authorship is transparent and fair — ideas are credited, not buried. Whether you're writing insights, hosting discussions, or building something new, your voice matters and your growth is recognized.
+                  In today's digital world, trust and honesty require new verification formats. We introduce a new indicator that makes it possible. Now, when you evaluate someone, you'll look at their verified profile, not guess who they really are.
                 </p>
               </div>
             </div>
