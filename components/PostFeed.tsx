@@ -22,7 +22,7 @@ import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
-import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag, UserPlus, HelpCircle } from "lucide-react";
+import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag, UserPlus, HelpCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
@@ -177,10 +177,38 @@ export default function PostFeed({
   const [viewsChartOpen, setViewsChartOpen] = useState<number | null>(null);
   const [reportModalOpen, setReportModalOpen] = useState<number | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [mediaGalleryOpen, setMediaGalleryOpen] = useState<{ postId: number; media: Array<{ type: 'image' | 'video'; url: string }>; currentIndex: number } | null>(null);
   
   const handleEmojiSelect = useCallback((emoji: string) => {
     setText((prev) => prev + emoji);
   }, []);
+
+  // Keyboard navigation for media gallery
+  useEffect(() => {
+    if (!mediaGalleryOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const newIndex = mediaGalleryOpen.currentIndex > 0 
+          ? mediaGalleryOpen.currentIndex - 1 
+          : mediaGalleryOpen.media.length - 1;
+        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const newIndex = mediaGalleryOpen.currentIndex < mediaGalleryOpen.media.length - 1
+          ? mediaGalleryOpen.currentIndex + 1
+          : 0;
+        setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setMediaGalleryOpen(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mediaGalleryOpen]);
   
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
@@ -1429,130 +1457,81 @@ export default function PostFeed({
                       aria-label="Open post"
                     >
                       {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-primary-text" : "text-primary-text"}`}>{formatTextWithMentions(p.body)}</p>}
-                      {/* Display multiple media in compact gallery */}
+                      {/* Display compact media preview with indicator */}
                       {(() => {
                         const imageUrls = (p.image_urls && p.image_urls.length > 0) ? p.image_urls : (p.image_url ? [p.image_url] : []);
                         const videoUrls = (p.video_urls && p.video_urls.length > 0) ? p.video_urls : (p.video_url ? [p.video_url] : []);
-                        const allMedia = [...imageUrls.map(url => ({ type: 'image', url })), ...videoUrls.map(url => ({ type: 'video', url }))];
+                        const allMedia = [...imageUrls.map(url => ({ type: 'image' as const, url })), ...videoUrls.map(url => ({ type: 'video' as const, url }))];
                         
                         if (allMedia.length === 0) return null;
                         
                         const mediaCount = allMedia.length;
-                        const maxDisplay = 4; // Show max 4 items in grid, rest as overlay
-                        const displayMedia = allMedia.slice(0, maxDisplay);
-                        const remainingCount = mediaCount > maxDisplay ? mediaCount - maxDisplay : 0;
-                        
-                        // Determine grid layout based on count
-                        let gridClass = '';
-                        let gridRows = '';
-                        if (mediaCount === 1) {
-                          gridClass = 'grid-cols-1';
-                        } else if (mediaCount === 2) {
-                          gridClass = 'grid-cols-2';
-                        } else if (mediaCount === 3) {
-                          gridClass = 'grid-cols-3';
-                          gridRows = 'grid-rows-2';
-                        } else {
-                          gridClass = 'grid-cols-2';
-                          gridRows = 'grid-rows-2';
-                        }
+                        const firstMedia = allMedia[0];
                         
                         return (
-                          <div className={`mt-3 grid ${gridClass} ${gridRows} gap-1 ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"} rounded-lg overflow-hidden`} style={{ maxHeight: '500px', aspectRatio: mediaCount === 1 ? 'auto' : mediaCount === 2 ? '1/1' : mediaCount === 3 ? '3/2' : '1/1' }}>
-                            {displayMedia.map((media, idx) => {
-                              const isLast = idx === displayMedia.length - 1;
-                              const showOverlay = isLast && remainingCount > 0;
-                              
-                              // Special handling for 3 media: first is large (2x2), others are small (1x1)
-                              let cellClass = '';
-                              if (mediaCount === 3) {
-                                if (idx === 0) {
-                                  cellClass = 'col-span-2 row-span-2';
-                                } else {
-                                  cellClass = 'col-span-1 row-span-1';
-                                }
-                              } else if (mediaCount === 2) {
-                                cellClass = 'aspect-square';
-                              } else if (mediaCount >= 4) {
-                                cellClass = 'aspect-square';
+                          <div 
+                            className="mt-3 relative cursor-pointer group"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMediaGalleryOpen({ postId: p.id, media: allMedia, currentIndex: 0 });
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setMediaGalleryOpen({ postId: p.id, media: allMedia, currentIndex: 0 });
                               }
-                              
-                              return (
-                                <div 
-                                  key={`media-${idx}`} 
-                                  className={`relative ${cellClass} overflow-hidden bg-gray-100 dark:bg-gray-800`}
-                                  style={{ 
-                                    maxHeight: mediaCount === 1 ? '500px' : mediaCount === 3 && idx === 0 ? '500px' : mediaCount === 3 ? '250px' : '250px'
-                                  }}
-                                >
-                                  {media.type === 'image' ? (
-                                    <>
-                                      <img 
-                                        src={media.url} 
-                                        loading="lazy" 
-                                        className="w-full h-full object-cover" 
-                                        alt={`post image ${idx + 1}`} 
-                                      />
-                                      {showOverlay && (
-                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                          <span className={`text-2xl font-bold ${isLight ? "text-white" : "text-white"}`}>
-                                            +{remainingCount}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <div className="w-full h-full relative">
-                                      <video 
-                                        controls 
-                                        preload="metadata"
-                                        playsInline
-                                        poster={imageUrls[0] || undefined}
-                                        className="w-full h-full object-cover"
-                                        onLoadedMetadata={(e) => {
-                                          const target = e.currentTarget;
-                                          const placeholder = target.parentElement?.querySelector('.video-placeholder');
-                                          if (placeholder) {
-                                            (placeholder as HTMLElement).style.display = 'none';
-                                          }
-                                        }}
-                                        onLoadedData={(e) => {
-                                          const target = e.currentTarget;
-                                          const placeholder = target.parentElement?.querySelector('.video-placeholder');
-                                          if (placeholder) {
-                                            (placeholder as HTMLElement).style.display = 'none';
-                                          }
-                                        }}
-                                        onPlay={(e) => {
-                                          const target = e.currentTarget;
-                                          const placeholder = target.parentElement?.querySelector('.video-placeholder');
-                                          if (placeholder) {
-                                            (placeholder as HTMLElement).style.display = 'none';
-                                          }
-                                        }}
-                                      >
-                                        <source src={media.url} type="video/mp4" />
-                                        <source src={media.url} />
-                                      </video>
-                                      {!imageUrls[0] && (
-                                        <div className={`video-placeholder absolute inset-0 flex items-center justify-center pointer-events-none z-10 ${isLight ? "bg-slate-100/80" : "bg-slate-900/80"}`}>
-                                          <svg className={`w-12 h-12 ${isLight ? "text-slate-400" : "text-white/50"}`} fill="currentColor" viewBox="0 0 24 24">
-                                            <path d="M8 5v14l11-7z"/>
-                                          </svg>
-                                        </div>
-                                      )}
-                                      {showOverlay && (
-                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
-                                          <span className={`text-2xl font-bold ${isLight ? "text-white" : "text-white"}`}>
-                                            +{remainingCount}
-                                          </span>
-                                        </div>
-                                      )}
+                            }}
+                            tabIndex={0}
+                            role="button"
+                            aria-label={`View ${mediaCount} media file${mediaCount > 1 ? 's' : ''}`}
+                          >
+                            <div className={`relative rounded-lg overflow-hidden ${isLight ? "border border-primary-blue/20" : "border border-primary-blue/30"}`} style={{ maxHeight: '500px', aspectRatio: '16/9' }}>
+                              {firstMedia.type === 'image' ? (
+                                <img 
+                                  src={firstMedia.url} 
+                                  loading="lazy" 
+                                  className="w-full h-full object-cover" 
+                                  alt={`Post preview (${mediaCount} file${mediaCount > 1 ? 's' : ''})`} 
+                                />
+                              ) : (
+                                <div className="w-full h-full relative bg-gray-900">
+                                  <video 
+                                    preload="metadata"
+                                    playsInline
+                                    muted
+                                    className="w-full h-full object-cover"
+                                    poster={imageUrls[0] || undefined}
+                                  >
+                                    <source src={firstMedia.url} type="video/mp4" />
+                                  </video>
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <div className={`w-16 h-16 rounded-full ${isLight ? "bg-black/50" : "bg-white/20"} flex items-center justify-center`}>
+                                      <svg className={`w-8 h-8 ${isLight ? "text-white" : "text-white"}`} fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M8 5v14l11-7z"/>
+                                      </svg>
                                     </div>
-                                  )}
+                                  </div>
                                 </div>
-                              );
-                            })}
+                              )}
+                              
+                              {/* Overlay with media count indicator */}
+                              {mediaCount > 1 && (
+                                <div className="absolute top-2 right-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm flex items-center gap-1.5">
+                                  <ImageIcon className="w-4 h-4 text-white" />
+                                  <span className="text-sm font-medium text-white">{mediaCount}</span>
+                                </div>
+                              )}
+                              
+                              {/* Hover overlay */}
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center">
+                                {mediaCount > 1 && (
+                                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-white font-medium text-sm bg-black/50 px-4 py-2 rounded-lg">
+                                    View all {mediaCount} files
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         );
                       })()}
@@ -2039,6 +2018,103 @@ export default function PostFeed({
           type={toast.type}
           onClose={() => setToast(null)}
         />
+      )}
+
+      {/* Media Gallery Modal */}
+      {mediaGalleryOpen && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+          <div
+            className={`absolute inset-0 ${isLight ? "bg-black/90" : "bg-black/95"}`}
+            onClick={() => setMediaGalleryOpen(null)}
+          />
+          <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
+            <button
+              onClick={() => setMediaGalleryOpen(null)}
+              className={`absolute top-4 right-4 p-2 rounded-full ${isLight ? "bg-white/20 hover:bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+              aria-label="Close gallery"
+            >
+              <CloseIcon className="h-6 w-6" />
+            </button>
+            
+            {mediaGalleryOpen.media.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newIndex = mediaGalleryOpen.currentIndex > 0 
+                      ? mediaGalleryOpen.currentIndex - 1 
+                      : mediaGalleryOpen.media.length - 1;
+                    setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                  }}
+                  className={`absolute left-4 p-3 rounded-full ${isLight ? "bg-white/20 hover:bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+                  aria-label="Previous media"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newIndex = mediaGalleryOpen.currentIndex < mediaGalleryOpen.media.length - 1
+                      ? mediaGalleryOpen.currentIndex + 1
+                      : 0;
+                    setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: newIndex });
+                  }}
+                  className={`absolute right-4 p-3 rounded-full ${isLight ? "bg-white/20 hover:bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+                  aria-label="Next media"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              </>
+            )}
+            
+            <div className="w-full max-w-6xl max-h-[90vh] flex flex-col items-center">
+              <div className="relative w-full flex-1 flex items-center justify-center">
+                {mediaGalleryOpen.media[mediaGalleryOpen.currentIndex].type === 'image' ? (
+                  <img 
+                    src={mediaGalleryOpen.media[mediaGalleryOpen.currentIndex].url} 
+                    className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg" 
+                    alt={`Media ${mediaGalleryOpen.currentIndex + 1} of ${mediaGalleryOpen.media.length}`} 
+                  />
+                ) : (
+                  <video 
+                    controls 
+                    autoPlay
+                    className="max-w-full max-h-[85vh] w-auto h-auto rounded-lg" 
+                    src={mediaGalleryOpen.media[mediaGalleryOpen.currentIndex].url}
+                  >
+                    <source src={mediaGalleryOpen.media[mediaGalleryOpen.currentIndex].url} type="video/mp4" />
+                  </video>
+                )}
+              </div>
+              
+              {mediaGalleryOpen.media.length > 1 && (
+                <div className="mt-4 flex items-center gap-2">
+                  <span className={`text-sm ${isLight ? "text-white/80" : "text-white/80"}`}>
+                    {mediaGalleryOpen.currentIndex + 1} / {mediaGalleryOpen.media.length}
+                  </span>
+                  <div className="flex gap-1.5">
+                    {mediaGalleryOpen.media.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMediaGalleryOpen({ ...mediaGalleryOpen, currentIndex: idx });
+                        }}
+                        className={`h-1.5 rounded-full transition-all ${
+                          idx === mediaGalleryOpen.currentIndex
+                            ? `${isLight ? "bg-white" : "bg-white"} w-8`
+                            : `${isLight ? "bg-white/40" : "bg-white/40"} w-1.5`
+                        }`}
+                        aria-label={`Go to media ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
