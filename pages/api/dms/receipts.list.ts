@@ -99,43 +99,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
     }
 
-    const serviceClient = createSupabaseForRequest(req, true);
-    let receiptsClient = serviceClient;
+    const serviceClient =
+      process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim() !== ''
+        ? createSupabaseForRequest(req, true)
+        : null;
 
-    if (!serviceClient) {
-      // Fallback to user client when service role is unavailable (will only return own receipts)
-      receiptsClient = client;
-    }
-
-    // Ensure all message IDs belong to the requested thread
-      const { data: messageRows, error: messagesError } = await receiptsClient
-      .from('dms_messages')
-      .select('id, thread_id')
-      .in('id', normalizedMessageIds);
-
-    if (messagesError) {
-      return res.status(400).json({ ok: false, error: messagesError.message });
-    }
-
-    const validMessageIds = (messageRows ?? [])
-      .filter((row: any) => {
-        try {
-          return assertThreadId(row.thread_id, 'Invalid thread_id') === threadId;
-        } catch {
-          return false;
-        }
-      })
-      .map((row: any) => normalizeMessageId(row.id))
-      .filter((id): id is string => Boolean(id));
-
-    if (validMessageIds.length === 0) {
-      return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
-    }
+    const receiptsClient = serviceClient ?? client;
 
     let receiptsQuery = receiptsClient
       .from('dms_message_receipts')
-      .select('message_id, user_id, status, updated_at')
-      .in('message_id', validMessageIds);
+      .select('message_id, user_id, status, updated_at, message:dms_messages!inner(thread_id)')
+      .in('message_id', normalizedMessageIds)
+      .eq('message.thread_id', threadId);
 
     if (targetRecipientIds.length > 0) {
       receiptsQuery = receiptsQuery.in('user_id', targetRecipientIds);
