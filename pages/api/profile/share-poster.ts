@@ -64,36 +64,56 @@ async function generatePoster(
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Фон - градиент
+  // Фон - более светлый градиент для лучшей читаемости
   const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, '#1a1a2e');
-  gradient.addColorStop(0.5, '#16213e');
-  gradient.addColorStop(1, '#0f3460');
+  gradient.addColorStop(0, '#0f172a');
+  gradient.addColorStop(0.5, '#1e293b');
+  gradient.addColorStop(1, '#334155');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
-  // Загружаем аватарку
-  let avatarImage: any = null;
-  const avatarSize = Math.min(width * 0.25, height * 0.4);
-  const avatarX = width * 0.1;
-  const avatarY = height * 0.15;
+  // Компактная компоновка - уменьшаем отступы
+  const padding = width * 0.04;
+  const avatarSize = Math.min(width * 0.3, height * 0.5);
+  const avatarX = padding;
+  const avatarY = padding + (height - avatarSize - padding * 2) / 2; // Центрируем по вертикали
 
+  // Загружаем аватарку через sharp для лучшей обработки
+  let avatarImage: any = null;
   if (profile.avatar_url) {
     try {
-      // Пробуем загрузить аватарку
-      const avatarUrl = profile.avatar_url.startsWith('http') 
-        ? profile.avatar_url 
-        : `https://${profile.avatar_url.replace(/^https?:\/\//, '')}`;
+      let avatarUrl = profile.avatar_url;
+      if (!avatarUrl.startsWith('http')) {
+        avatarUrl = `https://${avatarUrl.replace(/^https?:\/\//, '')}`;
+      }
       
       const avatarResponse = await fetch(avatarUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
       });
       
       if (avatarResponse.ok) {
         const avatarBuffer = await avatarResponse.arrayBuffer();
-        avatarImage = await loadImage(Buffer.from(avatarBuffer));
+        try {
+          // Обрабатываем через sharp для гарантированной загрузки и конвертации
+          const processedAvatar = await sharp(Buffer.from(avatarBuffer))
+            .resize(Math.ceil(avatarSize * 2), Math.ceil(avatarSize * 2), {
+              fit: 'cover',
+              position: 'center',
+            })
+            .png()
+            .toBuffer();
+          avatarImage = await loadImage(processedAvatar);
+        } catch (sharpError) {
+          // Если sharp не смог обработать, пробуем напрямую
+          console.error('Sharp error, trying direct load:', sharpError);
+          try {
+            avatarImage = await loadImage(Buffer.from(avatarBuffer));
+          } catch (directError) {
+            console.error('Direct load also failed:', directError);
+          }
+        }
       }
     } catch (err) {
       console.error('Error loading avatar:', err);
@@ -105,13 +125,13 @@ async function generatePoster(
   const avatarCenterY = avatarY + avatarSize / 2;
   const avatarRadius = avatarSize / 2;
 
-  // Рисуем рамку для SW уровня (внешняя)
+  // Рисуем рамку для SW уровня (внешняя, более толстая)
   if (swRating !== null) {
     const swLevel = getSWLevel(swRating);
     ctx.strokeStyle = swLevel.color;
-    ctx.lineWidth = 10;
+    ctx.lineWidth = 12;
     ctx.beginPath();
-    ctx.arc(avatarCenterX, avatarCenterY, avatarRadius + 5, 0, Math.PI * 2);
+    ctx.arc(avatarCenterX, avatarCenterY, avatarRadius + 6, 0, Math.PI * 2);
     ctx.stroke();
   }
 
@@ -124,11 +144,11 @@ async function generatePoster(
   if (avatarImage) {
     ctx.drawImage(avatarImage, avatarX, avatarY, avatarSize, avatarSize);
   } else {
-    // Placeholder с инициалами
-    ctx.fillStyle = '#374151';
+    // Placeholder с инициалами - более контрастный
+    ctx.fillStyle = '#475569';
     ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
-    ctx.fillStyle = '#9ca3af';
-    ctx.font = `bold ${Math.floor(avatarSize * 0.3)}px Arial`;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${Math.floor(avatarSize * 0.35)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const initials = (profile.full_name || profile.username || 'U').substring(0, 2).toUpperCase();
@@ -136,85 +156,92 @@ async function generatePoster(
   }
   ctx.restore();
 
-  // Имя пользователя
-  const nameX = avatarX + avatarSize + width * 0.05;
-  const nameY = avatarY + avatarSize * 0.25;
+  // Компактная компоновка справа от аватарки
+  const contentX = avatarX + avatarSize + padding;
+  const contentY = avatarY;
+  const contentWidth = width - contentX - padding;
+
+  // Имя пользователя - более крупное и контрастное
+  const nameY = contentY + avatarSize * 0.15;
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.floor(width * 0.045)}px Arial`;
+  ctx.font = `bold ${Math.floor(width * 0.05)}px sans-serif`;
   ctx.textAlign = 'left';
-  const displayName = profile.full_name || profile.username || 'User';
-  ctx.fillText(displayName, nameX, nameY);
+  const displayName = (profile.full_name || profile.username || 'User').substring(0, 30);
+  ctx.fillText(displayName, contentX, nameY);
 
-  // Username
-  ctx.fillStyle = '#9ca3af';
-  ctx.font = `${Math.floor(width * 0.028)}px Arial`;
-  ctx.fillText(`@${profile.username || profile.user_id.slice(0, 8)}`, nameX, nameY + Math.floor(width * 0.055));
+  // Username - более заметный
+  const usernameY = nameY + Math.floor(width * 0.04);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = `${Math.floor(width * 0.032)}px sans-serif`;
+  ctx.fillText(`@${profile.username || profile.user_id.slice(0, 12)}`, contentX, usernameY);
 
-  // SW рейтинг
-  const swY = nameY + Math.floor(width * 0.12);
+  // SW рейтинг - компактно под username
+  const swY = usernameY + Math.floor(width * 0.055);
   if (swRating !== null) {
     const swLevel = getSWLevel(swRating);
     const swColor = SW_LEVEL_COLORS[swLevel.name];
-    const swBoxHeight = Math.floor(width * 0.08);
+    const swBoxHeight = Math.floor(width * 0.09);
     const swBoxY = swY - swBoxHeight / 2;
+    const swBoxWidth = Math.min(contentWidth * 0.7, width * 0.4);
+    const borderRadius = 15;
     
-    // Скругленный фон для SW
-    const swBoxWidth = width * 0.35;
-    const borderRadius = 12;
-    ctx.fillStyle = swColor.bg + '60';
-    roundRect(ctx, nameX, swBoxY, swBoxWidth, swBoxHeight, borderRadius);
+    // Более яркий фон для SW
+    ctx.fillStyle = swColor.bg;
+    roundRect(ctx, contentX, swBoxY, swBoxWidth, swBoxHeight, borderRadius);
     ctx.fill();
     
-    // Рамка
-    ctx.strokeStyle = swColor.bg;
-    ctx.lineWidth = 3;
-    roundRect(ctx, nameX, swBoxY, swBoxWidth, swBoxHeight, borderRadius);
+    // Белая рамка для контраста
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    roundRect(ctx, contentX, swBoxY, swBoxWidth, swBoxHeight, borderRadius);
     ctx.stroke();
     
-    // Текст SW
+    // Текст SW - белый, жирный
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.floor(width * 0.032)}px Arial`;
-    ctx.fillText('SW', nameX + Math.floor(width * 0.015), swY + Math.floor(width * 0.015));
+    ctx.font = `bold ${Math.floor(width * 0.038)}px sans-serif`;
+    ctx.fillText('SW', contentX + Math.floor(width * 0.02), swY + Math.floor(width * 0.018));
     
-    // Значение SW
-    ctx.fillText(swRating.toLocaleString(), nameX + Math.floor(width * 0.09), swY + Math.floor(width * 0.015));
+    // Значение SW - крупное
+    ctx.fillText(swRating.toLocaleString(), contentX + Math.floor(width * 0.12), swY + Math.floor(width * 0.018));
     
-    // Уровень SW
-    ctx.fillStyle = swColor.bg;
-    ctx.font = `bold ${Math.floor(width * 0.022)}px Arial`;
-    ctx.fillText(swLevel.name, nameX + Math.floor(width * 0.25), swY + Math.floor(width * 0.015));
+    // Уровень SW справа
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${Math.floor(width * 0.026)}px sans-serif`;
+    const levelText = swLevel.name;
+    const levelTextWidth = ctx.measureText(levelText).width;
+    ctx.fillText(levelText, contentX + swBoxWidth - levelTextWidth - Math.floor(width * 0.02), swY + Math.floor(width * 0.018));
   }
 
-  // TF рейтинг
-  const tfY = swY + Math.floor(width * 0.12);
+  // TF рейтинг - компактно под SW
+  const tfY = swY + Math.floor(width * 0.08);
   const tfColor = tfRating >= 100 ? '#c084fc' : tfRating >= 60 ? '#7affc0' : '#ff6677';
-  const tfBoxHeight = Math.floor(width * 0.08);
+  const tfBoxHeight = Math.floor(width * 0.09);
   const tfBoxY = tfY - tfBoxHeight / 2;
+  const tfBoxWidth = Math.min(contentWidth * 0.7, width * 0.4);
+  const borderRadius = 15;
   
-    // Скругленный фон для TF
-    const tfBoxWidth = width * 0.35;
-    const borderRadius = 12;
-    ctx.fillStyle = tfColor + '60';
-    roundRect(ctx, nameX, tfBoxY, tfBoxWidth, tfBoxHeight, borderRadius);
-    ctx.fill();
+  // Яркий фон для TF
+  ctx.fillStyle = tfColor;
+  roundRect(ctx, contentX, tfBoxY, tfBoxWidth, tfBoxHeight, borderRadius);
+  ctx.fill();
   
-  // Рамка
-  ctx.strokeStyle = tfColor;
-  ctx.lineWidth = 3;
-  roundRect(ctx, nameX, tfBoxY, tfBoxWidth, tfBoxHeight, borderRadius);
+  // Белая рамка для контраста
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  roundRect(ctx, contentX, tfBoxY, tfBoxWidth, tfBoxHeight, borderRadius);
   ctx.stroke();
   
-  // Текст TF
+  // Текст TF - белый, жирный
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.floor(width * 0.032)}px Arial`;
-  ctx.fillText('TF', nameX + Math.floor(width * 0.015), tfY + Math.floor(width * 0.015));
+  ctx.font = `bold ${Math.floor(width * 0.038)}px sans-serif`;
+  ctx.fillText('TF', contentX + Math.floor(width * 0.02), tfY + Math.floor(width * 0.018));
   
-  // Значение TF
-  ctx.fillText(`${tfRating}%`, nameX + Math.floor(width * 0.09), tfY + Math.floor(width * 0.015));
+  // Значение TF - крупное
+  ctx.fillText(`${tfRating}%`, contentX + Math.floor(width * 0.12), tfY + Math.floor(width * 0.018));
 
-  // Генерируем QR код
+  // QR код - справа внизу, компактно
   try {
-    const qrSize = Math.floor(width * 0.18);
+    const qrSize = Math.floor(Math.min(width * 0.2, height * 0.25));
     const qrCodeDataUrl = await QRCode.toDataURL(profileUrl, {
       width: qrSize,
       margin: 2,
@@ -226,45 +253,45 @@ async function generatePoster(
     });
     
     const qrImage = await loadImage(qrCodeDataUrl);
-    const qrX = width - qrSize - width * 0.05;
-    const qrY = height - qrSize - width * 0.08;
+    const qrX = width - qrSize - padding;
+    const qrY = height - qrSize - padding - Math.floor(width * 0.04);
     
     // Белый фон с тенью для QR кода
-    const padding = 15;
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-    ctx.shadowBlur = 10;
+    const qrPadding = 12;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 12;
     ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 5;
+    ctx.shadowOffsetY = 4;
     ctx.fillStyle = '#ffffff';
-    roundRect(ctx, qrX - padding, qrY - padding, qrSize + padding * 2, qrSize + padding * 2, 12);
+    roundRect(ctx, qrX - qrPadding, qrY - qrPadding, qrSize + qrPadding * 2, qrSize + qrPadding * 2, 15);
     ctx.fill();
     ctx.shadowBlur = 0;
     
     ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
     
-    // Текст под QR кодом
+    // Текст под QR кодом - более контрастный
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.floor(width * 0.018)}px Arial`;
+    ctx.font = `bold ${Math.floor(width * 0.022)}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('Scan QR code', qrX + qrSize / 2, qrY + qrSize + Math.floor(width * 0.03));
-    ctx.font = `${Math.floor(width * 0.014)}px Arial`;
-    ctx.fillStyle = '#9ca3af';
-    ctx.fillText('to view profile', qrX + qrSize / 2, qrY + qrSize + Math.floor(width * 0.05));
+    ctx.fillText('Scan QR', qrX + qrSize / 2, qrY + qrSize + Math.floor(width * 0.025));
+    ctx.font = `${Math.floor(width * 0.016)}px sans-serif`;
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText('View Profile', qrX + qrSize / 2, qrY + qrSize + Math.floor(width * 0.045));
   } catch (err) {
     console.error('Error generating QR code:', err);
   }
 
-  // Логотип/текст Sigmet.app
-  const logoY = height - width * 0.06;
+  // Логотип/текст Sigmet.app - слева внизу, компактно
+  const logoY = height - padding - Math.floor(width * 0.03);
   ctx.fillStyle = '#60a5fa';
-  ctx.font = `bold ${Math.floor(width * 0.04)}px Arial`;
+  ctx.font = `bold ${Math.floor(width * 0.045)}px sans-serif`;
   ctx.textAlign = 'left';
-  ctx.fillText('Sigmet.app', nameX, logoY);
+  ctx.fillText('Sigmet.app', contentX, logoY);
   
-  // Подзаголовок
-  ctx.fillStyle = '#9ca3af';
-  ctx.font = `${Math.floor(width * 0.02)}px Arial`;
-  ctx.fillText('Social Network Platform', nameX, logoY + Math.floor(width * 0.03));
+  // Подзаголовок - более заметный
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = `${Math.floor(width * 0.022)}px sans-serif`;
+  ctx.fillText('Social Network', contentX, logoY + Math.floor(width * 0.035));
 
   // Конвертируем canvas в buffer
   const buffer = canvas.toBuffer('image/png');
