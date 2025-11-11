@@ -192,86 +192,86 @@ export default function Home() {
             <div className="relative mt-8 md:mt-0">
               <div className="backdrop-blur-sm">
                 <h3 className="text-primary-text font-semibold text-xl sm:text-2xl mb-6 sm:mb-8 text-center md:text-left">🚀 Quick start</h3>
-                <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
+                <div className="space-y-2 mb-6 sm:mb-8">
                   {/* Step 1 */}
-                  <div className="card-feature group">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-base sm:text-lg group-hover:bg-primary-blue/30 transition-colors">
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
                         1
                       </div>
-                      <p className="text-primary-text text-sm sm:text-base flex-1">
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
                         Sign up and confirm your email
                       </p>
                     </div>
                   </div>
 
                   {/* Step 2 */}
-                  <div className="card-feature group">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-base sm:text-lg group-hover:bg-primary-blue/30 transition-colors">
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
                         2
                       </div>
-                      <p className="text-primary-text text-sm sm:text-base flex-1">
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
                         Set up your profile and avatar
                       </p>
                     </div>
                   </div>
 
                   {/* Step 3 */}
-                  <div className="card-feature group">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-base sm:text-lg group-hover:bg-primary-blue/30 transition-colors">
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
                         3
                       </div>
-                      <p className="text-primary-text text-sm sm:text-base flex-1">
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
                         Choose directions that interest you for development
                       </p>
                     </div>
                   </div>
 
                   {/* Step 4 */}
-                  <div className="card-feature group">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-base sm:text-lg group-hover:bg-primary-blue/30 transition-colors">
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
                         4
                       </div>
-                      <p className="text-primary-text text-sm sm:text-base flex-1">
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
                         Move through tasks and goals, support and be supported by the community
                       </p>
                     </div>
                   </div>
 
                   {/* Step 5 */}
-                  <div className="card-feature group">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-base sm:text-lg group-hover:bg-primary-blue/30 transition-colors">
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
                         5
                       </div>
-                      <p className="text-primary-text text-sm sm:text-base flex-1">
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
                         Develop your profile, get new SW results
                       </p>
                     </div>
                   </div>
 
                   {/* Step 6 */}
-                  <div className="card-feature group">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-base sm:text-lg group-hover:bg-primary-blue/30 transition-colors">
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
                         6
                       </div>
-                      <p className="text-primary-text text-sm sm:text-base flex-1">
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
                         Unlock new features for advanced users
                       </p>
                     </div>
                   </div>
 
                   {/* Step 7 */}
-                  <div className="card-feature group">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-base sm:text-lg group-hover:bg-primary-blue/30 transition-colors">
+                  <div className="group relative backdrop-blur-sm border border-primary-blue/20 rounded-lg transition-all duration-300 hover:border-primary-blue/40 hover:shadow-[0_4px_12px_rgba(51,144,236,0.15)]" style={{ padding: '8px 12px', background: 'rgba(31, 41, 55, 0.4)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary-blue/20 flex items-center justify-center font-bold text-primary-text text-xs sm:text-sm group-hover:bg-primary-blue/30 transition-colors">
                         7
                       </div>
-                      <p className="text-primary-text text-sm sm:text-base flex-1">
+                      <p className="text-primary-text text-xs sm:text-sm flex-1">
                         Develop your personality comprehensively with our social network
                       </p>
                     </div>
