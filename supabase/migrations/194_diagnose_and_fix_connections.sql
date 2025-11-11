@@ -78,14 +78,29 @@ begin
   raise notice 'Trigger function created successfully';
 end $$;
 
--- Recreate trigger
-drop trigger if exists post_connections_trigger on public.posts;
-create trigger post_connections_trigger
-  after insert or update of text, author_id on public.posts
-  for each row
-  execute function public.update_connections_on_post();
-
-raise notice 'Trigger recreated successfully';
+-- Recreate trigger (handle both user_id and author_id columns)
+do $$
+declare
+  author_col text;
+begin
+  author_col := public._get_posts_author_column();
+  
+  drop trigger if exists post_connections_trigger on public.posts;
+  
+  if author_col = 'user_id' then
+    create trigger post_connections_trigger
+      after insert or update of text, user_id on public.posts
+      for each row
+      execute function public.update_connections_on_post();
+  else
+    create trigger post_connections_trigger
+      after insert or update of text, author_id on public.posts
+      for each row
+      execute function public.update_connections_on_post();
+  end if;
+  
+  raise notice 'Trigger recreated successfully with column: %', author_col;
+end $$;
 
 -- Test: Try to process one existing post manually
 do $$
