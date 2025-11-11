@@ -298,10 +298,10 @@ function ProfileSettings() {
 
         {/* Main Tab Content */}
         {activeTab === 'main' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
 
-        {/* Avatar section - more compact */}
-        <div className="flex items-center gap-3 pb-2 border-b border-white/10">
+        {/* Avatar section - compact */}
+        <div className="flex items-center gap-3 pb-3 border-b border-white/10">
           <img
               src={resolveAvatarUrl(profile.avatar_url) ?? AVATAR_FALLBACK}
             className={`w-16 h-16 rounded-full object-cover border-2 ${isLight ? "border-primary-blue/20" : "border-primary-blue/30"}`}
@@ -345,7 +345,7 @@ function ProfileSettings() {
           </div>
         </div>
 
-        {/* Basic info - grid layout for compactness */}
+        {/* Basic info - compact grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="label text-xs">Username</label>
@@ -365,6 +365,7 @@ function ProfileSettings() {
           </div>
         </div>
 
+        {/* About - compact */}
         <div>
           <label className="label text-xs">About</label>
           <textarea
@@ -375,13 +376,22 @@ function ProfileSettings() {
           />
         </div>
 
-        {/* Location and relationship - grid */}
+        {/* Personal info - compact 2x2 grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="label text-xs">Country - City</label>
             <CountryCitySelect
               value={profile.country || ''}
               onChange={(combined: string) => setProfile({ ...profile, country: combined })}
+            />
+          </div>
+          <div>
+            <label className="label text-xs">Date of birth</label>
+            <input
+              type="date"
+              className="input text-sm py-1.5"
+              value={profile.date_of_birth || ''}
+              onChange={e => setProfile({ ...profile, date_of_birth: e.target.value || null })}
             />
           </div>
           <div>
@@ -397,76 +407,6 @@ function ProfileSettings() {
               <option value="dating">Dating</option>
               <option value="married">Married</option>
             </select>
-          </div>
-        </div>
-
-        {/* Educational Institution */}
-        <div>
-          <label className="label text-xs">Place of Study</label>
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <select
-                className="input text-sm py-1.5 flex-1"
-                value={educationalInstitutionType || ''}
-                onChange={e => {
-                  const val = e.target.value as 'school' | 'college' | 'university' | '';
-                  setEducationalInstitutionType(val || null);
-                  if (!val) {
-                    setProfile({ ...profile, educational_institution_id: null });
-                    setEducationalInstitutionName('');
-                  }
-                }}
-              >
-                <option value="">Select type</option>
-                <option value="school">School</option>
-                <option value="college">College</option>
-                <option value="university">University</option>
-              </select>
-            </div>
-            {educationalInstitutionType && (
-              <>
-                <EducationalInstitutionSelect
-                  value={profile.educational_institution_id || null}
-                  type={educationalInstitutionType}
-                  onQueryChange={(query) => {
-                    // If user types but doesn't select, use the query as manual entry
-                    if (!profile.educational_institution_id) {
-                      if (query.trim()) {
-                        setEducationalInstitutionName(query);
-                      } else {
-                        setEducationalInstitutionName('');
-                      }
-                    }
-                  }}
-                  onChange={(id, institution) => {
-                    setProfile({ ...profile, educational_institution_id: id });
-                    if (institution) {
-                      setEducationalInstitutionName(institution.name);
-                    } else {
-                      setEducationalInstitutionName('');
-                    }
-                  }}
-                />
-                {!profile.educational_institution_id && educationalInstitutionName && (
-                  <div className="text-xs text-white/60">
-                    Institution will be created on save
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Date of birth and Work & Career - grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="label text-xs">Date of birth</label>
-            <input
-              type="date"
-              className="input text-sm py-1.5"
-              value={profile.date_of_birth || ''}
-              onChange={e => setProfile({ ...profile, date_of_birth: e.target.value || null })}
-            />
           </div>
           <div>
             <label className="label text-xs">Work & Career</label>
@@ -485,15 +425,98 @@ function ProfileSettings() {
           </div>
         </div>
 
-        {/* Website */}
+        {/* Educational Institution - compact */}
         <div>
-          <label className="label text-xs">Projects / Startups / Portfolio</label>
-          <input
-            className="input text-sm py-1.5"
-            value={profile.website_url || ''}
-            onChange={e => setProfile({ ...profile, website_url: e.target.value })}
-            placeholder="https://example.com"
-          />
+          <label className="label text-xs">Place of Study</label>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <div className="md:col-span-1">
+              <select
+                className="input text-sm py-1.5 w-full"
+                value={educationalInstitutionType || ''}
+                onChange={e => {
+                  const val = e.target.value as 'school' | 'college' | 'university' | '';
+                  setEducationalInstitutionType(val || null);
+                  if (!val) {
+                    setProfile({ ...profile, educational_institution_id: null });
+                    setEducationalInstitutionName('');
+                  }
+                }}
+              >
+                <option value="">Type</option>
+                <option value="school">School</option>
+                <option value="college">College</option>
+                <option value="university">University</option>
+              </select>
+            </div>
+            {educationalInstitutionType && (
+              <div className="md:col-span-3">
+                <EducationalInstitutionSelect
+                  value={profile.educational_institution_id || null}
+                  type={educationalInstitutionType}
+                  onQueryChange={(query) => {
+                    if (!profile.educational_institution_id) {
+                      if (query.trim()) {
+                        setEducationalInstitutionName(query);
+                      } else {
+                        setEducationalInstitutionName('');
+                      }
+                    }
+                  }}
+                  onChange={(id, institution) => {
+                    setProfile({ ...profile, educational_institution_id: id });
+                    if (institution) {
+                      setEducationalInstitutionName(institution.name);
+                    } else {
+                      setEducationalInstitutionName('');
+                    }
+                  }}
+                />
+                {!profile.educational_institution_id && educationalInstitutionName && (
+                  <div className="text-xs text-white/60 mt-1">
+                    Institution will be created on save
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Website and Social Media - compact grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="label text-xs">Projects / Startups / Portfolio</label>
+            <input
+              className="input text-sm py-1.5"
+              value={profile.website_url || ''}
+              onChange={e => setProfile({ ...profile, website_url: e.target.value })}
+              placeholder="https://example.com"
+            />
+          </div>
+          <div>
+            <label className="label text-xs">Online Status</label>
+            <div className="flex gap-4 pt-1.5">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="online_status"
+                  checked={profile.show_online_status !== false}
+                  onChange={() => setProfile({ ...profile, show_online_status: true })}
+                  className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
+                />
+                <span className={`text-sm ${isLight ? "text-primary-text" : "text-primary-text"}`}>Show</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="online_status"
+                  checked={profile.show_online_status === false}
+                  onChange={() => setProfile({ ...profile, show_online_status: false })}
+                  className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
+                />
+                <span className={`text-sm ${isLight ? "text-primary-text" : "text-primary-text"}`}>Hide</span>
+              </label>
+            </div>
+          </div>
         </div>
 
         {/* Social Media - compact grid */}
@@ -527,33 +550,6 @@ function ProfileSettings() {
                 placeholder="URL"
               />
             </div>
-          </div>
-        </div>
-
-        {/* Online Status - compact */}
-        <div>
-          <label className="label text-xs">Online Status</label>
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="online_status"
-                checked={profile.show_online_status !== false}
-                onChange={() => setProfile({ ...profile, show_online_status: true })}
-                className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
-              />
-              <span className={`text-sm ${isLight ? "text-primary-text" : "text-primary-text"}`}>Show</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="online_status"
-                checked={profile.show_online_status === false}
-                onChange={() => setProfile({ ...profile, show_online_status: false })}
-                className={isLight ? "text-primary-blue" : "text-primary-blue-light"}
-              />
-              <span className={`text-sm ${isLight ? "text-primary-text" : "text-primary-text"}`}>Hide</span>
-            </label>
           </div>
         </div>
 
