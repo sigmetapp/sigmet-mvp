@@ -159,9 +159,9 @@ declare
   post_text text;
   post_author_id uuid;
 begin
-  -- Get post text (try body first, then text)
-  post_text := coalesce(new.body, new.text, '');
-  post_author_id := coalesce(new.user_id, new.author_id);
+  -- Get post text (use text field - body might not exist in all schemas)
+  post_text := coalesce(new.text, '');
+  post_author_id := new.author_id;
   
   -- Delete old connections for this post
   delete from public.user_connections where post_id = new.id;
@@ -178,14 +178,11 @@ $$;
 -- Create trigger on posts table
 drop trigger if exists post_connections_trigger on public.posts;
 create trigger post_connections_trigger
-  after insert or update of body, text, user_id, author_id on public.posts
+  after insert or update of text, author_id on public.posts
   for each row
   execute function public.update_connections_on_post();
 
 -- Add indexes for posts table to optimize queries
-create index if not exists posts_user_id_created_at_idx 
-  on public.posts(coalesce(user_id, author_id), created_at desc);
-
 create index if not exists posts_author_id_created_at_idx 
   on public.posts(author_id, created_at desc);
 

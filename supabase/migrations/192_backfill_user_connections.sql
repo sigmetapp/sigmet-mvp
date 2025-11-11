@@ -15,10 +15,10 @@ begin
   for post_record in 
     select 
       id,
-      coalesce(body, text, '') as post_text,
-      coalesce(user_id, author_id) as post_author_id
+      coalesce(text, '') as post_text,
+      author_id as post_author_id
     from public.posts
-    where (body is not null and trim(body) != '') or (text is not null and trim(text) != '')
+    where text is not null and trim(text) != ''
     order by created_at desc
   loop
     -- Extract mentions and create connections for this post
