@@ -83,13 +83,13 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* Admin sheet */}
       {isAdmin && adminOpen && (
-        <div className="fixed inset-0 z-[9995]">
+        <div className="fixed inset-0 z-[99999]">
           <div
             className={`${isLight ? 'bg-black/40' : 'bg-black/60'} absolute inset-0`}
             onClick={() => setAdminOpen(false)}
           />
-          <div className="absolute bottom-0 left-0 right-0 p-3">
-            <div className={`mx-auto max-w-[1088px] rounded-2xl border shadow-xl p-3 ${
+          <div className="absolute bottom-0 left-0 right-0 p-3 z-[99999]">
+            <div className={`mx-auto max-w-[1088px] rounded-2xl border shadow-xl p-3 relative z-[99999] ${
               isLight ? 'bg-white border-primary-blue/15' : 'bg-[rgba(15,22,35,0.98)] border-primary-blue/20'
             }`}>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
