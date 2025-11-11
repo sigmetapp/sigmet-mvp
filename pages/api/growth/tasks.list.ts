@@ -101,11 +101,13 @@ export default async function handler(
       .map((task) => {
         const userTask = userTaskMap.get(task.id);
         const lastChecked = checkinMap.get(task.id);
+        // Only consider task activated if userTask exists and status is 'active'
+        const isActivated = !!userTask && userTask.status === 'active';
         return {
           ...task,
-          isActivated: !!userTask,
-          userTask: userTask || null,
-          lastChecked: lastChecked || null,
+          isActivated,
+          userTask: isActivated ? userTask : null,
+          lastChecked: isActivated ? lastChecked : null,
         };
       });
 
@@ -113,10 +115,12 @@ export default async function handler(
       .filter((t) => t.task_type === 'goal')
       .map((task) => {
         const userTask = userTaskMap.get(task.id);
+        // Only consider task activated if userTask exists and status is 'active'
+        const isActivated = !!userTask && userTask.status === 'active';
         return {
           ...task,
-          isActivated: !!userTask,
-          userTask: userTask || null,
+          isActivated,
+          userTask: isActivated ? userTask : null,
         };
       });
 
