@@ -326,109 +326,128 @@ export default function Home() {
                 </p>
               </div>
               
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-visible">
                 <div className="min-w-full">
-                  <table className="w-full border-collapse">
-                    <tbody>
-                      {/* First row: Level names */}
-                      <tr>
-                        {SW_LEVELS.map((level) => {
-                          const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                          return (
-                            <td key={`name-${level.name}`} className="py-2 px-2 text-center align-bottom">
+                  <div className="flex items-end justify-center gap-2 sm:gap-4 pb-8">
+                    {SW_LEVELS.map((level, index) => {
+                      const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
+                      const showGlow = level.name !== 'Beginner';
+                      const isLast = index === SW_LEVELS.length - 1;
+                      
+                      // Progressive glow parameters by level (from AvatarWithBadge)
+                      const getGlowParams = (levelName: string) => {
+                        const levelParams: Record<string, any> = {
+                          'Growing': {
+                            borderWidth: 1.5,
+                            outerGlow: { r1: 8, r2: 12, r3: 16, o1: '30', o2: '20', o3: '15' },
+                            imageGlow: { r1: 6, r2: 10, r3: 14, r4: 4, o1: '40', o2: '30', o3: '20', o4: '10' },
+                            gradient: '15'
+                          },
+                          'Advance': {
+                            borderWidth: 2,
+                            outerGlow: { r1: 10, r2: 16, r3: 22, o1: '40', o2: '28', o3: '20' },
+                            imageGlow: { r1: 8, r2: 14, r3: 20, r4: 5, o1: '50', o2: '38', o3: '28', o4: '15' },
+                            gradient: '20'
+                          },
+                          'Expert': {
+                            borderWidth: 2.5,
+                            outerGlow: { r1: 12, r2: 20, r3: 28, o1: '50', o2: '36', o3: '25' },
+                            imageGlow: { r1: 10, r2: 18, r3: 26, r4: 6, o1: '60', o2: '46', o3: '36', o4: '20' },
+                            gradient: '25'
+                          },
+                          'Leader': {
+                            borderWidth: 3,
+                            outerGlow: { r1: 14, r2: 24, r3: 34, o1: '60', o2: '44', o3: '30' },
+                            imageGlow: { r1: 12, r2: 22, r3: 32, r4: 7, o1: '70', o2: '54', o3: '44', o4: '25' },
+                            gradient: '30'
+                          },
+                          'Angel': {
+                            borderWidth: 3.5,
+                            outerGlow: { r1: 16, r2: 28, r3: 40, o1: '70', o2: '52', o3: '35' },
+                            imageGlow: { r1: 14, r2: 26, r3: 38, r4: 8, o1: '80', o2: '62', o3: '52', o4: '30' },
+                            gradient: '35'
+                          }
+                        };
+                        return levelParams[levelName] || null;
+                      };
+                      
+                      const glowParams = showGlow ? getGlowParams(level.name) : null;
+                      const og = glowParams?.outerGlow;
+                      const ig = glowParams?.imageGlow;
+                      
+                      return (
+                        <React.Fragment key={level.name}>
+                          <div className="flex flex-col items-center">
+                            {/* Level name */}
+                            <div className="mb-3">
                               <span className={`font-bold text-xs sm:text-sm ${colorScheme.text}`}>
                                 {level.name}
                               </span>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                      {/* Second row: Avatar glows */}
-                      <tr>
-                        {SW_LEVELS.map((level) => {
-                          const colorScheme = LEVEL_COLOR_SCHEMES[level.name] || LEVEL_COLOR_SCHEMES['Beginner'];
-                          const showGlow = level.name !== 'Beginner';
-                          
-                          // Progressive glow parameters by level (from AvatarWithBadge)
-                          const getGlowParams = (levelName: string) => {
-                            const levelParams: Record<string, any> = {
-                              'Growing': {
-                                borderWidth: 1.5,
-                                outerGlow: { r1: 8, r2: 12, r3: 16, o1: '30', o2: '20', o3: '15' },
-                                imageGlow: { r1: 6, r2: 10, r3: 14, r4: 4, o1: '40', o2: '30', o3: '20', o4: '10' },
-                                gradient: '15'
-                              },
-                              'Advance': {
-                                borderWidth: 2,
-                                outerGlow: { r1: 10, r2: 16, r3: 22, o1: '40', o2: '28', o3: '20' },
-                                imageGlow: { r1: 8, r2: 14, r3: 20, r4: 5, o1: '50', o2: '38', o3: '28', o4: '15' },
-                                gradient: '20'
-                              },
-                              'Expert': {
-                                borderWidth: 2.5,
-                                outerGlow: { r1: 12, r2: 20, r3: 28, o1: '50', o2: '36', o3: '25' },
-                                imageGlow: { r1: 10, r2: 18, r3: 26, r4: 6, o1: '60', o2: '46', o3: '36', o4: '20' },
-                                gradient: '25'
-                              },
-                              'Leader': {
-                                borderWidth: 3,
-                                outerGlow: { r1: 14, r2: 24, r3: 34, o1: '60', o2: '44', o3: '30' },
-                                imageGlow: { r1: 12, r2: 22, r3: 32, r4: 7, o1: '70', o2: '54', o3: '44', o4: '25' },
-                                gradient: '30'
-                              },
-                              'Angel': {
-                                borderWidth: 3.5,
-                                outerGlow: { r1: 16, r2: 28, r3: 40, o1: '70', o2: '52', o3: '35' },
-                                imageGlow: { r1: 14, r2: 26, r3: 38, r4: 8, o1: '80', o2: '62', o3: '52', o4: '30' },
-                                gradient: '35'
-                              }
-                            };
-                            return levelParams[levelName] || null;
-                          };
-                          
-                          const glowParams = showGlow ? getGlowParams(level.name) : null;
-                          const og = glowParams?.outerGlow;
-                          const ig = glowParams?.imageGlow;
-                          
-                          return (
-                            <td key={`avatar-${level.name}`} className="py-2 px-2 text-center">
-                              <div className="flex justify-center">
-                                <div className="relative w-12 h-12 sm:w-14 sm:h-14">
-                                  {/* Outer glow ring */}
-                                  {glowParams && (
-                                    <div
-                                      className="absolute inset-0 rounded-full pointer-events-none"
-                                      style={{
-                                        boxShadow: `0 0 ${og.r1}px ${colorScheme.hex}${og.o1}, 0 0 ${og.r2}px ${colorScheme.hex}${og.o2}, 0 0 ${og.r3}px ${colorScheme.hex}${og.o3}`,
-                                        background: `radial-gradient(circle at center, ${colorScheme.hex}${glowParams.gradient}, transparent 70%)`
-                                      }}
-                                    />
-                                  )}
-                                  {/* Avatar circle */}
+                            </div>
+                            {/* Avatar with glow */}
+                            <div className="relative" style={{ paddingBottom: '40px' }}>
+                              <div className="relative w-12 h-12 sm:w-14 sm:h-14">
+                                {/* Outer glow ring */}
+                                {glowParams && (
                                   <div
-                                    className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm ${
-                                      showGlow ? '' : 'border border-white/10 bg-gray-600/30'
-                                    }`}
-                                    style={
-                                      glowParams && colorScheme
-                                        ? {
-                                            border: `${glowParams.borderWidth} solid ${colorScheme.hex}`,
-                                            boxShadow: `0 0 ${ig.r1}px ${colorScheme.hex}${ig.o1}, 0 0 ${ig.r2}px ${colorScheme.hex}${ig.o2}, 0 0 ${ig.r3}px ${colorScheme.hex}${ig.o3}, inset 0 0 ${ig.r4}px ${colorScheme.hex}${ig.o4}`,
-                                            background: `radial-gradient(circle, ${colorScheme.hex}40, ${colorScheme.hex}20)`
-                                          }
-                                        : { backgroundColor: 'rgba(156, 163, 175, 0.3)' }
-                                    }
-                                  >
-                                    {level.name.charAt(0)}
-                                  </div>
+                                    className="absolute inset-0 rounded-full pointer-events-none"
+                                    style={{
+                                      boxShadow: `0 0 ${og.r1}px ${colorScheme.hex}${og.o1}, 0 0 ${og.r2}px ${colorScheme.hex}${og.o2}, 0 0 ${og.r3}px ${colorScheme.hex}${og.o3}`,
+                                      background: `radial-gradient(circle at center, ${colorScheme.hex}${glowParams.gradient}, transparent 70%)`,
+                                      animation: 'glowPulse 2s ease-in-out infinite',
+                                      animationDelay: `${index * 0.2}s`
+                                    }}
+                                  />
+                                )}
+                                {/* Avatar circle */}
+                                <div
+                                  className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm transition-all duration-500 hover:scale-110 ${
+                                    showGlow ? '' : 'border border-white/10 bg-gray-600/30'
+                                  }`}
+                                  style={
+                                    glowParams && colorScheme
+                                      ? {
+                                          border: `${glowParams.borderWidth} solid ${colorScheme.hex}`,
+                                          boxShadow: `0 0 ${ig.r1}px ${colorScheme.hex}${ig.o1}, 0 0 ${ig.r2}px ${colorScheme.hex}${ig.o2}, 0 0 ${ig.r3}px ${colorScheme.hex}${ig.o3}, inset 0 0 ${ig.r4}px ${colorScheme.hex}${ig.o4}`,
+                                          background: `radial-gradient(circle, ${colorScheme.hex}40, ${colorScheme.hex}20)`
+                                        }
+                                      : { backgroundColor: 'rgba(156, 163, 175, 0.3)' }
+                                  }
+                                >
+                                  {level.name.charAt(0)}
                                 </div>
                               </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    </tbody>
-                  </table>
+                            </div>
+                          </div>
+                          {/* Arrow between avatars */}
+                          {!isLast && (
+                            <div className="flex items-center justify-center mb-8" style={{ minWidth: '24px' }}>
+                              <div className="relative">
+                                <div 
+                                  className="text-primary-blue-light text-xl sm:text-2xl"
+                                  style={{
+                                    animation: 'arrowFlow 1.5s ease-in-out infinite',
+                                    animationDelay: `${index * 0.15}s`
+                                  }}
+                                >
+                                  →
+                                </div>
+                                <div 
+                                  className="absolute inset-0 text-primary-blue-light/30 text-xl sm:text-2xl blur-sm pointer-events-none"
+                                  style={{
+                                    animation: 'arrowFlow 1.5s ease-in-out infinite',
+                                    animationDelay: `${index * 0.15}s`
+                                  }}
+                                >
+                                  →
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
               
