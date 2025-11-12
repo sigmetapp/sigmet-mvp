@@ -96,6 +96,7 @@ function formatDateWithTodayYesterday(dateString: string): string {
 }
 
 const EMPTY_COUNTS: Record<ReactionType, number> = {
+  verify: 0,
   inspire: 0,
   respect: 0,
   relate: 0,
@@ -288,6 +289,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       relate: 0,
       support: 0,
       celebrate: 0,
+      verify: 0,
     };
     let selected: ReactionType | null = null;
 
@@ -297,15 +299,24 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       relate: 'inspire', // Migrate to inspire
       support: 'inspire', // Migrate to inspire
       celebrate: 'inspire', // Migrate to inspire
+      verify: 'verify', // Verify is separate
     };
 
     for (const row of data as Array<{ kind: string; user_id: string }>) {
       const reactionType = reactionMap[row.kind];
       if (!reactionType) continue;
-      // All reactions go to inspire
-      counts.inspire = (counts.inspire || 0) + 1;
-      if (uid && row.user_id === uid) {
-        selected = 'inspire';
+      if (reactionType === 'verify') {
+        // Verify is separate
+        counts.verify = (counts.verify || 0) + 1;
+        if (uid && row.user_id === uid) {
+          selected = 'verify';
+        }
+      } else {
+        // All other reactions go to inspire
+        counts.inspire = (counts.inspire || 0) + 1;
+        if (uid && row.user_id === uid && !selected) {
+          selected = 'inspire';
+        }
       }
     }
 
@@ -1220,6 +1231,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
               postId={post.id}
               initialCounts={reactionCounts}
               initialSelected={selectedReaction}
+              showVerify={true}
               onReactionChange={handleReactionChange}
             />
             <div className="ml-auto flex items-center gap-3">

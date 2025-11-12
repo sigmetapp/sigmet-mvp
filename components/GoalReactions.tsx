@@ -1,145 +1,150 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from './ThemeProvider';
+import { supabase } from '@/lib/supabaseClient';
 
-export type ReactionType = 'inspire' | 'respect' | 'relate' | 'support' | 'celebrate' | 'verify';
+export type GoalReactionType = 'inspire';
 
-export interface Reaction {
-  id: ReactionType;
+export interface GoalReaction {
+  id: GoalReactionType;
   emoji: string;
   label: string;
   color: string;
 }
 
-// Reactions to show: inspire (fire) and verify (checkmark)
-const FIRE_REACTION: Reaction = {
+// Only show inspire reaction (fire emoji 🔥) for goals
+const FIRE_REACTION: GoalReaction = {
   id: 'inspire',
   emoji: String.fromCharCode(0xD83D, 0xDD25), // 🔥
   label: '',
   color: '#ff7b00'
 };
 
-const VERIFY_REACTION: Reaction = {
-  id: 'verify',
-  emoji: String.fromCharCode(0x2705), // ✅
-  label: '',
-  color: '#10b981'
-};
-
-export interface PostReactionsProps {
-  postId: number;
-  initialCounts?: Record<ReactionType, number>;
-  initialSelected?: ReactionType | null;
-  onReactionChange?: (reaction: ReactionType | null, counts: Record<ReactionType, number>) => void;
-  showVerify?: boolean; // Option to show verify reaction
+export interface GoalReactionsProps {
+  goalUserId: string; // User who owns the goal
+  goalId: string; // ID of the goal from the JSONB array
+  initialCount?: number;
+  initialSelected?: boolean;
+  onReactionChange?: (selected: boolean, count: number) => void;
 }
 
-export default function PostReactions({
-  postId,
-  initialCounts = {
-    inspire: 0,
-    respect: 0,
-    relate: 0,
-    support: 0,
-    celebrate: 0,
-    verify: 0,
-  },
-  initialSelected = null,
+export default function GoalReactions({
+  goalUserId,
+  goalId,
+  initialCount = 0,
+  initialSelected = false,
   onReactionChange,
-  showVerify = true,
-}: PostReactionsProps) {
+}: GoalReactionsProps) {
   const { theme } = useTheme();
   const isLight = theme === 'light';
   
-  // Sum all reactions into inspire (except verify)
-  const totalInspireCount = useMemo(() => {
-    return (initialCounts.inspire || 0) + 
-           (initialCounts.respect || 0) + 
-           (initialCounts.relate || 0) + 
-           (initialCounts.support || 0) + 
-           (initialCounts.celebrate || 0);
-  }, [initialCounts]);
-  
-  const verifyCount = initialCounts.verify || 0;
-  
-  const [selectedReaction, setSelectedReaction] = useState<ReactionType | null>(
-    initialSelected === 'inspire' ? 'inspire' : 
-    (initialSelected === 'verify' ? 'verify' :
-    (initialSelected ? 'inspire' : null))
-  );
-  const [inspireCount, setInspireCount] = useState<number>(totalInspireCount);
-  const [verifyCountState, setVerifyCountState] = useState<number>(verifyCount);
-  const [popAnimation, setPopAnimation] = useState<string | null>(null);
+  const [selected, setSelected] = useState<boolean>(initialSelected);
+  const [count, setCount] = useState<number>(initialCount);
+  const [popAnimation, setPopAnimation] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
 
   // Sync with props when they change
   useEffect(() => {
-    if (initialSelected === 'inspire') {
-      setSelectedReaction('inspire');
-    } else if (initialSelected === 'verify') {
-      setSelectedReaction('verify');
-    } else if (initialSelected) {
-      setSelectedReaction('inspire');
-    } else {
-      setSelectedReaction(null);
-    }
+    setSelected(initialSelected);
   }, [initialSelected]);
 
   useEffect(() => {
-    setInspireCount(totalInspireCount);
-  }, [totalInspireCount]);
+    setCount(initialCount);
+  }, [initialCount]);
 
-  useEffect(() => {
-    setVerifyCountState(verifyCount);
-  }, [verifyCount]);
-
-  const handleReactionClick = (reactionType: 'inspire' | 'verify') => {
-    const wasSelected = selectedReaction === reactionType;
-    const newSelected = wasSelected ? null : reactionType;
+  const handleReactionClick = async () => {
+    if (loading) return;
     
-    setSelectedReaction(newSelected);
+    const wasSelected = selected;
+    const newSelected = !wasSelected;
     
-    // Update count
-    if (reactionType === 'inspire') {
-      const newCount = wasSelected ? Math.max(0, inspireCount - 1) : inspireCount + 1;
-      setInspireCount(newCount);
-    } else {
-      const newCount = wasSelected ? Math.max(0, verifyCountState - 1) : verifyCountState + 1;
-      setVerifyCountState(newCount);
-    }
+    setSelected(newSelected);
+    setLoading(true);
+    
+    // Update count optimistically
+    const newCount = wasSelected ? Math.max(0, count - 1) : count + 1;
+    setCount(newCount);
     
     // Trigger pop animation
-    setPopAnimation(reactionType);
-    setTimeout(() => setPopAnimation(null), 200);
+    setPopAnimation(true);
+    setTimeout(() => setPopAnimation(false), 200);
     
-    // Callback
-    if (onReactionChange) {
-      const newCounts: Record<ReactionType, number> = {
-        inspire: reactionType === 'inspire' ? (wasSelected ? Math.max(0, inspireCount - 1) : inspireCount + 1) : inspireCount,
-        verify: reactionType === 'verify' ? (wasSelected ? Math.max(0, verifyCountState - 1) : verifyCountState + 1) : verifyCountState,
-        respect: 0,
-        relate: 0,
-        support: 0,
-        celebrate: 0,
-      };
-      onReactionChange(newSelected, newCounts);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        // Revert on error
+        setSelected(wasSelected);
+        setCount(count);
+        return;
+      }
+
+      if (wasSelected) {
+        // Delete reaction
+        const { error } = await supabase
+          .from('goal_reactions')
+          .delete()
+          .eq('goal_user_id', goalUserId)
+          .eq('goal_id', goalId)
+          .eq('user_id', user.id)
+          .eq('kind', 'inspire');
+        
+        if (error) {
+          // Revert on error
+          setSelected(wasSelected);
+          setCount(count);
+          console.error('Error deleting goal reaction:', error);
+        }
+      } else {
+        // Insert reaction
+        const { error } = await supabase
+          .from('goal_reactions')
+          .insert({
+            goal_user_id: goalUserId,
+            goal_id: goalId,
+            user_id: user.id,
+            kind: 'inspire',
+          });
+        
+        if (error) {
+          // Revert on error
+          setSelected(wasSelected);
+          setCount(count);
+          console.error('Error inserting goal reaction:', error);
+        }
+      }
+      
+      // Callback
+      if (onReactionChange) {
+        onReactionChange(newSelected, newCount);
+      }
+    } catch (error) {
+      // Revert on error
+      setSelected(wasSelected);
+      setCount(count);
+      console.error('Error updating goal reaction:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const renderReactionButton = (reaction: Reaction, count: number, isSelected: boolean, onClick: () => void) => {
-    return (
+  const isSelected = selected;
+  const reaction = FIRE_REACTION;
+
+  return (
+    <div className="flex flex-row items-center justify-center">
       <motion.button
-        onClick={onClick}
-        data-prevent-card-navigation="true"
-        whileHover={{ 
+        onClick={handleReactionClick}
+        disabled={loading}
+        whileHover={!loading ? { 
           scale: 1.08, 
           y: -3,
           transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] }
-        }}
-        whileTap={{ scale: 0.95 }}
+        } : {}}
+        whileTap={!loading ? { scale: 0.95 } : {}}
         animate={
-          popAnimation === reaction.id
+          popAnimation
             ? {
                 scale: [1, 1.25, 1],
                 transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
@@ -154,6 +159,7 @@ export default function PostReactions({
             : 'shadow-md hover:shadow-xl'
           }
           border-0 overflow-hidden
+          ${loading ? 'opacity-50 cursor-not-allowed' : ''}
         `}
         style={{
           background: isSelected 
@@ -173,7 +179,7 @@ export default function PostReactions({
             isSelected ? 'opacity-100' : isLight ? 'opacity-50' : 'opacity-70'
           }`}
           role="img" 
-          aria-label={`${reaction.id} reaction`}
+          aria-label="Fire reaction"
           style={{ 
             fontSize: '1rem',
             minWidth: '1.25rem',
@@ -240,23 +246,6 @@ export default function PostReactions({
           </>
         )}
       </motion.button>
-    );
-  };
-
-  return (
-    <div className="flex flex-row items-center justify-center gap-2">
-      {renderReactionButton(
-        FIRE_REACTION,
-        inspireCount,
-        selectedReaction === 'inspire',
-        () => handleReactionClick('inspire')
-      )}
-      {showVerify && renderReactionButton(
-        VERIFY_REACTION,
-        verifyCountState,
-        selectedReaction === 'verify',
-        () => handleReactionClick('verify')
-      )}
     </div>
   );
 }
