@@ -133,15 +133,16 @@ as $$
     join dms_messages msg on msg.thread_id = nt.thread_id
     where msg.deleted_at is null
       and msg.sender_id <> p_user_id
-      and case
+      and (
         -- If last_read_message_id is null, all messages are unread
-        when nt.last_read_message_id is null then true
+        nt.last_read_message_id is null
         -- If last_read_message_id is set, count messages with id > last_read_message_id
-        -- Both msg.id and last_read_message_id are bigint
-        when nt.last_read_message_id is not null then 
-          (msg.id) > (nt.last_read_message_id)
-        else false
-      end
+        -- Use explicit type casting to avoid type confusion
+        or (
+          nt.last_read_message_id is not null 
+          and cast(msg.id as bigint) > cast(nt.last_read_message_id as bigint)
+        )
+      )
     group by nt.thread_id
   ),
   -- Fallback: use receipts if last_read_message_id is not reliable
