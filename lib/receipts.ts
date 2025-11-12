@@ -6,7 +6,7 @@ let missingTableLogged = false;
 type ReceiptStatus = 'sent' | 'delivered' | 'read';
 
 type ReceiptRecord = {
-  message_id: number;
+  message_id: string | number;
   user_id: string;
   status: ReceiptStatus;
   updated_at: string | null;
@@ -26,7 +26,7 @@ function isMissingTableError(error: unknown): boolean {
   );
 }
 
-function logMissingTableOnce() {
+function logMissingTableOnce(): void {
   if (missingTableLogged) return;
   const warning = `[receipts] Table "${TABLE}" is missing. DM receipts will be skipped.`;
   if (typeof window === 'undefined') {
@@ -37,17 +37,22 @@ function logMissingTableOnce() {
   missingTableLogged = true;
 }
 
-function toNumericMessageId(value: string | number): number | null {
+function normalizeMessageId(value: string | number): string | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
+    return value.toString();
   }
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (!trimmed) {
+    if (
+      !trimmed ||
+      trimmed === '-1' ||
+      trimmed.toLowerCase() === 'nan' ||
+      trimmed.toLowerCase() === 'undefined' ||
+      trimmed.toLowerCase() === 'null'
+    ) {
       return null;
     }
-    const parsed = Number.parseInt(trimmed, 10);
-    return Number.isFinite(parsed) ? parsed : null;
+    return trimmed;
   }
   return null;
 }
@@ -74,8 +79,8 @@ function mapStatusToResult(status: ReceiptStatus, updatedAt: string | null): Rec
 }
 
 export async function markDelivered(messageId: string, userId: string): Promise<void> {
-  const numericId = toNumericMessageId(messageId);
-  if (numericId === null) {
+  const normalizedId = normalizeMessageId(messageId);
+  if (!normalizedId) {
     return;
   }
 
@@ -83,7 +88,7 @@ export async function markDelivered(messageId: string, userId: string): Promise<
     const { data, error } = await supabase
       .from<ReceiptRecord>(TABLE)
       .select('status')
-      .eq('message_id', numericId)
+      .eq('message_id', normalizedId)
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -96,10 +101,13 @@ export async function markDelivered(messageId: string, userId: string): Promise<
     }
 
     if (!data) {
+      const nowIso = new Date().toISOString();
       const { error: insertError } = await supabase.from(TABLE).insert({
-        message_id: numericId,
+        message_id: normalizedId,
         user_id: userId,
         status: 'delivered',
+        created_at: nowIso,
+        updated_at: nowIso,
       });
 
       if (insertError) {
@@ -116,10 +124,12 @@ export async function markDelivered(messageId: string, userId: string): Promise<
       return;
     }
 
+    const nowIso = new Date().toISOString();
+
     const { error: updateError } = await supabase
       .from(TABLE)
-      .update({ status: 'delivered' })
-      .eq('message_id', numericId)
+      .update({ status: 'delivered', updated_at: nowIso })
+      .eq('message_id', normalizedId)
       .eq('user_id', userId);
 
     if (updateError) {
@@ -135,14 +145,15 @@ export async function markDelivered(messageId: string, userId: string): Promise<
 }
 
 export async function markRead(messageIds: string[], userId: string): Promise<void> {
-  const numericIds = Array.from(
+  const normalizedIds = Array.from(
     new Set(
       messageIds
-        .map((id) => toNumericMessageId(id))
-        .filter((id): id is number => id !== null)
+        .map((id) => normalizeMessageId(id))
+        .filter((id): id is string => Boolean(id))
     )
   );
-  if (numericIds.length === 0) {
+
+  if (normalizedIds.length === 0) {
     return;
   }
 
@@ -151,7 +162,7 @@ export async function markRead(messageIds: string[], userId: string): Promise<vo
       .from<ReceiptRecord>(TABLE)
       .select('message_id, status')
       .eq('user_id', userId)
-      .in('message_id', numericIds);
+      .in('message_id', normalizedIds);
 
     if (error) {
       if (isMissingTableError(error)) {
@@ -161,15 +172,15 @@ export async function markRead(messageIds: string[], userId: string): Promise<vo
       throw error;
     }
 
-    const existingStatus = new Map<number, ReceiptStatus>();
+    const existingStatus = new Map<string, ReceiptStatus>();
     for (const row of data ?? []) {
-      existingStatus.set(row.message_id, row.status);
+      existingStatus.set(String(row.message_id), row.status);
     }
 
-    const insertPayload: Array<{ message_id: number; user_id: string; status: ReceiptStatus }> = [];
-    const updateIds: number[] = [];
+    const insertPayload: Array<{ message_id: string; user_id: string; status: ReceiptStatus }> = [];
+    const updateIds: string[] = [];
 
-    for (const id of numericIds) {
+    for (const id of normalizedIds) {
       const status = existingStatus.get(id);
       if (!status) {
         insertPayload.push({
@@ -182,8 +193,15 @@ export async function markRead(messageIds: string[], userId: string): Promise<vo
       }
     }
 
+    const nowIso = new Date().toISOString();
+
     if (insertPayload.length > 0) {
-      const { error: insertError } = await supabase.from(TABLE).insert(insertPayload);
+      const timestampedRows = insertPayload.map((row) => ({
+        ...row,
+        created_at: nowIso,
+        updated_at: nowIso,
+      }));
+      const { error: insertError } = await supabase.from(TABLE).insert(timestampedRows);
       if (insertError) {
         if (isMissingTableError(insertError)) {
           logMissingTableOnce();
@@ -196,7 +214,7 @@ export async function markRead(messageIds: string[], userId: string): Promise<vo
     if (updateIds.length > 0) {
       const { error: updateError } = await supabase
         .from(TABLE)
-        .update({ status: 'read' })
+        .update({ status: 'read', updated_at: nowIso })
         .eq('user_id', userId)
         .in('message_id', updateIds);
 
@@ -214,8 +232,8 @@ export async function markRead(messageIds: string[], userId: string): Promise<vo
 }
 
 export async function getReceipt(messageId: string, userId: string): Promise<ReceiptResult | null> {
-  const numericId = toNumericMessageId(messageId);
-  if (numericId === null) {
+  const normalizedId = normalizeMessageId(messageId);
+  if (!normalizedId) {
     return null;
   }
 
@@ -223,7 +241,7 @@ export async function getReceipt(messageId: string, userId: string): Promise<Rec
     const { data, error } = await supabase
       .from<ReceiptRecord>(TABLE)
       .select('status, updated_at')
-      .eq('message_id', numericId)
+      .eq('message_id', normalizedId)
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -250,14 +268,14 @@ export async function getReceiptsForMessages(
   messageIds: string[],
   userId: string
 ): Promise<Record<string, ReceiptResult>> {
-  const numericIds = Array.from(
+  const normalizedIds = Array.from(
     new Set(
       messageIds
-        .map((id) => toNumericMessageId(id))
-        .filter((id): id is number => id !== null)
+        .map((id) => normalizeMessageId(id))
+        .filter((id): id is string => Boolean(id))
     )
   );
-  if (numericIds.length === 0) {
+  if (normalizedIds.length === 0) {
     return {};
   }
 
@@ -266,7 +284,7 @@ export async function getReceiptsForMessages(
       .from<ReceiptRecord>(TABLE)
       .select('message_id, status, updated_at')
       .eq('user_id', userId)
-      .in('message_id', numericIds);
+      .in('message_id', normalizedIds);
 
     if (error) {
       if (isMissingTableError(error)) {
@@ -278,7 +296,9 @@ export async function getReceiptsForMessages(
 
     const result: Record<string, ReceiptResult> = {};
     for (const row of data ?? []) {
-      result[String(row.message_id)] = mapStatusToResult(row.status, row.updated_at);
+      const id = normalizeMessageId(row.message_id);
+      if (!id) continue;
+      result[id] = mapStatusToResult(row.status, row.updated_at);
     }
     return result;
   } catch (err) {
