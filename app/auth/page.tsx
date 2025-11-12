@@ -31,6 +31,21 @@ export default function AuthPage() {
           return;
         }
 
+        // If invite-only registration is enabled, validate the invite code BEFORE creating the user
+        if (invites_only && inviteCode && inviteCode.trim()) {
+          const { data: isValid, error: validateErr } = await supabase.rpc('validate_invite_code', {
+            invite_code: inviteCode.trim().toUpperCase()
+          });
+          
+          if (validateErr) {
+            throw new Error('Failed to validate invite code. Please try again.');
+          }
+          
+          if (!isValid) {
+            throw new Error('Invalid or expired invite code. Registration requires a valid invite code.');
+          }
+        }
+
         const origin = process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin;
         const { data: signData, error } = await supabase.auth.signUp({
           email,
@@ -54,6 +69,7 @@ export default function AuthPage() {
               await trackInviteAccepted(inviteId, signData.user.id);
             }
             // If invite code is invalid and invites_only is enabled, this is an error
+            // (This should not happen if validation passed, but handle it just in case)
             if (inviteErr) {
               if (invites_only) {
                 throw new Error('Invalid or expired invite code. Registration requires a valid invite code.');
