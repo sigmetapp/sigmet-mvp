@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getAuthedClient, createSupabaseForRequest } from '@/lib/dm/supabaseServer';
+import { createSupabaseForRequest, getAuthedClient } from '@/lib/dm/supabaseServer';
 import { assertThreadId } from '@/lib/dm/threadId';
 
 type ReceiptRow = {
@@ -13,9 +13,11 @@ function normalizeMessageId(value: unknown): string | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Number.isInteger(value) ? value.toString() : null;
   }
+
   if (typeof value === 'bigint') {
     return value.toString();
   }
+
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -29,14 +31,19 @@ function normalizeMessageId(value: unknown): string | null {
 
     return trimmed;
   }
+
   return null;
 }
 
 function normalizeUserId(value: unknown): string | null {
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
+    if (trimmed.length === 36 && /^[0-9a-fA-F-]{36}$/.test(trimmed)) {
+      return trimmed.toLowerCase();
+    }
+    return null;
   }
+
   return null;
 }
 
@@ -60,7 +67,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: 'Invalid thread_id' });
     }
 
-    // Verify the requester participates in the thread and gather participant list
     const { data: participants, error: participantsError } = await client
       .from('dms_thread_participants')
       .select('user_id')
@@ -70,12 +76,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: participantsError.message });
     }
 
-    const participantIds = new Set<string>((participants ?? []).map((row: any) => String(row.user_id)));
-    if (!participantIds.has(user.id)) {
+    const participantIds = new Set<string>();
+    for (const row of participants ?? []) {
+      const normalized = normalizeUserId(row.user_id);
+      if (normalized) {
+        participantIds.add(normalized);
+      }
+    }
+
+    if (!participantIds.has(normalizeUserId(user.id) ?? '')) {
       return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
 
-    const otherParticipantIds = Array.from(participantIds).filter((id) => id !== user.id);
+    const normalizedUserId = normalizeUserId(user.id) ?? '';
+    const otherParticipantIds = Array.from(participantIds).filter((id) => id !== normalizedUserId);
 
     const requestedRecipientIds = Array.isArray(req.body?.recipient_ids)
       ? req.body.recipient_ids
@@ -94,7 +108,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       targetRecipientIds = otherParticipantIds;
     }
 
-    // Normalize message IDs
     const rawMessageIds = Array.isArray(req.body?.message_ids) ? req.body.message_ids : [];
     const normalizedMessageIds = rawMessageIds
       .map(normalizeMessageId)
@@ -111,28 +124,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const receiptsClient = serviceClient ?? client;
 
-    let receiptsQuery = receiptsClient
-      .from('dms_message_receipts')
-      .select('message_id, user_id, status, updated_at, message:dms_messages!inner(thread_id)')
-      .in('message_id', normalizedMessageIds)
-      .eq('message.thread_id', threadId);
+    const validRecipientIds = targetRecipientIds.filter(
+      (id) => typeof id === 'string' && id.length === 36 && /^[0-9a-f-]{36}$/.test(id)
+    );
 
-    if (targetRecipientIds.length > 0) {
-      receiptsQuery = receiptsQuery.in('user_id', targetRecipientIds);
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[dms][receipts.list] resolved payload', {
+        threadId,
+        messageIds: normalizedMessageIds,
+        targetRecipientIds,
+        validRecipientIds,
+      });
     }
 
-    const { data: receipts, error: receiptsError } = await receiptsQuery;
+      let receiptsQuery = receiptsClient
+        .from('dms_message_receipts')
+        .select('message_id, user_id, status, updated_at')
+        .in('message_id', normalizedMessageIds);
+
+      if (validRecipientIds.length > 0) {
+        receiptsQuery = receiptsQuery.in('user_id', validRecipientIds);
+      }
+
+      const { data: receipts, error: receiptsError } = await receiptsQuery;
 
     if (receiptsError) {
+      if (receiptsError.message?.includes('invalid input syntax for type uuid')) {
+        console.warn('[dms][receipts.list] ignoring invalid uuid filter', {
+          threadId,
+            messageIds: normalizedMessageIds,
+          targetRecipientIds,
+          validRecipientIds,
+          error: receiptsError.message,
+        });
+        return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
+      }
       return res.status(400).json({ ok: false, error: receiptsError.message });
     }
 
-    const normalized: ReceiptRow[] = (receipts ?? []).map((row: any) => ({
-      message_id: String(row.message_id),
-      user_id: String(row.user_id),
-      status: row.status as 'sent' | 'delivered' | 'read',
-      updated_at: row.updated_at ?? null,
-    }));
+      const normalized: ReceiptRow[] = (receipts ?? []).map((row: any) => ({
+        message_id: String(row.message_id),
+        user_id: String(row.user_id),
+        status: row.status as 'sent' | 'delivered' | 'read',
+        updated_at: row.updated_at ?? null,
+      }));
 
     return res.status(200).json({ ok: true, receipts: normalized });
   } catch (err: any) {

@@ -2627,18 +2627,19 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                                     
                                     // Read status - check both receiptStatus and deliveryState
                                     // Also check if message was read by checking if it's not from partner and was acknowledged
-                                    const isRead = receiptStatus === 'read' || 
-                                                  (deliveryState === 'read' && msg.id !== -1);
-                                    
+                                    const isRead =
+                                      receiptStatus === 'read' ||
+                                      (deliveryState === 'read' && msg.id !== -1);
+
                                     if (isRead) {
-                                      // Double checkmark — read (blue/white)
+                                      // Double checkmark — read (blue)
                                       return (
                                         <svg
                                           xmlns="http://www.w3.org/2000/svg"
                                           viewBox="0 0 16 15"
                                           width="14"
                                           height="14"
-                                          className="text-white"
+                                          className="text-blue-400"
                                           aria-label="Read"
                                           title="Read"
                                           fill="currentColor"

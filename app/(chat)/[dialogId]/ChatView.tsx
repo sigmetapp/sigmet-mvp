@@ -53,6 +53,16 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
   const deliveredRef = useRef<Set<string>>(new Set());
   const readRef = useRef<Set<string>>(new Set());
   const pendingReadRef = useRef<Set<string>>(new Set());
+  const messageMetaRef = useRef<
+    Map<
+      string,
+      {
+        id: string;
+        sequence: number | null;
+        createdAt: string;
+      }
+    >
+    >(new Map());
   const flushTimeoutRef = useRef<number | null>(null);
   const receiptsChannelRef = useRef<RealtimeChannel | null>(null);
 
@@ -73,6 +83,61 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
         readAt: timestamp,
       });
       ids.forEach((id) => readRef.current.add(id));
+
+      const latest = ids.reduce<{
+        id: string;
+        sequence: number | null;
+        createdAt: string;
+      } | null>((acc, rawId) => {
+        const key = String(rawId);
+        const meta = messageMetaRef.current.get(key);
+        if (!meta) {
+          return acc;
+        }
+
+        if (!acc) {
+          return meta;
+        }
+
+        const accTime = Date.parse(acc.createdAt);
+        const metaTime = Date.parse(meta.createdAt);
+
+        if (!Number.isNaN(metaTime) && (Number.isNaN(accTime) || metaTime > accTime)) {
+          return meta;
+        }
+
+        return acc;
+      }, null);
+
+      if (latest && dialogId) {
+        const body = {
+          thread_id: String(dialogId),
+          up_to_message_id: latest.id,
+          up_to_sequence_number:
+            latest.sequence != null && Number.isFinite(latest.sequence)
+              ? Math.trunc(latest.sequence)
+              : null,
+        };
+
+        try {
+          const response = await fetch('/api/dms/messages.read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+
+          if (!response.ok && process.env.NODE_ENV !== 'production') {
+            const payload = await response.json().catch(() => null);
+            console.warn('[ChatView] messages.read response not OK', {
+              status: response.status,
+              statusText: response.statusText,
+              body: payload,
+            });
+          }
+        } catch (apiError) {
+          console.error('[ChatView] Failed to call messages.read API', apiError);
+        }
+      }
     } catch (err) {
       console.error('[ChatView] Failed to mark messages as read', err);
     }
@@ -143,8 +208,32 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
     }
 
     const now = new Date().toISOString();
+    const currentIds = new Set<string>();
 
     for (const message of messages) {
+      const idKey = String(message.id);
+      currentIds.add(idKey);
+      const rawSequence =
+        (message as any)?.sequence_number ??
+        (message as any)?.sequenceNumber ??
+        (message as any)?.sequence ??
+        null;
+      const numericSequence =
+        typeof rawSequence === 'number' && Number.isFinite(rawSequence)
+          ? Math.trunc(rawSequence)
+          : null;
+      const createdAt =
+        (message as any)?.created_at ??
+        (message as any)?.createdAt ??
+        message.createdAt ??
+        now;
+
+      messageMetaRef.current.set(idKey, {
+        id: idKey,
+        sequence: numericSequence,
+        createdAt: typeof createdAt === 'string' ? createdAt : new Date(createdAt).toISOString(),
+      });
+
       if (message.senderId === currentUserId) {
         continue;
       }
@@ -165,6 +254,14 @@ export default function ChatView({ dialogId, currentUserId, otherUserId }: ChatV
 
       if (!readRef.current.has(message.id)) {
         pendingReadRef.current.add(message.id);
+      }
+    }
+
+    if (messageMetaRef.current.size > currentIds.size) {
+      for (const key of Array.from(messageMetaRef.current.keys())) {
+        if (!currentIds.has(key)) {
+          messageMetaRef.current.delete(key);
+        }
       }
     }
 

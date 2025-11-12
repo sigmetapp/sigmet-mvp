@@ -1,21 +1,11 @@
 'use client';
 
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabaseClient';
 import { assertThreadId, coerceThreadId, type ThreadId } from '@/lib/dm/threadId';
 
-// Helper to create client component Supabase client
-function createClientComponentClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    }
-  );
+// Maintain compatibility with existing helpers that expect a factory.
+export function createClientComponentClient() {
+  return supabase;
 }
 
 export type Thread = {
@@ -53,8 +43,6 @@ export async function getOrCreateThread(
   if (!currentUserId || !partnerId || currentUserId === partnerId) {
     throw new Error('Invalid user IDs');
   }
-
-  const supabase = createClientComponentClient();
 
   // Ensure user is authenticated
   const {
@@ -243,8 +231,6 @@ export async function listMessages(
   options: ListMessagesOptions = {}
 ): Promise<Message[]> {
   const normalizedThreadId = assertThreadId(threadId, 'Invalid thread_id');
-
-  const supabase = createClientComponentClient();
 
   // Ensure user is authenticated
   const {
