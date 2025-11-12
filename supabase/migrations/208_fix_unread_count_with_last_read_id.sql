@@ -74,7 +74,7 @@ as $$
       lt.mute_until,
       lt.is_pinned,
       lt.pinned_at,
-      lt.last_read_message_id,  -- Keep as bigint for comparison
+      lt.last_read_message_id::bigint as last_read_msg_id,  -- Explicitly cast to bigint and rename
       lt.last_read_at,
       lt.created_at,
       lt.last_message_id,
@@ -134,13 +134,13 @@ as $$
     where msg.deleted_at is null
       and msg.sender_id <> p_user_id
       and (
-        -- If last_read_message_id is null, all messages are unread
-        nt.last_read_message_id is null
-        -- If last_read_message_id is set, count messages with id > last_read_message_id
-        -- Use explicit type casting to avoid type confusion
+        -- If last_read_msg_id is null, all messages are unread
+        nt.last_read_msg_id is null
+        -- If last_read_msg_id is set, count messages with id > last_read_msg_id
+        -- Both are explicitly bigint now
         or (
-          nt.last_read_message_id is not null 
-          and cast(msg.id as bigint) > cast(nt.last_read_message_id as bigint)
+          nt.last_read_msg_id is not null 
+          and msg.id > nt.last_read_msg_id
         )
       )
     group by nt.thread_id
