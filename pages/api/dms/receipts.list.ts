@@ -18,10 +18,15 @@ function normalizeMessageId(value: unknown): string | null {
   }
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (!trimmed) return null;
-    if (!/^\d+$/.test(trimmed)) {
+    if (!trimmed) {
       return null;
     }
+
+    const lowered = trimmed.toLowerCase();
+    if (lowered === 'nan' || lowered === 'undefined' || lowered === 'null') {
+      return null;
+    }
+
     return trimmed;
   }
   return null;

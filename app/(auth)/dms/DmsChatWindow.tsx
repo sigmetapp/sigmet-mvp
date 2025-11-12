@@ -90,6 +90,9 @@ function sanitizeMessageIdsForQuery(ids: Array<unknown>): string[] {
     if (lower === 'nan' || lower === 'undefined' || lower === 'null') {
       continue;
     }
+    if (lower.startsWith('temp-')) {
+      continue;
+    }
 
     if (seen.has(lower)) {
       continue;
