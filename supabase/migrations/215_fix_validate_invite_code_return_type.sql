@@ -1,21 +1,7 @@
 begin;
 
--- Add RLS policy to allow anonymous users to read pending invites by invite_code
--- This is needed for validate_invite_code function to work properly during registration
--- Even though the function uses security definer, having an explicit policy is more reliable
-
-drop policy if exists "anon_read_pending_invites_by_code" on public.invites;
-create policy "anon_read_pending_invites_by_code" on public.invites
-  for select
-  to anon
-  using (
-    status = 'pending'
-    and invite_code is not null
-    and (expires_at is null or expires_at >= now())
-  );
-
--- Also update validate_invite_code to ensure it bypasses RLS properly
--- Use SET LOCAL to disable RLS checks within the function
+-- Fix validate_invite_code to ensure it always returns a proper boolean
+-- This addresses issues where the function might return null or unexpected values
 create or replace function public.validate_invite_code(invite_code text)
 returns boolean
 language plpgsql
