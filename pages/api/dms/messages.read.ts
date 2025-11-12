@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import { createSupabaseForRequest, getAuthedClient } from '@/lib/dm/supabaseServer';
 import { assertThreadId } from '@/lib/dm/threadId';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return await q;
     };
 
-    const threadId = (() => {
+      const threadId = (() => {
       try {
         return assertThreadId(req.body?.thread_id, 'Invalid thread_id');
       } catch {
@@ -26,6 +26,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     })();
     const upTo = String(req.body?.up_to_message_id || '');
+      const rawSequence =
+        req.body?.up_to_sequence_number ??
+        req.body?.sequence_number ??
+        req.body?.sequenceNumber ??
+        null;
+      const upToSequence =
+        typeof rawSequence === 'number' && Number.isFinite(rawSequence)
+          ? Math.trunc(rawSequence)
+          : typeof rawSequence === 'string' && rawSequence.trim()
+            ? Number.parseInt(rawSequence.trim(), 10)
+            : null;
 
     if (!threadId || !upTo) {
       return res.status(400).json({ ok: false, error: 'Invalid input' });
@@ -66,7 +77,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
 
-    const { data: msgCheck, error: msgCheckError } = await client
+      let targetMessage: any | null = null;
+      let targetError: any = null;
+
+      const { data: msgCheck, error: msgCheckError } = await client
       .from('dms_messages')
       .select('id, created_at, sender_id')
       .eq('thread_id', threadId)
@@ -74,37 +88,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .maybeSingle();
 
     if (msgCheckError) {
-      console.error('Error verifying message in thread:', {
-        threadId,
-        upTo,
-        error: msgCheckError,
-      });
-      return res.status(400).json({ ok: false, error: msgCheckError.message || 'Failed to verify message' });
-    }
-
-    if (!msgCheck) {
-      console.error('Message not found in thread:', { threadId, upTo });
-      return res.status(400).json({ ok: false, error: 'up_to_message_id not in thread' });
-    }
-
-    const prev = participant.last_read_message_id ? String(participant.last_read_message_id) : null;
-    const nextId = String(msgCheck.id ?? upTo);
-
-    if (nextId !== prev) {
-      try {
-        await client
-          .from('dms_thread_participants')
-          .update({
-            last_read_message_id: msgCheck.id ?? upTo,
-            last_read_at: msgCheck.created_at || new Date().toISOString(),
-          })
-          .eq('thread_id', threadId)
-          .eq('user_id', user.id);
-      } catch (err: any) {
-        console.error('Error updating last_read_message_id:', err);
-        // Column may not exist; ignore update failure in that case
+        targetError = msgCheckError;
+      } else {
+        targetMessage = msgCheck;
       }
-    }
+
+      if (!targetMessage && upToSequence != null && !Number.isNaN(upToSequence)) {
+        const { data: bySequence, error: sequenceError } = await client
+          .from('dms_messages')
+          .select('id, created_at, sender_id')
+          .eq('thread_id', threadId)
+          .eq('sequence_number', upToSequence)
+          .maybeSingle();
+
+        if (sequenceError) {
+          targetError = sequenceError;
+        } else {
+          targetMessage = bySequence;
+        }
+      }
+
+      if (!targetMessage) {
+        const message = targetError?.message || 'up_to_message_id not in thread';
+        console.error('Message not found in thread:', { threadId, upTo, upToSequence, error: targetError });
+        return res.status(400).json({ ok: false, error: message });
+      }
+
+      const nextId = String(targetMessage.id ?? upTo);
+      const prev = participant.last_read_message_id ? String(participant.last_read_message_id) : null;
+
+      const serviceClient =
+        process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim() !== ''
+          ? createSupabaseForRequest(req, true)
+          : null;
+
+      const privilegedClient = serviceClient ?? client;
+
+      if (nextId !== prev) {
+        try {
+          await privilegedClient
+            .from('dms_thread_participants')
+            .update({
+              last_read_message_id: targetMessage.id ?? upTo,
+              last_read_at: targetMessage.created_at || new Date().toISOString(),
+            })
+            .eq('thread_id', threadId)
+            .eq('user_id', user.id);
+        } catch (err: any) {
+          console.error('Error updating last_read_message_id:', err);
+          // Column may not exist; ignore update failure in that case
+        }
+      }
 
     // Mark receipts up to nextId as read
     // Get all message IDs up to and including the target message from partner
@@ -113,7 +147,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .from('dms_messages')
         .select('id, sender_id, created_at')
         .eq('thread_id', threadId)
-        .lte('created_at', msgCheck.created_at)
+          .lte('created_at', targetMessage.created_at)
         .neq('sender_id', user.id)
         .is('deleted_at', null)
         .limit(1000)
@@ -144,7 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .from('dms_messages')
         .select('sender_id')
         .eq('thread_id', threadId)
-        .eq('id', upTo)
+          .eq('id', nextId)
         .is('deleted_at', null)
         .maybeSingle();
 
@@ -156,15 +190,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (idList.length > 0) {
-      // Use upsert to create or update receipts to 'read' status
-      const nowIso = new Date().toISOString();
-      const receiptsToUpsert = idList.map((msgId) => ({
-        message_id: msgId,
-        user_id: user.id,
-        status: 'read' as const,
-        created_at: nowIso,
-        updated_at: nowIso,
-      }));
+        // Use upsert to create or update receipts to 'read' status
+        const nowIso = new Date().toISOString();
+        const receiptsToUpsert = idList.map((msgId) => ({
+          message_id: msgId,
+          user_id: user.id,
+          status: 'read' as const,
+          created_at: nowIso,
+          updated_at: nowIso,
+        }));
 
       if (receiptsToUpsert.length > 0) {
         // Log for debugging
@@ -177,8 +211,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         try {
           // Try upsert first (works in Supabase)
-          const upsertResult = await execOrFetch(
-            client
+            const upsertResult = await execOrFetch(
+              privilegedClient
               .from('dms_message_receipts')
               .upsert(receiptsToUpsert, {
                 onConflict: 'message_id,user_id',
@@ -191,8 +225,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             // Fallback: try insert with onConflict one by one
             for (const receipt of receiptsToUpsert) {
               try {
-                const insertResult = await execOrFetch(
-                  client
+                  const insertResult = await execOrFetch(
+                    privilegedClient
                     .from('dms_message_receipts')
                     .insert(receipt)
                     .onConflict('message_id,user_id')
@@ -211,8 +245,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Fallback: try insert with onConflict one by one
           for (const receipt of receiptsToUpsert) {
             try {
-              const insertResult = await execOrFetch(
-                client
+                const insertResult = await execOrFetch(
+                  privilegedClient
                   .from('dms_message_receipts')
                   .insert(receipt)
                   .onConflict('message_id,user_id')

@@ -1363,18 +1363,23 @@ export function useWebSocketDm(
 
   // Acknowledge message
   const acknowledgeMessage = useCallback(
-    (
-      messageId: number,
-      threadId: ThreadId,
-      status: "delivered" | "read" = "read",
-    ) => {
+  (
+    messageId: number | string,
+    threadId: ThreadId,
+    status: "delivered" | "read" = "read",
+    sequenceNumber?: number | null,
+  ) => {
       const normalizedThreadId = assertThreadId(threadId, "Invalid thread ID");
       const wsClient = wsClientRef.current;
       const canUseWebSocket =
         transport === "websocket" && wsClient.getState() === "authenticated";
 
       if (canUseWebSocket) {
-        wsClient.acknowledgeMessage(messageId, normalizedThreadId, status);
+      const numericId =
+        typeof messageId === "string" ? Number.parseInt(messageId, 10) : messageId;
+      if (Number.isFinite(numericId)) {
+        wsClient.acknowledgeMessage(numericId, normalizedThreadId, status);
+      }
         return;
       }
 
@@ -1390,6 +1395,10 @@ export function useWebSocketDm(
             body: JSON.stringify({
               thread_id: normalizedThreadId,
               up_to_message_id: messageId,
+            up_to_sequence_number:
+              sequenceNumber != null && Number.isFinite(sequenceNumber)
+                ? Math.trunc(sequenceNumber)
+                : null,
             }),
           });
         } catch (error) {
@@ -1424,9 +1433,14 @@ export function useWebSocketDm(
     if (lastOtherMessage && lastOtherMessage.id > 0) {
       // Acknowledge as read if user is viewing the thread
       // Use a debounce to avoid too many requests
-      const timeoutId = setTimeout(() => {
-        acknowledgeMessage(lastOtherMessage.id, normalizedThreadId, "read");
-      }, 1000); // 1 second debounce
+        const timeoutId = setTimeout(() => {
+          acknowledgeMessage(
+            lastOtherMessage.id,
+            normalizedThreadId,
+            "read",
+            lastOtherMessage.sequence_number ?? null,
+          );
+        }, 1000); // 1 second debounce
 
       return () => {
         clearTimeout(timeoutId);
