@@ -1310,12 +1310,17 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 // Check if dates are valid
                 if (isNaN(createdDate.getTime()) || isNaN(updatedDate.getTime())) return null;
                 
-                // Calculate difference in milliseconds
-                const diffMs = updatedDate.getTime() - createdDate.getTime();
+                // Normalize dates to seconds (remove milliseconds) for comparison
+                // This handles cases where timestamps might differ by milliseconds only
+                const createdSeconds = Math.floor(createdDate.getTime() / 1000);
+                const updatedSeconds = Math.floor(updatedDate.getTime() / 1000);
                 
-                // Only show if difference is more than 5 seconds (to account for any minor timing differences)
+                // Only show if difference is more than 1 hour (3600 seconds)
                 // This ensures we only show the message for actual edits, not just creation
-                if (diffMs <= 5000) return null;
+                // When a post is created, updated_at is set to the same time as created_at
+                // So if they're within 1 hour, it's likely just creation, not an edit
+                const diffSeconds = updatedSeconds - createdSeconds;
+                if (diffSeconds <= 3600) return null;
                 
                 return (
                   <div className={`rounded-xl border px-4 py-3 ${
