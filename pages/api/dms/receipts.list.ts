@@ -67,10 +67,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Verify the requester participates in the thread and gather participant list
-    const { data: participants, error: participantsError } = await client
-      .from('dms_thread_participants')
-      .select('user_id')
-      .eq('thread_id', threadId);
+      const numericThreadId = Number.parseInt(threadId, 10);
+      if (!Number.isFinite(numericThreadId)) {
+        return res.status(400).json({ ok: false, error: 'Invalid thread_id' });
+      }
+
+      const { data: participants, error: participantsError } = await client
+        .from('dms_thread_participants')
+        .select('user_id')
+        .eq('thread_id', numericThreadId);
 
     if (participantsError) {
       return res.status(400).json({ ok: false, error: participantsError.message });
@@ -125,54 +130,69 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const receiptsClient = serviceClient ?? client;
 
-      const messageIdEntries = normalizedMessageIds
-        .map((id) => ({
-          stringId: id,
-          numericId: Number.parseInt(id, 10),
-        }))
-        .filter(
-          (entry): entry is { stringId: string; numericId: number } =>
-            Number.isFinite(entry.numericId)
-        );
-
-      if (messageIdEntries.length === 0) {
-        return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
-      }
-
-      const numericIds = messageIdEntries.map((entry) => entry.numericId);
-      const stringIdByNumeric = new Map<number, string>(
-        messageIdEntries.map((entry) => [entry.numericId, entry.stringId])
+    const messageIdEntries = normalizedMessageIds
+      .map((id) => ({
+        stringId: id,
+        numericId: Number.parseInt(id, 10),
+      }))
+      .filter(
+        (entry): entry is { stringId: string; numericId: number } =>
+          Number.isFinite(entry.numericId)
       );
 
-      let receiptsQuery = receiptsClient
-        .from('dms_message_receipts')
-        .select('message_id, user_id, status, updated_at, message:dms_messages!inner(thread_id)')
-        .in('message_id', numericIds)
-        .eq('message.thread_id', threadId);
+    if (messageIdEntries.length === 0) {
+      return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
+    }
 
-      if (targetRecipientIds.length > 0) {
-        receiptsQuery = receiptsQuery.in('user_id', targetRecipientIds);
-      }
+    const numericIds = messageIdEntries.map((entry) => entry.numericId);
+    const stringIdByNumeric = new Map<number, string>(
+      messageIdEntries.map((entry) => [entry.numericId, entry.stringId])
+    );
 
-      const { data: receipts, error: receiptsError } = await receiptsQuery;
+    const validRecipientIds = targetRecipientIds.filter(
+      (id) => typeof id === 'string' && id.length === 36 && /^[0-9a-f-]{36}$/.test(id)
+    );
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[dms][receipts.list] resolved payload', {
+        threadId,
+        numericThreadId,
+        messageIds: normalizedMessageIds,
+        numericIds,
+        targetRecipientIds,
+        validRecipientIds,
+      });
+    }
+
+    let receiptsQuery = receiptsClient
+      .from('dms_message_receipts')
+      .select('message_id, user_id, status, updated_at, message:dms_messages!inner(thread_id)')
+      .in('message_id', numericIds)
+      .eq('message.thread_id', numericThreadId);
+
+    if (validRecipientIds.length > 0) {
+      receiptsQuery = receiptsQuery.in('user_id', validRecipientIds);
+    }
+
+    const { data: receipts, error: receiptsError } = await receiptsQuery;
 
     if (receiptsError) {
       return res.status(400).json({ ok: false, error: receiptsError.message });
     }
 
-      const normalized: ReceiptRow[] = (receipts ?? []).map((row: any) => {
-        const numericId = Number.parseInt(String(row.message_id), 10);
-        const mappedId = Number.isFinite(numericId)
-          ? stringIdByNumeric.get(numericId) ?? String(row.message_id)
-          : String(row.message_id);
+    const normalized: ReceiptRow[] = (receipts ?? []).map((row: any) => {
+      const numericId = Number.parseInt(String(row.message_id), 10);
+      const mappedId = Number.isFinite(numericId)
+        ? stringIdByNumeric.get(numericId) ?? String(row.message_id)
+        : String(row.message_id);
 
-        return {
-          message_id: mappedId,
-          user_id: String(row.user_id),
-          status: row.status as 'sent' | 'delivered' | 'read',
-          updated_at: row.updated_at ?? null,
-        };
-      });
+      return {
+        message_id: mappedId,
+        user_id: String(row.user_id),
+        status: row.status as 'sent' | 'delivered' | 'read',
+        updated_at: row.updated_at ?? null,
+      };
+    });
 
     return res.status(200).json({ ok: true, receipts: normalized });
   } catch (err: any) {
