@@ -23,9 +23,9 @@ const FIRE_REACTION: Reaction = {
 
 const VERIFY_REACTION: Reaction = {
   id: 'verify',
-  emoji: String.fromCharCode(0x2714, 0xFE0F), // ✔️ (heavy checkmark)
+  emoji: String.fromCharCode(0x1F3C6), // 🏆 (trophy) - represents verification/achievement
   label: '',
-  color: '#3b82f6' // Blue color for better distinction
+  color: '#8b5cf6' // Bright purple/violet - high contrast in both light and dark themes
 };
 
 export interface PostReactionsProps {
@@ -184,10 +184,10 @@ export default function PostReactions({
             fontVariant: 'normal',
             textRendering: 'optimizeLegibility',
             filter: isSelected 
-              ? (reaction.id === 'verify' ? 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.6))' : 'none')
+              ? (reaction.id === 'verify' ? 'drop-shadow(0 0 6px rgba(139, 92, 246, 0.8))' : 'none')
               : isLight 
-                ? 'grayscale(40%) brightness(0.8)' 
-                : 'grayscale(100%) brightness(1.5)',
+                ? (reaction.id === 'verify' ? 'grayscale(0%) brightness(0.85) saturate(1.2)' : 'grayscale(40%) brightness(0.8)')
+                : (reaction.id === 'verify' ? 'grayscale(0%) brightness(1.3) saturate(1.2)' : 'grayscale(100%) brightness(1.5)'),
             transform: reaction.id === 'verify' && isSelected ? 'scale(1.15) rotate(5deg)' : 'scale(1)',
             transition: 'transform 0.2s ease-out, filter 0.2s ease-out',
           }}
