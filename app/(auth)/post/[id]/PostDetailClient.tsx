@@ -1299,36 +1299,55 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
           ) : (
             <>
               {postCard}
-              {post.updated_at && post.updated_at !== post.created_at && (
-                <div className={`rounded-xl border px-4 py-3 ${
-                  isLight 
-                    ? 'border-slate-200 bg-slate-50/50' 
-                    : 'border-slate-700 bg-slate-800/30'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    <svg 
-                      className={`h-4 w-4 ${
-                        isLight ? 'text-slate-500' : 'text-slate-400'
-                      }`} 
-                      fill="none" 
-                      viewBox="0 0 24 24" 
-                      stroke="currentColor"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2} 
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
-                      />
-                    </svg>
-                    <span className={`text-sm ${
-                      isLight ? 'text-slate-600' : 'text-slate-300'
-                    }`}>
-                      Post updated on {formatDateWithTodayYesterday(post.updated_at)}
-                    </span>
+              {(() => {
+                // Only show "Post updated" if the post was actually edited
+                // (i.e., updated_at is significantly different from created_at)
+                if (!post.updated_at || !post.created_at) return null;
+                
+                const createdDate = new Date(post.created_at);
+                const updatedDate = new Date(post.updated_at);
+                
+                // Check if dates are valid
+                if (isNaN(createdDate.getTime()) || isNaN(updatedDate.getTime())) return null;
+                
+                // Calculate difference in milliseconds
+                const diffMs = updatedDate.getTime() - createdDate.getTime();
+                
+                // Only show if difference is more than 5 seconds (to account for any minor timing differences)
+                // This ensures we only show the message for actual edits, not just creation
+                if (diffMs <= 5000) return null;
+                
+                return (
+                  <div className={`rounded-xl border px-4 py-3 ${
+                    isLight 
+                      ? 'border-slate-200 bg-slate-50/50' 
+                      : 'border-slate-700 bg-slate-800/30'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <svg 
+                        className={`h-4 w-4 ${
+                          isLight ? 'text-slate-500' : 'text-slate-400'
+                        }`} 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+                        />
+                      </svg>
+                      <span className={`text-sm ${
+                        isLight ? 'text-slate-600' : 'text-slate-300'
+                      }`}>
+                        Post updated on {formatDateWithTodayYesterday(post.updated_at)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </>
           )}
         </article>
