@@ -114,8 +114,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ ok: false, error: message });
       }
 
-      const nextId = String(targetMessage.id ?? upTo);
-      const prev = participant.last_read_message_id ? String(participant.last_read_message_id) : null;
+      // Convert targetMessage.id to bigint for comparison
+      const targetId = targetMessage.id ? BigInt(String(targetMessage.id)) : null;
+      const prevId = participant.last_read_message_id 
+        ? (typeof participant.last_read_message_id === 'bigint' 
+            ? participant.last_read_message_id 
+            : BigInt(String(participant.last_read_message_id)))
+        : null;
 
       const serviceClient =
         process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim() !== ''
@@ -124,21 +129,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const privilegedClient = serviceClient ?? client;
 
-      if (nextId !== prev) {
+      // Update last_read_message_id if target message is newer
+      if (targetId && (prevId === null || targetId > prevId)) {
         try {
-          await privilegedClient
+          const updateResult = await privilegedClient
             .from('dms_thread_participants')
             .update({
-              last_read_message_id: targetMessage.id ?? upTo,
+              last_read_message_id: String(targetId),
               last_read_at: targetMessage.created_at || new Date().toISOString(),
             })
             .eq('thread_id', threadId)
             .eq('user_id', user.id);
+          
+          if (updateResult.error) {
+            console.error('Error updating last_read_message_id:', updateResult.error);
+          } else {
+            console.log('Successfully updated last_read_message_id:', {
+              threadId,
+              userId: user.id,
+              lastReadMessageId: String(targetId),
+            });
+          }
         } catch (err: any) {
           console.error('Error updating last_read_message_id:', err);
           // Column may not exist; ignore update failure in that case
         }
       }
+      
+      const nextId = String(targetId ?? upTo);
 
     // Mark receipts up to nextId as read
     // Get all message IDs up to and including the target message from partner
