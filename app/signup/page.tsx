@@ -168,7 +168,7 @@ export default function SignupPage() {
         metadata.invite_code = normalizedInviteCode;
       }
 
-      const { error: signErr } = await supabase.auth.signUp({
+      const { data: signData, error: signErr } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -178,8 +178,34 @@ export default function SignupPage() {
       });
       if (signErr) throw signErr;
 
+      let inviteAccepted = false;
+      if (normalizedInviteCode && signData?.user) {
+        try {
+          const { data: inviteId, error: acceptErr } = await supabase.rpc(
+            "accept_invite_by_code",
+            {
+              invite_code: normalizedInviteCode,
+            },
+          );
+
+          if (!acceptErr && inviteId) {
+            inviteAccepted = true;
+            const { trackInviteAccepted } = await import(
+              "@/lib/invite-tracking"
+            );
+            await trackInviteAccepted(inviteId, signData.user.id);
+          } else if (acceptErr) {
+            console.warn("Invite acceptance error:", acceptErr);
+          }
+        } catch (acceptErr) {
+          console.warn("Invite acceptance exception:", acceptErr);
+        }
+      }
+
       setNotice(
-        "Please check your email inbox. A confirmation link has been sent.",
+        inviteAccepted
+          ? "Invite accepted! Please check your email inbox. A confirmation link has been sent."
+          : "Please check your email inbox. A confirmation link has been sent.",
       );
 
       try {
