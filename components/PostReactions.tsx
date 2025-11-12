@@ -23,9 +23,9 @@ const FIRE_REACTION: Reaction = {
 
 const VERIFY_REACTION: Reaction = {
   id: 'verify',
-  emoji: String.fromCharCode(0x2705), // ✅
+  emoji: String.fromCharCode(0x2714, 0xFE0F), // ✔️ (heavy checkmark)
   label: '',
-  color: '#10b981'
+  color: '#3b82f6' // Blue color for better distinction
 };
 
 export interface PostReactionsProps {
@@ -175,7 +175,7 @@ export default function PostReactions({
           role="img" 
           aria-label={`${reaction.id} reaction`}
           style={{ 
-            fontSize: '1rem',
+            fontSize: reaction.id === 'verify' ? '1.15rem' : '1rem',
             minWidth: '1.25rem',
             minHeight: '1.25rem',
             display: 'inline-flex',
@@ -184,10 +184,12 @@ export default function PostReactions({
             fontVariant: 'normal',
             textRendering: 'optimizeLegibility',
             filter: isSelected 
-              ? 'none' 
+              ? (reaction.id === 'verify' ? 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.6))' : 'none')
               : isLight 
                 ? 'grayscale(40%) brightness(0.8)' 
                 : 'grayscale(100%) brightness(1.5)',
+            transform: reaction.id === 'verify' && isSelected ? 'scale(1.15) rotate(5deg)' : 'scale(1)',
+            transition: 'transform 0.2s ease-out, filter 0.2s ease-out',
           }}
         >
           <span style={{ fontSize: 'inherit', lineHeight: '1', display: 'block' }}>{reaction.emoji}</span>
