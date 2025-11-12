@@ -137,10 +137,10 @@ as $$
         -- If last_read_msg_id is null, all messages are unread
         nt.last_read_msg_id is null
         -- If last_read_msg_id is set, count messages with id > last_read_msg_id
-        -- Both are explicitly bigint now
+        -- Convert both to numeric for comparison to avoid type issues
         or (
           nt.last_read_msg_id is not null 
-          and msg.id > nt.last_read_msg_id
+          and (msg.id)::numeric > (nt.last_read_msg_id)::numeric
         )
       )
     group by nt.thread_id
