@@ -124,25 +124,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const receiptsClient = serviceClient ?? client;
 
-    const messageIdEntries = normalizedMessageIds
-      .map((id) => ({
-        stringId: id,
-        numericId: Number.parseInt(id, 10),
-      }))
-      .filter(
-        (entry): entry is { stringId: string; numericId: number } =>
-          Number.isFinite(entry.numericId)
-      );
-
-    if (messageIdEntries.length === 0) {
-      return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
-    }
-
-    const numericIds = messageIdEntries.map((entry) => entry.numericId);
-    const stringIdByNumeric = new Map<number, string>(
-      messageIdEntries.map((entry) => [entry.numericId, entry.stringId])
-    );
-
     const validRecipientIds = targetRecipientIds.filter(
       (id) => typeof id === 'string' && id.length === 36 && /^[0-9a-f-]{36}$/.test(id)
     );
@@ -150,26 +131,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (process.env.NODE_ENV !== 'production') {
       console.debug('[dms][receipts.list] resolved payload', {
         threadId,
-        threadIdIsNumeric: /^\d+$/.test(threadId),
         messageIds: normalizedMessageIds,
-        numericIds,
         targetRecipientIds,
         validRecipientIds,
       });
     }
 
-    let receiptsQuery = receiptsClient
-      .from('dms_message_receipts')
-      .select('message_id, user_id, status, updated_at')
-      .in('message_id', numericIds);
+      let receiptsQuery = receiptsClient
+        .from('dms_message_receipts')
+        .select('message_id, user_id, status, updated_at')
+        .in('message_id', normalizedMessageIds);
 
-    const { data: receipts, error: receiptsError } = await receiptsQuery;
+      if (validRecipientIds.length > 0) {
+        receiptsQuery = receiptsQuery.in('user_id', validRecipientIds);
+      }
+
+      const { data: receipts, error: receiptsError } = await receiptsQuery;
 
     if (receiptsError) {
       if (receiptsError.message?.includes('invalid input syntax for type uuid')) {
         console.warn('[dms][receipts.list] ignoring invalid uuid filter', {
           threadId,
-          numericIds,
+            messageIds: normalizedMessageIds,
           targetRecipientIds,
           validRecipientIds,
           error: receiptsError.message,
@@ -179,19 +162,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: receiptsError.message });
     }
 
-    const normalized: ReceiptRow[] = (receipts ?? []).map((row: any) => {
-      const numericId = Number.parseInt(String(row.message_id), 10);
-      const mappedId = Number.isFinite(numericId)
-        ? stringIdByNumeric.get(numericId) ?? String(row.message_id)
-        : String(row.message_id);
-
-      return {
-        message_id: mappedId,
+      const normalized: ReceiptRow[] = (receipts ?? []).map((row: any) => ({
+        message_id: String(row.message_id),
         user_id: String(row.user_id),
         status: row.status as 'sent' | 'delivered' | 'read',
         updated_at: row.updated_at ?? null,
-      };
-    });
+      }));
 
     return res.status(200).json({ ok: true, receipts: normalized });
   } catch (err: any) {

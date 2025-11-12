@@ -37,36 +37,42 @@ function logMissingTableOnce(): void {
   missingTableLogged = true;
 }
 
-function toDbMessageId(value: string | number): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.trunc(value);
+function normalizeMessageId(value: string | number | null | undefined): string | null {
+  if (value === null || value === undefined) {
+    return null;
   }
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (
-      !trimmed ||
-      trimmed === '-1' ||
-      trimmed.toLowerCase() === 'nan' ||
-      trimmed.toLowerCase() === 'undefined' ||
-      trimmed.toLowerCase() === 'null'
-    ) {
+
+  let str: string;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
       return null;
     }
-    const parsed = Number.parseInt(trimmed, 10);
-    return Number.isFinite(parsed) ? parsed : null;
+    str = Math.trunc(value).toString(10);
+  } else {
+    str = value.trim();
   }
-  return null;
+
+  if (!str) {
+    return null;
+  }
+
+  const lower = str.toLowerCase();
+  if (
+    lower === '-1' ||
+    lower === 'nan' ||
+    lower === 'undefined' ||
+    lower === 'null' ||
+    lower.startsWith('temp-')
+  ) {
+    return null;
+  }
+
+  return str;
 }
 
 function toClientMessageId(value: string | number): string | null {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value.toString();
-  }
-  return null;
+  const normalized = normalizeMessageId(value);
+  return normalized ?? null;
 }
 
 function mapStatusToResult(status: ReceiptStatus, updatedAt: string | null): ReceiptResult {
@@ -91,7 +97,7 @@ function mapStatusToResult(status: ReceiptStatus, updatedAt: string | null): Rec
 }
 
 export async function markDelivered(messageId: string, userId: string): Promise<void> {
-  const dbId = toDbMessageId(messageId);
+  const dbId = normalizeMessageId(messageId);
   if (dbId === null) {
     return;
   }
@@ -159,8 +165,8 @@ export async function markRead(messageIds: string[], userId: string): Promise<vo
   const normalizedIds = Array.from(
     new Set(
       messageIds
-        .map((id) => toDbMessageId(id))
-        .filter((id): id is number => id !== null)
+        .map((id) => normalizeMessageId(id))
+        .filter((id): id is string => id !== null)
     )
   );
 
@@ -183,17 +189,22 @@ export async function markRead(messageIds: string[], userId: string): Promise<vo
       throw error;
     }
 
-    const existingStatus = new Map<number, ReceiptStatus>();
+    const existingStatus = new Map<string, ReceiptStatus>();
     for (const row of data ?? []) {
-      const dbId = toDbMessageId(row.message_id);
+      const dbId = normalizeMessageId(row.message_id as string | number | null | undefined);
       if (dbId !== null) {
         existingStatus.set(dbId, row.status);
       }
     }
 
-    const insertPayload: Array<{ message_id: number; user_id: string; status: ReceiptStatus; created_at: string; updated_at: string }> =
-      [];
-    const updateIds: number[] = [];
+    const insertPayload: Array<{
+      message_id: string;
+      user_id: string;
+      status: ReceiptStatus;
+      created_at: string;
+      updated_at: string;
+    }> = [];
+    const updateIds: string[] = [];
     const nowIso = new Date().toISOString();
 
     for (const id of normalizedIds) {
@@ -243,7 +254,7 @@ export async function markRead(messageIds: string[], userId: string): Promise<vo
 }
 
 export async function getReceipt(messageId: string, userId: string): Promise<ReceiptResult | null> {
-  const dbId = toDbMessageId(messageId);
+  const dbId = normalizeMessageId(messageId);
   if (dbId === null) {
     return null;
   }
@@ -279,14 +290,15 @@ export async function getReceiptsForMessages(
   messageIds: string[],
   userId: string
 ): Promise<Record<string, ReceiptResult>> {
-  const dbIds = Array.from(
+  const normalizedIds = Array.from(
     new Set(
       messageIds
-        .map((id) => toDbMessageId(id))
-        .filter((id): id is number => id !== null)
+        .map((id) => normalizeMessageId(id))
+        .filter((id): id is string => id !== null)
     )
   );
-  if (dbIds.length === 0) {
+
+  if (normalizedIds.length === 0) {
     return {};
   }
 
@@ -295,7 +307,7 @@ export async function getReceiptsForMessages(
       .from<ReceiptRecord>(TABLE)
       .select('message_id, status, updated_at')
       .eq('user_id', userId)
-      .in('message_id', dbIds);
+      .in('message_id', normalizedIds);
 
     if (error) {
       if (isMissingTableError(error)) {
