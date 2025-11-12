@@ -193,70 +193,86 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const nowIso = new Date().toISOString();
       const normalizedIds = idList.map((value) => value.trim()).filter(Boolean);
 
-      let existingStatusById = new Map<string, string | null>();
-      try {
-        const { data: existingRows, error: existingError } = await privilegedClient
-          .from('dms_message_receipts')
-          .select('message_id, status')
-          .eq('user_id', user.id)
-          .in('message_id', normalizedIds);
+      const idMappings = normalizedIds
+        .map((id) => ({
+          stringId: id,
+          numericId: Number.parseInt(id, 10),
+        }))
+        .filter(
+          (entry): entry is { stringId: string; numericId: number } =>
+            Number.isFinite(entry.numericId)
+        );
 
-        if (existingError) {
-          throw existingError;
+      if (idMappings.length > 0) {
+        const numericIds = idMappings.map((entry) => entry.numericId);
+        let existingStatusById = new Map<number, string | null>();
+
+        try {
+          const { data: existingRows, error: existingError } = await privilegedClient
+            .from('dms_message_receipts')
+            .select('message_id, status')
+            .eq('user_id', user.id)
+            .in('message_id', numericIds);
+
+          if (existingError) {
+            throw existingError;
+          }
+
+          for (const row of existingRows ?? []) {
+            const numericId = Number.parseInt(String(row.message_id), 10);
+            if (Number.isFinite(numericId)) {
+              existingStatusById.set(numericId, row.status ?? null);
+            }
+          }
+        } catch (fetchError) {
+          console.error('Error fetching existing receipts:', fetchError);
+          existingStatusById = new Map();
         }
 
-        for (const row of existingRows ?? []) {
-          const idValue = String(row.message_id);
-          existingStatusById.set(idValue, row.status ?? null);
+        const insertPayload: Array<{
+          message_id: number;
+          user_id: string;
+          status: 'read';
+          created_at: string;
+          updated_at: string;
+        }> = [];
+        const updateIds: number[] = [];
+
+        for (const { numericId } of idMappings) {
+          const status = existingStatusById.get(numericId);
+          if (!status) {
+            insertPayload.push({
+              message_id: numericId,
+              user_id: user.id,
+              status: 'read',
+              created_at: nowIso,
+              updated_at: nowIso,
+            });
+          } else if (status !== 'read') {
+            updateIds.push(numericId);
+          }
         }
-      } catch (fetchError) {
-        console.error('Error fetching existing receipts:', fetchError);
-        existingStatusById = new Map();
-      }
 
-      const insertPayload: Array<{
-        message_id: string;
-        user_id: string;
-        status: 'read';
-        created_at: string;
-        updated_at: string;
-      }> = [];
-      const updateIds: string[] = [];
+        if (insertPayload.length > 0) {
+          const { error: insertError } = await privilegedClient
+            .from('dms_message_receipts')
+            .insert(insertPayload);
 
-      for (const idValue of normalizedIds) {
-        const status = existingStatusById.get(idValue);
-        if (!status) {
-          insertPayload.push({
-            message_id: idValue,
-            user_id: user.id,
-            status: 'read',
-            created_at: nowIso,
-            updated_at: nowIso,
-          });
-        } else if (status !== 'read') {
-          updateIds.push(idValue);
+          if (insertError) {
+            console.error('Error inserting read receipts:', insertError);
+          }
         }
-      }
 
-      if (insertPayload.length > 0) {
-        const { error: insertError } = await privilegedClient
-          .from('dms_message_receipts')
-          .insert(insertPayload);
+        if (updateIds.length > 0) {
+          const { error: updateError } = await privilegedClient
+            .from('dms_message_receipts')
+            .update({ status: 'read', updated_at: nowIso })
+            .eq('user_id', user.id)
+            .in('message_id', updateIds);
 
-        if (insertError) {
-          console.error('Error inserting read receipts:', insertError);
-        }
-      }
-
-      if (updateIds.length > 0) {
-        const { error: updateError } = await privilegedClient
-          .from('dms_message_receipts')
-          .update({ status: 'read', updated_at: nowIso })
-          .eq('user_id', user.id)
-          .in('message_id', updateIds);
-
-        if (updateError) {
-          console.error('Error updating read receipts:', updateError);
+          if (updateError) {
+            console.error('Error updating read receipts:', updateError);
+          }
         }
       }
     }

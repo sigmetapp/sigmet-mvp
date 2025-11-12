@@ -111,17 +111,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const receiptsClient = serviceClient ?? client;
 
-    let receiptsQuery = receiptsClient
-      .from('dms_message_receipts')
-      .select('message_id, user_id, status, updated_at, message:dms_messages!inner(thread_id)')
-      .in('message_id', normalizedMessageIds)
-      .eq('message.thread_id', threadId);
+      const messageIdEntries = normalizedMessageIds
+        .map((id) => ({
+          stringId: id,
+          numericId: Number.parseInt(id, 10),
+        }))
+        .filter(
+          (entry): entry is { stringId: string; numericId: number } =>
+            Number.isFinite(entry.numericId)
+        );
 
-    if (targetRecipientIds.length > 0) {
-      receiptsQuery = receiptsQuery.in('user_id', targetRecipientIds);
-    }
+      if (messageIdEntries.length === 0) {
+        return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
+      }
 
-    const { data: receipts, error: receiptsError } = await receiptsQuery;
+      let receiptsQuery = receiptsClient
+        .from('dms_message_receipts')
+        .select('message_id, user_id, status, updated_at, message:dms_messages!inner(thread_id)')
+        .in(
+          'message_id',
+          messageIdEntries.map((entry) => entry.numericId)
+        )
+        .eq('message.thread_id', threadId);
+
+      if (targetRecipientIds.length > 0) {
+        receiptsQuery = receiptsQuery.in('user_id', targetRecipientIds);
+      }
+
+      const { data: receipts, error: receiptsError } = await receiptsQuery;
 
     if (receiptsError) {
       return res.status(400).json({ ok: false, error: receiptsError.message });
