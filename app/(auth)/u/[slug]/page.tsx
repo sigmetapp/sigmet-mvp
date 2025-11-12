@@ -198,6 +198,7 @@ export default function PublicProfilePage() {
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [isSuspended, setIsSuspended] = useState<boolean>(false);
   const [iFollow, setIFollow] = useState<boolean>(false);
   const [followsMe, setFollowsMe] = useState<boolean>(false);
   const [updatingFollow, setUpdatingFollow] = useState(false);
@@ -409,6 +410,7 @@ export default function PublicProfilePage() {
     if (!slug) return;
     (async () => {
       setLoadingProfile(true);
+      setIsSuspended(false); // Reset suspended status when loading new profile
       // If slug looks like a UUID, resolve by id and redirect to username
       const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slug);
       if (uuidLike) {
@@ -436,6 +438,20 @@ export default function PublicProfilePage() {
         .maybeSingle();
       const profileData = ((data as unknown) as Profile) || null;
       setProfile(profileData);
+      
+      // Load suspended status if profile exists
+      if (profileData?.user_id) {
+        try {
+          const statusResp = await fetch(`/api/user/${profileData.user_id}/status`);
+          if (statusResp.ok) {
+            const statusData = await statusResp.json();
+            setIsSuspended(statusData.suspended === true);
+          }
+        } catch (err) {
+          console.error('Error loading suspended status:', err);
+          setIsSuspended(false);
+        }
+      }
       
       // Load educational institution if exists
       if (profileData?.educational_institution_id) {
@@ -1125,6 +1141,13 @@ export default function PublicProfilePage() {
                   <h1 className="text-xl md:text-2xl font-semibold text-white truncate animate-fade-in">
                     {profile.full_name || profile.username || profile.user_id.slice(0, 8)}
                   </h1>
+                  {isSuspended && (
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      isLight ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                    }`}>
+                      Account Suspended
+                    </span>
+                  )}
                   {(() => {
                     const showStatus = profile.show_online_status !== false;
                     if (!showStatus) {

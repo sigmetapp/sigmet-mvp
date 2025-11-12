@@ -26,7 +26,7 @@ function getAccessTokenFromRequest(req: NextApiRequest): string | undefined {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
@@ -43,45 +43,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ error: 'Forbidden' });
     }
 
+    const { user_id, suspend } = req.body as { user_id: string; suspend: boolean };
+    if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+    if (typeof suspend !== 'boolean') return res.status(400).json({ error: 'suspend must be a boolean' });
+
     const admin = supabaseAdmin();
-    const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 30 });
-    if (error) throw error;
-
-    const users = (data?.users || []).sort((a: any, b: any) => (new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-
-    // Load profiles and SW scores for all users
-    const userIds = users.map((u: any) => u.id);
-    const [profilesResult, swScoresResult] = await Promise.all([
-      admin.from('profiles').select('user_id, avatar_url').in('user_id', userIds),
-      admin.from('sw_scores').select('user_id, total').in('user_id', userIds),
-    ]);
-
-    // Create maps for quick lookup
-    const avatarMap: Record<string, string | null> = {};
-    const swMap: Record<string, number> = {};
     
-    if (profilesResult.data) {
-      for (const profile of profilesResult.data) {
-        avatarMap[profile.user_id] = profile.avatar_url || null;
-      }
-    }
-    
-    if (swScoresResult.data) {
-      for (const sw of swScoresResult.data) {
-        swMap[sw.user_id] = sw.total || 0;
-      }
+    // Get current user to preserve metadata
+    const { data: currentUser } = await admin.auth.admin.getUserById(user_id);
+    if (!currentUser?.user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    // Enrich users with avatar and SW data
-    const enrichedUsers = users.map((u: any) => ({
-      ...u,
-      avatar_url: avatarMap[u.id] || null,
-      sw_score: swMap[u.id] || 0,
-    }));
+    if (suspend) {
+      // Ban user (indefinitely, can be unban later)
+      const { error } = await admin.auth.admin.updateUserById(user_id, {
+        user_metadata: {
+          ...(currentUser.user.user_metadata || {}),
+          suspended: true,
+          suspended_at: new Date().toISOString(),
+        },
+      });
+      if (error) throw error;
+    } else {
+      // Unban user
+      const { error: unbanError } = await admin.auth.admin.updateUserById(user_id, {
+        ban_duration: '0s', // Unban immediately
+        user_metadata: {
+          ...(currentUser.user.user_metadata || {}),
+          suspended: false,
+        },
+      });
+      if (unbanError) throw unbanError;
+    }
 
-    return res.status(200).json({ users: enrichedUsers });
+    return res.status(200).json({ ok: true, suspended: suspend });
   } catch (e: any) {
-    console.error('users.list error', e);
+    console.error('users.suspend error', e);
     return res.status(500).json({ error: e?.message || 'Internal error' });
   }
 }

@@ -347,8 +347,8 @@ export default async function handler(
       const growthBonusPercentage = weights.growth_bonus_percentage ?? 0.05;
       const growthBonusPoints = inviteeGrowthTotalPoints * growthBonusPercentage;
 
-    // Calculate total SW
-    const totalSW = 
+    // Calculate base SW (before admin adjustments)
+    const baseSW = 
       registrationPoints +
       profileCompletePoints +
       growthTotalPoints +
@@ -359,6 +359,26 @@ export default async function handler(
       reactionsPoints +
       invitePoints +
       growthBonusPoints;
+
+    // Get permanent admin adjustments
+    let adminAdjustmentsTotal = 0;
+    try {
+      const { data: adjustmentsData, error: adjustmentsError } = await supabase
+        .rpc('get_admin_sw_adjustments_total', { target_user_id: userId });
+
+      if (adjustmentsError) {
+        console.warn('Error fetching admin adjustments:', adjustmentsError);
+        adminAdjustmentsTotal = 0;
+      } else {
+        adminAdjustmentsTotal = Number(adjustmentsData) || 0;
+      }
+    } catch (adjustmentsErr) {
+      console.warn('Exception fetching admin adjustments:', adjustmentsErr);
+      adminAdjustmentsTotal = 0;
+    }
+
+    // Calculate total SW: base SW + admin adjustments
+    const totalSW = baseSW + adminAdjustmentsTotal;
 
     // Calculate inflation rate (same logic as calculate endpoint)
     let inflationRate = 1.0;
@@ -456,6 +476,11 @@ export default async function handler(
         weight: growthBonusPercentage,
         description: `${(growthBonusPercentage * 100).toFixed(0)}% bonus on invited users' growth points`,
       },
+      adminAdjustments: {
+        points: adminAdjustmentsTotal,
+        count: 0, // Count not available without querying table
+        description: 'Permanent admin adjustments (bonuses and penalties)',
+      },
     };
 
     // Update sw_scores table with breakdown and inflation
@@ -481,6 +506,8 @@ export default async function handler(
       success: true,
       totalSW: inflatedSW,
       originalSW: totalSW,
+      baseSW: baseSW, // SW before admin adjustments
+      adminAdjustments: adminAdjustmentsTotal,
       inflationRate,
       message: 'SW recalculated successfully',
     });

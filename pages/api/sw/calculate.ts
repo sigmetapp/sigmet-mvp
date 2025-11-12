@@ -86,7 +86,36 @@ export default async function handler(
       const timeDiff = now - lastUpdated;
 
       if (timeDiff < CACHE_DURATION_MS && cachedScore.breakdown) {
-        // Return cached value if it's fresh (less than 5 minutes old)
+        // Get current admin adjustments (they may have changed since cache)
+        let adminAdjustmentsTotal = 0;
+        try {
+          const { data: adjustmentsData, error: adjustmentsError } = await supabase
+            .rpc('get_admin_sw_adjustments_total', { target_user_id: userId });
+
+          if (!adjustmentsError && adjustmentsData !== null) {
+            adminAdjustmentsTotal = Number(adjustmentsData) || 0;
+          }
+        } catch (adjustmentsErr) {
+          // Use cached breakdown's adminAdjustments if available
+          adminAdjustmentsTotal = cachedScore.breakdown?.adminAdjustments?.points || 0;
+        }
+
+        // Calculate total: base SW from cache + current admin adjustments
+        const baseSW = (cachedScore.total || 0) - (cachedScore.breakdown?.adminAdjustments?.points || 0);
+        const totalSW = baseSW + adminAdjustmentsTotal;
+        const inflatedSW = Math.floor(totalSW * (cachedScore.inflation_rate || 1.0));
+
+        // Update breakdown with current admin adjustments
+        const updatedBreakdown = {
+          ...cachedScore.breakdown,
+          adminAdjustments: {
+            points: adminAdjustmentsTotal,
+            count: 0,
+            description: 'Permanent admin adjustments (bonuses and penalties)',
+          },
+        };
+
+        // Return cached value if it's fresh (less than cache_duration_minutes old)
         // But we still need weights for sw_levels, so load them
         const { data: cachedWeights, error: cachedWeightsError } = await supabase
           .from('sw_weights')
@@ -95,8 +124,10 @@ export default async function handler(
           .single();
 
         return res.status(200).json({
-          totalSW: cachedScore.total || 0,
-          breakdown: cachedScore.breakdown,
+          totalSW: inflatedSW,
+          baseSW: baseSW,
+          adminAdjustments: adminAdjustmentsTotal,
+          breakdown: updatedBreakdown,
           weights: cachedWeights || null, // Load weights for sw_levels
           cached: true,
           cacheAge: Math.floor(timeDiff / 1000), // age in seconds
@@ -424,8 +455,8 @@ export default async function handler(
       const growthBonusPercentage = weights.growth_bonus_percentage ?? 0.05;
       const growthBonusPoints = inviteeGrowthTotalPoints * growthBonusPercentage;
 
-    // Calculate total SW
-    const totalSW = 
+    // Calculate base SW (before admin adjustments)
+    const baseSW = 
       registrationPoints +
       profileCompletePoints +
       growthTotalPoints +
@@ -436,6 +467,26 @@ export default async function handler(
       reactionsPoints +
       invitePoints +
       growthBonusPoints;
+
+    // Get permanent admin adjustments
+    let adminAdjustmentsTotal = 0;
+    try {
+      const { data: adjustmentsData, error: adjustmentsError } = await supabase
+        .rpc('get_admin_sw_adjustments_total', { target_user_id: userId });
+
+      if (adjustmentsError) {
+        console.warn('Error fetching admin adjustments:', adjustmentsError);
+        adminAdjustmentsTotal = 0;
+      } else {
+        adminAdjustmentsTotal = Number(adjustmentsData) || 0;
+      }
+    } catch (adjustmentsErr) {
+      console.warn('Exception fetching admin adjustments:', adjustmentsErr);
+      adminAdjustmentsTotal = 0;
+    }
+
+    // Calculate total SW: base SW + admin adjustments
+    const totalSW = baseSW + adminAdjustmentsTotal;
 
     // Breakdown
     const breakdown = {
@@ -493,6 +544,11 @@ export default async function handler(
         count: invitesCount,
         weight: growthBonusPercentage,
         description: `${(growthBonusPercentage * 100).toFixed(0)}% bonus on invited users' growth points`,
+      },
+      adminAdjustments: {
+        points: adminAdjustmentsTotal,
+        count: 0, // Count not available without querying table
+        description: 'Permanent admin adjustments (bonuses and penalties)',
       },
     };
 
@@ -577,6 +633,8 @@ export default async function handler(
     return res.status(200).json({
       totalSW: inflatedSW,
       originalSW: totalSW, // Original SW before inflation
+      baseSW: baseSW, // SW before admin adjustments
+      adminAdjustments: adminAdjustmentsTotal,
       breakdown,
       weights,
       inflationRate,
