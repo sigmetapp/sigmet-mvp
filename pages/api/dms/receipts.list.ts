@@ -160,17 +160,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let receiptsQuery = receiptsClient
       .from('dms_message_receipts')
-      .select('message_id, user_id, status, updated_at, message:dms_messages!inner(thread_id)')
-      .in('message_id', numericIds)
-      .eq('message.thread_id', threadId);
-
-    if (validRecipientIds.length > 0) {
-      receiptsQuery = receiptsQuery.in('user_id', validRecipientIds);
-    }
+      .select('message_id, user_id, status, updated_at')
+      .in('message_id', numericIds);
 
     const { data: receipts, error: receiptsError } = await receiptsQuery;
 
     if (receiptsError) {
+      if (receiptsError.message?.includes('invalid input syntax for type uuid')) {
+        console.warn('[dms][receipts.list] ignoring invalid uuid filter', {
+          threadId,
+          numericIds,
+          targetRecipientIds,
+          validRecipientIds,
+          error: receiptsError.message,
+        });
+        return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
+      }
       return res.status(400).json({ ok: false, error: receiptsError.message });
     }
 
