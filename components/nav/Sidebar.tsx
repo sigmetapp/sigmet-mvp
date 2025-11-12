@@ -28,6 +28,7 @@ const adminMenu = [
   { label: 'Users', href: '/admin/users', icon: '👥' },
   { label: 'Stats', href: '/admin/stats', icon: '📊' },
   { label: 'Tickets', href: '/admin/tickets', icon: '🎫' },
+  { label: 'Invite Settings', href: '/admin/invite-settings', icon: '🎟️' },
   { label: 'SW Weights', href: '/sw/weights', icon: '⚖️' },
   { label: 'Performance', href: '/test', icon: '⚡' },
 ];
@@ -115,6 +116,10 @@ export default function Sidebar({ user }: SidebarProps) {
                   isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
                           : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
                 }`} onClick={() => setAdminOpen(false)}>Tickets</Link>
+                <Link href="/admin/invite-settings" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
+                  isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
+                          : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
+                }`} onClick={() => setAdminOpen(false)}>Invite Settings</Link>
                 <Link href="/blog/admin/create" className={`px-4 py-3 rounded-xl text-sm text-center transition ${
                   isLight ? 'text-primary-text-secondary border border-primary-blue/20 hover:bg-primary-blue/10 hover:text-primary-blue'
                           : 'text-primary-text-secondary border border-primary-blue/30 hover:bg-primary-blue/15 hover:text-primary-blue-light'
