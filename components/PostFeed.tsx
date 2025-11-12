@@ -662,6 +662,7 @@ export default function PostFeed({
             relate: 0,
             support: 0,
             celebrate: 0,
+            verify: 0,
           };
           selected[post.id] = null;
         }
@@ -679,14 +680,23 @@ export default function PostFeed({
               relate: 'inspire', // Migrate to inspire
               support: 'inspire', // Migrate to inspire
               celebrate: 'inspire', // Migrate to inspire
+              verify: 'verify', // Verify is separate
             };
 
             const reactionType = reactionMap[kind];
             if (reactionType && counts[pid]) {
-              // All reactions go to inspire
-              counts[pid].inspire = (counts[pid].inspire || 0) + 1;
-              if (uid && userId === uid) {
-                selected[pid] = 'inspire';
+              if (reactionType === 'verify') {
+                // Verify is separate
+                counts[pid].verify = (counts[pid].verify || 0) + 1;
+                if (uid && userId === uid) {
+                  selected[pid] = 'verify';
+                }
+              } else {
+                // All other reactions go to inspire
+                counts[pid].inspire = (counts[pid].inspire || 0) + 1;
+                if (uid && userId === uid && !selected[pid]) {
+                  selected[pid] = 'inspire';
+                }
               }
             }
           }
@@ -706,6 +716,7 @@ export default function PostFeed({
             relate: 0,
             support: 0,
             celebrate: 0,
+            verify: 0,
           };
           selected[post.id] = null;
         }
@@ -1564,8 +1575,10 @@ export default function PostFeed({
                           relate: 0,
                           support: 0,
                           celebrate: 0,
+                          verify: 0,
                         }}
                         initialSelected={selectedReactionsByPostId[p.id] || null}
+                        showVerify={true}
                         onReactionChange={async (reaction, counts) => {
                         if (!uid) {
                           alert("Sign in required");
@@ -1616,6 +1629,7 @@ export default function PostFeed({
                             relate: 0,
                             support: 0,
                             celebrate: 0,
+                            verify: 0,
                           };
 
                           if (data) {
@@ -1627,11 +1641,16 @@ export default function PostFeed({
                                 relate: 'inspire', // Migrate to inspire
                                 support: 'inspire', // Migrate to inspire
                                 celebrate: 'inspire', // Migrate to inspire
+                                verify: 'verify', // Verify is separate
                               };
                               const reactionType = reactionMap[kind];
                               if (reactionType) {
-                                // All reactions go to inspire
-                                newCounts.inspire = (newCounts.inspire || 0) + 1;
+                                if (reactionType === 'verify') {
+                                  newCounts.verify = (newCounts.verify || 0) + 1;
+                                } else {
+                                  // All other reactions go to inspire
+                                  newCounts.inspire = (newCounts.inspire || 0) + 1;
+                                }
                               }
                             }
                           }

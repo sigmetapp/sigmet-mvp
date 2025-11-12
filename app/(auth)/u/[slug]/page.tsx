@@ -11,6 +11,7 @@ import { resolveDirectionEmoji } from '@/lib/directions';
 import { useTheme } from '@/components/ThemeProvider';
 import PostFeed from '@/components/PostFeed';
 import { resolveAvatarUrl } from '@/lib/utils';
+import GoalReactions from '@/components/GoalReactions';
 
 type Profile = {
   user_id: string;
@@ -209,6 +210,7 @@ export default function PublicProfilePage() {
   >([]);
   const [activeTab, setActiveTab] = useState<'info' | 'goals'>('info');
   const [userGoals, setUserGoals] = useState<Array<{ id: string; text: string; target_date: string | null }>>([]);
+  const [goalReactions, setGoalReactions] = useState<Record<string, { count: number; selected: boolean }>>({});
   // Trust Flow state (basic default 80%)
   const [trustScore, setTrustScore] = useState<number>(80);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -592,17 +594,42 @@ export default function PublicProfilePage() {
           .maybeSingle();
         
         if (profileData?.goals && Array.isArray(profileData.goals)) {
-          setUserGoals(profileData.goals.map((g: any) => ({
+          const goals = profileData.goals.map((g: any) => ({
             id: g.id || Date.now().toString() + Math.random(),
             text: g.text || '',
             target_date: g.target_date || null
-          })));
+          }));
+          setUserGoals(goals);
+          
+          // Load reactions for all goals
+          if (goals.length > 0) {
+            const goalIds = goals.map(g => g.id);
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            const { data: reactions } = await supabase
+              .from('goal_reactions')
+              .select('goal_id, kind, user_id')
+              .eq('goal_user_id', profile.user_id)
+              .in('goal_id', goalIds);
+            
+            const reactionsMap: Record<string, { count: number; selected: boolean }> = {};
+            goalIds.forEach(goalId => {
+              const goalReactions = (reactions || []).filter(r => r.goal_id === goalId && r.kind === 'inspire');
+              reactionsMap[goalId] = {
+                count: goalReactions.length,
+                selected: user ? goalReactions.some(r => r.user_id === user.id) : false
+              };
+            });
+            setGoalReactions(reactionsMap);
+          }
         } else {
           setUserGoals([]);
+          setGoalReactions({});
         }
       } catch (err) {
         console.error('Error loading goals:', err);
         setUserGoals([]);
+        setGoalReactions({});
       }
     })();
   }, [profile?.user_id]);
@@ -1719,22 +1746,38 @@ export default function PublicProfilePage() {
                             {goal.text}
                           </div>
                         </div>
-                        {goal.target_date && (
-                          <div className={`text-xs flex items-center gap-1.5 flex-shrink-0 ${
-                            isLight ? 'text-primary-text-secondary' : 'text-white/60'
-                          }`}>
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            <span>
-                              {new Date(goal.target_date).toLocaleDateString('en-GB', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric'
-                              })}
-                            </span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          {goal.target_date && (
+                            <div className={`text-xs flex items-center gap-1.5 ${
+                              isLight ? 'text-primary-text-secondary' : 'text-white/60'
+                            }`}>
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span>
+                                {new Date(goal.target_date).toLocaleDateString('en-GB', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric'
+                                })}
+                              </span>
+                            </div>
+                          )}
+                          {profile?.user_id && (
+                            <GoalReactions
+                              goalUserId={profile.user_id}
+                              goalId={goal.id}
+                              initialCount={goalReactions[goal.id]?.count || 0}
+                              initialSelected={goalReactions[goal.id]?.selected || false}
+                              onReactionChange={(selected, count) => {
+                                setGoalReactions(prev => ({
+                                  ...prev,
+                                  [goal.id]: { count, selected }
+                                }));
+                              }}
+                            />
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
