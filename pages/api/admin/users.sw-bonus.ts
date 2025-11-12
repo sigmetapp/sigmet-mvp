@@ -49,17 +49,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const admin = supabaseAdmin();
     
-    // Get current SW score
+    // Get current admin user_id if available
+    const { data: adminUser } = await admin.auth.admin.listUsers();
+    const adminUserId = adminUser?.users?.find((u: any) => u.email === email)?.id || null;
+    
+    // Record permanent adjustment in admin_sw_adjustments table
+    const { error: adjustmentError } = await admin
+      .from('admin_sw_adjustments')
+      .insert({
+        user_id,
+        points: points,
+        reason: reason || 'Admin bonus',
+        admin_email: email,
+        adjustment_type: 'bonus',
+        permanent: true,
+        created_by: adminUserId,
+      });
+
+    if (adjustmentError) {
+      console.error('Failed to record admin adjustment:', adjustmentError);
+      throw adjustmentError;
+    }
+
+    // Get current SW score (including any existing adjustments)
     const { data: currentSW } = await admin
       .from('sw_scores')
       .select('total')
       .eq('user_id', user_id)
       .single();
 
+    // Get total admin adjustments (including the one we just added)
+    const { data: adjustmentsData, error: adjustmentsError } = await admin
+      .rpc('get_admin_sw_adjustments_total', { target_user_id: user_id });
+
+    const adminAdjustmentsTotal = adjustmentsData || 0;
+    
+    // Calculate new total: current SW + all admin adjustments
+    // Note: We need to recalculate SW to get the base, then add adjustments
+    // For now, we'll update the total directly, but the recalculate endpoint will handle it properly
     const currentTotal = currentSW?.total || 0;
     const newTotal = currentTotal + points;
 
-    // Update SW score
+    // Update SW score (temporary update, will be recalculated properly on next recalc)
     const { error: updateError } = await admin
       .from('sw_scores')
       .upsert({
@@ -70,35 +101,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         onConflict: 'user_id',
       });
 
-    if (updateError) throw updateError;
-
-    // Add entry to sw_ledger if it exists (for tracking)
-    // Note: sw_ledger might not exist in all deployments, so we'll try but not fail if it doesn't
-    try {
-      // Check if sw_ledger table exists by trying to insert
-      // We'll use a generic direction_id if needed - but first check if table has direction_id
-      const { error: ledgerError } = await admin
-        .from('sw_ledger')
-        .insert({
-          user_id,
-          direction_id: '00000000-0000-0000-0000-000000000000' as any, // Placeholder, will be ignored if not needed
-          reason: 'admin_adjust' as any,
-          points: points,
-          meta: {
-            type: 'bonus',
-            permanent: true,
-            reason: reason || 'Admin bonus',
-            admin_email: email,
-          },
-        } as any);
-
-      // Ignore errors if table doesn't exist or has different structure
-      if (ledgerError && !ledgerError.message.includes('does not exist') && !ledgerError.message.includes('column')) {
-        console.warn('Failed to add sw_ledger entry:', ledgerError);
-      }
-    } catch (ledgerErr) {
-      // Ignore ledger errors - it's optional
-      console.warn('sw_ledger entry skipped:', ledgerErr);
+    if (updateError) {
+      console.warn('Failed to update sw_scores immediately:', updateError);
+      // Don't throw - the adjustment is already recorded, recalc will fix it
     }
 
     return res.status(200).json({ 

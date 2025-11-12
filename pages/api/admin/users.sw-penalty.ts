@@ -49,6 +49,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const admin = supabaseAdmin();
     
+    // Get current admin user_id if available
+    const { data: adminUser } = await admin.auth.admin.listUsers();
+    const adminUserId = adminUser?.users?.find((u: any) => u.email === email)?.id || null;
+    
+    // Record permanent adjustment in admin_sw_adjustments table (negative points for penalty)
+    const { error: adjustmentError } = await admin
+      .from('admin_sw_adjustments')
+      .insert({
+        user_id,
+        points: -points, // Negative for penalty
+        reason: reason || 'Rule violation',
+        admin_email: email,
+        adjustment_type: 'penalty',
+        permanent: true,
+        created_by: adminUserId,
+      });
+
+    if (adjustmentError) {
+      console.error('Failed to record admin adjustment:', adjustmentError);
+      throw adjustmentError;
+    }
+
     // Get current SW score
     const { data: currentSW } = await admin
       .from('sw_scores')
@@ -59,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const currentTotal = currentSW?.total || 0;
     const newTotal = Math.max(0, currentTotal - points); // Don't go below 0
 
-    // Update SW score
+    // Update SW score (temporary update, will be recalculated properly on next recalc)
     const { error: updateError } = await admin
       .from('sw_scores')
       .upsert({
@@ -70,29 +92,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         onConflict: 'user_id',
       });
 
-    if (updateError) throw updateError;
-
-    // Add entry to sw_ledger if it exists (for tracking)
-    try {
-      const { error: ledgerError } = await admin
-        .from('sw_ledger')
-        .insert({
-          user_id,
-          direction_id: '00000000-0000-0000-0000-000000000000' as any,
-          reason: 'admin_adjust' as any,
-          points: -points, // Negative for penalty
-          meta: {
-            type: 'penalty',
-            reason: reason || 'Rule violation',
-            admin_email: email,
-          },
-        } as any);
-
-      if (ledgerError && !ledgerError.message.includes('does not exist') && !ledgerError.message.includes('column')) {
-        console.warn('Failed to add sw_ledger entry:', ledgerError);
-      }
-    } catch (ledgerErr) {
-      console.warn('sw_ledger entry skipped:', ledgerErr);
+    if (updateError) {
+      console.warn('Failed to update sw_scores immediately:', updateError);
+      // Don't throw - the adjustment is already recorded, recalc will fix it
     }
 
     return res.status(200).json({ 
