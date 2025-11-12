@@ -38,7 +38,8 @@ export default function AuthPage() {
           });
           
           if (validateErr) {
-            throw new Error('Failed to validate invite code. Please try again.');
+            console.error('Invite code validation error:', validateErr);
+            throw new Error(validateErr.message || 'Failed to validate invite code. Please try again.');
           }
           
           if (!isValid) {
