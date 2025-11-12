@@ -103,7 +103,7 @@ async function ensureSubscribed(entry: PresenceEntry, userId: string): Promise<v
     return;
   }
 
-    entry.subscribePromise = new Promise<void>((resolve, reject) => {
+    entry.subscribePromise = new Promise<void>((resolve) => {
       let settled = false;
 
       entry.channel.subscribe((status) => {
@@ -116,15 +116,14 @@ async function ensureSubscribed(entry: PresenceEntry, userId: string): Promise<v
         }
 
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          const error = new Error(
-            `Presence channel for ${userId} failed with status ${status}`
-          );
           if (!settled) {
             settled = true;
-            reject(error);
-          } else {
-            console.error(error);
+            console.warn(`[presence] Channel for ${userId} ${status.toLowerCase()}, falling back to polling.`);
+            resolve();
           }
+          entry.subscribed = false;
+          entry.subscribePromise = null;
+          setEntryOnline(userId, false);
         } else if (status === 'CLOSED') {
           if (!settled) {
             settled = true;
@@ -136,13 +135,9 @@ async function ensureSubscribed(entry: PresenceEntry, userId: string): Promise<v
         }
       });
     })
-    .catch((error) => {
-      console.error(`Error subscribing to presence channel for ${userId}:`, error);
-      throw error;
-    })
-    .finally(() => {
-      entry.subscribePromise = null;
-    });
+      .finally(() => {
+        entry.subscribePromise = null;
+      });
 
   await entry.subscribePromise;
 }

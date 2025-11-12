@@ -35,7 +35,13 @@ function normalizeMessageId(value: unknown): string | null {
 function normalizeUserId(value: unknown): string | null {
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
+    if (
+      trimmed.length === 36 &&
+      /^[0-9a-fA-F-]{36}$/.test(trimmed)
+    ) {
+      return trimmed.toLowerCase();
+    }
+    return null;
   }
   return null;
 }
@@ -70,12 +76,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: participantsError.message });
     }
 
-    const participantIds = new Set<string>((participants ?? []).map((row: any) => String(row.user_id)));
-    if (!participantIds.has(user.id)) {
+    const participantIds = new Set<string>();
+    for (const row of participants ?? []) {
+      const normalized = normalizeUserId(row.user_id);
+      if (normalized) {
+        participantIds.add(normalized);
+      }
+    }
+
+    if (!participantIds.has(normalizeUserId(user.id) ?? '')) {
       return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
 
-    const otherParticipantIds = Array.from(participantIds).filter((id) => id !== user.id);
+    const normalizedUserId = normalizeUserId(user.id) ?? '';
+    const otherParticipantIds = Array.from(participantIds).filter((id) => id !== normalizedUserId);
 
     const requestedRecipientIds = Array.isArray(req.body?.recipient_ids)
       ? req.body.recipient_ids
