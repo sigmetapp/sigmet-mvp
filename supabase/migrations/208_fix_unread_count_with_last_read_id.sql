@@ -69,7 +69,17 @@ as $$
   ),
   normalized_threads as (
     select
-      lt.*,
+      lt.thread_id,
+      lt.notifications_muted,
+      lt.mute_until,
+      lt.is_pinned,
+      lt.pinned_at,
+      lt.last_read_message_id,  -- Keep as bigint for comparison
+      lt.last_read_at,
+      lt.created_at,
+      lt.last_message_id,
+      lt.last_message_at,
+      lt.rn,
       lt.last_read_message_id::text as last_read_message_id_text
     from limited_threads lt
   ),
@@ -127,8 +137,8 @@ as $$
         -- If last_read_message_id is null, all messages are unread
         nt.last_read_message_id is null
         -- If last_read_message_id is set, count messages with id > last_read_message_id
-        -- Convert both to bigint for proper comparison
-        or msg.id > coalesce(nt.last_read_message_id::bigint, 0)
+        -- Explicitly cast to ensure both are bigint
+        or (msg.id::bigint > nt.last_read_message_id::bigint)
       )
     group by nt.thread_id
   ),
