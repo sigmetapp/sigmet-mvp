@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 
-const TABLE = 'message_receipts';
+const TABLE = 'dms_message_receipts';
 let missingTableLogged = false;
 
 type ReceiptRecord = {
