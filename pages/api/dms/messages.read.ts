@@ -190,90 +190,73 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (idList.length > 0) {
-      const numericIds = idList
-        .map((value) => {
-          const parsed = Number.parseInt(value, 10);
-          return Number.isFinite(parsed) ? parsed : null;
-        })
-        .filter((value): value is number => value !== null);
+      const nowIso = new Date().toISOString();
+      const normalizedIds = idList.map((value) => value.trim()).filter(Boolean);
 
-      if (numericIds.length > 0) {
-        const nowIso = new Date().toISOString();
-
+      let existingStatusById = new Map<string, string | null>();
+      try {
         const { data: existingRows, error: existingError } = await privilegedClient
           .from('dms_message_receipts')
           .select('message_id, status')
           .eq('user_id', user.id)
-          .in('message_id', numericIds);
+          .in('message_id', normalizedIds);
 
         if (existingError) {
-          console.error('Error fetching existing receipts:', existingError);
-          return res
-            .status(400)
-            .json({ ok: false, error: existingError.message || 'Failed to load receipts' });
+          throw existingError;
         }
 
-        const existingStatusById = new Map<number, string | null>();
         for (const row of existingRows ?? []) {
-          const idValue =
-            typeof row.message_id === 'number'
-              ? row.message_id
-              : Number.parseInt(String(row.message_id), 10);
-          if (Number.isFinite(idValue)) {
-            existingStatusById.set(idValue, row.status ?? null);
-          }
+          const idValue = String(row.message_id);
+          existingStatusById.set(idValue, row.status ?? null);
         }
+      } catch (fetchError) {
+        console.error('Error fetching existing receipts:', fetchError);
+        existingStatusById = new Map();
+      }
 
-        const insertPayload: Array<{
-          message_id: number;
-          user_id: string;
-          status: 'read';
-          created_at: string;
-          updated_at: string;
-        }> = [];
-        const updateIds: number[] = [];
+      const insertPayload: Array<{
+        message_id: string;
+        user_id: string;
+        status: 'read';
+        created_at: string;
+        updated_at: string;
+      }> = [];
+      const updateIds: string[] = [];
 
-        for (const idValue of numericIds) {
-          const status = existingStatusById.get(idValue);
-          if (!status) {
-            insertPayload.push({
-              message_id: idValue,
-              user_id: user.id,
-              status: 'read',
-              created_at: nowIso,
-              updated_at: nowIso,
-            });
-          } else if (status !== 'read') {
-            updateIds.push(idValue);
-          }
+      for (const idValue of normalizedIds) {
+        const status = existingStatusById.get(idValue);
+        if (!status) {
+          insertPayload.push({
+            message_id: idValue,
+            user_id: user.id,
+            status: 'read',
+            created_at: nowIso,
+            updated_at: nowIso,
+          });
+        } else if (status !== 'read') {
+          updateIds.push(idValue);
         }
+      }
 
-        if (insertPayload.length > 0) {
-          const { error: insertError } = await privilegedClient
-            .from('dms_message_receipts')
-            .insert(insertPayload);
+      if (insertPayload.length > 0) {
+        const { error: insertError } = await privilegedClient
+          .from('dms_message_receipts')
+          .insert(insertPayload);
 
-          if (insertError) {
-            console.error('Error inserting read receipts:', insertError);
-            return res
-              .status(400)
-              .json({ ok: false, error: insertError.message || 'Failed to insert receipts' });
-          }
+        if (insertError) {
+          console.error('Error inserting read receipts:', insertError);
         }
+      }
 
-        if (updateIds.length > 0) {
-          const { error: updateError } = await privilegedClient
-            .from('dms_message_receipts')
-            .update({ status: 'read', updated_at: nowIso })
-            .eq('user_id', user.id)
-            .in('message_id', updateIds);
+      if (updateIds.length > 0) {
+        const { error: updateError } = await privilegedClient
+          .from('dms_message_receipts')
+          .update({ status: 'read', updated_at: nowIso })
+          .eq('user_id', user.id)
+          .in('message_id', updateIds);
 
-          if (updateError) {
-            console.error('Error updating read receipts:', updateError);
-            return res
-              .status(400)
-              .json({ ok: false, error: updateError.message || 'Failed to update receipts' });
-          }
+        if (updateError) {
+          console.error('Error updating read receipts:', updateError);
         }
       }
     }

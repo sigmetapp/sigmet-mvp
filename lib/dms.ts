@@ -3,6 +3,11 @@
 import { supabase } from '@/lib/supabaseClient';
 import { assertThreadId, coerceThreadId, type ThreadId } from '@/lib/dm/threadId';
 
+// Maintain compatibility with existing helpers that expect a factory.
+export function createClientComponentClient() {
+  return supabase;
+}
+
 export type Thread = {
   id: ThreadId;
   created_by: string;

@@ -103,12 +103,31 @@ async function ensureSubscribed(entry: PresenceEntry, userId: string): Promise<v
     return;
   }
 
-  entry.subscribePromise = entry.channel
-    .subscribe()
-    .then(() => {
-      entry.subscribed = true;
-      updatePresenceStateFromChannel(userId);
-    })
+  entry.subscribePromise = new Promise<void>((resolve, reject) => {
+    let settled = false;
+
+    entry.channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        entry.subscribed = true;
+        settled = true;
+        updatePresenceStateFromChannel(userId);
+        resolve();
+        return;
+      }
+
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        const error = new Error(
+          `Presence channel for ${userId} failed with status ${status}`
+        );
+        if (!settled) {
+          settled = true;
+          reject(error);
+        } else {
+          console.error(error);
+        }
+      }
+    });
+  })
     .catch((error) => {
       console.error(`Error subscribing to presence channel for ${userId}:`, error);
       throw error;
