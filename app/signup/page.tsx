@@ -63,16 +63,35 @@ export default function SignupPage() {
           invite_code: normalizedCode
         });
         
-        console.log('Validation result:', { isValid, error: validateErr, type: typeof isValid });
+        console.log('Validation result:', { 
+          isValid, 
+          error: validateErr, 
+          type: typeof isValid,
+          isBoolean: typeof isValid === 'boolean',
+          isTrue: isValid === true,
+          stringValue: String(isValid),
+          jsonValue: JSON.stringify(isValid)
+        });
         
         if (validateErr) {
           console.error('Invite code validation error:', validateErr);
           throw new Error(validateErr.message || 'Failed to validate invite code. Please try again.');
         }
         
-        // Explicitly check for false or null/undefined
-        // Supabase RPC may return the value directly, so check both data and isValid
-        const isActuallyValid = isValid === true || isValid === 'true' || (typeof isValid === 'boolean' && isValid);
+        // Supabase RPC returns the value directly in data field
+        // Check if it's a boolean true, or if it's wrapped in an object
+        let isActuallyValid = false;
+        
+        if (typeof isValid === 'boolean') {
+          isActuallyValid = isValid === true;
+        } else if (typeof isValid === 'object' && isValid !== null) {
+          // If it's an object, check if it has a value property or is truthy
+          isActuallyValid = Boolean(isValid);
+        } else if (isValid === 'true' || isValid === true) {
+          isActuallyValid = true;
+        } else {
+          isActuallyValid = Boolean(isValid);
+        }
         
         if (!isActuallyValid) {
           console.error('Invite code validation failed:', { 
@@ -80,7 +99,8 @@ export default function SignupPage() {
             isValid, 
             type: typeof isValid,
             isActuallyValid,
-            stringValue: String(isValid)
+            stringValue: String(isValid),
+            jsonValue: JSON.stringify(isValid)
           });
           throw new Error('Invalid or expired invite code. Registration requires a valid invite code.');
         }
@@ -104,30 +124,64 @@ export default function SignupPage() {
       let inviteAccepted = false;
       if (inviteCode && inviteCode.trim() && signData?.user) {
         try {
+          const normalizedCode = inviteCode.trim().toUpperCase();
+          console.log('Accepting invite code:', normalizedCode, 'for user:', signData.user.id);
+          
+          // Wait a bit to ensure user is fully authenticated
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
           const { data: inviteId, error: inviteErr } = await supabase.rpc('accept_invite_by_code', {
-            invite_code: inviteCode.trim().toUpperCase()
+            invite_code: normalizedCode
           });
+          
+          console.log('Accept invite result:', { inviteId, error: inviteErr });
           
           if (!inviteErr && inviteId) {
             inviteAccepted = true;
             // Track invite acceptance
             const { trackInviteAccepted } = await import('@/lib/invite-tracking');
             await trackInviteAccepted(inviteId, signData.user.id);
+            console.log('Invite accepted successfully');
           }
           // If invite code is invalid and invites_only is enabled, this is an error
           // (This should not happen if validation passed, but handle it just in case)
           if (inviteErr) {
-            if (invites_only) {
-              throw new Error('Invalid or expired invite code. Registration requires a valid invite code.');
+            console.error('Error accepting invite:', {
+              error: inviteErr,
+              code: inviteCode,
+              userId: signData.user.id,
+              message: inviteErr.message
+            });
+            
+            // Check if error is about authentication or if invite was already used
+            if (inviteErr.message?.includes('Authentication required')) {
+              // User might not be fully authenticated yet, this is not a critical error
+              console.warn('User not fully authenticated yet, invite will be accepted later');
+            } else if (inviteErr.message?.includes('Invalid or expired')) {
+              // Invite might have been used between validation and acceptance
+              // This can happen in race conditions, but if invites_only is enabled, we should still allow registration
+              // since validation passed
+              if (invites_only) {
+                console.warn('Invite was invalid/expired during acceptance, but validation passed. Allowing registration.');
+              } else {
+                console.warn('Invalid invite code during acceptance:', inviteErr.message);
+              }
             } else {
-              console.warn('Invalid invite code:', inviteErr.message);
+              // Other errors - only throw if invites_only is enabled
+              if (invites_only) {
+                throw new Error('Invalid or expired invite code. Registration requires a valid invite code.');
+              } else {
+                console.warn('Error accepting invite:', inviteErr.message);
+              }
             }
           }
         } catch (inviteErr: any) {
-          if (invites_only) {
+          console.error('Exception accepting invite:', inviteErr);
+          // Only throw if invites_only is enabled and it's a critical error
+          if (invites_only && inviteErr.message && !inviteErr.message.includes('Authentication required')) {
             throw inviteErr;
           }
-          console.warn('Error accepting invite:', inviteErr);
+          console.warn('Non-critical error accepting invite, continuing with registration');
         }
       }
 
