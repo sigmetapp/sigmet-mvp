@@ -1,5 +1,13 @@
 begin;
 
+-- Helper function to safely compare bigint values
+create or replace function public.compare_bigint_ids(msg_id bigint, last_read_id bigint)
+returns boolean as $$
+begin
+  return msg_id > last_read_id;
+end;
+$$ language plpgsql immutable;
+
 -- Fix the unread count calculation to use last_read_message_id as primary source
 -- This ensures that even if receipts are missing, we can still determine read status
 drop function if exists public.dms_list_partners_optimized(uuid, integer, integer);
@@ -133,16 +141,16 @@ as $$
     join dms_messages msg on msg.thread_id = nt.thread_id
     where msg.deleted_at is null
       and msg.sender_id <> p_user_id
-      and (
+      and case
         -- If last_read_msg_id is null, all messages are unread
-        nt.last_read_msg_id is null
+        when nt.last_read_msg_id is null then true
         -- If last_read_msg_id is set, count messages with id > last_read_msg_id
-        -- Convert both to numeric for comparison to avoid type issues
-        or (
-          nt.last_read_msg_id is not null 
-          and (msg.id)::numeric > (nt.last_read_msg_id)::numeric
-        )
-      )
+        -- msg.id is bigserial (bigint), last_read_msg_id is bigint - use helper function
+        when nt.last_read_msg_id is not null then 
+          -- Use helper function to ensure correct type comparison
+          public.compare_bigint_ids(msg.id, nt.last_read_msg_id)
+        else false
+      end
     group by nt.thread_id
   ),
   -- Fallback: use receipts if last_read_message_id is not reliable
