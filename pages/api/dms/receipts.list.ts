@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getAuthedClient, createSupabaseForRequest } from '@/lib/dm/supabaseServer';
+import { createSupabaseForRequest, getAuthedClient } from '@/lib/dm/supabaseServer';
 import { assertThreadId } from '@/lib/dm/threadId';
 
 type ReceiptRow = {
@@ -13,9 +13,11 @@ function normalizeMessageId(value: unknown): string | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Number.isInteger(value) ? value.toString() : null;
   }
+
   if (typeof value === 'bigint') {
     return value.toString();
   }
+
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -29,20 +31,19 @@ function normalizeMessageId(value: unknown): string | null {
 
     return trimmed;
   }
+
   return null;
 }
 
 function normalizeUserId(value: unknown): string | null {
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (
-      trimmed.length === 36 &&
-      /^[0-9a-fA-F-]{36}$/.test(trimmed)
-    ) {
+    if (trimmed.length === 36 && /^[0-9a-fA-F-]{36}$/.test(trimmed)) {
       return trimmed.toLowerCase();
     }
     return null;
   }
+
   return null;
 }
 
@@ -66,16 +67,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: 'Invalid thread_id' });
     }
 
-    // Verify the requester participates in the thread and gather participant list
-      const numericThreadId = Number.parseInt(threadId, 10);
-      if (!Number.isFinite(numericThreadId)) {
-        return res.status(400).json({ ok: false, error: 'Invalid thread_id' });
-      }
-
-      const { data: participants, error: participantsError } = await client
-        .from('dms_thread_participants')
-        .select('user_id')
-        .eq('thread_id', numericThreadId);
+    const { data: participants, error: participantsError } = await client
+      .from('dms_thread_participants')
+      .select('user_id')
+      .eq('thread_id', threadId);
 
     if (participantsError) {
       return res.status(400).json({ ok: false, error: participantsError.message });
@@ -113,7 +108,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       targetRecipientIds = otherParticipantIds;
     }
 
-    // Normalize message IDs
     const rawMessageIds = Array.isArray(req.body?.message_ids) ? req.body.message_ids : [];
     const normalizedMessageIds = rawMessageIds
       .map(normalizeMessageId)
@@ -123,12 +117,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
     }
 
-      const serviceClient =
-        process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim() !== ''
-          ? createSupabaseForRequest(req, true)
-          : null;
+    const serviceClient =
+      process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim() !== ''
+        ? createSupabaseForRequest(req, true)
+        : null;
 
-      const receiptsClient = serviceClient ?? client;
+    const receiptsClient = serviceClient ?? client;
 
     const messageIdEntries = normalizedMessageIds
       .map((id) => ({
@@ -156,7 +150,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (process.env.NODE_ENV !== 'production') {
       console.debug('[dms][receipts.list] resolved payload', {
         threadId,
-        numericThreadId,
+        threadIdIsNumeric: /^\d+$/.test(threadId),
         messageIds: normalizedMessageIds,
         numericIds,
         targetRecipientIds,
@@ -168,7 +162,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .from('dms_message_receipts')
       .select('message_id, user_id, status, updated_at, message:dms_messages!inner(thread_id)')
       .in('message_id', numericIds)
-      .eq('message.thread_id', numericThreadId);
+      .eq('message.thread_id', threadId);
 
     if (validRecipientIds.length > 0) {
       receiptsQuery = receiptsQuery.in('user_id', validRecipientIds);
