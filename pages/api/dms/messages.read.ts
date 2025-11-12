@@ -190,74 +190,89 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (idList.length > 0) {
-        // Use upsert to create or update receipts to 'read' status
-        const nowIso = new Date().toISOString();
-        const receiptsToUpsert = idList.map((msgId) => ({
-          message_id: msgId,
-          user_id: user.id,
-          status: 'read' as const,
-          created_at: nowIso,
-          updated_at: nowIso,
-        }));
+      const numericIds = idList
+        .map((value) => {
+          const parsed = Number.parseInt(value, 10);
+          return Number.isFinite(parsed) ? parsed : null;
+        })
+        .filter((value): value is number => value !== null);
 
-      if (receiptsToUpsert.length > 0) {
-        // Log for debugging
-        console.log('Creating/updating receipts:', {
-          count: receiptsToUpsert.length,
-          userId: user.id,
-          userIdType: typeof user.id,
-          firstReceipt: receiptsToUpsert[0],
-        });
-        
-        try {
-          // Try upsert first (works in Supabase)
-            const upsertResult = await execOrFetch(
-              privilegedClient
-              .from('dms_message_receipts')
-              .upsert(receiptsToUpsert, {
-                onConflict: 'message_id,user_id',
-                ignoreDuplicates: false,
-              })
-          );
-          
-          if (upsertResult.error) {
-            console.error('Error upserting receipts:', upsertResult.error);
-            // Fallback: try insert with onConflict one by one
-            for (const receipt of receiptsToUpsert) {
-              try {
-                  const insertResult = await execOrFetch(
-                    privilegedClient
-                    .from('dms_message_receipts')
-                    .insert(receipt)
-                    .onConflict('message_id,user_id')
-                    .merge({ status: 'read', updated_at: new Date().toISOString() })
-                );
-                if (insertResult.error) {
-                  console.error('Error creating single receipt:', insertResult.error, receipt);
-                }
-              } catch (singleErr: any) {
-                console.error('Error creating single receipt:', singleErr, receipt);
-              }
-            }
+      if (numericIds.length > 0) {
+        const nowIso = new Date().toISOString();
+
+        const { data: existingRows, error: existingError } = await privilegedClient
+          .from('dms_message_receipts')
+          .select('message_id, status')
+          .eq('user_id', user.id)
+          .in('message_id', numericIds);
+
+        if (existingError) {
+          console.error('Error fetching existing receipts:', existingError);
+          return res
+            .status(400)
+            .json({ ok: false, error: existingError.message || 'Failed to load receipts' });
+        }
+
+        const existingStatusById = new Map<number, string | null>();
+        for (const row of existingRows ?? []) {
+          const idValue =
+            typeof row.message_id === 'number'
+              ? row.message_id
+              : Number.parseInt(String(row.message_id), 10);
+          if (Number.isFinite(idValue)) {
+            existingStatusById.set(idValue, row.status ?? null);
           }
-        } catch (upsertErr: any) {
-          console.error('Error upserting receipts:', upsertErr);
-          // Fallback: try insert with onConflict one by one
-          for (const receipt of receiptsToUpsert) {
-            try {
-                const insertResult = await execOrFetch(
-                  privilegedClient
-                  .from('dms_message_receipts')
-                  .insert(receipt)
-                  .onConflict('message_id,user_id')
-                  .merge({ status: 'read', updated_at: new Date().toISOString() })
-              );
-              if (insertResult.error) {
-                console.error('Error creating single receipt:', insertResult.error, receipt);
-              }
-            } catch (singleErr: any) {
-              console.error('Error creating single receipt:', singleErr, receipt);
-            }
+        }
+
+        const insertPayload: Array<{
+          message_id: number;
+          user_id: string;
+          status: 'read';
+          created_at: string;
+          updated_at: string;
+        }> = [];
+        const updateIds: number[] = [];
+
+        for (const idValue of numericIds) {
+          const status = existingStatusById.get(idValue);
+          if (!status) {
+            insertPayload.push({
+              message_id: idValue,
+              user_id: user.id,
+              status: 'read',
+              created_at: nowIso,
+              updated_at: nowIso,
+            });
+          } else if (status !== 'read') {
+            updateIds.push(idValue);
+          }
+        }
+
+        if (insertPayload.length > 0) {
+          const { error: insertError } = await privilegedClient
+            .from('dms_message_receipts')
+            .insert(insertPayload);
+
+          if (insertError) {
+            console.error('Error inserting read receipts:', insertError);
+            return res
+              .status(400)
+              .json({ ok: false, error: insertError.message || 'Failed to insert receipts' });
+          }
+        }
+
+        if (updateIds.length > 0) {
+          const { error: updateError } = await privilegedClient
+            .from('dms_message_receipts')
+            .update({ status: 'read', updated_at: nowIso })
+            .eq('user_id', user.id)
+            .in('message_id', updateIds);
+
+          if (updateError) {
+            console.error('Error updating read receipts:', updateError);
+            return res
+              .status(400)
+              .json({ ok: false, error: updateError.message || 'Failed to update receipts' });
           }
         }
       }

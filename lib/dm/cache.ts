@@ -81,19 +81,32 @@ export async function cacheMessages(
       }
     };
 
-    // Add new messages
-    const { maxMessages } = { ...DEFAULT_OPTIONS, ...options };
-    const messagesToCache = messages.slice(-maxMessages);
-    
-    for (const msg of messagesToCache) {
-      await new Promise<void>((resolve, reject) => {
-        const request = store.put({ ...msg, thread_id: threadId });
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      });
-    }
+      // Add new messages
+      const { maxMessages } = { ...DEFAULT_OPTIONS, ...options };
+      const messagesToCache = messages.slice(-maxMessages);
 
-    await new Promise<void>((resolve, reject) => {
+      for (const msg of messagesToCache) {
+        const rawId = (msg as { id?: unknown }).id;
+        const idString =
+          typeof rawId === 'string' && rawId.trim().length > 0
+            ? rawId
+            : typeof rawId === 'number' && Number.isFinite(rawId)
+              ? String(rawId)
+              : null;
+
+        if (!idString) {
+          continue;
+        }
+
+        await new Promise<void>((resolve, reject) => {
+          const payload = { ...msg, id: idString, thread_id: threadId };
+          const request = store.put(payload);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });

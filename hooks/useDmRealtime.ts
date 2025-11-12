@@ -1,24 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabaseClient';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import type { Message } from '@/lib/dms';
 import { assertThreadId, type ThreadId } from '@/lib/dm/threadId';
-
-function createClientComponentClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    }
-  );
-}
 
 export type MessageChange = RealtimePostgresChangesPayload<{
   [key: string]: any;
@@ -52,7 +38,6 @@ export function useDmRealtime(
     // Update messages if initialMessages change
     setMessages(initialMessages);
 
-    const supabase = createClientComponentClient();
     let cancelled = false;
 
     const channel = supabase

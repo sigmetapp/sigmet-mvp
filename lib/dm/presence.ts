@@ -1,27 +1,123 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-// Presence channels by user ID
-const presenceChannels = new Map<string, RealtimeChannel>();
+interface PresenceEntry {
+  channel: RealtimeChannel;
+  listeners: Map<string, (online: boolean) => void>;
+  subscribed: boolean;
+  subscribePromise: Promise<void> | null;
+  refCount: number;
+  online: boolean;
+}
 
-/**
- * Get or create presence channel for a user
- */
-function getPresenceChannel(userId: string): RealtimeChannel {
-  let channel = presenceChannels.get(userId);
-  
-  if (!channel) {
-    channel = supabase.channel(`presence:${userId}`, {
+const presenceEntries = new Map<string, PresenceEntry>();
+let listenerIdCounter = 0;
+
+function nextListenerId(): string {
+  listenerIdCounter += 1;
+  return `presence-listener-${listenerIdCounter}`;
+}
+
+function getOrCreateEntry(userId: string): PresenceEntry {
+  let entry = presenceEntries.get(userId);
+
+  if (!entry) {
+    const channel = supabase.channel(`presence:${userId}`, {
       config: {
         presence: {
           key: userId,
         },
       },
     });
-    presenceChannels.set(userId, channel);
+
+    entry = {
+      channel,
+      listeners: new Map(),
+      subscribed: false,
+      subscribePromise: null,
+      refCount: 0,
+      online: false,
+    };
+
+    channel.on('presence', { event: 'sync' }, () => {
+      updatePresenceStateFromChannel(userId);
+    });
+
+    channel.on('presence', { event: 'join' }, ({ key }: { key: string }) => {
+      if (key === userId) {
+        setEntryOnline(userId, true);
+      }
+    });
+
+    channel.on('presence', { event: 'leave' }, ({ key }: { key: string }) => {
+      if (key === userId) {
+        updatePresenceStateFromChannel(userId);
+      }
+    });
+
+    presenceEntries.set(userId, entry);
   }
-  
-  return channel;
+
+  return entry;
+}
+
+function setEntryOnline(userId: string, online: boolean): void {
+  const entry = presenceEntries.get(userId);
+  if (!entry || entry.online === online) {
+    return;
+  }
+
+  entry.online = online;
+
+  for (const listener of entry.listeners.values()) {
+    try {
+      listener(online);
+    } catch (error) {
+      console.error(`Error notifying presence listener for ${userId}:`, error);
+    }
+  }
+}
+
+function updatePresenceStateFromChannel(userId: string): void {
+  const entry = presenceEntries.get(userId);
+  if (!entry) {
+    return;
+  }
+
+  try {
+    const state = entry.channel.presenceState();
+    const online = Array.isArray(state[userId]) && state[userId].length > 0;
+    setEntryOnline(userId, online);
+  } catch (error) {
+    console.error(`Error reading presence state for ${userId}:`, error);
+  }
+}
+
+async function ensureSubscribed(entry: PresenceEntry, userId: string): Promise<void> {
+  if (entry.subscribed) {
+    return;
+  }
+
+  if (entry.subscribePromise) {
+    await entry.subscribePromise;
+    return;
+  }
+
+  entry.subscribePromise = entry.channel
+    .subscribe()
+    .then(() => {
+      entry.subscribed = true;
+      updatePresenceStateFromChannel(userId);
+    })
+    .catch((error) => {
+      console.error(`Error subscribing to presence channel for ${userId}:`, error);
+      throw error;
+    })
+    .finally(() => {
+      entry.subscribePromise = null;
+    });
+
+  await entry.subscribePromise;
 }
 
 /**
@@ -29,25 +125,22 @@ function getPresenceChannel(userId: string): RealtimeChannel {
  */
 export async function setPresenceStatus(userId: string, online: boolean): Promise<void> {
   try {
-    const channel = getPresenceChannel(userId);
-    
-    // Ensure subscribed
-    const state = (channel as any).state;
-    if (state !== 'joined' && state !== 'joining') {
-      await channel.subscribe();
-    }
-    
+    const entry = getOrCreateEntry(userId);
+    await ensureSubscribed(entry, userId);
+
     if (online) {
-      await channel.track({
+      await entry.channel.track({
         online: true,
         last_seen: new Date().toISOString(),
       });
+      setEntryOnline(userId, true);
     } else {
-      await channel.untrack();
+      await entry.channel.untrack();
+      setEntryOnline(userId, false);
     }
   } catch (error) {
     console.error('Error setting presence status:', error);
-    // Don't throw - presence failures are not critical
+    // Presence failures are non-critical
   }
 }
 
@@ -58,70 +151,51 @@ export async function subscribeToPresence(
   userIds: string[],
   onPresenceChange: (userId: string, online: boolean) => void
 ): Promise<() => void> {
-  const channels: RealtimeChannel[] = [];
-  const cleanupMap = new Map<string, () => void>();
-  
+  const subscriptions: { userId: string; listenerId: string }[] = [];
+
   for (const userId of userIds) {
     try {
-      const channel = getPresenceChannel(userId);
-      
-      // Subscribe to presence sync
-      const syncHandler = () => {
-        try {
-          const state = channel.presenceState();
-          const presence = state[userId]?.[0];
-          onPresenceChange(userId, !!presence);
-        } catch (error) {
-          console.error(`Error in presence sync handler for ${userId}:`, error);
-        }
+      const entry = getOrCreateEntry(userId);
+      entry.refCount += 1;
+
+      const listenerId = `${userId}:${nextListenerId()}`;
+      const handler = (online: boolean) => {
+        onPresenceChange(userId, online);
       };
-      
-      // Subscribe to presence join/leave
-      const joinHandler = ({ key }: { key: string }) => {
-        if (key === userId) {
-          onPresenceChange(userId, true);
-        }
-      };
-      
-      const leaveHandler = ({ key }: { key: string }) => {
-        if (key === userId) {
-          onPresenceChange(userId, false);
-        }
-      };
-      
-      channel.on('presence', { event: 'sync' }, syncHandler);
-      channel.on('presence', { event: 'join' }, joinHandler);
-      channel.on('presence', { event: 'leave' }, leaveHandler);
-      
-      await channel.subscribe();
-      channels.push(channel);
-      
-      // Store cleanup function
-      cleanupMap.set(userId, () => {
-        try {
-          channel.off('presence', { event: 'sync' }, syncHandler);
-          channel.off('presence', { event: 'join' }, joinHandler);
-          channel.off('presence', { event: 'leave' }, leaveHandler);
-        } catch (error) {
-          console.error(`Error cleaning up presence handlers for ${userId}:`, error);
-        }
-      });
+
+      entry.listeners.set(listenerId, handler);
+      subscriptions.push({ userId, listenerId });
+
+      await ensureSubscribed(entry, userId);
+
+      const state = entry.channel.presenceState();
+      const online = Array.isArray(state[userId]) && state[userId].length > 0;
+      entry.online = online;
+      handler(online);
     } catch (error) {
       console.error(`Error setting up presence for ${userId}:`, error);
     }
   }
-  
-  // Return unsubscribe function
+
   return async () => {
-    for (const channel of channels) {
-      try {
-        await channel.unsubscribe();
-      } catch (error) {
-        console.error('Error unsubscribing from presence channel:', error);
+    for (const { userId, listenerId } of subscriptions) {
+      const entry = presenceEntries.get(userId);
+      if (!entry) {
+        continue;
       }
-    }
-    for (const cleanup of cleanupMap.values()) {
-      cleanup();
+
+      entry.listeners.delete(listenerId);
+      entry.refCount = Math.max(0, entry.refCount - 1);
+
+      if (entry.refCount === 0 && entry.listeners.size === 0) {
+        try {
+          await entry.channel.unsubscribe();
+        } catch (error) {
+          console.error('Error unsubscribing from presence channel:', error);
+        } finally {
+          presenceEntries.delete(userId);
+        }
+      }
     }
   };
 }
@@ -130,34 +204,28 @@ export async function subscribeToPresence(
  * Get current presence state for a user
  */
 export function getPresenceState(userId: string): boolean {
+  const entry = presenceEntries.get(userId);
+  if (!entry) {
+    return false;
+  }
+
   try {
-    const channel = presenceChannels.get(userId);
-    if (!channel) return false;
-    
-    const state = channel.presenceState();
-    return !!state[userId]?.[0];
+    const state = entry.channel.presenceState();
+    return Array.isArray(state[userId]) && state[userId].length > 0;
   } catch (error) {
     console.error(`Error getting presence state for ${userId}:`, error);
-    return false;
+    return entry.online;
   }
 }
 
 /**
- * Get presence map for a user (for initial check)
+ * Get presence map for a user
  */
 export async function getPresenceMap(userId: string): Promise<Record<string, any[]>> {
   try {
-    const channel = getPresenceChannel(userId);
-    
-    // Ensure subscribed
-    const state = (channel as any).state;
-    if (state !== 'joined' && state !== 'joining') {
-      await channel.subscribe();
-      // Wait a bit for sync to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    
-    return channel.presenceState();
+    const entry = getOrCreateEntry(userId);
+    await ensureSubscribed(entry, userId);
+    return entry.channel.presenceState();
   } catch (error) {
     console.error(`Error getting presence map for ${userId}:`, error);
     return {};
