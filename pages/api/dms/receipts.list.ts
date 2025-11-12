@@ -104,12 +104,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
     }
 
-    const serviceClient =
-      process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim() !== ''
-        ? createSupabaseForRequest(req, true)
-        : null;
+      const serviceClient =
+        process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim() !== ''
+          ? createSupabaseForRequest(req, true)
+          : null;
 
-    const receiptsClient = serviceClient ?? client;
+      const receiptsClient = serviceClient ?? client;
 
       const messageIdEntries = normalizedMessageIds
         .map((id) => ({
@@ -125,13 +125,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ ok: true, receipts: [] as ReceiptRow[] });
       }
 
+      const numericIds = messageIdEntries.map((entry) => entry.numericId);
+      const stringIdByNumeric = new Map<number, string>(
+        messageIdEntries.map((entry) => [entry.numericId, entry.stringId])
+      );
+
       let receiptsQuery = receiptsClient
         .from('dms_message_receipts')
         .select('message_id, user_id, status, updated_at, message:dms_messages!inner(thread_id)')
-        .in(
-          'message_id',
-          messageIdEntries.map((entry) => entry.numericId)
-        )
+        .in('message_id', numericIds)
         .eq('message.thread_id', threadId);
 
       if (targetRecipientIds.length > 0) {
@@ -144,12 +146,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: receiptsError.message });
     }
 
-    const normalized: ReceiptRow[] = (receipts ?? []).map((row: any) => ({
-      message_id: String(row.message_id),
-      user_id: String(row.user_id),
-      status: row.status as 'sent' | 'delivered' | 'read',
-      updated_at: row.updated_at ?? null,
-    }));
+      const normalized: ReceiptRow[] = (receipts ?? []).map((row: any) => {
+        const numericId = Number.parseInt(String(row.message_id), 10);
+        const mappedId = Number.isFinite(numericId)
+          ? stringIdByNumeric.get(numericId) ?? String(row.message_id)
+          : String(row.message_id);
+
+        return {
+          message_id: mappedId,
+          user_id: String(row.user_id),
+          status: row.status as 'sent' | 'delivered' | 'read',
+          updated_at: row.updated_at ?? null,
+        };
+      });
 
     return res.status(200).json({ ok: true, receipts: normalized });
   } catch (err: any) {
