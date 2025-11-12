@@ -143,7 +143,8 @@ begin
     and (expires_at is null or expires_at >= now());
 
   if invite_count >= user_invite_limit then
-    raise exception format('Invite limit reached (%s per user for your SW level)', user_invite_limit);
+    raise exception using 
+      message = 'Invite limit reached (' || user_invite_limit || ' per user for your SW level)';
   end if;
 
   -- Generate token and invite code
