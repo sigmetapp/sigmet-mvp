@@ -26,12 +26,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!msg) return res.status(404).json({ ok: false, error: 'Not found' });
     if (msg.sender_id !== user.id) return res.status(403).json({ ok: false, error: 'Forbidden' });
 
-    const { data: updated, error: updErr } = await client
+    let { data: updated, error: updErr } = await client
       .from('dms_messages')
       .update({ body, edited_at: new Date().toISOString() })
       .eq('id', messageId)
       .select('*, receipts:dms_message_receipts(user_id, status, updated_at)')
       .single();
+
+    // If error is about updated_at column not existing, retry without it
+    if (updErr && updErr.message?.includes('updated_at')) {
+      console.warn('updated_at column not found in receipts, retrying without it');
+      const retryResult = await client
+        .from('dms_messages')
+        .update({ body, edited_at: new Date().toISOString() })
+        .eq('id', messageId)
+        .select('*, receipts:dms_message_receipts(user_id, status)')
+        .single();
+      updated = retryResult.data;
+      updErr = retryResult.error;
+    }
 
     if (updErr || !updated) return res.status(400).json({ ok: false, error: updErr?.message || 'Failed to edit' });
 
