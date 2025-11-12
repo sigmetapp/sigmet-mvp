@@ -42,7 +42,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .order('id', { ascending: false })
       .limit(limit);
 
-    const { data: messages, error } = await q;
+    let { data: messages, error } = await q;
+    
+    // If error is about updated_at column not existing, retry without it
+    if (error && error.message?.includes('updated_at')) {
+      console.warn('updated_at column not found in receipts, retrying without it');
+      q = client
+        .from('dms_messages')
+        .select('*, receipts:dms_message_receipts(user_id, status)')
+        .eq('thread_id', threadId)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(limit);
+      const retryResult = await q;
+      messages = retryResult.data;
+      error = retryResult.error;
+    }
+    
     if (error) return res.status(400).json({ ok: false, error: error.message });
 
     return res.status(200).json({ ok: true, messages });

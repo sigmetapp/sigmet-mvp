@@ -111,6 +111,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const receiptsClient = serviceClient ?? client;
 
+    // Try to select updated_at, but handle gracefully if column doesn't exist
     let receiptsQuery = receiptsClient
       .from('dms_message_receipts')
       .select('message_id, user_id, status, updated_at, message:dms_messages!inner(thread_id)')
@@ -121,7 +122,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       receiptsQuery = receiptsQuery.in('user_id', targetRecipientIds);
     }
 
-    const { data: receipts, error: receiptsError } = await receiptsQuery;
+    let { data: receipts, error: receiptsError } = await receiptsQuery;
+    
+    // If error is about updated_at column not existing, retry without it
+    if (receiptsError && receiptsError.message?.includes('updated_at')) {
+      console.warn('updated_at column not found, retrying without it');
+      receiptsQuery = receiptsClient
+        .from('dms_message_receipts')
+        .select('message_id, user_id, status, message:dms_messages!inner(thread_id)')
+        .in('message_id', normalizedMessageIds)
+        .eq('message.thread_id', threadId);
+      
+      if (targetRecipientIds.length > 0) {
+        receiptsQuery = receiptsQuery.in('user_id', targetRecipientIds);
+      }
+      
+      const retryResult = await receiptsQuery;
+      receipts = retryResult.data;
+      receiptsError = retryResult.error;
+    }
 
     if (receiptsError) {
       return res.status(400).json({ ok: false, error: receiptsError.message });
