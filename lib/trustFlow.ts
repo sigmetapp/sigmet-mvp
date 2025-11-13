@@ -294,6 +294,37 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     let positiveSum = 0;
     let negativeSum = 0;
     
+    // Check if this is the first push ever from each user (to determine if they're "new")
+    const firstPushCheckPromises: Promise<{ fromUserId: string; isFirstPush: boolean }>[] = [];
+    for (const [fromUserId, userPushes] of pushesByUser.entries()) {
+      // Get the earliest push timestamp from this user to this target user
+      const sortedPushes = [...userPushes].sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      const firstPushTimestamp = sortedPushes[0]?.created_at;
+      
+      firstPushCheckPromises.push(
+        (async () => {
+          // Check if this user has given any pushes before this one (to any user)
+          const { count } = await supabase
+            .from('trust_pushes')
+            .select('id', { count: 'exact', head: true })
+            .eq('from_user_id', fromUserId)
+            .lt('created_at', firstPushTimestamp || new Date().toISOString());
+          
+          return {
+            fromUserId,
+            isFirstPush: (count || 0) === 0,
+          };
+        })()
+      );
+    }
+    const firstPushChecks = await Promise.all(firstPushCheckPromises);
+    const firstPushMap = new Map<string, boolean>();
+    for (const check of firstPushChecks) {
+      firstPushMap.set(check.fromUserId, check.isFirstPush);
+    }
+    
     for (const [fromUserId, userPushes] of pushesByUser.entries()) {
       // Get weight from cache, fallback to minimum weight if not found
       const weight = weightCache.get(fromUserId) ?? MIN_USER_WEIGHT;
@@ -307,7 +338,10 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
         const push = sortedPushes[i];
         // Repeat count is how many pushes came before this one (i is the count)
         const repeatCount = i;
-        const effectiveWeight = weight / (1 + repeatCount);
+        
+        // For new users' first push ever, use 1.5 instead of calculated weight
+        const isFirstPushEver = firstPushMap.get(fromUserId) === true && repeatCount === 0;
+        const effectiveWeight = isFirstPushEver ? 1.5 : weight / (1 + repeatCount);
         
         if (push.type === 'positive') {
           positiveSum += effectiveWeight;

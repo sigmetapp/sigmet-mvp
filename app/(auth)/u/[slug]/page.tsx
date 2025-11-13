@@ -14,6 +14,7 @@ import { resolveAvatarUrl } from '@/lib/utils';
 import GoalReactions from '@/components/GoalReactions';
 import { calculateUserWeight, getRepeatCount, MIN_USER_WEIGHT } from '@/lib/trustFlow';
 import TrustFlowInfoModal from '@/components/TrustFlowInfoModal';
+import { X as CloseIcon } from 'lucide-react';
 
 type Profile = {
   user_id: string;
@@ -221,6 +222,7 @@ export default function PublicProfilePage() {
   const [trustFlowInfoOpen, setTrustFlowInfoOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackPending, setFeedbackPending] = useState(false);
+  const [pushType, setPushType] = useState<'positive' | 'negative' | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState<
     Array<{
@@ -514,10 +516,15 @@ export default function PublicProfilePage() {
           return;
         }
 
-        const res = await fetch(`/api/users/${profile.user_id}/trust-flow`, {
+        // Add cache-busting timestamp to ensure fresh data
+        const timestamp = Date.now();
+        const res = await fetch(`/api/users/${profile.user_id}/trust-flow?t=${timestamp}`, {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
           },
+          cache: 'no-store',
         });
 
         if (res.ok) {
@@ -918,6 +925,13 @@ export default function PublicProfilePage() {
 
   async function submitFeedback(kind: 'up' | 'down') {
     if (!profile?.user_id) return;
+    
+    // Validate message field: required, minimum 100 characters
+    if (!feedbackText || feedbackText.trim().length < 100) {
+      alert('Please provide a message with at least 100 characters explaining your push.');
+      return;
+    }
+    
     setFeedbackPending(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
@@ -928,6 +942,7 @@ export default function PublicProfilePage() {
         setFeedbackPending(false);
         setFeedbackOpen(false);
         setFeedbackText('');
+        setPushType(null);
         return;
       }
       
@@ -1018,6 +1033,7 @@ export default function PublicProfilePage() {
       
       setFeedbackOpen(false);
       setFeedbackText('');
+      setPushType(null);
       
       // Wait a bit to ensure database commit before recalculating
       // Increased delay to ensure transaction is committed and visible to admin client
@@ -1032,10 +1048,15 @@ export default function PublicProfilePage() {
       while (retries > 0 && !recalculated) {
         try {
           console.log(`[Trust Push] Recalculating Trust Flow (attempt ${6 - retries}/5)...`);
-          const res = await fetch(`/api/users/${profile.user_id}/trust-flow`, {
+          // Add cache-busting timestamp to ensure fresh data
+          const timestamp = Date.now();
+          const res = await fetch(`/api/users/${profile.user_id}/trust-flow?t=${timestamp}`, {
             headers: {
               Authorization: `Bearer ${session.access_token}`,
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
             },
+            cache: 'no-store',
           });
 
           if (res.ok) {
@@ -2143,35 +2164,90 @@ export default function PublicProfilePage() {
       {/* Feedback modal */}
       {feedbackOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/80" onClick={() => !feedbackPending && setFeedbackOpen(false)} />
-          <div className="relative z-10 w-full max-w-md mx-auto p-4">
-            <div className="card p-4 md:p-5 space-y-3">
+          <div className="absolute inset-0 bg-black/80" onClick={() => !feedbackPending && (setFeedbackOpen(false), setPushType(null), setFeedbackText(''))} />
+          <div className="relative z-10 w-full max-w-xl mx-auto p-4">
+            <div className="card-glow-primary p-4 md:p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="text-white/90 font-medium">Leave opinion</div>
-                <button onClick={() => !feedbackPending && setFeedbackOpen(false)} className="text-white/60 hover:text-white">✕</button>
+                <div className="text-white/90 font-medium">Leave Trust Flow Push</div>
+                <button
+                  onClick={() => !feedbackPending && (setFeedbackOpen(false), setPushType(null), setFeedbackText(''))}
+                  className="text-white/60 hover:text-white transition"
+                  aria-label="Close"
+                >
+                  <CloseIcon className="h-5 w-5" aria-hidden="true" />
+                </button>
               </div>
-              <textarea
-                value={feedbackText}
-                onChange={(e) => setFeedbackText(e.target.value)}
-                placeholder="Write why you vote up or down (optional)"
-                className="w-full bg-transparent border border-white/10 rounded-2xl p-3 outline-none text-white min-h-[120px]"
-              />
-              <div className="flex items-center gap-2">
+              
+              {/* Rules section */}
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg border bg-amber-900/20 border-amber-700/30 text-amber-300">
+                <svg className="h-5 w-5 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+                <div className="text-sm space-y-1">
+                  <div className="font-medium">Push Submission Rules:</div>
+                  <ul className="list-disc list-inside space-y-0.5 text-xs">
+                    <li><strong>Authenticity:</strong> Provide honest and accurate evaluations based on real interactions and experiences.</li>
+                    <li><strong>Responsibility:</strong> You are responsible for your actions. False or malicious pushes may result in account restrictions.</li>
+                    <li><strong>Anti-Manipulation:</strong> Pushes are limited to prevent gaming the system. Abuse will be detected and penalized.</li>
+                    <li><strong>Appeals:</strong> If you receive a negative push, you can submit an appeal for review by the moderation team.</li>
+                  </ul>
+                </div>
+              </div>
+              
+              {/* Message field */}
+              <div className="space-y-2">
+                <textarea
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder="Explain your push in detail (minimum 100 characters required)"
+                  className="input w-full outline-none min-h-[120px] text-base md:text-lg placeholder-primary-text-secondary/50"
+                  required
+                />
+                <div className="text-xs text-white/60">
+                  {feedbackText.length}/100 characters (minimum required)
+                  {feedbackText.length > 0 && feedbackText.length < 100 && (
+                    <span className="text-amber-400 ml-2">Please provide more details</span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Action buttons */}
+              <div className="flex items-center gap-3">
                 <button
-                  onClick={() => submitFeedback('up')}
-                  disabled={feedbackPending}
-                  className="px-3 py-2 rounded-xl border border-emerald-300 text-emerald-300 hover:bg-emerald-300/10"
+                  onClick={() => {
+                    setPushType('positive');
+                    if (feedbackText.trim().length >= 100) {
+                      submitFeedback('up');
+                    }
+                  }}
+                  disabled={feedbackPending || feedbackText.trim().length < 100}
+                  className={`px-4 py-2 rounded-xl border transition ${
+                    pushType === 'positive'
+                      ? 'border-emerald-400 text-emerald-400 bg-emerald-400/10'
+                      : 'border-emerald-300/50 text-emerald-300/70 hover:bg-emerald-300/10'
+                  } ${feedbackPending || feedbackText.trim().length < 100 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  UP
+                  Positive Push
                 </button>
                 <button
-                  onClick={() => submitFeedback('down')}
-                  disabled={feedbackPending}
-                  className="px-3 py-2 rounded-xl border border-rose-300 text-rose-300 hover:bg-rose-300/10"
+                  onClick={() => {
+                    setPushType('negative');
+                    if (feedbackText.trim().length >= 100) {
+                      submitFeedback('down');
+                    }
+                  }}
+                  disabled={feedbackPending || feedbackText.trim().length < 100}
+                  className={`px-4 py-2 rounded-xl border transition ${
+                    pushType === 'negative'
+                      ? 'border-rose-400 text-rose-400 bg-rose-400/10'
+                      : 'border-rose-300/50 text-rose-300/70 hover:bg-rose-300/10'
+                  } ${feedbackPending || feedbackText.trim().length < 100 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  Down
+                  Negative Push
                 </button>
-                <div className="ml-auto text-sm text-white/60">This helps adjust Trust Flow</div>
+                <div className="ml-auto text-sm text-white/60">
+                  {feedbackPending ? 'Submitting...' : 'This affects Trust Flow'}
+                </div>
               </div>
             </div>
           </div>
