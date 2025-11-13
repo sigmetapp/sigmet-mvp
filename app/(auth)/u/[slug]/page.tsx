@@ -505,7 +505,7 @@ export default function PublicProfilePage() {
   }, [slug, router]);
 
 
-  // Load Trust Flow score using new calculation
+  // Load Trust Flow score - now uses cached value for fast loading
   useEffect(() => {
     if (!profile?.user_id) return;
     (async () => {
@@ -518,7 +518,8 @@ export default function PublicProfilePage() {
 
         // Add cache-busting timestamp to ensure fresh data
         const timestamp = Date.now();
-        const res = await fetch(`/api/users/${profile.user_id}/trust-flow?t=${timestamp}`, {
+        // Load from cache first (fast), API will recalculate if needed
+        const res = await fetch(`/api/users/${profile.user_id}/trust-flow`, {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
             'Cache-Control': 'no-cache',
@@ -1045,27 +1046,21 @@ export default function PublicProfilePage() {
       setPushType(null);
       
       // Wait a bit to ensure database commit before recalculating
-      // Increased delay to ensure transaction is committed and visible to admin client
-      // Increased to 1000ms to ensure database replication/consistency
       console.log('[Trust Push] Waiting for database commit...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Recalculate Trust Flow with retry logic
-      let retries = 5;
+      // Recalculate Trust Flow - API will now save to cache automatically
+      // Use recalculate=true to force recalculation after push
+      let retries = 3;
       let recalculated = false;
       
       while (retries > 0 && !recalculated) {
         try {
-          console.log(`[Trust Push] Recalculating Trust Flow (attempt ${6 - retries}/5)...`);
-          // Add cache-busting timestamp to ensure fresh data
-          const timestamp = Date.now();
-          const res = await fetch(`/api/users/${profile.user_id}/trust-flow?t=${timestamp}`, {
+          console.log(`[Trust Push] Recalculating Trust Flow (attempt ${4 - retries}/3)...`);
+          const res = await fetch(`/api/users/${profile.user_id}/trust-flow?recalculate=true`, {
             headers: {
               Authorization: `Bearer ${session.access_token}`,
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache',
             },
-            cache: 'no-store',
           });
 
           if (res.ok) {
@@ -1074,7 +1069,7 @@ export default function PublicProfilePage() {
             const tfValue = data.trustFlow && typeof data.trustFlow === 'number' && data.trustFlow > 0 
               ? data.trustFlow 
               : 5.0; // BASE_TRUST_FLOW fallback
-            console.log('[Trust Push] Trust Flow recalculated successfully:', tfValue, 'previous:', trustFlow);
+            console.log('[Trust Push] Trust Flow recalculated and cached successfully:', tfValue, 'previous:', trustFlow);
             setTrustFlow(tfValue);
             setTrustFlowColor(data.color || 'gray');
             recalculated = true;
@@ -1083,12 +1078,12 @@ export default function PublicProfilePage() {
             console.error('[Trust Push] Error recalculating Trust Flow:', res.status, errorText);
             retries--;
             if (retries > 0) {
-              // Wait before retry with increasing delay
-              const delay = (6 - retries) * 300; // 300ms, 600ms, 900ms, 1200ms
+              // Wait before retry
+              const delay = 500;
               console.log(`[Trust Push] Retrying in ${delay}ms...`);
               await new Promise(resolve => setTimeout(resolve, delay));
             } else {
-              // After all retries failed, use base value instead of leaving it at 0
+              // After all retries failed, use base value
               console.warn('[Trust Push] All retries failed, using base Trust Flow value');
               setTrustFlow(5.0); // BASE_TRUST_FLOW
               setTrustFlowColor('gray');
@@ -1098,12 +1093,10 @@ export default function PublicProfilePage() {
           console.error('[Trust Push] Error recalculating Trust Flow:', recalcErr);
           retries--;
           if (retries > 0) {
-            // Wait before retry with increasing delay
-            const delay = (6 - retries) * 300;
+            const delay = 500;
             console.log(`[Trust Push] Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
           } else {
-            // After all retries failed, use base value instead of leaving it at 0
             console.warn('[Trust Push] All retries failed, using base Trust Flow value');
             setTrustFlow(5.0); // BASE_TRUST_FLOW
             setTrustFlowColor('gray');

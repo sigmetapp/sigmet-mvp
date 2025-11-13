@@ -3,7 +3,7 @@ import { supabaseAdmin } from './supabaseServer';
 export type TrustPushType = 'positive' | 'negative';
 
 // Base Trust Flow value for new users (users with no pushes)
-const BASE_TRUST_FLOW = 5.0;
+export const BASE_TRUST_FLOW = 5.0;
 
 export interface TrustPush {
   id: number;
@@ -376,6 +376,111 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     // Return base value on error to ensure users always have a minimum TF
     return BASE_TRUST_FLOW;
   }
+}
+
+/**
+ * Save calculated Trust Flow to cache and log history
+ * This function updates the profiles.trust_flow column and logs to trust_flow_history
+ */
+export async function saveTrustFlowToCache(
+  userId: string,
+  trustFlow: number,
+  options: {
+    changeReason?: string;
+    pushId?: number;
+    calculatedBy?: string;
+    metadata?: Record<string, any>;
+  } = {}
+): Promise<void> {
+  const supabase = supabaseAdmin();
+  
+  try {
+    const { error } = await supabase.rpc('update_user_trust_flow', {
+      p_user_id: userId,
+      p_new_value: trustFlow,
+      p_change_reason: options.changeReason || 'manual_recalc',
+      p_push_id: options.pushId || null,
+      p_calculated_by: options.calculatedBy || 'api',
+      p_metadata: options.metadata || null,
+    });
+    
+    if (error) {
+      console.error('[Trust Flow] Error saving to cache:', error);
+      // Don't throw - caching failure shouldn't break the flow
+    } else {
+      console.log(`[Trust Flow] Saved TF ${trustFlow.toFixed(2)} to cache for user ${userId}`);
+    }
+  } catch (error) {
+    console.error('[Trust Flow] Exception saving to cache:', error);
+    // Don't throw - caching failure shouldn't break the flow
+  }
+}
+
+/**
+ * Get cached Trust Flow value from profiles table
+ * Returns null if not cached, falls back to BASE_TRUST_FLOW
+ */
+export async function getCachedTrustFlow(userId: string): Promise<number | null> {
+  const supabase = supabaseAdmin();
+  
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('trust_flow')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('[Trust Flow] Error reading cache:', error);
+      return null;
+    }
+    
+    if (data?.trust_flow !== null && data?.trust_flow !== undefined) {
+      return Number(data.trust_flow);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[Trust Flow] Exception reading cache:', error);
+    return null;
+  }
+}
+
+/**
+ * Calculate and save Trust Flow for a user
+ * This is the main function that should be used when TF needs to be recalculated
+ */
+export async function calculateAndSaveTrustFlow(
+  userId: string,
+  options: {
+    changeReason?: string;
+    pushId?: number;
+    calculatedBy?: string;
+    metadata?: Record<string, any>;
+    useCache?: boolean; // If true, return cached value if available
+  } = {}
+): Promise<number> {
+  // If useCache is true, try to get cached value first
+  if (options.useCache) {
+    const cached = await getCachedTrustFlow(userId);
+    if (cached !== null) {
+      console.log(`[Trust Flow] Using cached value ${cached.toFixed(2)} for user ${userId}`);
+      return cached;
+    }
+  }
+  
+  // Calculate new value
+  const trustFlow = await calculateTrustFlowForUser(userId);
+  
+  // Save to cache and log history
+  await saveTrustFlowToCache(userId, trustFlow, {
+    changeReason: options.changeReason || 'manual_recalc',
+    pushId: options.pushId,
+    calculatedBy: options.calculatedBy || 'api',
+    metadata: options.metadata,
+  });
+  
+  return trustFlow;
 }
 
 /**

@@ -1,5 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { calculateTrustFlowForUser, getTrustFlowColor } from '@/lib/trustFlow';
+import { 
+  getCachedTrustFlow, 
+  calculateAndSaveTrustFlow, 
+  getTrustFlowColor,
+  BASE_TRUST_FLOW 
+} from '@/lib/trustFlow';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export default async function handler(
@@ -10,7 +15,7 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { id: userId } = req.query;
+  const { id: userId, recalculate } = req.query;
 
   if (!userId || typeof userId !== 'string') {
     return res.status(400).json({ error: 'User ID is required' });
@@ -28,11 +33,9 @@ export default async function handler(
     // If user not found (PGRST116 = not found), return base Trust Flow
     if (profileError && profileError.code === 'PGRST116') {
       console.log(`[Trust Flow API] User ${userId} not found in profiles, returning base TF`);
-      const baseTF = 5.0;
+      const baseTF = BASE_TRUST_FLOW;
       const colorInfo = getTrustFlowColor(baseTF);
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
+      res.setHeader('Cache-Control', 'public, max-age=60'); // Cache for 1 minute
       return res.status(200).json({
         trustFlow: baseTF,
         color: colorInfo.color,
@@ -47,16 +50,39 @@ export default async function handler(
       // Continue anyway - user might exist but query failed
     }
 
-    // Calculate Trust Flow
-    console.log(`[Trust Flow API] Calculating Trust Flow for user ${userId}`);
-    const trustFlow = await calculateTrustFlowForUser(userId);
-    const colorInfo = getTrustFlowColor(trustFlow);
-    console.log(`[Trust Flow API] Calculated TF: ${trustFlow}, color: ${colorInfo.color}`);
+    let trustFlow: number;
 
-    // Set cache-control headers to prevent caching
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    // If recalculate=true, force recalculation
+    if (recalculate === 'true') {
+      console.log(`[Trust Flow API] Recalculating Trust Flow for user ${userId}`);
+      trustFlow = await calculateAndSaveTrustFlow(userId, {
+        changeReason: 'api_recalc',
+        calculatedBy: 'api',
+        useCache: false,
+      });
+    } else {
+      // Try to get cached value first
+      const cached = await getCachedTrustFlow(userId);
+      
+      if (cached !== null) {
+        console.log(`[Trust Flow API] Using cached TF ${cached.toFixed(2)} for user ${userId}`);
+        trustFlow = cached;
+      } else {
+        // No cache, calculate and save
+        console.log(`[Trust Flow API] No cache found, calculating Trust Flow for user ${userId}`);
+        trustFlow = await calculateAndSaveTrustFlow(userId, {
+          changeReason: 'api_first_load',
+          calculatedBy: 'api',
+          useCache: false,
+        });
+      }
+    }
+
+    const colorInfo = getTrustFlowColor(trustFlow);
+    console.log(`[Trust Flow API] Returning TF: ${trustFlow.toFixed(2)}, color: ${colorInfo.color}`);
+
+    // Cache for 1 minute (TF doesn't change that often)
+    res.setHeader('Cache-Control', 'public, max-age=60');
     
     return res.status(200).json({
       trustFlow,
@@ -65,13 +91,11 @@ export default async function handler(
       gradient: colorInfo.gradient,
     });
   } catch (error: any) {
-    console.error(`[Trust Flow API] Error calculating Trust Flow for user ${userId}:`, error);
+    console.error(`[Trust Flow API] Error getting Trust Flow for user ${userId}:`, error);
     // Return base Trust Flow instead of error
-    const baseTF = 5.0;
+    const baseTF = BASE_TRUST_FLOW;
     const colorInfo = getTrustFlowColor(baseTF);
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     return res.status(200).json({
       trustFlow: baseTF,
       color: colorInfo.color,
