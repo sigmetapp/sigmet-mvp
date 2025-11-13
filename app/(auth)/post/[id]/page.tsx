@@ -7,14 +7,19 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 
 type PostRecord = {
   id: number;
-  user_id: string | null;
-  body: string | null;
-  image_url: string | null;
-  video_url: string | null;
+  author_id: string | null;
+  user_id?: string | null; // Legacy alias
+  text: string | null;
+  body?: string | null; // Legacy alias
+  image_url?: string | null;
+  video_url?: string | null;
+  image_urls?: string[] | null;
+  video_urls?: string[] | null;
   category: string | null;
   created_at: string;
-  views: number;
-  likes_count: number;
+  updated_at?: string | null;
+  views?: number;
+  likes_count?: number;
 };
 
 type Profile = {
@@ -48,11 +53,12 @@ const loadPostData = cache(async (postId: number) => {
   }
 
   let authorProfile: Profile | null = null;
-  if (post.user_id) {
+  const authorId = post.author_id || post.user_id;
+  if (authorId) {
     const { data: profile } = await admin
       .from<Profile>('profiles')
       .select('username, full_name, avatar_url')
-      .eq('user_id', post.user_id)
+      .eq('user_id', authorId)
       .maybeSingle();
     if (profile) {
       authorProfile = profile;
@@ -92,7 +98,8 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   try {
     const { post, authorProfile } = await loadPostData(postId);
     const username = authorProfile?.username || authorProfile?.full_name || 'User';
-    const postPreview = post.body ? (post.body.length > 100 ? post.body.substring(0, 100) + '...' : post.body) : '';
+    const postText = post.text || post.body || '';
+    const postPreview = postText ? (postText.length > 100 ? postText.substring(0, 100) + '...' : postText) : '';
 
     return {
       title: `Post by ${username}`,
