@@ -505,20 +505,24 @@ export default function PublicProfilePage() {
   }, [slug, router]);
 
 
-  // Load Trust Flow score using new calculation
+  // Load Trust Flow score - now uses cached value for fast loading
   useEffect(() => {
     if (!profile?.user_id) return;
     (async () => {
       try {
+        console.log('[Trust Flow] Loading TF for user:', profile.user_id);
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          setTrustScore(0);
+          console.log('[Trust Flow] No session, setting to base value');
+          setTrustFlow(5.0); // BASE_TRUST_FLOW
+          setTrustFlowColor('gray');
           return;
         }
 
-        // Add cache-busting timestamp to ensure fresh data
-        const timestamp = Date.now();
-        const res = await fetch(`/api/users/${profile.user_id}/trust-flow?t=${timestamp}`, {
+        // Load from cache first (fast), API will auto-recalculate if needed
+        // Force recalculation if we suspect the value might be stale (base value 5.0)
+        console.log('[Trust Flow] Fetching TF from API...');
+        const res = await fetch(`/api/users/${profile.user_id}/trust-flow?recalculate=true`, {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
             'Cache-Control': 'no-cache',
@@ -527,12 +531,16 @@ export default function PublicProfilePage() {
           cache: 'no-store',
         });
 
+        console.log('[Trust Flow] API response status:', res.status);
+
         if (res.ok) {
           const data = await res.json();
+          console.log('[Trust Flow] API response data:', JSON.stringify(data, null, 2));
           // Ensure we have a valid trustFlow value (should be at least 5.0)
           const tfValue = data.trustFlow && typeof data.trustFlow === 'number' && data.trustFlow > 0 
             ? data.trustFlow 
             : 5.0; // BASE_TRUST_FLOW fallback
+          console.log('[Trust Flow] Setting TF to:', tfValue, '(raw value:', data.trustFlow, ')');
           setTrustFlow(tfValue);
           setTrustFlowColor(data.color || 'gray');
         } else {
@@ -1045,27 +1053,21 @@ export default function PublicProfilePage() {
       setPushType(null);
       
       // Wait a bit to ensure database commit before recalculating
-      // Increased delay to ensure transaction is committed and visible to admin client
-      // Increased to 1000ms to ensure database replication/consistency
       console.log('[Trust Push] Waiting for database commit...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Recalculate Trust Flow with retry logic
-      let retries = 5;
+      // Recalculate Trust Flow - API will now save to cache automatically
+      // Use recalculate=true to force recalculation after push
+      let retries = 3;
       let recalculated = false;
       
       while (retries > 0 && !recalculated) {
         try {
-          console.log(`[Trust Push] Recalculating Trust Flow (attempt ${6 - retries}/5)...`);
-          // Add cache-busting timestamp to ensure fresh data
-          const timestamp = Date.now();
-          const res = await fetch(`/api/users/${profile.user_id}/trust-flow?t=${timestamp}`, {
+          console.log(`[Trust Push] Recalculating Trust Flow (attempt ${4 - retries}/3)...`);
+          const res = await fetch(`/api/users/${profile.user_id}/trust-flow?recalculate=true`, {
             headers: {
               Authorization: `Bearer ${session.access_token}`,
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache',
             },
-            cache: 'no-store',
           });
 
           if (res.ok) {
@@ -1074,7 +1076,7 @@ export default function PublicProfilePage() {
             const tfValue = data.trustFlow && typeof data.trustFlow === 'number' && data.trustFlow > 0 
               ? data.trustFlow 
               : 5.0; // BASE_TRUST_FLOW fallback
-            console.log('[Trust Push] Trust Flow recalculated successfully:', tfValue, 'previous:', trustFlow);
+            console.log('[Trust Push] Trust Flow recalculated and cached successfully:', tfValue, 'previous:', trustFlow);
             setTrustFlow(tfValue);
             setTrustFlowColor(data.color || 'gray');
             recalculated = true;
@@ -1083,12 +1085,12 @@ export default function PublicProfilePage() {
             console.error('[Trust Push] Error recalculating Trust Flow:', res.status, errorText);
             retries--;
             if (retries > 0) {
-              // Wait before retry with increasing delay
-              const delay = (6 - retries) * 300; // 300ms, 600ms, 900ms, 1200ms
+              // Wait before retry
+              const delay = 500;
               console.log(`[Trust Push] Retrying in ${delay}ms...`);
               await new Promise(resolve => setTimeout(resolve, delay));
             } else {
-              // After all retries failed, use base value instead of leaving it at 0
+              // After all retries failed, use base value
               console.warn('[Trust Push] All retries failed, using base Trust Flow value');
               setTrustFlow(5.0); // BASE_TRUST_FLOW
               setTrustFlowColor('gray');
@@ -1098,12 +1100,10 @@ export default function PublicProfilePage() {
           console.error('[Trust Push] Error recalculating Trust Flow:', recalcErr);
           retries--;
           if (retries > 0) {
-            // Wait before retry with increasing delay
-            const delay = (6 - retries) * 300;
+            const delay = 500;
             console.log(`[Trust Push] Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
           } else {
-            // After all retries failed, use base value instead of leaving it at 0
             console.warn('[Trust Push] All retries failed, using base Trust Flow value');
             setTrustFlow(5.0); // BASE_TRUST_FLOW
             setTrustFlowColor('gray');
@@ -1173,14 +1173,49 @@ export default function PublicProfilePage() {
           for (const fromUserId of pushesByUser.keys()) {
             weightPromises.push(
               calculateUserWeight(fromUserId).then((data) => {
-                weightCache.set(fromUserId, data.weight);
-              }).catch(() => {
-                weightCache.set(fromUserId, 0);
+                // Ensure weight is at least MIN_USER_WEIGHT
+                const weight = Math.max(data.weight, MIN_USER_WEIGHT);
+                weightCache.set(fromUserId, weight);
+                console.log(`[TF History] User ${fromUserId} weight: ${data.weight}, activity: ${data.activityScore}, age: ${data.accountAgeDays} days`);
+              }).catch((error) => {
+                console.error(`[TF History] Error calculating weight for user ${fromUserId}:`, error);
+                weightCache.set(fromUserId, MIN_USER_WEIGHT);
               })
             );
           }
           
           await Promise.all(weightPromises);
+
+          // Check if each user's first push to this target is their first push ever
+          const firstPushCheckPromises: Promise<{ fromUserId: string; isFirstPush: boolean }>[] = [];
+          for (const [fromUserId, userPushes] of pushesByUser.entries()) {
+            // Get the earliest push timestamp from this user to this target user
+            const sortedPushes = [...userPushes].sort((a, b) => 
+              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+            const firstPushTimestamp = sortedPushes[0]?.created_at;
+            
+            firstPushCheckPromises.push(
+              (async () => {
+                // Check if this user has given any pushes before this one (to any user)
+                const { count } = await supabase
+                  .from('trust_pushes')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('from_user_id', fromUserId)
+                  .lt('created_at', firstPushTimestamp || new Date().toISOString());
+                
+                return {
+                  fromUserId,
+                  isFirstPush: (count || 0) === 0,
+                };
+              })()
+            );
+          }
+          const firstPushChecks = await Promise.all(firstPushCheckPromises);
+          const firstPushMap = new Map<string, boolean>();
+          for (const check of firstPushChecks) {
+            firstPushMap.set(check.fromUserId, check.isFirstPush);
+          }
 
           // Create a map of push ID to TF details
           const pushDetailsMap = new Map<number, {
@@ -1195,14 +1230,22 @@ export default function PublicProfilePage() {
             // Get weight from cache, fallback to minimum weight if not found
             const weight = weightCache.get(fromUserId) ?? MIN_USER_WEIGHT;
             
-            for (let i = 0; i < userPushes.length; i++) {
-              const push = userPushes[i];
+            // Sort pushes by created_at to process in chronological order
+            const sortedPushes = [...userPushes].sort((a, b) => 
+              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+            
+            for (let i = 0; i < sortedPushes.length; i++) {
+              const push = sortedPushes[i];
               const repeatCount = i; // How many pushes came before this one
-              const effectiveWeight = weight / (1 + repeatCount);
+              
+              // For new users' first push ever, use 1.5 instead of calculated weight
+              const isFirstPushEver = firstPushMap.get(fromUserId) === true && repeatCount === 0;
+              const effectiveWeight = isFirstPushEver ? 1.5 : weight / (1 + repeatCount);
               const contribution = push.type === 'positive' ? effectiveWeight : -effectiveWeight;
               
               pushDetailsMap.set(Number(push.id), {
-                weight,
+                weight: isFirstPushEver ? 1.5 : weight, // Show 1.5 for first push ever, otherwise actual weight
                 repeatCount,
                 effectiveWeight,
                 contribution,

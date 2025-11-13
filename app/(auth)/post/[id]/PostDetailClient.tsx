@@ -23,17 +23,19 @@ import { resolveAvatarUrl } from '@/lib/utils';
 
 type PostRecord = {
   id: number;
-  user_id: string | null;
-  body: string | null;
-  image_url: string | null;
-  video_url: string | null;
+  author_id: string | null;
+  user_id?: string | null; // Legacy alias
+  text: string | null;
+  body?: string | null; // Legacy alias
+  image_url?: string | null;
+  video_url?: string | null;
   image_urls?: string[] | null;
   video_urls?: string[] | null;
   category: string | null;
   created_at: string;
   updated_at?: string | null;
-  views: number;
-  likes_count: number;
+  views?: number;
+  likes_count?: number;
 };
 
 type Profile = {
@@ -188,7 +190,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState(post.body ?? '');
+  const [editDraft, setEditDraft] = useState(post.text || post.body || '');
   const [updatingPost, setUpdatingPost] = useState(false);
   const [viewsChartOpen, setViewsChartOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -205,18 +207,19 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   useEffect(() => {
     setPost(initialPost.post);
     setAuthorProfile(initialPost.authorProfile);
-    setEditDraft(initialPost.post.body ?? '');
+    setEditDraft(initialPost.post.text || initialPost.post.body || '');
   }, [initialPost]);
 
   // Load SW score for author only once when component mounts
   useEffect(() => {
-    if (initialPost.post.user_id) {
+    const authorId = initialPost.post.author_id || initialPost.post.user_id;
+    if (authorId) {
       (async () => {
         try {
           const { data: swData } = await supabase
             .from('sw_scores')
             .select('total')
-            .eq('user_id', initialPost.post.user_id)
+            .eq('user_id', authorId)
             .maybeSingle();
           if (swData) {
             setAuthorSWScore((swData.total as number) || 0);
@@ -227,7 +230,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         }
       })();
     }
-  }, [initialPost.post.user_id]);
+  }, [initialPost.post.author_id, initialPost.post.user_id]);
 
   const loadPost = useCallback(async () => {
     setLoadingPost(true);
@@ -243,13 +246,14 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       return;
     }
     setPost(data);
-    setEditDraft(data.body ?? '');
+    setEditDraft(data.text || data.body || '');
 
-    if (data.user_id) {
+    const authorId = data.author_id || data.user_id;
+    if (authorId) {
       const { data: profile } = await supabase
         .from<Profile>('profiles')
         .select('username, full_name, avatar_url')
-        .eq('user_id', data.user_id)
+        .eq('user_id', authorId)
         .maybeSingle();
       if (profile) setAuthorProfile(profile);
 
@@ -258,7 +262,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         const { data: swData } = await supabase
           .from('sw_scores')
           .select('total')
-          .eq('user_id', data.user_id)
+          .eq('user_id', authorId)
           .maybeSingle();
         if (swData) {
           setAuthorSWScore((swData.total as number) || 0);
@@ -706,13 +710,14 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   }, []);
 
   const updatePost = useCallback(async () => {
-    if (!uid || uid !== post.user_id) return;
+    const authorId = post.author_id || post.user_id;
+    if (!uid || uid !== authorId) return;
     const value = editDraft.trim();
     setUpdatingPost(true);
     try {
       const updatedAt = new Date().toISOString();
       const updateData: any = { 
-        body: value || null,
+        text: value || null,
       };
       
       // Add updated_at if the field exists
@@ -737,10 +742,11 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     } finally {
       setUpdatingPost(false);
     }
-  }, [editDraft, post.user_id, postId, uid, loadComments]);
+  }, [editDraft, post.author_id, post.user_id, postId, uid]);
 
   const deletePost = useCallback(async () => {
-    if (!uid || uid !== post.user_id) return;
+    const authorId = post.author_id || post.user_id;
+    if (!uid || uid !== authorId) return;
     if (!confirm('Delete this post? This cannot be undone.')) return;
     try {
       const { error } = await supabase.from('posts').delete().eq('id', postId);
@@ -750,7 +756,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       console.error('Failed to delete post', error);
       alert(error?.message || 'Unable to delete post.');
     }
-  }, [post.user_id, postId, router, uid]);
+  }, [post.author_id, post.user_id, postId, router, uid]);
 
   const handleReportSubmit = useCallback(async (complaintType: 'harassment' | 'misinformation' | 'inappropriate_content' | 'unreliable_information', description: string) => {
     if (!uid) {
@@ -958,7 +964,8 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
   const commentCount = comments.length || initialPost.commentCount || 0;
   const avatar = resolveAvatarUrl(authorProfile?.avatar_url) ?? AVATAR_FALLBACK;
-  const username = authorProfile?.username || (post.user_id ? post.user_id.slice(0, 8) : 'anon');
+  const authorId = post.author_id || post.user_id;
+  const username = authorProfile?.username || (authorId ? authorId.slice(0, 8) : 'anon');
   const fullName = authorProfile?.full_name || null;
 
   // Calculate total reactions count (sum of all reaction types)
@@ -986,7 +993,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       post={{
         id: String(post.id),
         author: username,
-        content: post.body ?? '',
+        content: post.text || post.body || '',
         createdAt: post.updated_at || post.created_at,
         commentsCount: undefined, // Hide comment count in PostCard header
       }}
@@ -1002,12 +1009,12 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 swScore={authorSWScore}
                 size="sm"
                 alt="avatar"
-                href={`/u/${encodeURIComponent(authorProfile?.username || post.user_id || '')}`}
+                href={`/u/${encodeURIComponent(authorProfile?.username || authorId || '')}`}
               />
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <a
-                    href={`/u/${encodeURIComponent(authorProfile?.username || post.user_id || '')}`}
+                    href={`/u/${encodeURIComponent(authorProfile?.username || authorId || '')}`}
                     onClick={(e) => e.stopPropagation()}
                     className={`text-sm font-semibold truncate hover:underline ${
                       isLight ? 'text-slate-900' : 'text-slate-100'
@@ -1017,7 +1024,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                     {username}
                   </a>
                   {(() => {
-                    const postHasMentions = hasMentions(post.body);
+                    const postHasMentions = hasMentions(post.text || post.body || '');
                     return (fullName || post.category || postHasMentions || growthStatuses.length > 0) && (
                       <span className="text-sm text-slate-500 dark:text-slate-400">
                         |
@@ -1030,7 +1037,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                         {fullName}
                       </span>
                       {(() => {
-                        const postHasMentions = hasMentions(post.body);
+                        const postHasMentions = hasMentions(post.text || post.body || '');
                         return (post.category || postHasMentions || growthStatuses.length > 0) && (
                           <span className="text-sm text-slate-500 dark:text-slate-400">
                             |
@@ -1053,7 +1060,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                         {categoryDirection ? `${categoryDirection.emoji} ${post.category}` : post.category}
                       </div>
                       {(() => {
-                        const postHasMentions = hasMentions(post.body);
+                        const postHasMentions = hasMentions(post.text || post.body || '');
                         return (postHasMentions || growthStatuses.length > 0) && (
                           <span className="text-sm text-slate-500 dark:text-slate-400">
                             |
@@ -1062,7 +1069,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                       })()}
                     </>
                   )}
-                  {hasMentions(post.body) && (
+                  {hasMentions(post.text || post.body || '') && (
                     <>
                       <div className={`text-xs px-2 py-1 rounded-md font-medium ${
                         isLight
@@ -1100,7 +1107,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
               </div>
             </div>
             {/* Report button - only for other users' posts, positioned at top right */}
-            {uid && uid !== post.user_id && (
+            {uid && uid !== authorId && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1244,7 +1251,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   {formattedDate}
                 </time>
               )}
-              {uid && uid === post.user_id && (
+              {uid && uid === authorId && (
                 <PostActionMenu
                   onEdit={() => setEditing(true)}
                   onDelete={() => setDeleteConfirmOpen(true)}

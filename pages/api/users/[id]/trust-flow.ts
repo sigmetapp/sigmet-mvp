@@ -1,5 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { calculateTrustFlowForUser, getTrustFlowColor } from '@/lib/trustFlow';
+import { 
+  getCachedTrustFlow, 
+  calculateAndSaveTrustFlow, 
+  getTrustFlowColor,
+  BASE_TRUST_FLOW 
+} from '@/lib/trustFlow';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export default async function handler(
@@ -10,13 +15,14 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { id: userId } = req.query;
+  const { id: userId, recalculate } = req.query;
 
   if (!userId || typeof userId !== 'string') {
     return res.status(400).json({ error: 'User ID is required' });
   }
 
   try {
+    console.log(`[Trust Flow API] Request for user ${userId}, recalculate=${recalculate}`);
     // Verify user exists (optional check - if user doesn't exist, return base TF)
     const supabase = supabaseAdmin();
     const { data: profile, error: profileError } = await supabase
@@ -24,15 +30,15 @@ export default async function handler(
       .select('user_id')
       .eq('user_id', userId)
       .maybeSingle();
+    
+    console.log(`[Trust Flow API] Profile check result:`, { found: !!profile, error: profileError?.message });
 
     // If user not found (PGRST116 = not found), return base Trust Flow
     if (profileError && profileError.code === 'PGRST116') {
       console.log(`[Trust Flow API] User ${userId} not found in profiles, returning base TF`);
-      const baseTF = 5.0;
+      const baseTF = BASE_TRUST_FLOW;
       const colorInfo = getTrustFlowColor(baseTF);
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
+      res.setHeader('Cache-Control', 'public, max-age=60'); // Cache for 1 minute
       return res.status(200).json({
         trustFlow: baseTF,
         color: colorInfo.color,
@@ -47,31 +53,116 @@ export default async function handler(
       // Continue anyway - user might exist but query failed
     }
 
-    // Calculate Trust Flow
-    console.log(`[Trust Flow API] Calculating Trust Flow for user ${userId}`);
-    const trustFlow = await calculateTrustFlowForUser(userId);
-    const colorInfo = getTrustFlowColor(trustFlow);
-    console.log(`[Trust Flow API] Calculated TF: ${trustFlow}, color: ${colorInfo.color}`);
+    let trustFlow: number;
 
-    // Set cache-control headers to prevent caching
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    // If recalculate=true, force recalculation
+    if (recalculate === 'true') {
+      console.log(`[Trust Flow API] Recalculating Trust Flow for user ${userId}`);
+      try {
+        // First, check if user has any pushes
+        const { count: pushCount, error: pushCountError } = await supabase
+          .from('trust_pushes')
+          .select('id', { count: 'exact', head: true })
+          .eq('to_user_id', userId);
+        
+        console.log(`[Trust Flow API] Push count check:`, { count: pushCount, error: pushCountError?.message });
+        
+        if (pushCountError) {
+          console.error(`[Trust Flow API] Error checking push count:`, pushCountError);
+        }
+        
+        trustFlow = await calculateAndSaveTrustFlow(userId, {
+          changeReason: 'api_recalc',
+          calculatedBy: 'api',
+          useCache: false,
+        });
+        console.log(`[Trust Flow API] Recalculation completed, got TF: ${trustFlow.toFixed(2)}`);
+      } catch (calcError: any) {
+        console.error(`[Trust Flow API] Error during recalculation:`, calcError);
+        console.error(`[Trust Flow API] Error message:`, calcError?.message);
+        console.error(`[Trust Flow API] Error stack:`, calcError?.stack);
+        // Fall back to base value
+        trustFlow = BASE_TRUST_FLOW;
+        console.log(`[Trust Flow API] Using fallback BASE_TRUST_FLOW: ${trustFlow}`);
+      }
+    } else {
+      // Try to get cached value first
+      const cached = await getCachedTrustFlow(userId);
+      
+      if (cached !== null) {
+        console.log(`[Trust Flow API] Found cached value: ${cached.toFixed(2)}`);
+        // Check if cached value is base value (5.0) - if so, verify if recalculation is needed
+        if (Math.abs(cached - BASE_TRUST_FLOW) < 0.01) {
+          console.log(`[Trust Flow API] Cached value is base (${cached.toFixed(2)}), checking for pushes...`);
+          // Check if user has any pushes - if yes, recalculate to ensure accuracy
+          const { count: pushCount, error: pushCountError } = await supabase
+            .from('trust_pushes')
+            .select('id', { count: 'exact', head: true })
+            .eq('to_user_id', userId);
+          
+          console.log(`[Trust Flow API] Push count check:`, { count: pushCount, error: pushCountError?.message });
+          
+          if (pushCountError) {
+            console.error(`[Trust Flow API] Error checking push count:`, pushCountError);
+            // On error, recalculate anyway to be safe
+            console.log(`[Trust Flow API] Recalculating due to push count check error...`);
+            trustFlow = await calculateAndSaveTrustFlow(userId, {
+              changeReason: 'api_auto_recalc_error',
+              calculatedBy: 'api',
+              useCache: false,
+            });
+          } else if (pushCount && pushCount > 0) {
+            console.log(`[Trust Flow API] Cached value is base (${cached.toFixed(2)}), but user has ${pushCount} pushes. Recalculating...`);
+            trustFlow = await calculateAndSaveTrustFlow(userId, {
+              changeReason: 'api_auto_recalc',
+              calculatedBy: 'api',
+              useCache: false,
+            });
+            console.log(`[Trust Flow API] Recalculated TF: ${trustFlow.toFixed(2)}`);
+          } else {
+            console.log(`[Trust Flow API] Using cached TF ${cached.toFixed(2)} for user ${userId} (no pushes)`);
+            trustFlow = cached;
+          }
+        } else {
+          console.log(`[Trust Flow API] Using cached TF ${cached.toFixed(2)} for user ${userId}`);
+          trustFlow = cached;
+        }
+      } else {
+        // No cache, calculate and save
+        console.log(`[Trust Flow API] No cache found, calculating Trust Flow for user ${userId}`);
+        trustFlow = await calculateAndSaveTrustFlow(userId, {
+          changeReason: 'api_first_load',
+          calculatedBy: 'api',
+          useCache: false,
+        });
+      }
+    }
+
+    const colorInfo = getTrustFlowColor(trustFlow);
+    console.log(`[Trust Flow API] Final result - TF: ${trustFlow.toFixed(2)}, color: ${colorInfo.color}, label: ${colorInfo.label}`);
+
+    // Cache for 1 minute (TF doesn't change that often)
+    res.setHeader('Cache-Control', 'public, max-age=60');
     
-    return res.status(200).json({
+    const response = {
       trustFlow,
       color: colorInfo.color,
       label: colorInfo.label,
       gradient: colorInfo.gradient,
-    });
+    };
+    
+    console.log(`[Trust Flow API] Sending response:`, JSON.stringify(response, null, 2));
+    
+    return res.status(200).json(response);
   } catch (error: any) {
-    console.error(`[Trust Flow API] Error calculating Trust Flow for user ${userId}:`, error);
+    console.error(`[Trust Flow API] Error getting Trust Flow for user ${userId}:`, error);
+    console.error(`[Trust Flow API] Error stack:`, error?.stack);
+    console.error(`[Trust Flow API] Error message:`, error?.message);
     // Return base Trust Flow instead of error
-    const baseTF = 5.0;
+    const baseTF = BASE_TRUST_FLOW;
     const colorInfo = getTrustFlowColor(baseTF);
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    console.log(`[Trust Flow API] Returning error fallback: ${baseTF}`);
     return res.status(200).json({
       trustFlow: baseTF,
       color: colorInfo.color,

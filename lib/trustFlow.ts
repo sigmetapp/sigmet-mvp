@@ -3,7 +3,7 @@ import { supabaseAdmin } from './supabaseServer';
 export type TrustPushType = 'positive' | 'negative';
 
 // Base Trust Flow value for new users (users with no pushes)
-const BASE_TRUST_FLOW = 5.0;
+export const BASE_TRUST_FLOW = 5.0;
 
 export interface TrustPush {
   id: number;
@@ -26,20 +26,48 @@ export interface UserActivityData {
  * Calculate user activity score based on posts, comments, SW, and contributions
  */
 export async function calculateUserActivityScore(userId: string): Promise<number> {
-  const supabase = supabaseAdmin();
+  let supabase;
+  try {
+    supabase = supabaseAdmin();
+  } catch (error: any) {
+    console.error('[Trust Flow] Error creating supabaseAdmin in calculateUserActivityScore:', error);
+    return 0;
+  }
   
   try {
-    // Get posts count
-    const { count: postsCount } = await supabase
+    // Get posts count - try author_id first, fallback to user_id if needed
+    let postsCount = 0;
+    const postsResult = await supabase
       .from('posts')
       .select('id', { count: 'exact', head: true })
       .eq('author_id', userId);
+    if (postsResult.error && postsResult.error.message?.includes('column') && postsResult.error.message?.includes('author_id')) {
+      // Fallback to user_id if author_id doesn't exist
+      const fallbackResult = await supabase
+        .from('posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId);
+      postsCount = fallbackResult.count || 0;
+    } else {
+      postsCount = postsResult.count || 0;
+    }
     
-    // Get comments count
-    const { count: commentsCount } = await supabase
+    // Get comments count - try author_id first, fallback to user_id if needed
+    let commentsCount = 0;
+    const commentsResult = await supabase
       .from('comments')
       .select('id', { count: 'exact', head: true })
       .eq('author_id', userId);
+    if (commentsResult.error && commentsResult.error.message?.includes('column') && commentsResult.error.message?.includes('author_id')) {
+      // Fallback to user_id if author_id doesn't exist
+      const fallbackResult = await supabase
+        .from('comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId);
+      commentsCount = fallbackResult.count || 0;
+    } else {
+      commentsCount = commentsResult.count || 0;
+    }
     
     // Get SW score (cached value)
     const { data: swScore } = await supabase
@@ -65,7 +93,13 @@ export async function calculateUserActivityScore(userId: string): Promise<number
  * Calculate account age in days
  */
 export async function calculateAccountAgeDays(userId: string): Promise<number> {
-  const supabase = supabaseAdmin();
+  let supabase;
+  try {
+    supabase = supabaseAdmin();
+  } catch (error: any) {
+    console.error('[Trust Flow] Error creating supabaseAdmin in calculateAccountAgeDays:', error);
+    return 0;
+  }
   
   try {
     const { data: profile } = await supabase
@@ -221,18 +255,34 @@ export async function canUserPush(
  * TF = Σ(PositivePush_i * W_i / (1 + RepeatCount_i)) - Σ(NegativePush_j * W_j / (1 + RepeatCount_j))
  */
 export async function calculateTrustFlowForUser(userId: string): Promise<number> {
-  const supabase = supabaseAdmin();
+  console.log(`[Trust Flow] calculateTrustFlowForUser called for user ${userId}`);
+  
+  let supabase;
+  try {
+    supabase = supabaseAdmin();
+  } catch (adminError: any) {
+    console.error('[Trust Flow] Error creating supabaseAdmin client:', adminError);
+    console.error('[Trust Flow] Error message:', adminError?.message);
+    // Return base value if we can't create admin client
+    return BASE_TRUST_FLOW;
+  }
   
   try {
     // Get all pushes to this user
     // Use a fresh query without cache to ensure we see the latest data
     // Query with explicit timestamp to force fresh data fetch
     const queryStartTime = Date.now();
+    console.log(`[Trust Flow] Querying trust_pushes for user ${userId}...`);
     const { data: pushes, error } = await supabase
       .from('trust_pushes')
       .select('from_user_id, type, created_at')
       .eq('to_user_id', userId)
       .order('created_at', { ascending: true });
+    
+    // Debug: log the actual query result
+    if (pushes) {
+      console.log(`[Trust Flow] Query returned ${pushes.length} pushes:`, JSON.stringify(pushes.slice(0, 5), null, 2));
+    }
     
     const queryEndTime = Date.now();
     console.log(`[Trust Flow] Query executed in ${queryEndTime - queryStartTime}ms for user ${userId}`);
@@ -245,6 +295,7 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     if (error) {
       console.error('[Trust Flow] Error fetching trust pushes:', error);
       // Return base value on error to ensure users always have a minimum TF
+      console.log(`[Trust Flow] Returning BASE_TRUST_FLOW (${BASE_TRUST_FLOW}) due to error`);
       return BASE_TRUST_FLOW;
     }
     
@@ -261,9 +312,11 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     
     if (!pushes || pushes.length === 0) {
       // Return base Trust Flow value for new users
-      console.log(`[Trust Flow] No pushes found, returning base value: ${BASE_TRUST_FLOW}`);
+      console.log(`[Trust Flow] No pushes found for user ${userId}, returning base value: ${BASE_TRUST_FLOW}`);
       return BASE_TRUST_FLOW;
     }
+    
+    console.log(`[Trust Flow] Processing ${pushes.length} pushes for user ${userId}`);
     
     // Group pushes by from_user_id to calculate repeat counts efficiently
     const pushesByUser = new Map<string, TrustPush[]>();
@@ -282,17 +335,27 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     for (const fromUserId of pushesByUser.keys()) {
       weightPromises.push(
         calculateUserWeight(fromUserId).then((data) => {
-          weightCache.set(fromUserId, data.weight);
+          // Ensure weight is at least MIN_USER_WEIGHT
+          const weight = Math.max(data.weight, MIN_USER_WEIGHT);
+          weightCache.set(fromUserId, weight);
+          console.log(`[Trust Flow] User ${fromUserId} weight: ${data.weight.toFixed(4)}, activity: ${data.activityScore}, age: ${data.accountAgeDays} days`);
+        }).catch((error) => {
+          console.error(`[Trust Flow] Error calculating weight for user ${fromUserId}:`, error);
+          weightCache.set(fromUserId, MIN_USER_WEIGHT);
         })
       );
     }
     
     await Promise.all(weightPromises);
     
+    console.log(`[Trust Flow] Weight cache after calculation:`, Array.from(weightCache.entries()).map(([uid, w]) => ({ userId: uid, weight: w.toFixed(4) })));
+    
     // Calculate TF
     // For each push, the repeat count is how many pushes from the same user came BEFORE it
     let positiveSum = 0;
     let negativeSum = 0;
+    
+    console.log(`[Trust Flow] Starting TF calculation with positiveSum=${positiveSum}, negativeSum=${negativeSum}`);
     
     // Check if this is the first push ever from each user (to determine if they're "new")
     const firstPushCheckPromises: Promise<{ fromUserId: string; isFirstPush: boolean }>[] = [];
@@ -323,11 +386,15 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     const firstPushMap = new Map<string, boolean>();
     for (const check of firstPushChecks) {
       firstPushMap.set(check.fromUserId, check.isFirstPush);
+      console.log(`[Trust Flow] First push check for ${check.fromUserId}: isFirstPush=${check.isFirstPush}`);
     }
+    
+    console.log(`[Trust Flow] Processing ${pushesByUser.size} unique pushers for user ${userId}`);
     
     for (const [fromUserId, userPushes] of pushesByUser.entries()) {
       // Get weight from cache, fallback to minimum weight if not found
       const weight = weightCache.get(fromUserId) ?? MIN_USER_WEIGHT;
+      console.log(`[Trust Flow] Processing pushes from user ${fromUserId}, weight: ${weight.toFixed(4)}, push count: ${userPushes.length}`);
       
       // Sort pushes by created_at to process in chronological order
       const sortedPushes = [...userPushes].sort((a, b) => 
@@ -343,6 +410,8 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
         const isFirstPushEver = firstPushMap.get(fromUserId) === true && repeatCount === 0;
         const effectiveWeight = isFirstPushEver ? 1.5 : weight / (1 + repeatCount);
         
+        console.log(`[Trust Flow] Push ${i + 1}/${sortedPushes.length} from ${fromUserId}: type=${push.type}, repeatCount=${repeatCount}, effectiveWeight=${effectiveWeight.toFixed(4)}, isFirstPushEver=${isFirstPushEver}`);
+        
         if (push.type === 'positive') {
           positiveSum += effectiveWeight;
         } else if (push.type === 'negative') {
@@ -351,31 +420,171 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
       }
     }
     
-    const trustFlow = positiveSum - negativeSum;
+    console.log(`[Trust Flow] After processing all pushes: positiveSum=${positiveSum.toFixed(4)}, negativeSum=${negativeSum.toFixed(4)}`);
+    
+    // Calculate contributions: positiveSum - negativeSum
+    const contributions = positiveSum - negativeSum;
+    
+    // Trust Flow = Base value + contributions from pushes
+    // This ensures users start at BASE_TRUST_FLOW and accumulate from there
+    const trustFlow = BASE_TRUST_FLOW + contributions;
     const roundedTF = Math.round(trustFlow * 100) / 100; // Round to 2 decimal places
     
-    console.log(`[Trust Flow] Calculation for user ${userId}: positiveSum=${positiveSum.toFixed(2)}, negativeSum=${negativeSum.toFixed(2)}, rawTF=${trustFlow.toFixed(2)}, roundedTF=${roundedTF.toFixed(2)}`);
+    console.log(`[Trust Flow] Calculation for user ${userId}: positiveSum=${positiveSum.toFixed(2)}, negativeSum=${negativeSum.toFixed(2)}, contributions=${contributions.toFixed(2)}, base=${BASE_TRUST_FLOW}, finalTF=${roundedTF.toFixed(2)}`);
     console.log(`[Trust Flow] Weight cache:`, Array.from(weightCache.entries()).map(([uid, w]) => ({ userId: uid, weight: w.toFixed(4) })));
     console.log(`[Trust Flow] Pushes by user:`, Array.from(pushesByUser.entries()).map(([uid, ps]) => ({ userId: uid, count: ps.length, types: ps.map(p => p.type) })));
     
-    // Ensure minimum base Trust Flow value for all users
-    // BUT: if the calculated value is exactly BASE_TRUST_FLOW and we have pushes, 
-    // it means the calculation might be wrong or the pushes aren't being counted
+    // Ensure minimum base Trust Flow value (should always be >= BASE_TRUST_FLOW since we add to it)
     const finalTF = Math.max(roundedTF, BASE_TRUST_FLOW);
     
-    // Log warning if we have pushes but TF is still at base value
-    if (pushes && pushes.length > 0 && finalTF === BASE_TRUST_FLOW && roundedTF < BASE_TRUST_FLOW) {
-      console.warn(`[Trust Flow] WARNING: User ${userId} has ${pushes.length} pushes but TF is clamped to base value ${BASE_TRUST_FLOW}. Calculated value was ${roundedTF.toFixed(2)}`);
-    }
-    
-    console.log(`[Trust Flow] Final TF for user ${userId}: ${finalTF.toFixed(2)} (calculated: ${roundedTF.toFixed(2)}, base: ${BASE_TRUST_FLOW})`);
+    console.log(`[Trust Flow] Final TF for user ${userId}: ${finalTF.toFixed(2)} (base: ${BASE_TRUST_FLOW}, contributions: ${contributions.toFixed(2)})`);
     
     return finalTF;
-  } catch (error) {
-    console.error('Error calculating Trust Flow:', error);
+  } catch (error: any) {
+    console.error('[Trust Flow] Error calculating Trust Flow:', error);
+    console.error('[Trust Flow] Error message:', error?.message);
+    console.error('[Trust Flow] Error stack:', error?.stack);
     // Return base value on error to ensure users always have a minimum TF
+    console.log(`[Trust Flow] Returning BASE_TRUST_FLOW (${BASE_TRUST_FLOW}) due to exception`);
     return BASE_TRUST_FLOW;
   }
+}
+
+/**
+ * Save calculated Trust Flow to cache and log history
+ * This function updates the profiles.trust_flow column and logs to trust_flow_history
+ */
+export async function saveTrustFlowToCache(
+  userId: string,
+  trustFlow: number,
+  options: {
+    changeReason?: string;
+    pushId?: number;
+    calculatedBy?: string;
+    metadata?: Record<string, any>;
+  } = {}
+): Promise<void> {
+  const supabase = supabaseAdmin();
+  
+  try {
+    // Try to use RPC function first (if migration is applied)
+    const { error: rpcError } = await supabase.rpc('update_user_trust_flow', {
+      p_user_id: userId,
+      p_new_value: trustFlow,
+      p_change_reason: options.changeReason || 'manual_recalc',
+      p_push_id: options.pushId || null,
+      p_calculated_by: options.calculatedBy || 'api',
+      p_metadata: options.metadata || null,
+    });
+    
+    if (rpcError) {
+      // If RPC function doesn't exist, try direct update (fallback for when migration not applied)
+      if (rpcError.message?.includes('function') || rpcError.message?.includes('does not exist')) {
+        console.warn('[Trust Flow] RPC function not found, trying direct update (migration may not be applied)');
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ trust_flow: trustFlow })
+          .eq('user_id', userId);
+        
+        if (updateError) {
+          // If column doesn't exist either, just log and continue
+          if (updateError.message?.includes('column') && updateError.message?.includes('trust_flow')) {
+            console.warn('[Trust Flow] trust_flow column not found - migration needs to be applied');
+          } else {
+            console.error('[Trust Flow] Error updating cache directly:', updateError);
+          }
+        } else {
+          console.log(`[Trust Flow] Saved TF ${trustFlow.toFixed(2)} to cache for user ${userId} (direct update)`);
+        }
+      } else {
+        console.error('[Trust Flow] Error saving to cache via RPC:', rpcError);
+      }
+      // Don't throw - caching failure shouldn't break the flow
+    } else {
+      console.log(`[Trust Flow] Saved TF ${trustFlow.toFixed(2)} to cache for user ${userId}`);
+    }
+  } catch (error) {
+    console.error('[Trust Flow] Exception saving to cache:', error);
+    // Don't throw - caching failure shouldn't break the flow
+  }
+}
+
+/**
+ * Get cached Trust Flow value from profiles table
+ * Returns null if not cached, falls back to BASE_TRUST_FLOW
+ */
+export async function getCachedTrustFlow(userId: string): Promise<number | null> {
+  const supabase = supabaseAdmin();
+  
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('trust_flow')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (error) {
+      // If column doesn't exist, return null (migration not applied yet)
+      if (error.message?.includes('column') && error.message?.includes('trust_flow')) {
+        console.warn('[Trust Flow] trust_flow column not found - migration may not be applied');
+        return null;
+      }
+      console.error('[Trust Flow] Error reading cache:', error);
+      return null;
+    }
+    
+    if (data?.trust_flow !== null && data?.trust_flow !== undefined) {
+      return Number(data.trust_flow);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[Trust Flow] Exception reading cache:', error);
+    return null;
+  }
+}
+
+/**
+ * Calculate and save Trust Flow for a user
+ * This is the main function that should be used when TF needs to be recalculated
+ */
+export async function calculateAndSaveTrustFlow(
+  userId: string,
+  options: {
+    changeReason?: string;
+    pushId?: number;
+    calculatedBy?: string;
+    metadata?: Record<string, any>;
+    useCache?: boolean; // If true, return cached value if available
+  } = {}
+): Promise<number> {
+  console.log(`[Trust Flow] calculateAndSaveTrustFlow called for user ${userId}, useCache=${options.useCache}, reason=${options.changeReason}`);
+  
+  // If useCache is true, try to get cached value first
+  if (options.useCache) {
+    const cached = await getCachedTrustFlow(userId);
+    if (cached !== null) {
+      console.log(`[Trust Flow] Using cached value ${cached.toFixed(2)} for user ${userId}`);
+      return cached;
+    }
+  }
+  
+  // Calculate new value
+  console.log(`[Trust Flow] Calculating TF for user ${userId}...`);
+  const trustFlow = await calculateTrustFlowForUser(userId);
+  console.log(`[Trust Flow] Calculated TF: ${trustFlow.toFixed(2)} for user ${userId}`);
+  
+  // Save to cache and log history
+  console.log(`[Trust Flow] Saving TF ${trustFlow.toFixed(2)} to cache for user ${userId}...`);
+  await saveTrustFlowToCache(userId, trustFlow, {
+    changeReason: options.changeReason || 'manual_recalc',
+    pushId: options.pushId,
+    calculatedBy: options.calculatedBy || 'api',
+    metadata: options.metadata,
+  });
+  console.log(`[Trust Flow] Saved TF ${trustFlow.toFixed(2)} to cache for user ${userId}`);
+  
+  return trustFlow;
 }
 
 /**
