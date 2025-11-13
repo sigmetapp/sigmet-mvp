@@ -421,7 +421,8 @@ export async function saveTrustFlowToCache(
   const supabase = supabaseAdmin();
   
   try {
-    const { error } = await supabase.rpc('update_user_trust_flow', {
+    // Try to use RPC function first (if migration is applied)
+    const { error: rpcError } = await supabase.rpc('update_user_trust_flow', {
       p_user_id: userId,
       p_new_value: trustFlow,
       p_change_reason: options.changeReason || 'manual_recalc',
@@ -430,8 +431,28 @@ export async function saveTrustFlowToCache(
       p_metadata: options.metadata || null,
     });
     
-    if (error) {
-      console.error('[Trust Flow] Error saving to cache:', error);
+    if (rpcError) {
+      // If RPC function doesn't exist, try direct update (fallback for when migration not applied)
+      if (rpcError.message?.includes('function') || rpcError.message?.includes('does not exist')) {
+        console.warn('[Trust Flow] RPC function not found, trying direct update (migration may not be applied)');
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ trust_flow: trustFlow })
+          .eq('user_id', userId);
+        
+        if (updateError) {
+          // If column doesn't exist either, just log and continue
+          if (updateError.message?.includes('column') && updateError.message?.includes('trust_flow')) {
+            console.warn('[Trust Flow] trust_flow column not found - migration needs to be applied');
+          } else {
+            console.error('[Trust Flow] Error updating cache directly:', updateError);
+          }
+        } else {
+          console.log(`[Trust Flow] Saved TF ${trustFlow.toFixed(2)} to cache for user ${userId} (direct update)`);
+        }
+      } else {
+        console.error('[Trust Flow] Error saving to cache via RPC:', rpcError);
+      }
       // Don't throw - caching failure shouldn't break the flow
     } else {
       console.log(`[Trust Flow] Saved TF ${trustFlow.toFixed(2)} to cache for user ${userId}`);
@@ -457,6 +478,11 @@ export async function getCachedTrustFlow(userId: string): Promise<number | null>
       .maybeSingle();
     
     if (error) {
+      // If column doesn't exist, return null (migration not applied yet)
+      if (error.message?.includes('column') && error.message?.includes('trust_flow')) {
+        console.warn('[Trust Flow] trust_flow column not found - migration may not be applied');
+        return null;
+      }
       console.error('[Trust Flow] Error reading cache:', error);
       return null;
     }

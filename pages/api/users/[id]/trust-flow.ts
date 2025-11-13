@@ -22,6 +22,7 @@ export default async function handler(
   }
 
   try {
+    console.log(`[Trust Flow API] Request for user ${userId}, recalculate=${recalculate}`);
     // Verify user exists (optional check - if user doesn't exist, return base TF)
     const supabase = supabaseAdmin();
     const { data: profile, error: profileError } = await supabase
@@ -29,6 +30,8 @@ export default async function handler(
       .select('user_id')
       .eq('user_id', userId)
       .maybeSingle();
+    
+    console.log(`[Trust Flow API] Profile check result:`, { found: !!profile, error: profileError?.message });
 
     // If user not found (PGRST116 = not found), return base Trust Flow
     if (profileError && profileError.code === 'PGRST116') {

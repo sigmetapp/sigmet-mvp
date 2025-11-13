@@ -510,15 +510,17 @@ export default function PublicProfilePage() {
     if (!profile?.user_id) return;
     (async () => {
       try {
+        console.log('[Trust Flow] Loading TF for user:', profile.user_id);
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          setTrustScore(0);
+          console.log('[Trust Flow] No session, setting to base value');
+          setTrustFlow(5.0); // BASE_TRUST_FLOW
+          setTrustFlowColor('gray');
           return;
         }
 
-        // Add cache-busting timestamp to ensure fresh data
-        const timestamp = Date.now();
-        // Load from cache first (fast), API will recalculate if needed
+        // Load from cache first (fast), API will auto-recalculate if needed
+        console.log('[Trust Flow] Fetching TF from API...');
         const res = await fetch(`/api/users/${profile.user_id}/trust-flow`, {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
@@ -528,12 +530,16 @@ export default function PublicProfilePage() {
           cache: 'no-store',
         });
 
+        console.log('[Trust Flow] API response status:', res.status);
+
         if (res.ok) {
           const data = await res.json();
+          console.log('[Trust Flow] API response data:', data);
           // Ensure we have a valid trustFlow value (should be at least 5.0)
           const tfValue = data.trustFlow && typeof data.trustFlow === 'number' && data.trustFlow > 0 
             ? data.trustFlow 
             : 5.0; // BASE_TRUST_FLOW fallback
+          console.log('[Trust Flow] Setting TF to:', tfValue);
           setTrustFlow(tfValue);
           setTrustFlowColor(data.color || 'gray');
         } else {
