@@ -19,15 +19,29 @@ export function supabaseAdmin() {
       db: { schema: 'public' },
       global: {
         // Disable fetch caching to ensure we always get fresh data
+        // Explicitly add apikey header for Supabase API requests
         fetch: (url, options = {}) => {
+          const existingHeaders = options.headers || {};
+          const headers = new Headers(existingHeaders);
+          
+          // Ensure apikey is set (Supabase requires this)
+          if (!headers.has('apikey')) {
+            headers.set('apikey', key);
+          }
+          
+          // Ensure Authorization is set
+          if (!headers.has('Authorization')) {
+            headers.set('Authorization', `Bearer ${key}`);
+          }
+          
+          // Add cache control headers
+          headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+          headers.set('Pragma', 'no-cache');
+          
           return fetch(url, {
             ...options,
             cache: 'no-store',
-            headers: {
-              ...options.headers,
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-            },
+            headers,
           });
         },
       },
