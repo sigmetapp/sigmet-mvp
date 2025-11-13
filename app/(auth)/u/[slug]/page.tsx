@@ -12,6 +12,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import PostFeed from '@/components/PostFeed';
 import { resolveAvatarUrl } from '@/lib/utils';
 import GoalReactions from '@/components/GoalReactions';
+import { calculateUserWeight, getRepeatCount } from '@/lib/trustFlow';
 
 type Profile = {
   user_id: string;
@@ -229,6 +230,14 @@ export default function PublicProfilePage() {
       new_value?: string | null;
       comment: string | null;
       created_at?: string;
+      // Admin-only TF details
+      tfDetails?: {
+        weight: number;
+        repeatCount: number;
+        effectiveWeight: number;
+        contribution: number;
+        pushType: 'positive' | 'negative';
+      };
     }>
   >([]);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
@@ -248,6 +257,7 @@ export default function PublicProfilePage() {
   const [loadingSW, setLoadingSW] = useState(false);
   const [swLevels, setSwLevels] = useState<SWLevel[]>(SW_LEVELS); // Start with default levels
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   const isMe = useMemo(() => {
     if (!viewerId || !profile) return false;
@@ -258,6 +268,22 @@ export default function PublicProfilePage() {
     // resolve viewer id
     supabase.auth.getUser().then(({ data }) => setViewerId(data.user?.id ?? null));
   }, []);
+
+  useEffect(() => {
+    // Check if user is admin
+    if (!viewerId) {
+      setIsAdmin(false);
+      return;
+    }
+    supabase.rpc('is_admin_uid').then(({ data, error }) => {
+      if (error) {
+        console.error('Error checking admin status:', error);
+        setIsAdmin(false);
+      } else {
+        setIsAdmin(data ?? false);
+      }
+    });
+  }, [viewerId]);
 
   // Helper function to check if user is online based on last_activity_at
   const isOnlineByActivity = (lastActivityAt: string | null | undefined): boolean => {
@@ -992,7 +1018,7 @@ export default function PublicProfilePage() {
       const [pushesRes, changesRes] = await Promise.all([
         supabase
           .from('trust_pushes')
-          .select('from_user_id, type, reason, created_at')
+          .select('id, from_user_id, type, reason, created_at')
           .eq('to_user_id', profile.user_id)
           .order('created_at', { ascending: false })
           .limit(50),
@@ -1004,13 +1030,97 @@ export default function PublicProfilePage() {
           .limit(50),
       ]);
 
-      const feedbackItems = ((pushesRes.data as any[]) || []).map((r) => ({
-        type: 'feedback' as const,
-        author_id: (r.from_user_id as string) || null,
-        value: r.type === 'positive' ? 1 : -1,
-        comment: (r.reason as string) || null,
-        created_at: r.created_at as string | undefined,
-      }));
+      let feedbackItems: any[] = [];
+      
+      if (isAdmin) {
+        // For admins: calculate detailed TF data for each push
+        // First, get all pushes sorted chronologically to calculate repeat counts correctly
+        const { data: allPushes } = await supabase
+          .from('trust_pushes')
+          .select('id, from_user_id, type, reason, created_at')
+          .eq('to_user_id', profile.user_id)
+          .order('created_at', { ascending: true }); // Ascending for correct repeat count calculation
+
+        if (allPushes && allPushes.length > 0) {
+          // Group pushes by from_user_id to calculate repeat counts
+          const pushesByUser = new Map<string, typeof allPushes>();
+          for (const push of allPushes) {
+            const fromUserId = push.from_user_id;
+            if (!pushesByUser.has(fromUserId)) {
+              pushesByUser.set(fromUserId, []);
+            }
+            pushesByUser.get(fromUserId)!.push(push);
+          }
+
+          // Calculate weights for all unique pushers
+          const weightCache = new Map<string, number>();
+          const weightPromises: Promise<void>[] = [];
+          
+          for (const fromUserId of pushesByUser.keys()) {
+            weightPromises.push(
+              calculateUserWeight(fromUserId).then((data) => {
+                weightCache.set(fromUserId, data.weight);
+              }).catch(() => {
+                weightCache.set(fromUserId, 0);
+              })
+            );
+          }
+          
+          await Promise.all(weightPromises);
+
+          // Create a map of push ID to TF details
+          const pushDetailsMap = new Map<number, {
+            weight: number;
+            repeatCount: number;
+            effectiveWeight: number;
+            contribution: number;
+            pushType: 'positive' | 'negative';
+          }>();
+
+          for (const [fromUserId, userPushes] of pushesByUser.entries()) {
+            const weight = weightCache.get(fromUserId) || 0;
+            
+            for (let i = 0; i < userPushes.length; i++) {
+              const push = userPushes[i];
+              const repeatCount = i; // How many pushes came before this one
+              const effectiveWeight = weight / (1 + repeatCount);
+              const contribution = push.type === 'positive' ? effectiveWeight : -effectiveWeight;
+              
+              pushDetailsMap.set(Number(push.id), {
+                weight,
+                repeatCount,
+                effectiveWeight,
+                contribution,
+                pushType: push.type as 'positive' | 'negative',
+              });
+            }
+          }
+
+          // Now map the pushes from pushesRes (which are in descending order) with details
+          feedbackItems = ((pushesRes.data as any[]) || []).map((r) => {
+            const details = pushDetailsMap.get(Number(r.id));
+            return {
+              type: 'feedback' as const,
+              author_id: (r.from_user_id as string) || null,
+              value: r.type === 'positive' ? 1 : -1,
+              comment: (r.reason as string) || null,
+              created_at: r.created_at as string | undefined,
+              tfDetails: details,
+            };
+          });
+        } else {
+          feedbackItems = [];
+        }
+      } else {
+        // For non-admins: simple mapping without details
+        feedbackItems = ((pushesRes.data as any[]) || []).map((r) => ({
+          type: 'feedback' as const,
+          author_id: (r.from_user_id as string) || null,
+          value: r.type === 'positive' ? 1 : -1,
+          comment: (r.reason as string) || null,
+          created_at: r.created_at as string | undefined,
+        }));
+      }
 
       const changeItems = ((changesRes.data as any[]) || []).map((r) => ({
         type: 'profile_change' as const,
@@ -1030,7 +1140,8 @@ export default function PublicProfilePage() {
       });
 
       setHistoryItems(allItems.slice(0, 50));
-    } catch {
+    } catch (error) {
+      console.error('Error loading history:', error);
       setHistoryItems([]);
     }
   }
@@ -2174,6 +2285,13 @@ function HistoryRow({
     new_value?: string | null;
     comment: string | null;
     created_at?: string;
+    tfDetails?: {
+      weight: number;
+      repeatCount: number;
+      effectiveWeight: number;
+      contribution: number;
+      pushType: 'positive' | 'negative';
+    };
   };
 }) {
   const [user, setUser] = useState<{ username: string | null; avatar_url: string | null } | null>(null);
@@ -2211,6 +2329,7 @@ function HistoryRow({
 
   if (item.type === 'feedback') {
     const positive = (item.value || 0) > 0;
+    const showTfDetails = item.tfDetails !== undefined;
     return (
       <li className="flex items-start gap-3 px-3 py-2 text-sm">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -2223,6 +2342,33 @@ function HistoryRow({
           </span>
           {item.comment && (
             <div className="text-white/60 text-xs mt-1 whitespace-pre-wrap break-words">{item.comment}</div>
+          )}
+          {showTfDetails && item.tfDetails && (
+            <div className="text-white/50 text-xs mt-2 space-y-1 bg-white/5 rounded-lg p-2 border border-white/10">
+              <div className="font-medium text-white/70 mb-1">TF Details:</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div>
+                  <span className="text-white/60">Weight:</span>
+                  <span className="ml-2 text-white/80">{item.tfDetails.weight.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-white/60">Repeat Count:</span>
+                  <span className="ml-2 text-white/80">{item.tfDetails.repeatCount}</span>
+                </div>
+                <div>
+                  <span className="text-white/60">Effective Weight:</span>
+                  <span className="ml-2 text-white/80">{item.tfDetails.effectiveWeight.toFixed(4)}</span>
+                </div>
+                <div>
+                  <span className="text-white/60">Contribution:</span>
+                  <span className={`ml-2 font-medium ${
+                    item.tfDetails.contribution >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                  }`}>
+                    {item.tfDetails.contribution >= 0 ? '+' : ''}{item.tfDetails.contribution.toFixed(4)}
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
         </div>
         <span className="ml-auto text-white/40 text-xs flex-shrink-0">

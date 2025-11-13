@@ -2,6 +2,9 @@ import { supabaseAdmin } from './supabaseServer';
 
 export type TrustPushType = 'positive' | 'negative';
 
+// Base Trust Flow value for new users (users with no pushes)
+const BASE_TRUST_FLOW = 5.0;
+
 export interface TrustPush {
   id: number;
   from_user_id: string;
@@ -218,11 +221,13 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     
     if (error) {
       console.error('Error fetching trust pushes:', error);
-      return 0;
+      // Return base value on error to ensure users always have a minimum TF
+      return BASE_TRUST_FLOW;
     }
     
     if (!pushes || pushes.length === 0) {
-      return 0;
+      // Return base Trust Flow value for new users
+      return BASE_TRUST_FLOW;
     }
     
     // Group pushes by from_user_id to calculate repeat counts efficiently
@@ -277,10 +282,14 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     }
     
     const trustFlow = positiveSum - negativeSum;
-    return Math.round(trustFlow * 100) / 100; // Round to 2 decimal places
+    const roundedTF = Math.round(trustFlow * 100) / 100; // Round to 2 decimal places
+    
+    // Ensure minimum base Trust Flow value for all users
+    return Math.max(roundedTF, BASE_TRUST_FLOW);
   } catch (error) {
     console.error('Error calculating Trust Flow:', error);
-    return 0;
+    // Return base value on error to ensure users always have a minimum TF
+    return BASE_TRUST_FLOW;
   }
 }
 
