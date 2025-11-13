@@ -529,14 +529,23 @@ export default function PublicProfilePage() {
 
         if (res.ok) {
           const data = await res.json();
-          setTrustFlow(data.trustFlow);
-          setTrustFlowColor(data.color);
+          // Ensure we have a valid trustFlow value (should be at least 5.0)
+          const tfValue = data.trustFlow && typeof data.trustFlow === 'number' && data.trustFlow > 0 
+            ? data.trustFlow 
+            : 5.0; // BASE_TRUST_FLOW fallback
+          setTrustFlow(tfValue);
+          setTrustFlowColor(data.color || 'gray');
         } else {
-          setTrustFlow(0);
+          // Use base Trust Flow value (5.0) instead of 0 on error
+          const errorText = await res.text();
+          console.error('[Trust Flow] API error:', res.status, errorText);
+          setTrustFlow(5.0); // BASE_TRUST_FLOW
           setTrustFlowColor('gray');
         }
-      } catch {
-        setTrustFlow(0);
+      } catch (error) {
+        console.error('[Trust Flow] Fetch error:', error);
+        // Use base Trust Flow value (5.0) instead of 0 on error
+        setTrustFlow(5.0); // BASE_TRUST_FLOW
         setTrustFlowColor('gray');
       }
     })();
@@ -1061,9 +1070,13 @@ export default function PublicProfilePage() {
 
           if (res.ok) {
             const data = await res.json();
-            console.log('[Trust Push] Trust Flow recalculated successfully:', data.trustFlow, 'previous:', trustFlow);
-            setTrustFlow(data.trustFlow);
-            setTrustFlowColor(data.color);
+            // Ensure we have a valid trustFlow value (should be at least 5.0)
+            const tfValue = data.trustFlow && typeof data.trustFlow === 'number' && data.trustFlow > 0 
+              ? data.trustFlow 
+              : 5.0; // BASE_TRUST_FLOW fallback
+            console.log('[Trust Push] Trust Flow recalculated successfully:', tfValue, 'previous:', trustFlow);
+            setTrustFlow(tfValue);
+            setTrustFlowColor(data.color || 'gray');
             recalculated = true;
           } else {
             const errorText = await res.text();
@@ -1074,6 +1087,11 @@ export default function PublicProfilePage() {
               const delay = (6 - retries) * 300; // 300ms, 600ms, 900ms, 1200ms
               console.log(`[Trust Push] Retrying in ${delay}ms...`);
               await new Promise(resolve => setTimeout(resolve, delay));
+            } else {
+              // After all retries failed, use base value instead of leaving it at 0
+              console.warn('[Trust Push] All retries failed, using base Trust Flow value');
+              setTrustFlow(5.0); // BASE_TRUST_FLOW
+              setTrustFlowColor('gray');
             }
           }
         } catch (recalcErr) {
@@ -1084,12 +1102,22 @@ export default function PublicProfilePage() {
             const delay = (6 - retries) * 300;
             console.log(`[Trust Push] Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            // After all retries failed, use base value instead of leaving it at 0
+            console.warn('[Trust Push] All retries failed, using base Trust Flow value');
+            setTrustFlow(5.0); // BASE_TRUST_FLOW
+            setTrustFlowColor('gray');
           }
         }
       }
       
       if (!recalculated) {
-        console.warn('Failed to recalculate Trust Flow after retries, will refresh on next load');
+        console.warn('Failed to recalculate Trust Flow after retries, using base value');
+        // Ensure we have at least base value
+        if (trustFlow === 0) {
+          setTrustFlow(5.0); // BASE_TRUST_FLOW
+          setTrustFlowColor('gray');
+        }
       }
     } finally {
       setFeedbackPending(false);
