@@ -31,22 +31,46 @@ export default async function handler(
         .from('sw_weights')
         .select('*')
         .eq('id', 1)
-        .single();
+        .maybeSingle();
+
+      // If weights not found, return default values instead of error
+      if (error && error.code === 'PGRST116') {
+        console.warn('[SW Weights API] Weights not found, returning defaults');
+        return res.status(200).json({ 
+          weights: null,
+          sw_levels: null 
+        });
+      }
 
       if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error('[SW Weights API] Error loading weights:', error);
+        return res.status(500).json({ error: error.message || 'Failed to load weights' });
+      }
+
+      if (!weights) {
+        console.warn('[SW Weights API] Weights not found, returning defaults');
+        return res.status(200).json({ 
+          weights: null,
+          sw_levels: null 
+        });
       }
 
       // Return weights with sw_levels at top level for easier access
       const response: any = { weights };
       if (weights?.sw_levels) {
-        response.sw_levels = typeof weights.sw_levels === 'string' 
-          ? JSON.parse(weights.sw_levels)
-          : weights.sw_levels;
+        try {
+          response.sw_levels = typeof weights.sw_levels === 'string' 
+            ? JSON.parse(weights.sw_levels)
+            : weights.sw_levels;
+        } catch (parseError) {
+          console.error('[SW Weights API] Error parsing sw_levels:', parseError);
+          response.sw_levels = null;
+        }
       }
       return res.status(200).json(response);
     } catch (error: any) {
-      return res.status(500).json({ error: error.message });
+      console.error('[SW Weights API] Unexpected error:', error);
+      return res.status(500).json({ error: error.message || 'Unexpected error' });
     }
   }
 

@@ -94,7 +94,13 @@ export default async function handler(
     }
 
     if (achievementsError) {
-      return res.status(500).json({ error: achievementsError.message });
+      console.warn('[Completed Tasks API] Error loading achievements:', achievementsError);
+      // Continue with empty achievements if it's a permission/not found issue
+      if (achievementsError.code === 'PGRST116' || achievementsError.code === '42501') {
+        achievements = [];
+      } else {
+        return res.status(500).json({ error: achievementsError.message || 'Failed to load achievements' });
+      }
     }
 
     // Keep track of achievement user_task ids to prevent duplicates
@@ -128,7 +134,13 @@ export default async function handler(
       .order('completed_at', { ascending: false });
 
     if (tasksError) {
-      return res.status(500).json({ error: tasksError.message });
+      console.warn('[Completed Tasks API] Error loading tasks:', tasksError);
+      // Continue with empty tasks if it's a permission/not found issue
+      if (tasksError.code === 'PGRST116' || tasksError.code === '42501') {
+        // tasks will be empty array
+      } else {
+        return res.status(500).json({ error: tasksError.message || 'Failed to load tasks' });
+      }
     }
 
     // Get habit check-ins with task details
@@ -194,7 +206,13 @@ export default async function handler(
     }
 
     if (habitCheckinsError) {
-      return res.status(500).json({ error: habitCheckinsError.message });
+      console.warn('[Completed Tasks API] Error loading habit checkins:', habitCheckinsError);
+      // Continue with empty checkins if it's a permission/not found issue
+      if (habitCheckinsError.code === 'PGRST116' || habitCheckinsError.code === '42501') {
+        habitCheckins = [];
+      } else {
+        return res.status(500).json({ error: habitCheckinsError.message || 'Failed to load habit checkins' });
+      }
     }
 
     const formattedGoalAchievements = (achievements || []).map((achievement: any) => {
@@ -257,7 +275,7 @@ export default async function handler(
       };
     }).filter(Boolean);
 
-    const formattedFallbackTasks = (completedUserTasks || [])
+    const formattedFallbackTasks = completedUserTasksArray
       .filter((task: any) => !achievementUserTaskIds.has(task.id))
       .map((task: any) => {
         const taskInfo = task.growth_tasks;
@@ -302,7 +320,13 @@ export default async function handler(
       .eq('user_id', user.id);
 
     if (ledgerError) {
-      return res.status(500).json({ error: ledgerError.message });
+      console.warn('[Completed Tasks API] Error loading ledger:', ledgerError);
+      // Continue with empty ledger if it's a permission/not found issue
+      if (ledgerError.code === 'PGRST116' || ledgerError.code === '42501') {
+        // ledgerEntries will be empty array
+      } else {
+        return res.status(500).json({ error: ledgerError.message || 'Failed to load ledger' });
+      }
     }
 
     const totalPoints = (ledgerEntries || []).reduce(
@@ -315,6 +339,7 @@ export default async function handler(
       totalPoints,
     });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    console.error('[Completed Tasks API] Unexpected error:', error);
+    return res.status(500).json({ error: error.message || 'Unexpected error' });
   }
 }

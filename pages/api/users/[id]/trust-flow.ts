@@ -17,7 +17,7 @@ export default async function handler(
   }
 
   try {
-    // Verify user exists
+    // Verify user exists (optional check - if user doesn't exist, return base TF)
     const supabase = supabaseAdmin();
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -25,9 +25,26 @@ export default async function handler(
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Error checking user:', profileError);
-      return res.status(500).json({ error: 'Failed to verify user' });
+    // If user not found (PGRST116 = not found), return base Trust Flow
+    if (profileError && profileError.code === 'PGRST116') {
+      console.log(`[Trust Flow API] User ${userId} not found in profiles, returning base TF`);
+      const baseTF = 5.0;
+      const colorInfo = getTrustFlowColor(baseTF);
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      return res.status(200).json({
+        trustFlow: baseTF,
+        color: colorInfo.color,
+        label: colorInfo.label,
+        gradient: colorInfo.gradient,
+      });
+    }
+
+    // Other database errors - log but still try to calculate
+    if (profileError) {
+      console.warn(`[Trust Flow API] Warning checking user ${userId}:`, profileError);
+      // Continue anyway - user might exist but query failed
     }
 
     // Calculate Trust Flow
@@ -48,10 +65,18 @@ export default async function handler(
       gradient: colorInfo.gradient,
     });
   } catch (error: any) {
-    console.error('Error calculating Trust Flow:', error);
-    return res.status(500).json({
-      error: 'Failed to calculate Trust Flow',
-      message: error?.message || 'Unknown error',
+    console.error(`[Trust Flow API] Error calculating Trust Flow for user ${userId}:`, error);
+    // Return base Trust Flow instead of error
+    const baseTF = 5.0;
+    const colorInfo = getTrustFlowColor(baseTF);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    return res.status(200).json({
+      trustFlow: baseTF,
+      color: colorInfo.color,
+      label: colorInfo.label,
+      gradient: colorInfo.gradient,
     });
   }
 }
