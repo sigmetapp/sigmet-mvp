@@ -32,7 +32,17 @@ export default async function handler(
       .order('sort_index', { ascending: true });
 
     if (dirError) {
-      return res.status(500).json({ error: dirError.message });
+      console.error('[Directions API] Error loading directions:', dirError);
+      // Return empty array instead of error if it's a permission/not found issue
+      if (dirError.code === 'PGRST116' || dirError.code === '42501') {
+        return res.status(200).json({ directions: [] });
+      }
+      return res.status(500).json({ error: dirError.message || 'Failed to load directions' });
+    }
+
+    // If no directions found, return empty array
+    if (!directions || directions.length === 0) {
+      return res.status(200).json({ directions: [] });
     }
 
     // Get user's selected directions
@@ -42,7 +52,12 @@ export default async function handler(
       .eq('user_id', user.id);
 
     if (selError) {
-      return res.status(500).json({ error: selError.message });
+      console.warn('[Directions API] Error loading user selections:', selError);
+      // Continue with empty selections if error (user might not have selected any)
+      // Only fail if it's a critical error
+      if (selError.code !== 'PGRST116' && selError.code !== '42501') {
+        return res.status(500).json({ error: selError.message || 'Failed to load user selections' });
+      }
     }
 
     const selectedIds = new Set((userSelections || []).map((s) => s.direction_id));
@@ -61,7 +76,11 @@ export default async function handler(
       .in('status', ['active', 'completed']);
 
     if (tasksError) {
-      return res.status(500).json({ error: tasksError.message });
+      console.warn('[Directions API] Error loading tasks:', tasksError);
+      // Continue with empty tasks if error
+      if (tasksError.code !== 'PGRST116' && tasksError.code !== '42501') {
+        return res.status(500).json({ error: tasksError.message || 'Failed to load tasks' });
+      }
     }
 
     // Get SW points per direction from ledger
@@ -71,7 +90,11 @@ export default async function handler(
       .eq('user_id', user.id);
 
     if (ledgerError) {
-      return res.status(500).json({ error: ledgerError.message });
+      console.warn('[Directions API] Error loading ledger:', ledgerError);
+      // Continue with empty ledger if error
+      if (ledgerError.code !== 'PGRST116' && ledgerError.code !== '42501') {
+        return res.status(500).json({ error: ledgerError.message || 'Failed to load ledger' });
+      }
     }
 
     // Calculate summaries per direction
@@ -134,6 +157,7 @@ export default async function handler(
 
     return res.status(200).json({ directions: result });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    console.error('[Directions API] Unexpected error:', error);
+    return res.status(500).json({ error: error.message || 'Unexpected error' });
   }
 }

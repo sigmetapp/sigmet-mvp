@@ -129,10 +129,16 @@ export default async function handler(
       .from('sw_weights')
       .select('*')
       .eq('id', 1)
-      .single();
+      .maybeSingle();
 
-    if (weightsError || !weights) {
-      return res.status(500).json({ error: 'Failed to load SW weights' });
+    if (weightsError && weightsError.code !== 'PGRST116') {
+      console.error('[SW Recalculate API] Error loading weights:', weightsError);
+      return res.status(500).json({ error: weightsError.message || 'Failed to load SW weights' });
+    }
+
+    if (!weights) {
+      console.warn('[SW Recalculate API] Weights not found, cannot recalculate');
+      return res.status(500).json({ error: 'SW weights not configured' });
     }
 
     // Get user profile
@@ -140,11 +146,14 @@ export default async function handler(
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (profileError && profileError.code !== 'PGRST116') {
-      return res.status(500).json({ error: profileError.message });
+      console.error('[SW Recalculate API] Error loading profile:', profileError);
+      return res.status(500).json({ error: profileError.message || 'Failed to load profile' });
     }
+
+    // Profile might not exist, that's okay - we'll use defaults
 
     // Calculate registration points
     const registrationPoints = profile ? weights.registration_points : 0;
