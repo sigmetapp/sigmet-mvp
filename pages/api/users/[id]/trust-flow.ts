@@ -58,11 +58,19 @@ export default async function handler(
     // If recalculate=true, force recalculation
     if (recalculate === 'true') {
       console.log(`[Trust Flow API] Recalculating Trust Flow for user ${userId}`);
-      trustFlow = await calculateAndSaveTrustFlow(userId, {
-        changeReason: 'api_recalc',
-        calculatedBy: 'api',
-        useCache: false,
-      });
+      try {
+        trustFlow = await calculateAndSaveTrustFlow(userId, {
+          changeReason: 'api_recalc',
+          calculatedBy: 'api',
+          useCache: false,
+        });
+        console.log(`[Trust Flow API] Recalculation completed, got TF: ${trustFlow.toFixed(2)}`);
+      } catch (calcError: any) {
+        console.error(`[Trust Flow API] Error during recalculation:`, calcError);
+        console.error(`[Trust Flow API] Error stack:`, calcError?.stack);
+        // Fall back to base value
+        trustFlow = BASE_TRUST_FLOW;
+      }
     } else {
       // Try to get cached value first
       const cached = await getCachedTrustFlow(userId);
@@ -117,23 +125,30 @@ export default async function handler(
     }
 
     const colorInfo = getTrustFlowColor(trustFlow);
-    console.log(`[Trust Flow API] Returning TF: ${trustFlow.toFixed(2)}, color: ${colorInfo.color}`);
+    console.log(`[Trust Flow API] Final result - TF: ${trustFlow.toFixed(2)}, color: ${colorInfo.color}, label: ${colorInfo.label}`);
 
     // Cache for 1 minute (TF doesn't change that often)
     res.setHeader('Cache-Control', 'public, max-age=60');
     
-    return res.status(200).json({
+    const response = {
       trustFlow,
       color: colorInfo.color,
       label: colorInfo.label,
       gradient: colorInfo.gradient,
-    });
+    };
+    
+    console.log(`[Trust Flow API] Sending response:`, JSON.stringify(response, null, 2));
+    
+    return res.status(200).json(response);
   } catch (error: any) {
     console.error(`[Trust Flow API] Error getting Trust Flow for user ${userId}:`, error);
+    console.error(`[Trust Flow API] Error stack:`, error?.stack);
+    console.error(`[Trust Flow API] Error message:`, error?.message);
     // Return base Trust Flow instead of error
     const baseTF = BASE_TRUST_FLOW;
     const colorInfo = getTrustFlowColor(baseTF);
     res.setHeader('Cache-Control', 'public, max-age=60');
+    console.log(`[Trust Flow API] Returning error fallback: ${baseTF}`);
     return res.status(200).json({
       trustFlow: baseTF,
       color: colorInfo.color,
