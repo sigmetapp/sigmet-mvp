@@ -212,8 +212,9 @@ export default function PublicProfilePage() {
   const [activeTab, setActiveTab] = useState<'info' | 'goals'>('info');
   const [userGoals, setUserGoals] = useState<Array<{ id: string; text: string; target_date: string | null }>>([]);
   const [goalReactions, setGoalReactions] = useState<Record<string, { count: number; selected: boolean }>>({});
-  // Trust Flow state (basic default 80%)
-  const [trustScore, setTrustScore] = useState<number>(80);
+  // Trust Flow state (actual TF value, not percentage)
+  const [trustFlow, setTrustFlow] = useState<number>(0);
+  const [trustFlowColor, setTrustFlowColor] = useState<string>('gray');
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackPending, setFeedbackPending] = useState(false);
@@ -474,20 +475,34 @@ export default function PublicProfilePage() {
   }, [slug, router]);
 
 
-  // Load Trust Flow score based on feedback logs
+  // Load Trust Flow score using new calculation
   useEffect(() => {
     if (!profile?.user_id) return;
     (async () => {
       try {
-        const { data } = await supabase
-          .from('trust_feedback')
-          .select('value')
-          .eq('target_user_id', profile.user_id);
-        const sum = ((data as any[]) || []).reduce((acc, r) => acc + (Number(r.value) || 0), 0);
-        const rating = Math.max(0, Math.min(120, 80 + sum * 2));
-        setTrustScore(rating);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setTrustScore(0);
+          return;
+        }
+
+        const res = await fetch(`/api/users/${profile.user_id}/trust-flow`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setTrustFlow(data.trustFlow);
+          setTrustFlowColor(data.color);
+        } else {
+          setTrustFlow(0);
+          setTrustFlowColor('gray');
+        }
       } catch {
-        setTrustScore(80);
+        setTrustFlow(0);
+        setTrustFlowColor('gray');
       }
     })();
   }, [profile?.user_id]);
@@ -835,12 +850,42 @@ export default function PublicProfilePage() {
     }
   }
 
-  function trustBarStyleFor(value: number): React.CSSProperties {
-    const v = Math.max(0, Math.min(value, 120));
-    let background = 'linear-gradient(90deg,#00ffc8,#7affc0)'; // brand
-    if (value < 60) background = 'linear-gradient(90deg,#ff9aa2,#ff6677)';
-    if (value > 100) background = 'linear-gradient(90deg,#60a5fa,#c084fc)';
-    return { width: `${Math.min(v, 100)}%`, background };
+  function trustBarStyleFor(tf: number): React.CSSProperties {
+    // Calculate bar width based on TF value
+    // For display purposes, map TF to 0-100% width:
+    // - Negative TF: 0-30% width
+    // - 0-10 TF: 30-50% width
+    // - 10-40 TF: 50-70% width
+    // - 40-100 TF: 70-90% width
+    // - 100+ TF: 90-100% width
+    let widthPercent = 0;
+    if (tf < 0) {
+      widthPercent = Math.max(0, Math.min(30, 30 + (tf / 5) * 10));
+    } else if (tf < 10) {
+      widthPercent = 30 + (tf / 10) * 20;
+    } else if (tf < 40) {
+      widthPercent = 50 + ((tf - 10) / 30) * 20;
+    } else if (tf < 100) {
+      widthPercent = 70 + ((tf - 40) / 60) * 20;
+    } else {
+      widthPercent = 90 + Math.min(10, ((tf - 100) / 100) * 10);
+    }
+    
+    // Get color based on TF value
+    let background = 'linear-gradient(90deg, #9ca3af, #6b7280)'; // gray (default)
+    if (tf < 0) {
+      background = 'linear-gradient(90deg, #ef4444, #dc2626)'; // red
+    } else if (tf >= 0 && tf < 10) {
+      background = 'linear-gradient(90deg, #9ca3af, #6b7280)'; // gray
+    } else if (tf >= 10 && tf < 40) {
+      background = 'linear-gradient(90deg, #fbbf24, #f59e0b)'; // yellow
+    } else if (tf >= 40 && tf < 100) {
+      background = 'linear-gradient(90deg, #10b981, #059669)'; // green
+    } else {
+      background = 'linear-gradient(90deg, #6366f1, #8b5cf6)'; // blue/purple
+    }
+    
+    return { width: `${Math.max(0, Math.min(100, widthPercent))}%`, background };
   }
 
   async function submitFeedback(kind: 'up' | 'down') {
@@ -858,27 +903,82 @@ export default function PublicProfilePage() {
         return;
       }
       
-      // Best-effort insert; table may not exist in all envs
+      if (!me) {
+        setFeedbackPending(false);
+        return;
+      }
+      
+      // Check if user can push (anti-gaming)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setFeedbackPending(false);
+        return;
+      }
+      
       try {
-        await supabase.from('trust_feedback').insert({
-          target_user_id: profile.user_id,
-          author_id: me,
-          comment: feedbackText || null,
-          value: kind === 'up' ? 1 : -1,
+        const canPushRes = await fetch(`/api/users/${profile.user_id}/trust-push/check`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ fromUserId: me }),
         });
-      } catch {}
+        
+        if (canPushRes.ok) {
+          const canPushData = await canPushRes.json();
+          if (!canPushData.canPush) {
+            alert(canPushData.reason || 'Cannot submit push at this time');
+            setFeedbackPending(false);
+            return;
+          }
+        }
+      } catch (checkError) {
+        console.error('Error checking push limit:', checkError);
+        // Continue anyway - don't block on check error
+      }
+      
+      // Insert into trust_pushes table
+      try {
+        const { error: insertError } = await supabase.from('trust_pushes').insert({
+          from_user_id: me,
+          to_user_id: profile.user_id,
+          type: kind === 'up' ? 'positive' : 'negative',
+          reason: feedbackText || null,
+        });
+        
+        if (insertError) {
+          console.error('Error inserting trust push:', insertError);
+          alert('Failed to submit feedback. Please try again.');
+          setFeedbackPending(false);
+          return;
+        }
+      } catch (insertErr) {
+        console.error('Exception inserting trust push:', insertErr);
+        alert('Failed to submit feedback. Please try again.');
+        setFeedbackPending(false);
+        return;
+      }
+      
       setFeedbackOpen(false);
       setFeedbackText('');
-      // recompute from DB
+      
+      // Recalculate Trust Flow
       try {
-        const { data } = await supabase
-          .from('trust_feedback')
-          .select('value')
-          .eq('target_user_id', profile.user_id);
-        const sum = ((data as any[]) || []).reduce((acc, r) => acc + (Number(r.value) || 0), 0);
-        const rating = Math.max(0, Math.min(120, 80 + sum * 2));
-        setTrustScore(rating);
-      } catch {}
+        const res = await fetch(`/api/users/${profile.user_id}/trust-flow`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setTrustFlow(data.trustFlow);
+          setTrustFlowColor(data.color);
+        }
+      } catch (recalcErr) {
+        console.error('Error recalculating Trust Flow:', recalcErr);
+      }
     } finally {
       setFeedbackPending(false);
     }
@@ -888,12 +988,12 @@ export default function PublicProfilePage() {
     if (!isMe || !profile?.user_id) return;
     setHistoryOpen(true);
     try {
-      // Load both feedback and profile changes
-      const [feedbackRes, changesRes] = await Promise.all([
+      // Load both trust pushes and profile changes
+      const [pushesRes, changesRes] = await Promise.all([
         supabase
-          .from('trust_feedback')
-          .select('author_id, value, comment, created_at')
-          .eq('target_user_id', profile.user_id)
+          .from('trust_pushes')
+          .select('from_user_id, type, reason, created_at')
+          .eq('to_user_id', profile.user_id)
           .order('created_at', { ascending: false })
           .limit(50),
         supabase
@@ -904,11 +1004,11 @@ export default function PublicProfilePage() {
           .limit(50),
       ]);
 
-      const feedbackItems = ((feedbackRes.data as any[]) || []).map((r) => ({
+      const feedbackItems = ((pushesRes.data as any[]) || []).map((r) => ({
         type: 'feedback' as const,
-        author_id: (r.author_id as string) || null,
-        value: Number(r.value) || 0,
-        comment: (r.comment as string) || null,
+        author_id: (r.from_user_id as string) || null,
+        value: r.type === 'positive' ? 1 : -1,
+        comment: (r.reason as string) || null,
         created_at: r.created_at as string | undefined,
       }));
 
@@ -1357,10 +1457,18 @@ export default function PublicProfilePage() {
                 <div className={`rounded-2xl border border-white/15 bg-white/5 p-3 animate-fade-in-up animate-stagger-4`}>
                   <div className="flex items-center justify-between text-white/80 text-sm mb-2">
                     <div className="font-medium">Trust Flow</div>
-                    <div className="px-2 py-0.5 rounded-full border border-white/20 text-white/80">{trustScore}%</div>
+                    <div className={`px-2 py-0.5 rounded-full border border-white/20 text-white/80 ${
+                      trustFlowColor === 'red' ? 'text-red-300' :
+                      trustFlowColor === 'yellow' ? 'text-yellow-300' :
+                      trustFlowColor === 'green' ? 'text-green-300' :
+                      trustFlowColor === 'blue' ? 'text-blue-300' :
+                      'text-white/80'
+                    }`}>
+                      {trustFlow.toFixed(1)}
+                    </div>
                   </div>
                   <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full" style={trustBarStyleFor(trustScore)} />
+                    <div className="h-full" style={trustBarStyleFor(trustFlow)} />
                   </div>
                   {!isMe && (
                     <button
@@ -1913,7 +2021,7 @@ export default function PublicProfilePage() {
                   const swText = loadingSW || totalSW === null 
                     ? 'SW: Loading...' 
                     : `SW: ${totalSW.toLocaleString()}`;
-                  const tfText = `TF: ${trustScore}%`;
+                  const tfText = `TF: ${trustFlow.toFixed(1)}`;
                   const shareText = `Check out my profile on Sigmet.app!\n${swText}\n${tfText}\n\n${profileUrl}`;
                   const shareTextEncoded = encodeURIComponent(shareText);
                   const urlEncoded = encodeURIComponent(profileUrl);
@@ -1990,7 +2098,7 @@ export default function PublicProfilePage() {
                     <li>Profile URL</li>
                     <li>Social network: Sigmet.app</li>
                     <li>SW rating: {loadingSW || totalSW === null ? 'Loading...' : totalSW.toLocaleString()}</li>
-                    <li>TF rating: {trustScore}%</li>
+                    <li>TF rating: {trustFlow.toFixed(1)}</li>
                   </ul>
                 </div>
               </div>
