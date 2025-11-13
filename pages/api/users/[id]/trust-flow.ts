@@ -59,6 +59,18 @@ export default async function handler(
     if (recalculate === 'true') {
       console.log(`[Trust Flow API] Recalculating Trust Flow for user ${userId}`);
       try {
+        // First, check if user has any pushes
+        const { count: pushCount, error: pushCountError } = await supabase
+          .from('trust_pushes')
+          .select('id', { count: 'exact', head: true })
+          .eq('to_user_id', userId);
+        
+        console.log(`[Trust Flow API] Push count check:`, { count: pushCount, error: pushCountError?.message });
+        
+        if (pushCountError) {
+          console.error(`[Trust Flow API] Error checking push count:`, pushCountError);
+        }
+        
         trustFlow = await calculateAndSaveTrustFlow(userId, {
           changeReason: 'api_recalc',
           calculatedBy: 'api',
@@ -67,9 +79,11 @@ export default async function handler(
         console.log(`[Trust Flow API] Recalculation completed, got TF: ${trustFlow.toFixed(2)}`);
       } catch (calcError: any) {
         console.error(`[Trust Flow API] Error during recalculation:`, calcError);
+        console.error(`[Trust Flow API] Error message:`, calcError?.message);
         console.error(`[Trust Flow API] Error stack:`, calcError?.stack);
         // Fall back to base value
         trustFlow = BASE_TRUST_FLOW;
+        console.log(`[Trust Flow API] Using fallback BASE_TRUST_FLOW: ${trustFlow}`);
       }
     } else {
       // Try to get cached value first

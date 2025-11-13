@@ -26,7 +26,13 @@ export interface UserActivityData {
  * Calculate user activity score based on posts, comments, SW, and contributions
  */
 export async function calculateUserActivityScore(userId: string): Promise<number> {
-  const supabase = supabaseAdmin();
+  let supabase;
+  try {
+    supabase = supabaseAdmin();
+  } catch (error: any) {
+    console.error('[Trust Flow] Error creating supabaseAdmin in calculateUserActivityScore:', error);
+    return 0;
+  }
   
   try {
     // Get posts count - try author_id first, fallback to user_id if needed
@@ -87,7 +93,13 @@ export async function calculateUserActivityScore(userId: string): Promise<number
  * Calculate account age in days
  */
 export async function calculateAccountAgeDays(userId: string): Promise<number> {
-  const supabase = supabaseAdmin();
+  let supabase;
+  try {
+    supabase = supabaseAdmin();
+  } catch (error: any) {
+    console.error('[Trust Flow] Error creating supabaseAdmin in calculateAccountAgeDays:', error);
+    return 0;
+  }
   
   try {
     const { data: profile } = await supabase
@@ -244,7 +256,16 @@ export async function canUserPush(
  */
 export async function calculateTrustFlowForUser(userId: string): Promise<number> {
   console.log(`[Trust Flow] calculateTrustFlowForUser called for user ${userId}`);
-  const supabase = supabaseAdmin();
+  
+  let supabase;
+  try {
+    supabase = supabaseAdmin();
+  } catch (adminError: any) {
+    console.error('[Trust Flow] Error creating supabaseAdmin client:', adminError);
+    console.error('[Trust Flow] Error message:', adminError?.message);
+    // Return base value if we can't create admin client
+    return BASE_TRUST_FLOW;
+  }
   
   try {
     // Get all pushes to this user
