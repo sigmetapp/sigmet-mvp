@@ -13,6 +13,7 @@ import PostFeed from '@/components/PostFeed';
 import { resolveAvatarUrl } from '@/lib/utils';
 import GoalReactions from '@/components/GoalReactions';
 import { calculateUserWeight, getRepeatCount, MIN_USER_WEIGHT } from '@/lib/trustFlow';
+import TrustFlowInfoModal from '@/components/TrustFlowInfoModal';
 
 type Profile = {
   user_id: string;
@@ -217,6 +218,7 @@ export default function PublicProfilePage() {
   const [trustFlow, setTrustFlow] = useState<number>(0);
   const [trustFlowColor, setTrustFlowColor] = useState<string>('gray');
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [trustFlowInfoOpen, setTrustFlowInfoOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackPending, setFeedbackPending] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -966,12 +968,16 @@ export default function PublicProfilePage() {
       
       // Insert into trust_pushes table
       try {
-        const { error: insertError } = await supabase.from('trust_pushes').insert({
-          from_user_id: me,
-          to_user_id: profile.user_id,
-          type: kind === 'up' ? 'positive' : 'negative',
-          reason: feedbackText || null,
-        });
+        const { data: insertData, error: insertError } = await supabase
+          .from('trust_pushes')
+          .insert({
+            from_user_id: me,
+            to_user_id: profile.user_id,
+            type: kind === 'up' ? 'positive' : 'negative',
+            reason: feedbackText || null,
+          })
+          .select()
+          .single();
         
         if (insertError) {
           console.error('Error inserting trust push:', insertError);
@@ -979,6 +985,15 @@ export default function PublicProfilePage() {
           setFeedbackPending(false);
           return;
         }
+        
+        if (!insertData) {
+          console.error('No data returned from trust push insert');
+          alert('Failed to submit feedback. Please try again.');
+          setFeedbackPending(false);
+          return;
+        }
+        
+        console.log('Trust push inserted successfully:', insertData.id);
       } catch (insertErr) {
         console.error('Exception inserting trust push:', insertErr);
         alert('Failed to submit feedback. Please try again.');
@@ -989,21 +1004,48 @@ export default function PublicProfilePage() {
       setFeedbackOpen(false);
       setFeedbackText('');
       
-      // Recalculate Trust Flow
-      try {
-        const res = await fetch(`/api/users/${profile.user_id}/trust-flow`, {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
+      // Wait a bit to ensure database commit before recalculating
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Recalculate Trust Flow with retry logic
+      let retries = 3;
+      let recalculated = false;
+      
+      while (retries > 0 && !recalculated) {
+        try {
+          const res = await fetch(`/api/users/${profile.user_id}/trust-flow`, {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
 
-        if (res.ok) {
-          const data = await res.json();
-          setTrustFlow(data.trustFlow);
-          setTrustFlowColor(data.color);
+          if (res.ok) {
+            const data = await res.json();
+            console.log('Trust Flow recalculated:', data.trustFlow);
+            setTrustFlow(data.trustFlow);
+            setTrustFlowColor(data.color);
+            recalculated = true;
+          } else {
+            const errorText = await res.text();
+            console.error('Error recalculating Trust Flow:', res.status, errorText);
+            retries--;
+            if (retries > 0) {
+              // Wait before retry
+              await new Promise(resolve => setTimeout(resolve, 200));
+            }
+          }
+        } catch (recalcErr) {
+          console.error('Error recalculating Trust Flow:', recalcErr);
+          retries--;
+          if (retries > 0) {
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
         }
-      } catch (recalcErr) {
-        console.error('Error recalculating Trust Flow:', recalcErr);
+      }
+      
+      if (!recalculated) {
+        console.warn('Failed to recalculate Trust Flow after retries, will refresh on next load');
       }
     } finally {
       setFeedbackPending(false);
@@ -1568,7 +1610,30 @@ export default function PublicProfilePage() {
                 {/* Trust Flow */}
                 <div className={`rounded-2xl border border-white/15 bg-white/5 p-3 animate-fade-in-up animate-stagger-4`}>
                   <div className="flex items-center justify-between text-white/80 text-sm mb-2">
-                    <div className="font-medium">Trust Flow</div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="font-medium">Trust Flow</div>
+                      <button
+                        onClick={() => setTrustFlowInfoOpen(true)}
+                        className="text-white/40 hover:text-white/60 transition cursor-pointer"
+                        title="Что такое Trust Flow?"
+                        aria-label="Информация о Trust Flow"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                     <div className={`px-2 py-0.5 rounded-full border border-white/20 text-white/80 ${
                       trustFlowColor === 'red' ? 'text-red-300' :
                       trustFlowColor === 'yellow' ? 'text-yellow-300' :
@@ -2113,6 +2178,13 @@ export default function PublicProfilePage() {
           </div>
         </div>
       )}
+
+      {/* Trust Flow Info Modal */}
+      <TrustFlowInfoModal
+        isOpen={trustFlowInfoOpen}
+        onClose={() => setTrustFlowInfoOpen(false)}
+        isAdmin={isAdmin ?? false}
+      />
 
       {/* Share modal (owner only) */}
       {shareModalOpen && profile && (
