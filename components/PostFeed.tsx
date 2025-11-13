@@ -1469,7 +1469,7 @@ export default function PostFeed({
                       role="button"
                       aria-label="Open post"
                     >
-                      {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-primary-text" : "text-primary-text"}`}>{formatTextWithMentions(p.body, p.id)}</p>}
+                      {p.body && <p className={`whitespace-pre-wrap leading-relaxed break-words ${isLight ? "text-primary-text" : "text-primary-text"}`}>{formatTextWithMentions(p.body, p.id)}</p>}
                       {/* Display compact media preview with indicator */}
                       {(() => {
                         const imageUrls = (p.image_urls && p.image_urls.length > 0) ? p.image_urls : (p.image_url ? [p.image_url] : []);
