@@ -33,12 +33,17 @@ export default async function handler(
 
   const shouldRecalculate = recalculate === "true";
 
+  const authHeader = req.headers.authorization;
+  const accessToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : authHeader;
+
   try {
     console.log(
       `[Trust Flow API] Request for user ${userId}, recalculate=${recalculate}${pushId !== undefined ? `, pushId=${pushId}` : ""}`,
     );
     // Verify user exists (optional check - if user doesn't exist, return base TF)
-    const supabase = supabaseAdmin();
+    const supabase = supabaseAdmin({ accessToken });
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("user_id")
@@ -107,6 +112,8 @@ export default async function handler(
           changeReason,
           calculatedBy: "api",
           useCache: false,
+          accessToken,
+          supabase,
           pushId,
           metadata:
             pushId !== undefined
@@ -131,7 +138,10 @@ export default async function handler(
       }
     } else {
       // Try to get cached value first
-      const cached = await getCachedTrustFlow(userId);
+      const cached = await getCachedTrustFlow(userId, {
+        supabase,
+        accessToken,
+      });
 
       if (cached !== null) {
         console.log(
@@ -166,6 +176,8 @@ export default async function handler(
               changeReason: "api_auto_recalc_error",
               calculatedBy: "api",
               useCache: false,
+              accessToken,
+              supabase,
             });
           } else if (pushCount && pushCount > 0) {
             console.log(
@@ -175,6 +187,8 @@ export default async function handler(
               changeReason: "api_auto_recalc",
               calculatedBy: "api",
               useCache: false,
+              accessToken,
+              supabase,
             });
             console.log(
               `[Trust Flow API] Recalculated TF: ${trustFlow.toFixed(2)}`,
@@ -200,6 +214,8 @@ export default async function handler(
           changeReason: "api_first_load",
           calculatedBy: "api",
           useCache: false,
+          accessToken,
+          supabase,
         });
       }
     }

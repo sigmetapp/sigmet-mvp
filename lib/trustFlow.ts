@@ -1,4 +1,7 @@
-import { supabaseAdmin } from "./supabaseServer";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabaseAdmin, isServiceRoleConfigured } from "./supabaseServer";
+
+type SupabaseServerClient = SupabaseClient<any, "public", any>;
 
 export type TrustPushType = "positive" | "negative";
 
@@ -277,14 +280,16 @@ export async function canUserPush(
  */
 export async function calculateTrustFlowForUser(
   userId: string,
+  options: { supabase?: SupabaseServerClient; accessToken?: string } = {},
 ): Promise<number> {
   console.log(
     `[Trust Flow] calculateTrustFlowForUser called for user ${userId}`,
   );
 
-  let supabase;
+  let supabase: SupabaseServerClient;
   try {
-    supabase = supabaseAdmin();
+    supabase =
+      options.supabase ?? supabaseAdmin({ accessToken: options.accessToken });
   } catch (adminError: any) {
     console.error(
       "[Trust Flow] Error creating supabaseAdmin client:",
@@ -603,6 +608,7 @@ export async function calculateTrustFlowForUser(
 export async function saveTrustFlowToCache(
   userId: string,
   trustFlow: number,
+  supabase: SupabaseServerClient,
   options: {
     changeReason?: string;
     pushId?: number;
@@ -610,7 +616,12 @@ export async function saveTrustFlowToCache(
     metadata?: Record<string, any>;
   } = {},
 ): Promise<void> {
-  const supabase = supabaseAdmin();
+  if (!isServiceRoleConfigured()) {
+    console.warn(
+      "[Trust Flow] Service role key not configured, skipping cache save",
+    );
+    return;
+  }
 
   try {
     // Try to use RPC function first (if migration is applied)
@@ -678,8 +689,10 @@ export async function saveTrustFlowToCache(
  */
 export async function getCachedTrustFlow(
   userId: string,
+  options: { supabase?: SupabaseServerClient; accessToken?: string } = {},
 ): Promise<number | null> {
-  const supabase = supabaseAdmin();
+  const supabase =
+    options.supabase ?? supabaseAdmin({ accessToken: options.accessToken });
 
   try {
     const { data, error } = await supabase
@@ -726,15 +739,23 @@ export async function calculateAndSaveTrustFlow(
     calculatedBy?: string;
     metadata?: Record<string, any>;
     useCache?: boolean; // If true, return cached value if available
+    accessToken?: string;
+    supabase?: SupabaseServerClient;
   } = {},
 ): Promise<number> {
   console.log(
     `[Trust Flow] calculateAndSaveTrustFlow called for user ${userId}, useCache=${options.useCache}, reason=${options.changeReason}`,
   );
 
+  const supabase =
+    options.supabase ?? supabaseAdmin({ accessToken: options.accessToken });
+
   // If useCache is true, try to get cached value first
   if (options.useCache) {
-    const cached = await getCachedTrustFlow(userId);
+    const cached = await getCachedTrustFlow(userId, {
+      supabase,
+      accessToken: options.accessToken,
+    });
     if (cached !== null) {
       console.log(
         `[Trust Flow] Using cached value ${cached.toFixed(2)} for user ${userId}`,
@@ -745,24 +766,33 @@ export async function calculateAndSaveTrustFlow(
 
   // Calculate new value
   console.log(`[Trust Flow] Calculating TF for user ${userId}...`);
-  const trustFlow = await calculateTrustFlowForUser(userId);
+  const trustFlow = await calculateTrustFlowForUser(userId, {
+    supabase,
+    accessToken: options.accessToken,
+  });
   console.log(
     `[Trust Flow] Calculated TF: ${trustFlow.toFixed(2)} for user ${userId}`,
   );
 
   // Save to cache and log history
-  console.log(
-    `[Trust Flow] Saving TF ${trustFlow.toFixed(2)} to cache for user ${userId}...`,
-  );
-  await saveTrustFlowToCache(userId, trustFlow, {
-    changeReason: options.changeReason || "manual_recalc",
-    pushId: options.pushId,
-    calculatedBy: options.calculatedBy || "api",
-    metadata: options.metadata,
-  });
-  console.log(
-    `[Trust Flow] Saved TF ${trustFlow.toFixed(2)} to cache for user ${userId}`,
-  );
+  if (isServiceRoleConfigured()) {
+    console.log(
+      `[Trust Flow] Saving TF ${trustFlow.toFixed(2)} to cache for user ${userId}...`,
+    );
+    await saveTrustFlowToCache(userId, trustFlow, supabase, {
+      changeReason: options.changeReason || "manual_recalc",
+      pushId: options.pushId,
+      calculatedBy: options.calculatedBy || "api",
+      metadata: options.metadata,
+    });
+    console.log(
+      `[Trust Flow] Saved TF ${trustFlow.toFixed(2)} to cache for user ${userId}`,
+    );
+  } else {
+    console.warn(
+      "[Trust Flow] Service role key not configured, skipping cache save",
+    );
+  }
 
   return trustFlow;
 }
