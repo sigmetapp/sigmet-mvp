@@ -226,11 +226,16 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
   try {
     // Get all pushes to this user
     // Use a fresh query without cache to ensure we see the latest data
+    // Query with explicit timestamp to force fresh data fetch
+    const queryStartTime = Date.now();
     const { data: pushes, error } = await supabase
       .from('trust_pushes')
       .select('from_user_id, type, created_at')
       .eq('to_user_id', userId)
       .order('created_at', { ascending: true });
+    
+    const queryEndTime = Date.now();
+    console.log(`[Trust Flow] Query executed in ${queryEndTime - queryStartTime}ms for user ${userId}`);
     
     // Double-check: verify the query actually executed and returned data
     if (error) {
@@ -246,7 +251,10 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     console.log(`[Trust Flow] Found ${pushes?.length || 0} pushes for user ${userId}`);
     if (pushes && pushes.length > 0) {
       const latestPush = pushes[pushes.length - 1];
-      console.log(`[Trust Flow] Latest push: from=${latestPush.from_user_id}, type=${latestPush.type}, created_at=${latestPush.created_at}`);
+      const latestPushTime = new Date(latestPush.created_at).getTime();
+      const now = Date.now();
+      const timeSinceLatestPush = now - latestPushTime;
+      console.log(`[Trust Flow] Latest push: from=${latestPush.from_user_id}, type=${latestPush.type}, created_at=${latestPush.created_at}, time_since=${timeSinceLatestPush}ms`);
       // Log all pushes for debugging
       console.log(`[Trust Flow] All pushes:`, pushes.map(p => ({ from: p.from_user_id, type: p.type, created: p.created_at })));
     }
@@ -313,10 +321,20 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     const roundedTF = Math.round(trustFlow * 100) / 100; // Round to 2 decimal places
     
     console.log(`[Trust Flow] Calculation for user ${userId}: positiveSum=${positiveSum.toFixed(2)}, negativeSum=${negativeSum.toFixed(2)}, rawTF=${trustFlow.toFixed(2)}, roundedTF=${roundedTF.toFixed(2)}`);
+    console.log(`[Trust Flow] Weight cache:`, Array.from(weightCache.entries()).map(([uid, w]) => ({ userId: uid, weight: w.toFixed(4) })));
+    console.log(`[Trust Flow] Pushes by user:`, Array.from(pushesByUser.entries()).map(([uid, ps]) => ({ userId: uid, count: ps.length, types: ps.map(p => p.type) })));
     
     // Ensure minimum base Trust Flow value for all users
+    // BUT: if the calculated value is exactly BASE_TRUST_FLOW and we have pushes, 
+    // it means the calculation might be wrong or the pushes aren't being counted
     const finalTF = Math.max(roundedTF, BASE_TRUST_FLOW);
-    console.log(`[Trust Flow] Final TF for user ${userId}: ${finalTF.toFixed(2)}`);
+    
+    // Log warning if we have pushes but TF is still at base value
+    if (pushes && pushes.length > 0 && finalTF === BASE_TRUST_FLOW && roundedTF < BASE_TRUST_FLOW) {
+      console.warn(`[Trust Flow] WARNING: User ${userId} has ${pushes.length} pushes but TF is clamped to base value ${BASE_TRUST_FLOW}. Calculated value was ${roundedTF.toFixed(2)}`);
+    }
+    
+    console.log(`[Trust Flow] Final TF for user ${userId}: ${finalTF.toFixed(2)} (calculated: ${roundedTF.toFixed(2)}, base: ${BASE_TRUST_FLOW})`);
     
     return finalTF;
   } catch (error) {

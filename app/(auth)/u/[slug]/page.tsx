@@ -1021,8 +1021,9 @@ export default function PublicProfilePage() {
       
       // Wait a bit to ensure database commit before recalculating
       // Increased delay to ensure transaction is committed and visible to admin client
+      // Increased to 1000ms to ensure database replication/consistency
       console.log('[Trust Push] Waiting for database commit...');
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Recalculate Trust Flow with retry logic
       let retries = 5;
