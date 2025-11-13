@@ -237,8 +237,11 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
       return BASE_TRUST_FLOW;
     }
     
+    console.log(`[Trust Flow] Found ${pushes?.length || 0} pushes for user ${userId}`);
+    
     if (!pushes || pushes.length === 0) {
       // Return base Trust Flow value for new users
+      console.log(`[Trust Flow] No pushes found, returning base value: ${BASE_TRUST_FLOW}`);
       return BASE_TRUST_FLOW;
     }
     
@@ -297,8 +300,13 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     const trustFlow = positiveSum - negativeSum;
     const roundedTF = Math.round(trustFlow * 100) / 100; // Round to 2 decimal places
     
+    console.log(`[Trust Flow] Calculation for user ${userId}: positiveSum=${positiveSum.toFixed(2)}, negativeSum=${negativeSum.toFixed(2)}, rawTF=${trustFlow.toFixed(2)}, roundedTF=${roundedTF.toFixed(2)}`);
+    
     // Ensure minimum base Trust Flow value for all users
-    return Math.max(roundedTF, BASE_TRUST_FLOW);
+    const finalTF = Math.max(roundedTF, BASE_TRUST_FLOW);
+    console.log(`[Trust Flow] Final TF for user ${userId}: ${finalTF.toFixed(2)}`);
+    
+    return finalTF;
   } catch (error) {
     console.error('Error calculating Trust Flow:', error);
     // Return base value on error to ensure users always have a minimum TF
