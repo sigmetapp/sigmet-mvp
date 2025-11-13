@@ -65,8 +65,29 @@ export default async function handler(
       const cached = await getCachedTrustFlow(userId);
       
       if (cached !== null) {
-        console.log(`[Trust Flow API] Using cached TF ${cached.toFixed(2)} for user ${userId}`);
-        trustFlow = cached;
+        // Check if cached value is base value (5.0) - if so, verify if recalculation is needed
+        if (Math.abs(cached - BASE_TRUST_FLOW) < 0.01) {
+          // Check if user has any pushes - if yes, recalculate to ensure accuracy
+          const { count: pushCount } = await supabase
+            .from('trust_pushes')
+            .select('id', { count: 'exact', head: true })
+            .eq('to_user_id', userId);
+          
+          if (pushCount && pushCount > 0) {
+            console.log(`[Trust Flow API] Cached value is base (${cached.toFixed(2)}), but user has ${pushCount} pushes. Recalculating...`);
+            trustFlow = await calculateAndSaveTrustFlow(userId, {
+              changeReason: 'api_auto_recalc',
+              calculatedBy: 'api',
+              useCache: false,
+            });
+          } else {
+            console.log(`[Trust Flow API] Using cached TF ${cached.toFixed(2)} for user ${userId} (no pushes)`);
+            trustFlow = cached;
+          }
+        } else {
+          console.log(`[Trust Flow API] Using cached TF ${cached.toFixed(2)} for user ${userId}`);
+          trustFlow = cached;
+        }
       } else {
         // No cache, calculate and save
         console.log(`[Trust Flow API] No cache found, calculating Trust Flow for user ${userId}`);
