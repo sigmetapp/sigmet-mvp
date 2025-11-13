@@ -1182,9 +1182,10 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   
                   {/* Overlay with media count indicator */}
                   {mediaCount > 1 && (
-                    <div className="absolute top-2 right-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm flex items-center gap-1.5">
-                      <ImageIcon className="w-4 h-4 text-white" />
-                      <span className="text-sm font-medium text-white">{mediaCount}</span>
+                    <div className="absolute top-3 right-3 px-3 py-2 rounded-lg bg-black/80 backdrop-blur-md flex items-center gap-2 shadow-lg border border-white/20 z-10">
+                      <ImageIcon className="w-5 h-5 text-white" />
+                      <span className="text-base font-bold text-white">{mediaCount}</span>
+                      <span className="text-xs text-white/80 font-medium">files</span>
                     </div>
                   )}
                   
