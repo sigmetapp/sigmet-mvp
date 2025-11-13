@@ -1185,7 +1185,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                     <div className="absolute top-3 right-3 px-3 py-2 rounded-lg bg-black/80 backdrop-blur-md flex items-center gap-2 shadow-lg border border-white/20 z-10">
                       <ImageIcon className="w-5 h-5 text-white" />
                       <span className="text-base font-bold text-white">{mediaCount}</span>
-                      <span className="text-xs text-white/80 font-medium">файлов</span>
+                      <span className="text-xs text-white/80 font-medium">files</span>
                     </div>
                   )}
                   
