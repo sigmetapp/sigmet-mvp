@@ -1469,7 +1469,32 @@ export default function PostFeed({
                       role="button"
                       aria-label="Open post"
                     >
-                      {p.body && <p className={`leading-relaxed break-words ${isLight ? "text-primary-text" : "text-primary-text"}`}>{formatTextWithMentions(p.body)}</p>}
+                      {p.body && (() => {
+                        const MAX_LENGTH = 600;
+                        const isLongPost = p.body.length > MAX_LENGTH;
+                        const displayText = isLongPost ? p.body.substring(0, MAX_LENGTH) : p.body;
+                        
+                        return (
+                          <>
+                            <p className={`whitespace-pre-wrap leading-relaxed break-words ${isLight ? "text-primary-text" : "text-primary-text"}`}>
+                              {formatTextWithMentions(displayText, p.id)}
+                              {isLongPost && '...'}
+                            </p>
+                            {isLongPost && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(getPostUrl(p.id));
+                                }}
+                                className={`mt-2 text-sm font-medium ${isLight ? "text-blue-600 hover:text-blue-700" : "text-blue-400 hover:text-blue-300"} transition-colors`}
+                                data-prevent-card-navigation="true"
+                              >
+                                Read more
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()}
                       {/* Display compact media preview with indicator */}
                       {(() => {
                         const imageUrls = (p.image_urls && p.image_urls.length > 0) ? p.image_urls : (p.image_url ? [p.image_url] : []);
