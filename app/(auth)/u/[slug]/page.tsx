@@ -520,8 +520,9 @@ export default function PublicProfilePage() {
         }
 
         // Load from cache first (fast), API will auto-recalculate if needed
+        // Force recalculation if we suspect the value might be stale (base value 5.0)
         console.log('[Trust Flow] Fetching TF from API...');
-        const res = await fetch(`/api/users/${profile.user_id}/trust-flow`, {
+        const res = await fetch(`/api/users/${profile.user_id}/trust-flow?recalculate=true`, {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
             'Cache-Control': 'no-cache',
@@ -534,12 +535,12 @@ export default function PublicProfilePage() {
 
         if (res.ok) {
           const data = await res.json();
-          console.log('[Trust Flow] API response data:', data);
+          console.log('[Trust Flow] API response data:', JSON.stringify(data, null, 2));
           // Ensure we have a valid trustFlow value (should be at least 5.0)
           const tfValue = data.trustFlow && typeof data.trustFlow === 'number' && data.trustFlow > 0 
             ? data.trustFlow 
             : 5.0; // BASE_TRUST_FLOW fallback
-          console.log('[Trust Flow] Setting TF to:', tfValue);
+          console.log('[Trust Flow] Setting TF to:', tfValue, '(raw value:', data.trustFlow, ')');
           setTrustFlow(tfValue);
           setTrustFlowColor(data.color || 'gray');
         } else {

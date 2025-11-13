@@ -68,21 +68,35 @@ export default async function handler(
       const cached = await getCachedTrustFlow(userId);
       
       if (cached !== null) {
+        console.log(`[Trust Flow API] Found cached value: ${cached.toFixed(2)}`);
         // Check if cached value is base value (5.0) - if so, verify if recalculation is needed
         if (Math.abs(cached - BASE_TRUST_FLOW) < 0.01) {
+          console.log(`[Trust Flow API] Cached value is base (${cached.toFixed(2)}), checking for pushes...`);
           // Check if user has any pushes - if yes, recalculate to ensure accuracy
-          const { count: pushCount } = await supabase
+          const { count: pushCount, error: pushCountError } = await supabase
             .from('trust_pushes')
             .select('id', { count: 'exact', head: true })
             .eq('to_user_id', userId);
           
-          if (pushCount && pushCount > 0) {
+          console.log(`[Trust Flow API] Push count check:`, { count: pushCount, error: pushCountError?.message });
+          
+          if (pushCountError) {
+            console.error(`[Trust Flow API] Error checking push count:`, pushCountError);
+            // On error, recalculate anyway to be safe
+            console.log(`[Trust Flow API] Recalculating due to push count check error...`);
+            trustFlow = await calculateAndSaveTrustFlow(userId, {
+              changeReason: 'api_auto_recalc_error',
+              calculatedBy: 'api',
+              useCache: false,
+            });
+          } else if (pushCount && pushCount > 0) {
             console.log(`[Trust Flow API] Cached value is base (${cached.toFixed(2)}), but user has ${pushCount} pushes. Recalculating...`);
             trustFlow = await calculateAndSaveTrustFlow(userId, {
               changeReason: 'api_auto_recalc',
               calculatedBy: 'api',
               useCache: false,
             });
+            console.log(`[Trust Flow API] Recalculated TF: ${trustFlow.toFixed(2)}`);
           } else {
             console.log(`[Trust Flow API] Using cached TF ${cached.toFixed(2)} for user ${userId} (no pushes)`);
             trustFlow = cached;
