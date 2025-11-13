@@ -17,6 +17,20 @@ export function supabaseAdmin() {
     adminClient = createClient(url, key, { 
       auth: { persistSession: false },
       db: { schema: 'public' },
+      global: {
+        // Disable fetch caching to ensure we always get fresh data
+        fetch: (url, options = {}) => {
+          return fetch(url, {
+            ...options,
+            cache: 'no-store',
+            headers: {
+              ...options.headers,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+            },
+          });
+        },
+      },
     });
   }
   
