@@ -98,15 +98,27 @@ export async function calculateAccountAgeDays(userId: string): Promise<number> {
 
 /**
  * Calculate user weight: W_i = log(1 + Activity_i) * log(1 + AccountAge_i)
+ * Minimum weight for new users to ensure their pushes are counted
  */
+export const MIN_USER_WEIGHT = 0.1; // Minimum weight for new users
+
 export async function calculateUserWeight(userId: string): Promise<UserActivityData> {
   const [activityScore, accountAgeDays] = await Promise.all([
     calculateUserActivityScore(userId),
     calculateAccountAgeDays(userId),
   ]);
   
+  // Ensure minimum values to avoid zero weight for new users
+  // Add 1 to activityScore and accountAgeDays to ensure log(1 + value) >= log(2) > 0
+  const adjustedActivityScore = Math.max(activityScore, 0);
+  const adjustedAccountAgeDays = Math.max(accountAgeDays, 0);
+  
   // W_i = log(1 + Activity_i) * log(1 + AccountAge_i)
-  const weight = Math.log(1 + activityScore) * Math.log(1 + accountAgeDays);
+  // For new users: log(1 + 0) * log(1 + 0) = 0, so we use minimum weight
+  const calculatedWeight = Math.log(1 + adjustedActivityScore) * Math.log(1 + adjustedAccountAgeDays);
+  
+  // Apply minimum weight to ensure new users' pushes are counted
+  const weight = Math.max(calculatedWeight, MIN_USER_WEIGHT);
   
   return {
     activityScore,
@@ -260,7 +272,8 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     let negativeSum = 0;
     
     for (const [fromUserId, userPushes] of pushesByUser.entries()) {
-      const weight = weightCache.get(fromUserId) || 0;
+      // Get weight from cache, fallback to minimum weight if not found
+      const weight = weightCache.get(fromUserId) ?? MIN_USER_WEIGHT;
       
       // Sort pushes by created_at to process in chronological order
       const sortedPushes = [...userPushes].sort((a, b) => 
