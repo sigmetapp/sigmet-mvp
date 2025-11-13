@@ -12,7 +12,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import PostFeed from '@/components/PostFeed';
 import { resolveAvatarUrl } from '@/lib/utils';
 import GoalReactions from '@/components/GoalReactions';
-import { calculateUserWeight, getRepeatCount } from '@/lib/trustFlow';
+import { calculateUserWeight, getRepeatCount, MIN_USER_WEIGHT } from '@/lib/trustFlow';
 
 type Profile = {
   user_id: string;
@@ -1078,7 +1078,8 @@ export default function PublicProfilePage() {
           }>();
 
           for (const [fromUserId, userPushes] of pushesByUser.entries()) {
-            const weight = weightCache.get(fromUserId) || 0;
+            // Get weight from cache, fallback to minimum weight if not found
+            const weight = weightCache.get(fromUserId) ?? MIN_USER_WEIGHT;
             
             for (let i = 0; i < userPushes.length; i++) {
               const push = userPushes[i];
