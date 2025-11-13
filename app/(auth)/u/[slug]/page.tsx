@@ -1166,14 +1166,49 @@ export default function PublicProfilePage() {
           for (const fromUserId of pushesByUser.keys()) {
             weightPromises.push(
               calculateUserWeight(fromUserId).then((data) => {
-                weightCache.set(fromUserId, data.weight);
-              }).catch(() => {
-                weightCache.set(fromUserId, 0);
+                // Ensure weight is at least MIN_USER_WEIGHT
+                const weight = Math.max(data.weight, MIN_USER_WEIGHT);
+                weightCache.set(fromUserId, weight);
+                console.log(`[TF History] User ${fromUserId} weight: ${data.weight}, activity: ${data.activityScore}, age: ${data.accountAgeDays} days`);
+              }).catch((error) => {
+                console.error(`[TF History] Error calculating weight for user ${fromUserId}:`, error);
+                weightCache.set(fromUserId, MIN_USER_WEIGHT);
               })
             );
           }
           
           await Promise.all(weightPromises);
+
+          // Check if each user's first push to this target is their first push ever
+          const firstPushCheckPromises: Promise<{ fromUserId: string; isFirstPush: boolean }>[] = [];
+          for (const [fromUserId, userPushes] of pushesByUser.entries()) {
+            // Get the earliest push timestamp from this user to this target user
+            const sortedPushes = [...userPushes].sort((a, b) => 
+              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+            const firstPushTimestamp = sortedPushes[0]?.created_at;
+            
+            firstPushCheckPromises.push(
+              (async () => {
+                // Check if this user has given any pushes before this one (to any user)
+                const { count } = await supabase
+                  .from('trust_pushes')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('from_user_id', fromUserId)
+                  .lt('created_at', firstPushTimestamp || new Date().toISOString());
+                
+                return {
+                  fromUserId,
+                  isFirstPush: (count || 0) === 0,
+                };
+              })()
+            );
+          }
+          const firstPushChecks = await Promise.all(firstPushCheckPromises);
+          const firstPushMap = new Map<string, boolean>();
+          for (const check of firstPushChecks) {
+            firstPushMap.set(check.fromUserId, check.isFirstPush);
+          }
 
           // Create a map of push ID to TF details
           const pushDetailsMap = new Map<number, {
@@ -1188,14 +1223,22 @@ export default function PublicProfilePage() {
             // Get weight from cache, fallback to minimum weight if not found
             const weight = weightCache.get(fromUserId) ?? MIN_USER_WEIGHT;
             
-            for (let i = 0; i < userPushes.length; i++) {
-              const push = userPushes[i];
+            // Sort pushes by created_at to process in chronological order
+            const sortedPushes = [...userPushes].sort((a, b) => 
+              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+            
+            for (let i = 0; i < sortedPushes.length; i++) {
+              const push = sortedPushes[i];
               const repeatCount = i; // How many pushes came before this one
-              const effectiveWeight = weight / (1 + repeatCount);
+              
+              // For new users' first push ever, use 1.5 instead of calculated weight
+              const isFirstPushEver = firstPushMap.get(fromUserId) === true && repeatCount === 0;
+              const effectiveWeight = isFirstPushEver ? 1.5 : weight / (1 + repeatCount);
               const contribution = push.type === 'positive' ? effectiveWeight : -effectiveWeight;
               
               pushDetailsMap.set(Number(push.id), {
-                weight,
+                weight: isFirstPushEver ? 1.5 : weight, // Show 1.5 for first push ever, otherwise actual weight
                 repeatCount,
                 effectiveWeight,
                 contribution,

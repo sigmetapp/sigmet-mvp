@@ -29,17 +29,39 @@ export async function calculateUserActivityScore(userId: string): Promise<number
   const supabase = supabaseAdmin();
   
   try {
-    // Get posts count
-    const { count: postsCount } = await supabase
+    // Get posts count - try author_id first, fallback to user_id if needed
+    let postsCount = 0;
+    const postsResult = await supabase
       .from('posts')
       .select('id', { count: 'exact', head: true })
       .eq('author_id', userId);
+    if (postsResult.error && postsResult.error.message?.includes('column') && postsResult.error.message?.includes('author_id')) {
+      // Fallback to user_id if author_id doesn't exist
+      const fallbackResult = await supabase
+        .from('posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId);
+      postsCount = fallbackResult.count || 0;
+    } else {
+      postsCount = postsResult.count || 0;
+    }
     
-    // Get comments count
-    const { count: commentsCount } = await supabase
+    // Get comments count - try author_id first, fallback to user_id if needed
+    let commentsCount = 0;
+    const commentsResult = await supabase
       .from('comments')
       .select('id', { count: 'exact', head: true })
       .eq('author_id', userId);
+    if (commentsResult.error && commentsResult.error.message?.includes('column') && commentsResult.error.message?.includes('author_id')) {
+      // Fallback to user_id if author_id doesn't exist
+      const fallbackResult = await supabase
+        .from('comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId);
+      commentsCount = fallbackResult.count || 0;
+    } else {
+      commentsCount = commentsResult.count || 0;
+    }
     
     // Get SW score (cached value)
     const { data: swScore } = await supabase
