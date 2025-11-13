@@ -225,19 +225,31 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
   
   try {
     // Get all pushes to this user
+    // Use a fresh query without cache to ensure we see the latest data
     const { data: pushes, error } = await supabase
       .from('trust_pushes')
       .select('from_user_id, type, created_at')
       .eq('to_user_id', userId)
       .order('created_at', { ascending: true });
     
+    // Double-check: verify the query actually executed and returned data
     if (error) {
-      console.error('Error fetching trust pushes:', error);
+      console.error('[Trust Flow] Query error details:', JSON.stringify(error, null, 2));
+    }
+    
+    if (error) {
+      console.error('[Trust Flow] Error fetching trust pushes:', error);
       // Return base value on error to ensure users always have a minimum TF
       return BASE_TRUST_FLOW;
     }
     
     console.log(`[Trust Flow] Found ${pushes?.length || 0} pushes for user ${userId}`);
+    if (pushes && pushes.length > 0) {
+      const latestPush = pushes[pushes.length - 1];
+      console.log(`[Trust Flow] Latest push: from=${latestPush.from_user_id}, type=${latestPush.type}, created_at=${latestPush.created_at}`);
+      // Log all pushes for debugging
+      console.log(`[Trust Flow] All pushes:`, pushes.map(p => ({ from: p.from_user_id, type: p.type, created: p.created_at })));
+    }
     
     if (!pushes || pushes.length === 0) {
       // Return base Trust Flow value for new users

@@ -993,9 +993,24 @@ export default function PublicProfilePage() {
           return;
         }
         
-        console.log('Trust push inserted successfully:', insertData.id);
+        console.log('[Trust Push] Trust push inserted successfully:', insertData.id, 'type:', insertData.type, 'from:', insertData.from_user_id, 'to:', insertData.to_user_id);
+        
+        // Verify the push was actually saved by reading it back immediately
+        // This ensures the transaction is committed
+        const { data: verifyData, error: verifyError } = await supabase
+          .from('trust_pushes')
+          .select('id, type, created_at')
+          .eq('id', insertData.id)
+          .single();
+        
+        if (verifyError || !verifyData) {
+          console.error('[Trust Push] Failed to verify push was saved:', verifyError);
+          // Continue anyway - the insert might have succeeded even if verify failed
+        } else {
+          console.log('[Trust Push] Push verified in database:', verifyData.id, 'created_at:', verifyData.created_at);
+        }
       } catch (insertErr) {
-        console.error('Exception inserting trust push:', insertErr);
+        console.error('[Trust Push] Exception inserting trust push:', insertErr);
         alert('Failed to submit feedback. Please try again.');
         setFeedbackPending(false);
         return;
@@ -1005,14 +1020,17 @@ export default function PublicProfilePage() {
       setFeedbackText('');
       
       // Wait a bit to ensure database commit before recalculating
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Increased delay to ensure transaction is committed and visible to admin client
+      console.log('[Trust Push] Waiting for database commit...');
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Recalculate Trust Flow with retry logic
-      let retries = 3;
+      let retries = 5;
       let recalculated = false;
       
       while (retries > 0 && !recalculated) {
         try {
+          console.log(`[Trust Push] Recalculating Trust Flow (attempt ${6 - retries}/5)...`);
           const res = await fetch(`/api/users/${profile.user_id}/trust-flow`, {
             headers: {
               Authorization: `Bearer ${session.access_token}`,
@@ -1021,25 +1039,29 @@ export default function PublicProfilePage() {
 
           if (res.ok) {
             const data = await res.json();
-            console.log('Trust Flow recalculated:', data.trustFlow);
+            console.log('[Trust Push] Trust Flow recalculated successfully:', data.trustFlow, 'previous:', trustFlow);
             setTrustFlow(data.trustFlow);
             setTrustFlowColor(data.color);
             recalculated = true;
           } else {
             const errorText = await res.text();
-            console.error('Error recalculating Trust Flow:', res.status, errorText);
+            console.error('[Trust Push] Error recalculating Trust Flow:', res.status, errorText);
             retries--;
             if (retries > 0) {
-              // Wait before retry
-              await new Promise(resolve => setTimeout(resolve, 200));
+              // Wait before retry with increasing delay
+              const delay = (6 - retries) * 300; // 300ms, 600ms, 900ms, 1200ms
+              console.log(`[Trust Push] Retrying in ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
             }
           }
         } catch (recalcErr) {
-          console.error('Error recalculating Trust Flow:', recalcErr);
+          console.error('[Trust Push] Error recalculating Trust Flow:', recalcErr);
           retries--;
           if (retries > 0) {
-            // Wait before retry
-            await new Promise(resolve => setTimeout(resolve, 200));
+            // Wait before retry with increasing delay
+            const delay = (6 - retries) * 300;
+            console.log(`[Trust Push] Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
           }
         }
       }

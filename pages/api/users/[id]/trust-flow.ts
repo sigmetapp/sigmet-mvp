@@ -31,8 +31,10 @@ export default async function handler(
     }
 
     // Calculate Trust Flow
+    console.log(`[Trust Flow API] Calculating Trust Flow for user ${userId}`);
     const trustFlow = await calculateTrustFlowForUser(userId);
     const colorInfo = getTrustFlowColor(trustFlow);
+    console.log(`[Trust Flow API] Calculated TF: ${trustFlow}, color: ${colorInfo.color}`);
 
     return res.status(200).json({
       trustFlow,
