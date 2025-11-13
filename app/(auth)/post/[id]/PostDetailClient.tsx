@@ -1121,7 +1121,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
           {/* Content */}
           <p className={`whitespace-pre-wrap text-sm leading-6 ${isLight ? 'text-slate-900' : 'text-slate-300'}`}>
-            {formatTextWithMentions(postCardPost.content)}
+            {formatTextWithMentions(postCardPost.content, post.id)}
           </p>
 
           {/* Media */}

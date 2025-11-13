@@ -11,6 +11,11 @@ type ViewData = {
   view_count: number;
 };
 
+type LinkClickData = {
+  click_date: string;
+  click_count: number;
+};
+
 type ViewsChartProps = {
   postId: number;
   isOpen: boolean;
@@ -21,6 +26,7 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const [views, setViews] = useState<ViewData[]>([]);
+  const [linkClicks, setLinkClicks] = useState<LinkClickData[]>([]);
   const [loading, setLoading] = useState(false);
   const [canRenderPortal, setCanRenderPortal] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -44,9 +50,11 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
       }
       const data = await response.json();
       setViews(data.views || []);
+      setLinkClicks(data.linkClicks || []);
     } catch (error) {
       console.error('Error fetching views:', error);
       setViews([]);
+      setLinkClicks([]);
     } finally {
       setLoading(false);
     }
@@ -157,7 +165,7 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
                     isLight ? 'text-primary-text' : 'text-primary-text'
                   }`}
                 >
-                  Views Last 7 Days
+                  Statistics Last 7 Days
                 </h3>
                 <button
                   onClick={onClose}
@@ -290,11 +298,27 @@ export default function ViewsChart({ postId, isOpen, onClose }: ViewsChartProps)
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-1">
-                      <span>Average per day:</span>
+                      <span>Average views per day:</span>
                       <span className="font-semibold">
                         {views.length > 0
                           ? Math.round(
                               views.reduce((sum, v) => sum + v.view_count, 0) / views.length
+                            )
+                          : 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span>Total link clicks:</span>
+                      <span className="font-semibold">
+                        {linkClicks.reduce((sum, c) => sum + c.click_count, 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span>Average clicks per day:</span>
+                      <span className="font-semibold">
+                        {linkClicks.length > 0
+                          ? Math.round(
+                              linkClicks.reduce((sum, c) => sum + c.click_count, 0) / linkClicks.length
                             )
                           : 0}
                       </span>

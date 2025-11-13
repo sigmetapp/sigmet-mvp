@@ -19,16 +19,30 @@ export default async function handler(
   try {
     const supabase = supabaseAdmin();
     
-    const { data, error } = await supabase.rpc('get_post_views_last_7_days', {
+    // Fetch views
+    const { data: viewsData, error: viewsError } = await supabase.rpc('get_post_views_last_7_days', {
       p_post_id: postId,
     });
 
-    if (error) {
-      console.error('Error fetching views:', error);
+    if (viewsError) {
+      console.error('Error fetching views:', viewsError);
       return res.status(500).json({ error: 'Failed to fetch views' });
     }
 
-    return res.status(200).json({ views: data || [] });
+    // Fetch link clicks
+    const { data: clicksData, error: clicksError } = await supabase.rpc('get_post_link_clicks_last_7_days', {
+      p_post_id: postId,
+    });
+
+    if (clicksError) {
+      console.error('Error fetching link clicks:', clicksError);
+      // Don't fail if clicks table doesn't exist yet, just return empty array
+    }
+
+    return res.status(200).json({ 
+      views: viewsData || [],
+      linkClicks: clicksData || []
+    });
   } catch (error: any) {
     console.error('Error in views API:', error);
     return res.status(500).json({ error: 'Internal server error' });

@@ -234,7 +234,7 @@ export default function PostCard({
         )}
       </header>
 
-      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">{formatTextWithMentions(post.content)}</p>
+      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">{formatTextWithMentions(post.content, post.id ? parseInt(post.id, 10) : undefined)}</p>
 
       {commentsLabel && (
         <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{commentsLabel}</div>
