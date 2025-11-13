@@ -304,7 +304,13 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     for (const fromUserId of pushesByUser.keys()) {
       weightPromises.push(
         calculateUserWeight(fromUserId).then((data) => {
-          weightCache.set(fromUserId, data.weight);
+          // Ensure weight is at least MIN_USER_WEIGHT
+          const weight = Math.max(data.weight, MIN_USER_WEIGHT);
+          weightCache.set(fromUserId, weight);
+          console.log(`[Trust Flow] User ${fromUserId} weight: ${data.weight.toFixed(4)}, activity: ${data.activityScore}, age: ${data.accountAgeDays} days`);
+        }).catch((error) => {
+          console.error(`[Trust Flow] Error calculating weight for user ${fromUserId}:`, error);
+          weightCache.set(fromUserId, MIN_USER_WEIGHT);
         })
       );
     }
@@ -373,24 +379,22 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
       }
     }
     
-    const trustFlow = positiveSum - negativeSum;
+    // Calculate contributions: positiveSum - negativeSum
+    const contributions = positiveSum - negativeSum;
+    
+    // Trust Flow = Base value + contributions from pushes
+    // This ensures users start at BASE_TRUST_FLOW and accumulate from there
+    const trustFlow = BASE_TRUST_FLOW + contributions;
     const roundedTF = Math.round(trustFlow * 100) / 100; // Round to 2 decimal places
     
-    console.log(`[Trust Flow] Calculation for user ${userId}: positiveSum=${positiveSum.toFixed(2)}, negativeSum=${negativeSum.toFixed(2)}, rawTF=${trustFlow.toFixed(2)}, roundedTF=${roundedTF.toFixed(2)}`);
+    console.log(`[Trust Flow] Calculation for user ${userId}: positiveSum=${positiveSum.toFixed(2)}, negativeSum=${negativeSum.toFixed(2)}, contributions=${contributions.toFixed(2)}, base=${BASE_TRUST_FLOW}, finalTF=${roundedTF.toFixed(2)}`);
     console.log(`[Trust Flow] Weight cache:`, Array.from(weightCache.entries()).map(([uid, w]) => ({ userId: uid, weight: w.toFixed(4) })));
     console.log(`[Trust Flow] Pushes by user:`, Array.from(pushesByUser.entries()).map(([uid, ps]) => ({ userId: uid, count: ps.length, types: ps.map(p => p.type) })));
     
-    // Ensure minimum base Trust Flow value for all users
-    // BUT: if the calculated value is exactly BASE_TRUST_FLOW and we have pushes, 
-    // it means the calculation might be wrong or the pushes aren't being counted
+    // Ensure minimum base Trust Flow value (should always be >= BASE_TRUST_FLOW since we add to it)
     const finalTF = Math.max(roundedTF, BASE_TRUST_FLOW);
     
-    // Log warning if we have pushes but TF is still at base value
-    if (pushes && pushes.length > 0 && finalTF === BASE_TRUST_FLOW && roundedTF < BASE_TRUST_FLOW) {
-      console.warn(`[Trust Flow] WARNING: User ${userId} has ${pushes.length} pushes but TF is clamped to base value ${BASE_TRUST_FLOW}. Calculated value was ${roundedTF.toFixed(2)}`);
-    }
-    
-    console.log(`[Trust Flow] Final TF for user ${userId}: ${finalTF.toFixed(2)} (calculated: ${roundedTF.toFixed(2)}, base: ${BASE_TRUST_FLOW})`);
+    console.log(`[Trust Flow] Final TF for user ${userId}: ${finalTF.toFixed(2)} (base: ${BASE_TRUST_FLOW}, contributions: ${contributions.toFixed(2)})`);
     
     return finalTF;
   } catch (error) {
