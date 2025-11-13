@@ -64,8 +64,9 @@ const loadPostData = cache(async (postId: number) => {
   return { post, authorProfile, commentCount };
 });
 
-export default async function PostDetailPage({ params }: { params: { id: string } }) {
-  const rawId = params.id;
+export default async function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const rawId = id;
   const postId = Number(rawId);
 
   if (!Number.isFinite(postId) || Number.isNaN(postId)) {
@@ -79,8 +80,9 @@ export default async function PostDetailPage({ params }: { params: { id: string 
   );
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const rawId = params.id;
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const rawId = id;
   const postId = Number(rawId);
 
   if (!Number.isFinite(postId) || Number.isNaN(postId)) {
