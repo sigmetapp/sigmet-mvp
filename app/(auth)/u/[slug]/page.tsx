@@ -2183,6 +2183,7 @@ export default function PublicProfilePage() {
       <TrustFlowInfoModal
         isOpen={trustFlowInfoOpen}
         onClose={() => setTrustFlowInfoOpen(false)}
+        isAdmin={isAdmin ?? false}
       />
 
       {/* Share modal (owner only) */}

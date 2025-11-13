@@ -6,6 +6,7 @@ import { useTheme } from '@/components/ThemeProvider';
 type TrustFlowInfoModalProps = {
   isOpen: boolean;
   onClose: () => void;
+  isAdmin?: boolean;
 };
 
 const TRUST_LEVELS = [
@@ -13,37 +14,43 @@ const TRUST_LEVELS = [
     range: '< 0',
     color: 'red',
     label: 'Low Trust',
-    description: 'Отрицательный показатель доверия. Пользователь получил больше негативных оценок, чем позитивных.',
+    description: 'Negative trust score. The user has received more negative evaluations than positive ones.',
+    colorHex: '#ef4444', // red-500
   },
   {
     range: '0 - 9.9',
     color: 'gray',
     label: 'Newcomer',
-    description: 'Новый пользователь или пользователь с минимальной активностью. Базовый уровень доверия.',
+    description: 'New user or user with minimal activity. Base trust level.',
+    colorHex: '#9ca3af', // gray-400
   },
   {
     range: '10 - 39.9',
     color: 'yellow',
     label: 'Moderate Trust',
-    description: 'Умеренный уровень доверия. Пользователь получил некоторое количество позитивных оценок.',
+    description: 'Moderate level of trust. The user has received some positive evaluations.',
+    colorHex: '#fbbf24', // yellow-400
   },
   {
     range: '40 - 99.9',
     color: 'green',
     label: 'High Trust',
-    description: 'Высокий уровень доверия. Пользователь зарекомендовал себя как надежный участник сообщества.',
+    description: 'High level of trust. The user has proven to be a reliable member of the community.',
+    colorHex: '#10b981', // green-500
   },
   {
     range: '≥ 100',
     color: 'blue',
     label: 'Elite',
-    description: 'Элитный уровень доверия. Пользователь получил значительное количество позитивных оценок от активных участников сообщества.',
+    description: 'Elite level of trust. The user has received a significant number of positive evaluations from active community members.',
+    colorHex: '#6366f1', // indigo-500
   },
 ];
 
 export default function TrustFlowInfoModal({
   isOpen,
   onClose,
+  isAdmin = false,
 }: TrustFlowInfoModalProps) {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -117,41 +124,43 @@ export default function TrustFlowInfoModal({
           </div>
 
           <div className="space-y-6">
-            {/* Что такое Trust Flow */}
+            {/* What is Trust Flow */}
             <div>
               <h3 className={`font-semibold text-base mb-2 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
-                Что такое Trust Flow?
+                What is Trust Flow?
               </h3>
               <p className={`text-sm leading-relaxed ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                Trust Flow (TF) — это показатель доверия к пользователю в сообществе, основанный на оценках других участников. 
-                Пользователи могут оставлять позитивные или негативные оценки (пуши), которые влияют на Trust Flow.
+                Trust Flow (TF) is a trust metric for users in the community, based on evaluations from other members. 
+                Users can leave positive or negative evaluations (pushes) that affect Trust Flow.
               </p>
             </div>
 
-            {/* Как рассчитывается */}
-            <div>
-              <h3 className={`font-semibold text-base mb-2 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
-                Как рассчитывается Trust Flow?
-              </h3>
-              <p className={`text-sm leading-relaxed mb-2 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                Trust Flow рассчитывается по формуле:
-              </p>
-              <div className={`p-3 rounded-lg border ${isLight ? 'bg-black/5 border-black/10' : 'bg-white/5 border-white/10'}`}>
-                <code className={`text-xs ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
-                  TF = Σ(Позитивные пуши × Вес пользователя / (1 + Повтор)) - Σ(Негативные пуши × Вес пользователя / (1 + Повтор))
-                </code>
+            {/* How it's calculated - only for admins */}
+            {isAdmin && (
+              <div>
+                <h3 className={`font-semibold text-base mb-2 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                  How is Trust Flow calculated?
+                </h3>
+                <p className={`text-sm leading-relaxed mb-2 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                  Trust Flow is calculated using the following formula:
+                </p>
+                <div className={`p-3 rounded-lg border ${isLight ? 'bg-black/5 border-black/10' : 'bg-white/5 border-white/10'}`}>
+                  <code className={`text-xs ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                    TF = Σ(Positive Pushes × User Weight / (1 + Repeat)) - Σ(Negative Pushes × User Weight / (1 + Repeat))
+                  </code>
+                </div>
+                <div className={`mt-3 text-sm space-y-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                  <p>• <strong>User Weight</strong> depends on their activity (posts, comments, SW) and account age</p>
+                  <p>• <strong>Repeat</strong> is the number of previous evaluations from the same user (repeated evaluations have less weight)</p>
+                  <p>• <strong>Base value</strong> for new users: 5.0</p>
+                </div>
               </div>
-              <div className={`mt-3 text-sm space-y-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                <p>• <strong>Вес пользователя</strong> зависит от его активности (посты, комментарии, SW) и возраста аккаунта</p>
-                <p>• <strong>Повтор</strong> — количество предыдущих оценок от того же пользователя (повторяющиеся оценки имеют меньший вес)</p>
-                <p>• <strong>Базовое значение</strong> для новых пользователей: 5.0</p>
-              </div>
-            </div>
+            )}
 
-            {/* Уровни доверия */}
+            {/* Trust Levels */}
             <div>
               <h3 className={`font-semibold text-base mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
-                Уровни доверия
+                Trust Levels
               </h3>
               <div className="space-y-2">
                 {TRUST_LEVELS.map((level) => (
@@ -162,6 +171,10 @@ export default function TrustFlowInfoModal({
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: level.colorHex }}
+                      />
                       <span className={`font-medium ${getColorClass(level.color)}`}>
                         {level.label}
                       </span>
@@ -177,15 +190,15 @@ export default function TrustFlowInfoModal({
               </div>
             </div>
 
-            {/* Как оставить оценку */}
+            {/* How to leave an evaluation */}
             <div>
               <h3 className={`font-semibold text-base mb-2 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
-                Как оставить оценку?
+                How to leave an evaluation?
               </h3>
               <p className={`text-sm leading-relaxed ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
-                На странице профиля другого пользователя нажмите кнопку "Leave opinion" под блоком Trust Flow. 
-                Вы можете оставить позитивную или негативную оценку с комментарием. 
-                Обратите внимание: максимальное количество оценок одному пользователю — 5 в месяц.
+                On another user's profile page, click the "Leave opinion" button below the Trust Flow block. 
+                You can leave a positive or negative evaluation with a comment. 
+                Note: maximum number of evaluations per user is 5 per month.
               </p>
             </div>
           </div>
@@ -199,7 +212,7 @@ export default function TrustFlowInfoModal({
                   : 'bg-primary-blue text-white hover:bg-primary-blue/90'
               }`}
             >
-              Понятно
+              Got it
             </button>
           </div>
         </div>
