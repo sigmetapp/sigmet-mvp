@@ -22,7 +22,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .order('created_at', { ascending: false })
         .range(offsetNum, offsetNum + limitNum - 1);
 
-      if (notificationsError) throw notificationsError;
+      if (notificationsError) {
+        console.error('Error fetching notifications from DB:', {
+          error: notificationsError,
+          userId,
+          code: notificationsError.code,
+          message: notificationsError.message,
+          details: notificationsError.details,
+          hint: notificationsError.hint,
+        });
+        throw notificationsError;
+      }
 
       const notifications = notificationsData || [];
 
@@ -74,6 +84,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const trustIdsNumeric = Array.from(
         new Set(
           trustIdsRaw
+            .map((id) => (typeof id === 'number' ? id : /^\d+$/.test(id) ? Number(id) : null))
+            .filter((id): id is number => id !== null)
+        )
+      );
+
+      const eventIdsRaw = notifications
+        .map((n) => (n as any).event_id)
+        .filter((id): id is number | string => id !== null && id !== undefined);
+      const eventIdsNumeric = Array.from(
+        new Set(
+          eventIdsRaw
             .map((id) => (typeof id === 'number' ? id : /^\d+$/.test(id) ? Number(id) : null))
             .filter((id): id is number => id !== null)
         )
@@ -152,6 +173,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
+      const eventsMap = new Map<string, any>();
+      if (eventIdsNumeric.length > 0) {
+        const { data: eventsData, error: eventsError } = await client
+          .from('sw_events')
+          .select('id, type, value, meta')
+          .in('id', eventIdsNumeric);
+        if (!eventsError && eventsData) {
+          for (const event of eventsData) {
+            eventsMap.set(String(event.id), event);
+          }
+        } else if (eventsError) {
+          console.warn('Failed to load events for notifications:', eventsError);
+        }
+      }
+
       const enrichedNotifications = notifications.map((n) => ({
         ...n,
         actor: n.actor_id ? actorsMap.get(n.actor_id) ?? null : null,
@@ -163,6 +199,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         trust_feedback:
           n.trust_feedback_id !== null && n.trust_feedback_id !== undefined
             ? trustFeedbackMap.get(String(n.trust_feedback_id)) ?? null
+            : null,
+        event:
+          (n as any).event_id !== null && (n as any).event_id !== undefined
+            ? eventsMap.get(String((n as any).event_id)) ?? null
             : null,
       }));
 
@@ -176,9 +216,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.json({
         notifications: enrichedNotifications,
         unreadCount: unreadCount || 0,
+        debug: process.env.NODE_ENV === 'development' ? {
+          rawCount: notifications.length,
+          enrichedCount: enrichedNotifications.length,
+          userId,
+        } : undefined,
       });
     } catch (error: any) {
-      console.error('Error fetching notifications:', error);
-      return res.status(500).json({ error: error.message || 'Internal server error' });
+      console.error('Error fetching notifications:', {
+        error: error.message,
+        stack: error.stack,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        userId,
+      });
+      return res.status(500).json({ 
+        error: error.message || 'Internal server error',
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
     }
 }
