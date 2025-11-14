@@ -7,12 +7,13 @@ export type SiteSettings = {
   logo_url: string | null;
   invites_only?: boolean;
   allowed_continents?: string[];
+  show_site_name_in_header?: boolean;
 };
 
-const Ctx = createContext<SiteSettings>({ site_name: null, logo_url: null, invites_only: false, allowed_continents: [] });
+const Ctx = createContext<SiteSettings>({ site_name: null, logo_url: null, invites_only: false, allowed_continents: [], show_site_name_in_header: true });
 
 export function SiteSettingsProvider({ children }: { children: React.ReactNode }) {
-  const [value, setValue] = useState<SiteSettings>({ site_name: null, logo_url: null, invites_only: false, allowed_continents: [] });
+  const [value, setValue] = useState<SiteSettings>({ site_name: null, logo_url: null, invites_only: false, allowed_continents: [], show_site_name_in_header: true });
 
   useEffect(() => {
     let mounted = true;
@@ -50,6 +51,7 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
           logo_url: data.logo_url ?? null,
           invites_only: !!data.invites_only,
           allowed_continents: Array.isArray(data.allowed_continents) ? data.allowed_continents : [],
+          show_site_name_in_header: data.show_site_name_in_header !== undefined ? !!data.show_site_name_in_header : true,
         };
         setValue(newValue);
         

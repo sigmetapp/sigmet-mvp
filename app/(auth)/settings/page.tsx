@@ -9,7 +9,7 @@ export default function SettingsPage() {
 }
 
 function SettingsInner() {
-  const { site_name, logo_url, invites_only, allowed_continents } = useSiteSettings();
+  const { site_name, logo_url, invites_only, allowed_continents, show_site_name_in_header } = useSiteSettings();
   const [isAdmin, setIsAdmin] = useState<null | boolean>(null);
   const [name, setName] = useState(site_name || '');
   const [logo, setLogo] = useState<File | null>(null);
@@ -17,6 +17,7 @@ function SettingsInner() {
   const [saving, setSaving] = useState(false);
   const [invitesOnly, setInvitesOnly] = useState<boolean>(!!invites_only);
   const [continents, setContinents] = useState<string[]>(Array.isArray(allowed_continents) ? allowed_continents! : []);
+  const [showSiteNameInHeader, setShowSiteNameInHeader] = useState<boolean>(show_site_name_in_header !== undefined ? show_site_name_in_header : true);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -28,7 +29,8 @@ function SettingsInner() {
   useEffect(() => {
     setInvitesOnly(!!invites_only);
     setContinents(Array.isArray(allowed_continents) ? allowed_continents! : []);
-  }, [invites_only, allowed_continents]);
+    setShowSiteNameInHeader(show_site_name_in_header !== undefined ? show_site_name_in_header : true);
+  }, [invites_only, allowed_continents, show_site_name_in_header]);
 
   useEffect(() => {
     (async () => {
@@ -78,6 +80,7 @@ function SettingsInner() {
           site_name: name || null,
           invites_only: !!invitesOnly,
           allowed_continents: continents,
+          show_site_name_in_header: showSiteNameInHeader,
           logo: logoPayload,
         }),
       });
@@ -117,6 +120,15 @@ function SettingsInner() {
             placeholder="SIGMET"
             className="w-full rounded-xl bg-transparent border border-white/10 px-3 py-2 outline-none placeholder-white/40"
           />
+        </label>
+
+        <label className="flex items-center gap-2 text-white/80">
+          <input
+            type="checkbox"
+            checked={showSiteNameInHeader}
+            onChange={(e) => setShowSiteNameInHeader(e.target.checked)}
+          />
+          <span>Показывать в шапке</span>
         </label>
 
         <div className="space-y-2">

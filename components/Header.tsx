@@ -17,7 +17,7 @@ const navLinks = [
 ];
 
 export default function Header() {
-  const { logo_url, site_name } = useSiteSettings();
+  const { logo_url, site_name, show_site_name_in_header } = useSiteSettings();
   const [user, setUser] = useState<any>(null);
   const pathname = usePathname() || "/";
   // Mobile menu removed in favor of inline icons
@@ -99,9 +99,11 @@ export default function Header() {
               S
             </div>
           )}
-          <span className={`${isLight ? "text-primary-text" : "text-primary-text"} font-semibold tracking-tight hidden sm:inline`}>
-            {site_name || "SIGMET"}
-          </span>
+          {show_site_name_in_header !== false && (
+            <span className={`${isLight ? "text-primary-text" : "text-primary-text"} font-semibold tracking-tight hidden sm:inline`}>
+              {site_name || "SIGMET"}
+            </span>
+          )}
           <span className={`px-2 py-0.5 rounded-md text-xs font-normal tracking-wide hidden sm:inline-flex items-center border ${
             isLight
               ? "border-orange-500/60 text-orange-600"

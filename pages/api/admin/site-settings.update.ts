@@ -45,10 +45,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const { site_name, invites_only, allowed_continents, logo } = req.body as {
+    const { site_name, invites_only, allowed_continents, show_site_name_in_header, logo } = req.body as {
       site_name?: string | null;
       invites_only?: boolean;
       allowed_continents?: string[];
+      show_site_name_in_header?: boolean;
       logo?: { name: string; type?: string; dataBase64: string } | null;
     };
 
@@ -76,6 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
     if (typeof invites_only === 'boolean') payload.invites_only = invites_only;
     if (Array.isArray(allowed_continents)) payload.allowed_continents = allowed_continents;
+    if (typeof show_site_name_in_header === 'boolean') payload.show_site_name_in_header = show_site_name_in_header;
     if (logo_url !== undefined) payload.logo_url = logo_url;
 
     // Try upsert; if the deployment's schema lacks new columns (like
@@ -86,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const message = (dbErr?.message || '').toLowerCase();
 
       const missingCols: string[] = [];
-      const candidates = ["allowed_continents", "invites_only"] as const;
+      const candidates = ["allowed_continents", "invites_only", "show_site_name_in_header"] as const;
       for (const col of candidates) {
         if (message.includes(`'${col}'`) && message.includes('schema cache') && col in payload) {
           missingCols.push(col);
