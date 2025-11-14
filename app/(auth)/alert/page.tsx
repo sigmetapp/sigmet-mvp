@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, TouchEvent } from 'react';
+import { useState, useEffect, useRef, TouchEvent, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import { Bell, MessageSquare, Heart, UserPlus, Shield, AtSign, X, TrendingUp, Link2 } from 'lucide-react';
@@ -77,26 +77,7 @@ export default function AlertPage() {
   const swipeCurrentX = useRef<number | null>(null);
   const swipeElementId = useRef<number | null>(null);
 
-  useEffect(() => {
-    checkAdminStatus();
-    loadNotifications();
-  }, []);
-
-  const checkAdminStatus = async () => {
-    try {
-      const { data, error } = await supabase.rpc('is_admin_uid');
-      if (!error && data) {
-        setIsAdmin(true);
-        if (data) {
-          loadDebugInfo();
-        }
-      }
-    } catch (err) {
-      console.error('Error checking admin status:', err);
-    }
-  };
-
-  const loadDebugInfo = async () => {
+  const loadDebugInfo = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -140,13 +121,13 @@ export default function AlertPage() {
         },
       };
 
-      // Check recent notifications
+      // Check recent notifications - get ALL notifications including hidden
       const { data: recentNotifications, error: recentError } = await supabase
         .from('notifications')
-        .select('id, type, created_at, read_at, hidden, actor_id, post_id, comment_id')
+        .select('id, type, created_at, read_at, hidden, actor_id, post_id, comment_id, event_id, connection_id, sw_level, trust_feedback_id')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
 
       debugData.recentNotifications = {
         count: recentNotifications?.length ?? 0,
@@ -154,29 +135,119 @@ export default function AlertPage() {
         error: recentError?.message,
       };
 
-      // Check notification types distribution
+      // Check notification types distribution - ALL notifications including hidden
       const { data: typeDistribution, error: typeError } = await supabase
         .from('notifications')
-        .select('type')
+        .select('type, created_at, hidden')
+        .eq('user_id', user.id);
+      
+      // Also check notifications by date ranges
+      const now = new Date();
+      const cutoffDate = new Date('2025-11-10T08:34:09');
+      const { data: notificationsAfterCutoff, error: afterCutoffError } = await supabase
+        .from('notifications')
+        .select('id, type, created_at, hidden, actor_id, post_id, comment_id, event_id, connection_id')
         .eq('user_id', user.id)
-        .eq('hidden', false);
+        .gt('created_at', cutoffDate.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (typeDistribution) {
         const distribution: Record<string, number> = {};
+        const distributionByHidden: Record<string, { total: number; hidden: number; visible: number }> = {};
         typeDistribution.forEach(n => {
           distribution[n.type] = (distribution[n.type] || 0) + 1;
+          if (!distributionByHidden[n.type]) {
+            distributionByHidden[n.type] = { total: 0, hidden: 0, visible: 0 };
+          }
+          distributionByHidden[n.type].total++;
+          if (n.hidden) {
+            distributionByHidden[n.type].hidden++;
+          } else {
+            distributionByHidden[n.type].visible++;
+          }
         });
         debugData.typeDistribution = distribution;
+        debugData.typeDistributionByHidden = distributionByHidden;
       }
+      
+      debugData.notificationsAfterCutoff = {
+        count: notificationsAfterCutoff?.length ?? 0,
+        data: notificationsAfterCutoff,
+        error: afterCutoffError?.message,
+        cutoffDate: cutoffDate.toISOString(),
+      };
+      
+      // Check for notifications with different fields populated
+      const { data: notificationsWithEventId, error: eventIdError } = await supabase
+        .from('notifications')
+        .select('id, type, created_at, event_id')
+        .eq('user_id', user.id)
+        .not('event_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      const { data: notificationsWithConnectionId, error: connectionIdError } = await supabase
+        .from('notifications')
+        .select('id, type, created_at, connection_id')
+        .eq('user_id', user.id)
+        .not('connection_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      debugData.specialNotifications = {
+        withEventId: {
+          count: notificationsWithEventId?.length ?? 0,
+          data: notificationsWithEventId,
+          error: eventIdError?.message,
+        },
+        withConnectionId: {
+          count: notificationsWithConnectionId?.length ?? 0,
+          data: notificationsWithConnectionId,
+          error: connectionIdError?.message,
+        },
+      };
 
-      // Check if triggers exist (this will likely fail due to RLS, but we try)
-      let triggersInfo: any = { error: null, note: null };
+      // Check if triggers exist and are active
+      let triggersInfo: any = { error: null, note: null, triggers: [] };
       try {
-        // Try to check triggers - this usually requires direct DB access
-        triggersInfo.note = 'Trigger check requires direct database access. Check Supabase dashboard.';
+        // Try to use the check_notification_triggers function
+        const { data: triggersData, error: triggersError } = await supabase.rpc('check_notification_triggers');
+        
+        if (triggersError) {
+          triggersInfo.note = 'Cannot check triggers via function. Check Supabase dashboard → Database → Triggers.';
+          triggersInfo.error = triggersError.message;
+        } else {
+          triggersInfo.triggers = triggersData || [];
+        }
+        
+        // Always set expected triggers for comparison
+        triggersInfo.expectedTriggers = [
+          { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
+          { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
+          { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
+          { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
+          { name: 'notify_connection_trigger', table: 'user_connections', event: 'INSERT' },
+          { name: 'notify_on_event_trigger', table: 'sw_events', event: 'INSERT' },
+        ];
       } catch (triggersErr: any) {
         triggersInfo.error = triggersErr.message || 'Cannot check triggers';
+        triggersInfo.expectedTriggers = [
+          { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
+          { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
+          { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
+          { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
+          { name: 'notify_connection_trigger', table: 'user_connections', event: 'INSERT' },
+          { name: 'notify_on_event_trigger', table: 'sw_events', event: 'INSERT' },
+        ];
       }
+
+      // Note: create_notification function should exist if triggers are working
+      // We can't directly check it via RPC, but if triggers are found, the function exists
+      triggersInfo.createNotificationFunction = {
+        exists: triggersInfo.triggers && triggersInfo.triggers.length > 0,
+        note: 'Function existence inferred from triggers. If triggers are missing, function may need to be recreated.',
+      };
 
       debugData.triggers = triggersInfo;
 
@@ -203,22 +274,89 @@ export default function AlertPage() {
         note: 'RLS policies can be checked in Supabase dashboard',
       };
 
+      // Check recent comments on user's posts to see if notifications were created
+      const { data: userPosts, error: postsError } = await supabase
+        .from('posts')
+        .select('id, author_id, user_id, text, body, created_at')
+        .or(`author_id.eq.${user.id},user_id.eq.${user.id}`)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (userPosts && userPosts.length > 0) {
+        const postIds = userPosts.map(p => p.id);
+        const { data: recentComments, error: commentsError } = await supabase
+          .from('comments')
+          .select('id, post_id, author_id, user_id, text, body, created_at')
+          .in('post_id', postIds)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        
+        if (recentComments && recentComments.length > 0) {
+          // Check if notifications exist for these comments
+          const commentIds = recentComments.map(c => c.id).filter((id): id is number => typeof id === 'number');
+          const { data: commentNotifications, error: commentNotifError } = await supabase
+            .from('notifications')
+            .select('id, type, comment_id, post_id, created_at, actor_id')
+            .eq('user_id', user.id)
+            .eq('type', 'comment_on_post')
+            .in('comment_id', commentIds.length > 0 ? commentIds : [-1]) // Use -1 if empty to avoid SQL error
+            .order('created_at', { ascending: false });
+          
+          debugData.recentCommentsAnalysis = {
+            userPostsCount: userPosts.length,
+            recentCommentsCount: recentComments.length,
+            comments: recentComments.map(c => ({
+              id: c.id,
+              post_id: c.post_id,
+              author_id: c.author_id || c.user_id,
+              text: (c.text || c.body || '').substring(0, 50),
+              created_at: c.created_at,
+            })),
+            notificationsForComments: commentNotifications || [],
+            notificationsCount: commentNotifications?.length || 0,
+            missingNotifications: recentComments.filter(c => {
+              const commentId = c.id;
+              return !commentNotifications?.some(n => n.comment_id === commentId);
+            }).map(c => ({
+              comment_id: c.id,
+              post_id: c.post_id,
+              comment_author: c.author_id || c.user_id,
+              created_at: c.created_at,
+            })),
+            errors: {
+              posts: postsError?.message,
+              comments: commentsError?.message,
+              notifications: commentNotifError?.message,
+            },
+          };
+        } else {
+          debugData.recentCommentsAnalysis = {
+            userPostsCount: userPosts.length,
+            recentCommentsCount: 0,
+            error: commentsError?.message || 'No comments found',
+          };
+        }
+      } else {
+        debugData.recentCommentsAnalysis = {
+          userPostsCount: 0,
+          error: postsError?.message || 'No posts found for user',
+        };
+      }
+
       setDebugInfo(debugData);
     } catch (err: any) {
       setDebugError(err.message || 'Failed to load debug info');
       console.error('Error loading debug info:', err);
     }
-  };
+  }, []);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     try {
         const response = await fetch('/api/notifications/list');
         if (response.status === 401) {
           console.log('Not authenticated');
           setLoading(false);
-          if (isAdmin) {
-            setDebugError('API returned 401 - Not authenticated');
-          }
+          setDebugError((prev) => prev || 'API returned 401 - Not authenticated');
           return;
       }
 
@@ -226,9 +364,7 @@ export default function AlertPage() {
           const text = await response.text();
           const error = text || 'Failed to load notifications';
           console.error('API error:', error);
-          if (isAdmin) {
-            setDebugError(`API Error (${response.status}): ${error}`);
-          }
+          setDebugError((prev) => prev || `API Error (${response.status}): ${error}`);
           throw new Error(error);
         }
 
@@ -239,35 +375,97 @@ export default function AlertPage() {
         if (!fetchedNotifications || fetchedNotifications.length === 0) {
           setNotifications([]);
           setUnreadCount(0);
-          if (isAdmin) {
-            console.log('No notifications returned from API');
-          }
+          console.log('No notifications returned from API');
         return;
       }
 
         setNotifications(fetchedNotifications);
         setUnreadCount(unread);
         
-        if (isAdmin && debugInfo) {
-          // Update debug info with API response
-          setDebugInfo((prev: any) => ({
-            ...prev,
-            apiResponse: {
-              ...prev?.apiResponse,
-              actualNotificationsCount: fetchedNotifications.length,
-              actualUnreadCount: unread,
-            },
-          }));
-        }
+        // Always update debug info (will check isAdmin inside)
+        loadDebugInfo();
     } catch (err: any) {
       console.error('Error loading notifications:', err);
-      if (isAdmin) {
-        setDebugError(err.message || 'Unknown error');
-      }
+      setDebugError((prev) => prev || err.message || 'Unknown error');
     } finally {
       setLoading(false);
     }
+  }, [loadDebugInfo]);
+
+  const checkAdminStatus = async () => {
+    try {
+      const { data, error } = await supabase.rpc('is_admin_uid');
+      if (!error && data) {
+        setIsAdmin(true);
+        if (data) {
+          loadDebugInfo();
+        }
+      }
+    } catch (err) {
+      console.error('Error checking admin status:', err);
+    }
   };
+
+  useEffect(() => {
+    checkAdminStatus();
+    loadNotifications();
+  }, [loadNotifications]);
+
+  // Subscribe to realtime updates for debug info (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !mounted) return null;
+
+      const channel = supabase
+        .channel(`debug_notifications:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            // Debounce to avoid too many updates
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            timeoutId = setTimeout(() => {
+              if (mounted) {
+                loadDebugInfo();
+              }
+            }, 500);
+          }
+        )
+        .subscribe();
+
+      return channel;
+    };
+
+    let channel: any = null;
+    setupRealtime().then((ch) => {
+      if (mounted) {
+        channel = ch;
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [isAdmin, loadDebugInfo]);
 
   const markAsRead = async (notificationId: number) => {
     if (markingRead === notificationId) return;
@@ -601,21 +799,129 @@ export default function AlertPage() {
                       <div className="text-red-400 mt-1">Error: {debugInfo.recentNotifications.error}</div>
                     )}
                     {debugInfo.recentNotifications?.data && debugInfo.recentNotifications.data.length > 0 && (
-                      <div className="mt-2 max-h-40 overflow-y-auto">
-                        <pre className="text-xs bg-gray-800 p-2 rounded">
-                          {JSON.stringify(debugInfo.recentNotifications.data.slice(0, 5), null, 2)}
-                        </pre>
-                      </div>
+                      <>
+                        <div className="mt-2 text-xs">
+                          <strong className="text-yellow-300">Latest dates:</strong>
+                          <ul className="ml-2 mt-1 space-y-0.5">
+                            {debugInfo.recentNotifications.data.slice(0, 5).map((n: any, idx: number) => (
+                              <li key={idx} className="text-gray-300">
+                                {idx + 1}. {n.type} - {n.created_at ? new Date(n.created_at).toISOString() : 'N/A'}
+                                {n.read_at && <span className="text-gray-500 ml-2">(read)</span>}
+                                {n.hidden && <span className="text-red-400 ml-2">(hidden)</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="mt-2 max-h-40 overflow-y-auto">
+                          <pre className="text-xs bg-gray-800 p-2 rounded">
+                            {JSON.stringify(debugInfo.recentNotifications.data.slice(0, 5), null, 2)}
+                          </pre>
+                        </div>
+                      </>
+                    )}
+                    {(!debugInfo.recentNotifications?.data || debugInfo.recentNotifications.data.length === 0) && (
+                      <div className="text-gray-500 mt-1">No recent notifications found</div>
                     )}
                   </div>
                 </div>
 
                 {debugInfo.typeDistribution && (
                   <div className="border-t border-gray-700 pt-2">
-                    <strong className="text-yellow-400">Type Distribution:</strong>
+                    <strong className="text-yellow-400">Type Distribution (All):</strong>
                     <pre className="ml-4 mt-1 text-xs bg-gray-800 p-2 rounded">
                       {JSON.stringify(debugInfo.typeDistribution, null, 2)}
                     </pre>
+                    {debugInfo.typeDistributionByHidden && (
+                      <>
+                        <strong className="text-yellow-300 mt-2 block">By Hidden Status:</strong>
+                        <pre className="ml-4 mt-1 text-xs bg-gray-800 p-2 rounded">
+                          {JSON.stringify(debugInfo.typeDistributionByHidden, null, 2)}
+                        </pre>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {debugInfo.notificationsAfterCutoff && (
+                  <div className="border-t border-gray-700 pt-2">
+                    <strong className="text-yellow-400">Notifications After Cutoff (2025-11-10T08:34:09):</strong>
+                    <div className="ml-4 mt-1">
+                      Count: <span className="text-white">{debugInfo.notificationsAfterCutoff.count ?? 0}</span>
+                      {debugInfo.notificationsAfterCutoff.error && (
+                        <div className="text-red-400 mt-1">Error: {debugInfo.notificationsAfterCutoff.error}</div>
+                      )}
+                      {debugInfo.notificationsAfterCutoff.data && debugInfo.notificationsAfterCutoff.data.length > 0 && (
+                        <>
+                          <div className="mt-2 text-xs">
+                            <strong className="text-yellow-300">Latest after cutoff:</strong>
+                            <ul className="ml-2 mt-1 space-y-0.5">
+                              {debugInfo.notificationsAfterCutoff.data.slice(0, 10).map((n: any, idx: number) => (
+                                <li key={idx} className="text-gray-300">
+                                  {idx + 1}. {n.type} - {n.created_at ? new Date(n.created_at).toISOString() : 'N/A'}
+                                  {n.hidden && <span className="text-red-400 ml-2">(hidden)</span>}
+                                  {n.event_id && <span className="text-blue-400 ml-2">event_id: {n.event_id}</span>}
+                                  {n.connection_id && <span className="text-green-400 ml-2">connection_id: {n.connection_id}</span>}
+                                  {n.post_id && <span className="text-purple-400 ml-2">post_id: {n.post_id}</span>}
+                                  {n.comment_id && <span className="text-orange-400 ml-2">comment_id: {n.comment_id}</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div className="mt-2 max-h-40 overflow-y-auto">
+                            <pre className="text-xs bg-gray-800 p-2 rounded">
+                              {JSON.stringify(debugInfo.notificationsAfterCutoff.data.slice(0, 10), null, 2)}
+                            </pre>
+                          </div>
+                        </>
+                      )}
+                      {(!debugInfo.notificationsAfterCutoff.data || debugInfo.notificationsAfterCutoff.data.length === 0) && (
+                        <div className="text-gray-500 mt-1">No notifications found after cutoff date</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {debugInfo.specialNotifications && (
+                  <div className="border-t border-gray-700 pt-2">
+                    <strong className="text-yellow-400">Special Notifications:</strong>
+                    <div className="ml-4 mt-1 space-y-2">
+                      {debugInfo.specialNotifications.withEventId && (
+                        <div>
+                          <strong className="text-yellow-300">With event_id:</strong>
+                          <div className="text-xs">
+                            Count: <span className="text-white">{debugInfo.specialNotifications.withEventId.count ?? 0}</span>
+                            {debugInfo.specialNotifications.withEventId.error && (
+                              <div className="text-red-400">Error: {debugInfo.specialNotifications.withEventId.error}</div>
+                            )}
+                            {debugInfo.specialNotifications.withEventId.data && debugInfo.specialNotifications.withEventId.data.length > 0 && (
+                              <div className="mt-1 max-h-20 overflow-y-auto">
+                                <pre className="text-xs bg-gray-800 p-2 rounded">
+                                  {JSON.stringify(debugInfo.specialNotifications.withEventId.data, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {debugInfo.specialNotifications.withConnectionId && (
+                        <div>
+                          <strong className="text-yellow-300">With connection_id:</strong>
+                          <div className="text-xs">
+                            Count: <span className="text-white">{debugInfo.specialNotifications.withConnectionId.count ?? 0}</span>
+                            {debugInfo.specialNotifications.withConnectionId.error && (
+                              <div className="text-red-400">Error: {debugInfo.specialNotifications.withConnectionId.error}</div>
+                            )}
+                            {debugInfo.specialNotifications.withConnectionId.data && debugInfo.specialNotifications.withConnectionId.data.length > 0 && (
+                              <div className="mt-1 max-h-20 overflow-y-auto">
+                                <pre className="text-xs bg-gray-800 p-2 rounded">
+                                  {JSON.stringify(debugInfo.specialNotifications.withConnectionId.data, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -652,25 +958,119 @@ export default function AlertPage() {
 
                 <div className="border-t border-gray-700 pt-2">
                   <strong className="text-yellow-400">Triggers Info:</strong>
-                  <div className="ml-4 mt-1">
+                  <div className="ml-4 mt-1 text-xs">
                     {debugInfo.triggers?.note && (
                       <div className="text-yellow-300">{debugInfo.triggers.note}</div>
                     )}
                     {debugInfo.triggers?.error && (
                       <div className="text-red-400">Error: {debugInfo.triggers.error}</div>
                     )}
-                    <div className="mt-2 text-xs text-gray-400">
-                      Check Supabase dashboard → Database → Triggers for:
-                      <ul className="ml-4 mt-1 list-disc">
-                        <li>notify_comment_on_post_trigger</li>
-                        <li>notify_reaction_on_post_trigger</li>
-                        <li>notify_reaction_on_comment_trigger</li>
-                        <li>notify_connection_trigger</li>
-                        <li>notify_on_event_trigger (if events enabled)</li>
-                      </ul>
-                    </div>
+                    
+                    {debugInfo.triggers?.createNotificationFunction && (
+                      <div className="mt-2">
+                        <strong className="text-yellow-300">create_notification function:</strong>
+                        <div className="ml-2">
+                          {debugInfo.triggers.createNotificationFunction.exists ? (
+                            <span className="text-green-400">✓ Exists</span>
+                          ) : (
+                            <span className="text-red-400">✗ Missing: {debugInfo.triggers.createNotificationFunction.error}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {debugInfo.triggers?.triggers && Array.isArray(debugInfo.triggers.triggers) && debugInfo.triggers.triggers.length > 0 && (
+                      <div className="mt-2">
+                        <strong className="text-yellow-300">Found Triggers ({debugInfo.triggers.triggers.length}):</strong>
+                        <ul className="ml-2 mt-1 space-y-0.5">
+                          {debugInfo.triggers.triggers.map((t: any, idx: number) => (
+                            <li key={idx} className="text-green-400">
+                              ✓ {t.name || t.trigger_name} on {t.table || t.event_object_table} ({t.event || t.event_manipulation || 'INSERT'})
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {debugInfo.triggers?.expectedTriggers && (
+                      <div className="mt-2">
+                        <strong className="text-yellow-300">Expected Triggers:</strong>
+                        <ul className="ml-2 mt-1 space-y-0.5">
+                          {debugInfo.triggers.expectedTriggers.map((t: any, idx: number) => {
+                            const found = debugInfo.triggers?.triggers?.some((tr: any) => 
+                              (tr.name || tr.trigger_name) === t.name
+                            );
+                            return (
+                              <li key={idx} className={found ? 'text-green-400' : 'text-red-400'}>
+                                {found ? '✓' : '✗'} {t.name} on {t.table} ({t.event})
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {(!debugInfo.triggers?.triggers || debugInfo.triggers.triggers.length === 0) && !debugInfo.triggers?.expectedTriggers && (
+                      <div className="mt-2 text-gray-400">
+                        Check Supabase dashboard → Database → Triggers for:
+                        <ul className="ml-4 mt-1 list-disc">
+                          <li>notify_comment_on_post_trigger (on comments table, INSERT)</li>
+                          <li>notify_comment_on_comment_trigger (on comments table, INSERT)</li>
+                          <li>notify_reaction_on_post_trigger (on post_reactions table, INSERT)</li>
+                          <li>notify_reaction_on_comment_trigger (on comment_reactions table, INSERT)</li>
+                          <li>notify_connection_trigger (on user_connections table, INSERT)</li>
+                          <li>notify_on_event_trigger (on sw_events table, INSERT)</li>
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {debugInfo.recentCommentsAnalysis && (
+                  <div className="border-t border-gray-700 pt-2">
+                    <strong className="text-yellow-400">Recent Comments Analysis:</strong>
+                    <div className="ml-4 mt-1 text-xs">
+                      <div>
+                        User posts found: <span className="text-white">{debugInfo.recentCommentsAnalysis.userPostsCount ?? 0}</span>
+                      </div>
+                      <div>
+                        Recent comments on your posts: <span className="text-white">{debugInfo.recentCommentsAnalysis.recentCommentsCount ?? 0}</span>
+                      </div>
+                      <div>
+                        Notifications created: <span className="text-white">{debugInfo.recentCommentsAnalysis.notificationsCount ?? 0}</span>
+                      </div>
+                      {debugInfo.recentCommentsAnalysis.missingNotifications && debugInfo.recentCommentsAnalysis.missingNotifications.length > 0 && (
+                        <div className="mt-2">
+                          <strong className="text-red-400">⚠️ Missing Notifications ({debugInfo.recentCommentsAnalysis.missingNotifications.length}):</strong>
+                          <ul className="ml-2 mt-1 space-y-1">
+                            {debugInfo.recentCommentsAnalysis.missingNotifications.map((missing: any, idx: number) => (
+                              <li key={idx} className="text-red-300">
+                                Comment ID: {missing.comment_id}, Post ID: {missing.post_id}, 
+                                Comment Author: {missing.comment_author?.substring(0, 8)}...,
+                                Created: {missing.created_at ? new Date(missing.created_at).toISOString() : 'N/A'}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {debugInfo.recentCommentsAnalysis.comments && debugInfo.recentCommentsAnalysis.comments.length > 0 && (
+                        <div className="mt-2">
+                          <strong className="text-yellow-300">Recent Comments:</strong>
+                          <div className="mt-1 max-h-40 overflow-y-auto">
+                            <pre className="text-xs bg-gray-800 p-2 rounded">
+                              {JSON.stringify(debugInfo.recentCommentsAnalysis.comments.slice(0, 10), null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+                      {debugInfo.recentCommentsAnalysis.errors && (
+                        <div className="mt-2 text-red-400">
+                          Errors: {JSON.stringify(debugInfo.recentCommentsAnalysis.errors, null, 2)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-gray-500">Click "Debug" button to load debug information</div>
