@@ -275,7 +275,7 @@ export default async function handler(
       };
     }).filter(Boolean);
 
-    const formattedFallbackTasks = completedUserTasksArray
+    const formattedFallbackTasks = (completedUserTasks || [])
       .filter((task: any) => !achievementUserTaskIds.has(task.id))
       .map((task: any) => {
         const taskInfo = task.growth_tasks;
