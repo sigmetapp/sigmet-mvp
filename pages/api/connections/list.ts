@@ -1,9 +1,9 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { getAuthedClient } from '@/lib/dm/supabaseServer';
+import type { NextApiRequest, NextApiResponse } from "next";
+import { getAuthedClient } from "@/lib/dm/supabaseServer";
 
 // Helper function to escape regex special characters
 function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // Helper function to check if text contains a mention (whole word match)
@@ -11,24 +11,29 @@ function hasMention(text: string, patterns: string[]): boolean {
   const lowerText = text.toLowerCase();
   for (const pattern of patterns) {
     // Check for @username pattern (must be followed by space, newline, or end of string)
-    if (pattern.startsWith('@')) {
+    if (pattern.startsWith("@")) {
       const username = escapeRegex(pattern.substring(1));
-      const regex = new RegExp(`@${username}(\\s|$|\\n)`, 'i');
+      const regex = new RegExp(`@${username}(\\s|$|\\n)`, "i");
       if (regex.test(lowerText)) return true;
     }
     // Check for /u/username or /u/userid pattern
-    if (pattern.startsWith('/u/')) {
+    if (pattern.startsWith("/u/")) {
       const slug = escapeRegex(pattern.substring(3));
-      const regex = new RegExp(`/u/${slug}(\\s|$|\\n)`, 'i');
+      const regex = new RegExp(`/u/${slug}(\\s|$|\\n)`, "i");
       if (regex.test(lowerText)) return true;
     }
   }
   return false;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+const BASE_TRUST_FLOW = 5.0;
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
@@ -40,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       user = authResult.user;
     } catch (authError: any) {
       if (authError.status === 401) {
-        return res.status(401).json({ error: 'Unauthorized' });
+        return res.status(401).json({ error: "Unauthorized" });
       }
       throw authError;
     }
@@ -48,13 +53,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Load user profile to get username
     const { data: profile } = await client
-      .from('profiles')
-      .select('user_id, username')
-      .eq('user_id', meId)
+      .from("profiles")
+      .select("user_id, username")
+      .eq("user_id", meId)
       .maybeSingle();
 
     if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' });
+      return res.status(404).json({ error: "Profile not found" });
     }
 
     const meUsername = (profile as any)?.username ?? null;
@@ -81,20 +86,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Load all posts in parallel with other initial data
     const [postsResult, followsResult] = await Promise.all([
       client
-        .from('posts')
-        .select('id, user_id, body, created_at')
-        .order('created_at', { ascending: false })
+        .from("posts")
+        .select("id, user_id, body, created_at")
+        .order("created_at", { ascending: false })
         .limit(1000),
       Promise.all([
-        client.from('follows').select('followee_id').eq('follower_id', meId),
-        client.from('follows').select('follower_id').eq('followee_id', meId),
+        client.from("follows").select("followee_id").eq("follower_id", meId),
+        client.from("follows").select("follower_id").eq("followee_id", meId),
       ]),
     ]);
 
     const allPosts = postsResult.data || [];
     const [followingRows, followerRows] = followsResult;
-    const followingSet = new Set(((followingRows.data as any[]) || []).map((r) => r.followee_id as string));
-    const followersSet = new Set(((followerRows.data as any[]) || []).map((r) => r.follower_id as string));
+    const followingSet = new Set(
+      ((followingRows.data as any[]) || []).map((r) => r.followee_id as string),
+    );
+    const followersSet = new Set(
+      ((followerRows.data as any[]) || []).map((r) => r.follower_id as string),
+    );
 
     if (allPosts.length === 0) {
       return res.json({
@@ -118,7 +127,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Build my mention patterns
     const myMentionPatterns: string[] = [];
-    if (meUsername && meUsername.trim() !== '') {
+    if (meUsername && meUsername.trim() !== "") {
       myMentionPatterns.push(`@${meUsername.toLowerCase()}`);
       myMentionPatterns.push(`/u/${meUsername.toLowerCase()}`);
     }
@@ -128,7 +137,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Map: userId -> set of post IDs where they mentioned me
     const theyMentionedMe: Record<string, Set<number>> = {};
-    
+
     // Map: userId -> set of post IDs where I mentioned them
     const iMentionedThem: Record<string, Set<number>> = {};
 
@@ -137,8 +146,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const authorId = post.user_id;
       if (!authorId || authorId === meId) continue;
 
-      const body = post.body || '';
-      
+      const body = post.body || "";
+
       if (hasMention(body, myMentionPatterns)) {
         if (!theyMentionedMe[authorId]) {
           theyMentionedMe[authorId] = new Set();
@@ -153,15 +162,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (allUserIds.size > 0) {
       const { data: userProfiles } = await client
-        .from('profiles')
-        .select('user_id, username')
-        .in('user_id', Array.from(allUserIds));
+        .from("profiles")
+        .select("user_id, username")
+        .in("user_id", Array.from(allUserIds));
 
       const usernameToUserId: Record<string, string> = {};
       if (userProfiles) {
         for (const profile of userProfiles as any[]) {
           const uid = profile.user_id as string;
-          const username = (profile.username || '').toLowerCase();
+          const username = (profile.username || "").toLowerCase();
           if (username) {
             usernameToUserId[`@${username}`] = uid;
             usernameToUserId[`/u/${username}`] = uid;
@@ -173,26 +182,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       for (const post of allPosts) {
         if (post.user_id !== meId) continue;
 
-        const body = post.body || '';
-        
+        const body = post.body || "";
+
         // Check for mentions of other users (whole word match)
         for (const [pattern, uid] of Object.entries(usernameToUserId)) {
           const lowerPattern = pattern.toLowerCase();
           let found = false;
-          
+
           // Check for @username pattern
-          if (lowerPattern.startsWith('@')) {
+          if (lowerPattern.startsWith("@")) {
             const username = lowerPattern.substring(1);
-            const regex = new RegExp(`@${escapeRegex(username)}(\\s|$|\\n)`, 'i');
+            const regex = new RegExp(
+              `@${escapeRegex(username)}(\\s|$|\\n)`,
+              "i",
+            );
             if (regex.test(body)) found = true;
           }
           // Check for /u/username pattern
-          if (lowerPattern.startsWith('/u/')) {
+          if (lowerPattern.startsWith("/u/")) {
             const username = lowerPattern.substring(3);
-            const regex = new RegExp(`/u/${escapeRegex(username)}(\\s|$|\\n)`, 'i');
+            const regex = new RegExp(
+              `/u/${escapeRegex(username)}(\\s|$|\\n)`,
+              "i",
+            );
             if (regex.test(body)) found = true;
           }
-          
+
           if (found) {
             if (!iMentionedThem[uid]) {
               iMentionedThem[uid] = new Set();
@@ -205,12 +220,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Calculate connections
     const connections: Array<{ userId: string; connectionsCount: number }> = [];
-    
+
     // Combine all users who mentioned me or whom I mentioned
     const allConnectedUsers = new Set<string>();
-    Object.keys(theyMentionedMe).forEach(uid => allConnectedUsers.add(uid));
-    Object.keys(iMentionedThem).forEach(uid => allConnectedUsers.add(uid));
-    
+    Object.keys(theyMentionedMe).forEach((uid) => allConnectedUsers.add(uid));
+    Object.keys(iMentionedThem).forEach((uid) => allConnectedUsers.add(uid));
+
     for (const userId of allConnectedUsers) {
       const theirPosts = theyMentionedMe[userId] || new Set();
       const myPosts = iMentionedThem[userId] || new Set();
@@ -231,24 +246,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Get all user IDs we need data for
     const connectionIds = connections.map((c) => c.userId);
-    const allFollowUserIds = Array.from(new Set([...followingSet, ...followersSet]));
+    const allFollowUserIds = Array.from(
+      new Set([...followingSet, ...followersSet]),
+    );
 
     // Load all profiles, SW scores, and Trust Flow scores in parallel
-    const [connectionProfilesResult, followProfilesResult, allProfilesResult] = await Promise.all([
-      connectionIds.length > 0
-        ? client
-            .from('profiles')
-            .select('user_id, username, full_name, avatar_url')
-            .in('user_id', connectionIds)
-        : Promise.resolve({ data: [] }),
-      allFollowUserIds.length > 0
-        ? client
-            .from('profiles')
-            .select('user_id, username, full_name, avatar_url')
-            .in('user_id', allFollowUserIds)
-        : Promise.resolve({ data: [] }),
-      client.from('profiles').select('user_id, username'),
-    ]);
+    const [connectionProfilesResult, followProfilesResult, allProfilesResult] =
+      await Promise.all([
+        connectionIds.length > 0
+          ? client
+              .from("profiles")
+              .select("user_id, username, full_name, avatar_url")
+              .in("user_id", connectionIds)
+          : Promise.resolve({ data: [] }),
+        allFollowUserIds.length > 0
+          ? client
+              .from("profiles")
+              .select("user_id, username, full_name, avatar_url")
+              .in("user_id", allFollowUserIds)
+          : Promise.resolve({ data: [] }),
+        client.from("profiles").select("user_id, username"),
+      ]);
 
     // Process connection profiles
     const profiles: Record<string, any> = {};
@@ -285,7 +303,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const allProfilesMap: Record<string, string> = {};
     if (allProfilesResult.data) {
       for (const p of allProfilesResult.data as any[]) {
-        const username = (p.username || '').toLowerCase();
+        const username = (p.username || "").toLowerCase();
         if (username) {
           allProfilesMap[p.user_id as string] = username;
         }
@@ -293,19 +311,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Load SW scores and Trust Flow scores in parallel
-    const allUserIdsForScores = Array.from(new Set([...connectionIds, ...allFollowUserIds]));
+    const allUserIdsForScores = Array.from(
+      new Set([...connectionIds, ...allFollowUserIds]),
+    );
     const [swScoresResult, trustFlowResult] = await Promise.all([
       allUserIdsForScores.length > 0
         ? client
-            .from('sw_scores')
-            .select('user_id, total')
-            .in('user_id', allUserIdsForScores)
+            .from("sw_scores")
+            .select("user_id, total")
+            .in("user_id", allUserIdsForScores)
         : Promise.resolve({ data: [] }),
       allUserIdsForScores.length > 0
         ? client
-            .from('trust_feedback')
-            .select('target_user_id, value')
-            .in('target_user_id', allUserIdsForScores)
+            .from("profiles")
+            .select("user_id, trust_flow")
+            .in("user_id", allUserIdsForScores)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -337,28 +357,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const trustFlowScores: Record<string, number> = {};
     const trustFlowMap: Record<string, number> = {};
     if (trustFlowResult.data) {
-      const trustSums: Record<string, number> = {};
       for (const row of trustFlowResult.data as any[]) {
-        const userId = row.target_user_id as string;
-        trustSums[userId] = (trustSums[userId] || 0) + (Number(row.value) || 0);
+        const userId = row.user_id as string;
+        if (!userId) continue;
+        const rawValue = row.trust_flow;
+        const numericValue = Number(rawValue);
+        trustFlowMap[userId] = Number.isFinite(numericValue)
+          ? numericValue
+          : BASE_TRUST_FLOW;
       }
-      for (const userId of allUserIdsForScores) {
-        const sum = trustSums[userId] || 0;
-        trustFlowMap[userId] = Math.max(0, Math.min(120, 80 + sum * 2));
-      }
-    } else {
-      for (const userId of allUserIdsForScores) {
-        trustFlowMap[userId] = 80;
+    }
+    for (const userId of allUserIdsForScores) {
+      if (!(userId in trustFlowMap)) {
+        trustFlowMap[userId] = BASE_TRUST_FLOW;
       }
     }
     for (const userId of connectionIds) {
-      trustFlowScores[userId] = trustFlowMap[userId] ?? 80;
+      trustFlowScores[userId] = trustFlowMap[userId] ?? BASE_TRUST_FLOW;
     }
 
     const followersTrustFlowScores: Record<string, number> = {};
     const followingTrustFlowScores: Record<string, number> = {};
     for (const userId of allFollowUserIds) {
-      const score = trustFlowMap[userId] ?? 80;
+      const score = trustFlowMap[userId] ?? BASE_TRUST_FLOW;
       if (followersSet.has(userId)) {
         followersTrustFlowScores[userId] = score;
       }
@@ -368,19 +389,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Calculate recommended people
-    const recommended: Array<{ userId: string; reason: 'connection' | 'mutual_follow' }> = [];
+    const recommended: Array<{
+      userId: string;
+      reason: "connection" | "mutual_follow";
+    }> = [];
     const recommendedSet = new Set<string>();
 
     // 1. Find 2nd degree connections (people connected through your connections)
-    const connectionUserIds = connections.map(c => c.userId);
+    const connectionUserIds = connections.map((c) => c.userId);
     if (connectionUserIds.length > 0 && allPosts.length > 0) {
       const connectionUserIdsSet = new Set(connectionUserIds);
-      
+
       // For each connection, find their connections
       for (const connectionUserId of connectionUserIds) {
         const connectionProfile = profiles[connectionUserId];
         if (!connectionProfile?.username) continue;
-        
+
         const theirUsername = connectionProfile.username.toLowerCase();
         const theirMentionPatterns: string[] = [];
         theirMentionPatterns.push(`@${theirUsername}`);
@@ -393,9 +417,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         for (const post of allPosts) {
           const authorId = post.user_id;
-          if (!authorId || authorId === meId || authorId === connectionUserId) continue;
+          if (!authorId || authorId === meId || authorId === connectionUserId)
+            continue;
 
-          const body = post.body || '';
+          const body = post.body || "";
           if (hasMention(body, theirMentionPatterns)) {
             if (!theyMentionedConnection[authorId]) {
               theyMentionedConnection[authorId] = new Set();
@@ -407,13 +432,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Find posts where this connection mentioned others
         for (const post of allPosts) {
           if (post.user_id !== connectionUserId) continue;
-          const body = post.body || '';
-          
+          const body = post.body || "";
+
           // Check for mentions of other users using the pre-loaded profiles map
           for (const userId of Object.keys(theyMentionedConnection)) {
             const otherUsername = allProfilesMap[userId];
             if (otherUsername) {
-              const patterns = [`@${otherUsername}`, `/u/${otherUsername}`, `/u/${userId}`];
+              const patterns = [
+                `@${otherUsername}`,
+                `/u/${otherUsername}`,
+                `/u/${userId}`,
+              ];
               if (hasMention(body, patterns)) {
                 if (!connectionMentionedThem[userId]) {
                   connectionMentionedThem[userId] = new Set();
@@ -426,13 +455,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Find mutual connections for this connection
         for (const userId of Object.keys(theyMentionedConnection)) {
-          if (userId === meId || connectionUserIdsSet.has(userId) || recommendedSet.has(userId)) continue;
-          
+          if (
+            userId === meId ||
+            connectionUserIdsSet.has(userId) ||
+            recommendedSet.has(userId)
+          )
+            continue;
+
           const theirPosts = theyMentionedConnection[userId];
           const connectionPosts = connectionMentionedThem[userId] || new Set();
-          
+
           if (theirPosts.size > 0 && connectionPosts.size > 0) {
-            recommended.push({ userId, reason: 'connection' });
+            recommended.push({ userId, reason: "connection" });
             recommendedSet.add(userId);
           }
         }
@@ -440,28 +474,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // 2. Find mutual follows (people who follow you AND you follow them)
-    const mutualFollows = Array.from(followersSet).filter(uid => followingSet.has(uid));
+    const mutualFollows = Array.from(followersSet).filter((uid) =>
+      followingSet.has(uid),
+    );
     for (const uid of mutualFollows) {
       if (!recommendedSet.has(uid) && !connectionUserIds.includes(uid)) {
-        recommended.push({ userId: uid, reason: 'mutual_follow' });
+        recommended.push({ userId: uid, reason: "mutual_follow" });
         recommendedSet.add(uid);
       }
     }
 
     // Load profiles and SW scores for recommended people
-    const recommendedIds = recommended.map(r => r.userId);
+    const recommendedIds = recommended.map((r) => r.userId);
     const [recommendedProfilesResult, recommendedSWResult] = await Promise.all([
       recommendedIds.length > 0
         ? client
-            .from('profiles')
-            .select('user_id, username, full_name, avatar_url')
-            .in('user_id', recommendedIds)
+            .from("profiles")
+            .select("user_id, username, full_name, avatar_url")
+            .in("user_id", recommendedIds)
         : Promise.resolve({ data: [] }),
       recommendedIds.length > 0
         ? client
-            .from('sw_scores')
-            .select('user_id, total')
-            .in('user_id', recommendedIds)
+            .from("sw_scores")
+            .select("user_id, total")
+            .in("user_id", recommendedIds)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -502,7 +538,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       recommendedSWScores,
     });
   } catch (error: any) {
-    console.error('Error in connections API:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    console.error("Error in connections API:", error);
+    return res
+      .status(500)
+      .json({ error: error.message || "Internal server error" });
   }
 }
