@@ -97,6 +97,32 @@ function formatDateWithTodayYesterday(dateString: string): string {
   }).format(date);
 }
 
+function errorIncludes(error: any, phrase: string): boolean {
+  if (!error || !phrase) return false;
+  const normalized = phrase.toLowerCase();
+  return [error.message, error.details, error.hint]
+    .filter((value): value is string => typeof value === 'string')
+    .some((value) => value.toLowerCase().includes(normalized));
+}
+
+function isMissingColumnError(error: any, column: string): boolean {
+  if (!column) return false;
+  const normalizedColumn = column.toLowerCase();
+  const variants = [
+    `'${normalizedColumn}' column`,
+    `"${normalizedColumn}" column`,
+    `${normalizedColumn} column`,
+    `column '${normalizedColumn}'`,
+    `column "${normalizedColumn}"`,
+    `'${normalizedColumn}' field`,
+    `"${normalizedColumn}" field`,
+    `${normalizedColumn} field`,
+  ];
+  return variants.some((phrase) => errorIncludes(error, phrase));
+}
+
+const isMissingTextColumnError = (error: any) => isMissingColumnError(error, 'text');
+
 const EMPTY_COUNTS: Record<ReactionType, number> = {
   verify: 0,
   inspire: 0,
@@ -151,6 +177,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [replyOpen, setReplyOpen] = useState<Record<number, boolean>>({});
   const [replyInput, setReplyInput] = useState<Record<number, string>>({});
   const [replySubmitting, setReplySubmitting] = useState<Record<number, boolean>>({});
+  const [commentColumnPreference, setCommentColumnPreference] = useState<'text' | 'body'>('text');
   const [mediaGalleryOpen, setMediaGalleryOpen] = useState<{ media: Array<{ type: 'image' | 'video'; url: string }>; currentIndex: number } | null>(null);
   const [swipeStart, setSwipeStart] = useState<{ x: number; y: number } | null>(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -197,6 +224,25 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
   // Directions for category matching
   const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
+
+  useEffect(() => {
+    if (commentColumnPreference === 'body') return;
+    let active = true;
+    (async () => {
+      try {
+        const { error } = await supabase.from('comments').select('text').limit(1);
+        if (!active) return;
+        if (error && isMissingTextColumnError(error)) {
+          setCommentColumnPreference('body');
+        }
+      } catch {
+        // Ignore network errors - we'll fall back during insert if needed
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [commentColumnPreference]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -626,6 +672,74 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     setCommentInput((prev) => prev + emoji);
   }, []);
 
+  const attemptCommentInsert = useCallback(
+    async (value: string, parentId?: number) => {
+      if (!uid) {
+        throw new Error('Sign in required');
+      }
+
+      const primaryColumn: 'text' | 'body' = commentColumnPreference;
+      const secondaryColumn: 'text' | 'body' = primaryColumn === 'text' ? 'body' : 'text';
+      const contentColumns =
+        primaryColumn === secondaryColumn ? [primaryColumn] : [primaryColumn, secondaryColumn];
+      const authorColumns: Array<'author_id' | 'user_id'> = ['author_id', 'user_id'];
+      let lastError: any = null;
+
+      for (const contentColumn of contentColumns) {
+        const basePayload: any = {
+          post_id: postId,
+        };
+        if (parentId) {
+          basePayload.parent_id = parentId;
+        }
+
+        for (const authorColumn of authorColumns) {
+          const payload = {
+            ...basePayload,
+            [contentColumn]: value,
+            [authorColumn]: uid,
+          };
+
+          const { error } = await supabase
+            .from('comments')
+            .insert(payload)
+            .select('id')
+            .single();
+
+          if (!error) {
+            if (contentColumn !== commentColumnPreference) {
+              setCommentColumnPreference(contentColumn);
+            }
+            return;
+          }
+
+          lastError = error;
+
+          if (isMissingColumnError(error, authorColumn)) {
+            continue;
+          }
+
+          if (isMissingColumnError(error, contentColumn)) {
+            if (contentColumn === commentColumnPreference && contentColumns.length > 1) {
+              setCommentColumnPreference(secondaryColumn);
+            }
+            break;
+          }
+
+          // Non column-specific error, stop trying further combinations
+          break;
+        }
+
+        if (lastError && !isMissingColumnError(lastError, contentColumn)) {
+          break;
+        }
+      }
+
+      throw lastError ?? new Error('Unable to add comment.');
+    },
+    [commentColumnPreference, postId, uid]
+  );
+
   const submitComment = useCallback(
     async (parentId?: number) => {
       if (!uid) {
@@ -638,74 +752,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         if (!value) return;
         setReplySubmitting((prev) => ({ ...prev, [parentId]: true }));
         try {
-          // Try author_id first (as per schema), fallback to user_id if needed
-          // Try text first, fallback to body if text column doesn't exist
-          let insertData: any = {
-            post_id: postId,
-            text: value,
-            author_id: uid,
-          };
-          
-          // Only add parent_id if it exists and is valid
-          if (parentId) {
-            insertData.parent_id = parentId;
-          }
-          
-          let { error, data } = await supabase
-            .from('comments')
-            .insert(insertData)
-            .select('id')
-            .single();
-          
-          // If text column doesn't exist, try body instead
-          if (error && error.message?.includes("'text' column")) {
-            insertData = {
-              post_id: postId,
-              body: value,
-              author_id: uid,
-            };
-            if (parentId) {
-              insertData.parent_id = parentId;
-            }
-            const retryResult = await supabase
-              .from('comments')
-              .insert(insertData)
-              .select('id')
-              .single();
-            error = retryResult.error;
-            data = retryResult.data;
-          }
-          
-          // If author_id fails, try user_id instead
-          if (error && (error.message?.includes('author_id') || error.message?.includes('field') || error.message?.includes('column'))) {
-            insertData = {
-              post_id: postId,
-              text: value,
-              user_id: uid,
-            };
-            if (parentId) {
-              insertData.parent_id = parentId;
-            }
-            // Try body if text failed
-            if (error.message?.includes("'text' column")) {
-              insertData = {
-                post_id: postId,
-                body: value,
-                user_id: uid,
-              };
-              if (parentId) {
-                insertData.parent_id = parentId;
-              }
-            }
-            const retryResult = await supabase
-              .from('comments')
-              .insert(insertData)
-              .select('id')
-              .single();
-            error = retryResult.error;
-            data = retryResult.data;
-          }
-          if (error) throw error;
+          await attemptCommentInsert(value, parentId);
           setReplyInput((prev) => ({ ...prev, [parentId]: '' }));
           setReplyOpen((prev) => ({ ...prev, [parentId]: false }));
           await loadComments();
@@ -720,60 +767,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         if (!value) return;
         setCommentSubmitting(true);
         try {
-          // Try author_id first (as per schema), fallback to user_id if needed
-          // Try text first, fallback to body if text column doesn't exist
-          let insertData: any = {
-            post_id: postId,
-            text: value,
-            author_id: uid,
-          };
-          
-          let { error, data } = await supabase
-            .from('comments')
-            .insert(insertData)
-            .select('id')
-            .single();
-          
-          // If text column doesn't exist, try body instead
-          if (error && error.message?.includes("'text' column")) {
-            insertData = {
-              post_id: postId,
-              body: value,
-              author_id: uid,
-            };
-            const retryResult = await supabase
-              .from('comments')
-              .insert(insertData)
-              .select('id')
-              .single();
-            error = retryResult.error;
-            data = retryResult.data;
-          }
-          
-          // If author_id fails, try user_id instead
-          if (error && (error.message?.includes('author_id') || error.message?.includes('field') || error.message?.includes('column'))) {
-            insertData = {
-              post_id: postId,
-              text: value,
-              user_id: uid,
-            };
-            // Try body if text failed
-            if (error.message?.includes("'text' column")) {
-              insertData = {
-                post_id: postId,
-                body: value,
-                user_id: uid,
-              };
-            }
-            const retryResult = await supabase
-              .from('comments')
-              .insert(insertData)
-              .select('id')
-              .single();
-            error = retryResult.error;
-            data = retryResult.data;
-          }
-          if (error) throw error;
+          await attemptCommentInsert(value);
           setCommentInput('');
           await loadComments();
         } catch (error: any) {
@@ -784,7 +778,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         }
       }
     },
-    [commentInput, loadComments, postId, replyInput, uid]
+    [attemptCommentInsert, commentInput, loadComments, replyInput, uid]
   );
 
   const toggleReply = useCallback((commentId: number) => {
