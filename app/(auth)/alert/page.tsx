@@ -451,6 +451,65 @@ export default function AlertPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Subscribe to realtime updates for notifications list
+  useEffect(() => {
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !mounted) return null;
+
+      const channel = supabase
+        .channel(`notifications_list:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            // Debounce to avoid too many updates
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            timeoutId = setTimeout(() => {
+              if (mounted) {
+                // Reload notifications for current page when changes occur
+                // This ensures new notifications appear on page 1
+                const pageToReload = currentPage;
+                loadNotifications(pageToReload);
+                // Dispatch event to update badge counter in Header
+                window.dispatchEvent(new CustomEvent('notification:update'));
+              }
+            }, 300);
+          }
+        )
+        .subscribe();
+
+      return channel;
+    };
+
+    let channel: any = null;
+    setupRealtime().then((ch) => {
+      if (mounted) {
+        channel = ch;
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [currentPage, loadNotifications]);
+
   // Subscribe to realtime updates for debug info (admin only)
   useEffect(() => {
     if (!isAdmin) return;
