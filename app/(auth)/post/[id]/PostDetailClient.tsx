@@ -1269,7 +1269,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   return (
     <div className="mx-auto flex w-full max-w-[852px] flex-col gap-4 px-0 md:px-4 py-4 md:py-5">
       {/* Back button */}
-      <div className="px-4 md:px-0">
+      <div className="px-2 md:px-0">
         {fromProfile && profileUsername ? (
           <Button
             variant="ghost"
@@ -1294,17 +1294,17 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       </div>
 
       {postError ? (
-        <div className="px-4 md:px-0">
+        <div className="px-2 md:px-0">
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-600 dark:border-rose-900/40 dark:bg-rose-950/60">
             {postError}
           </div>
         </div>
       ) : loadingPost ? (
-        <div className="px-4 md:px-0">
+        <div className="px-0 md:px-0">
           <PostDetailSkeleton />
         </div>
       ) : (
-        <article className="space-y-3 px-4 md:px-0">
+        <article className="space-y-3 px-0 md:px-0">
           {editing ? (
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <textarea
@@ -1384,7 +1384,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         </article>
       )}
 
-      <section className="space-y-4 px-4 md:px-0">
+      <section className="space-y-4 px-2 md:px-0">
         <header className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
             Comments ({commentCount})
