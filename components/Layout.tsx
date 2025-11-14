@@ -2,10 +2,14 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useTheme } from "@/components/ThemeProvider";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
   const isLight = theme === "light";
+  
+  // Enable sound notifications globally
+  useNotificationSound();
 
   return (
     <div className={`relative min-h-[100dvh] ${isLight ? "bg-primary-gradient" : "bg-sigmet"}`}>

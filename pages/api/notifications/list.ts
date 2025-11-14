@@ -243,9 +243,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .eq('hidden', false)
         .is('read_at', null);
 
+      // Get total count for pagination
+      const { count: totalCount } = await client
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('hidden', false);
+
       return res.json({
         notifications: enrichedNotifications,
         unreadCount: unreadCount || 0,
+        totalCount: totalCount || 0,
         debug: process.env.NODE_ENV === 'development' ? {
           rawCount: notifications.length,
           enrichedCount: enrichedNotifications.length,
