@@ -49,20 +49,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const users = (data?.users || []).sort((a: any, b: any) => (new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
 
-    // Load profiles and SW scores for all users
+    // Load profiles, SW scores, and TF for all users
     const userIds = users.map((u: any) => u.id);
     const [profilesResult, swScoresResult] = await Promise.all([
-      admin.from('profiles').select('user_id, avatar_url').in('user_id', userIds),
+      admin.from('profiles').select('user_id, avatar_url, trust_flow').in('user_id', userIds),
       admin.from('sw_scores').select('user_id, total').in('user_id', userIds),
     ]);
 
     // Create maps for quick lookup
     const avatarMap: Record<string, string | null> = {};
     const swMap: Record<string, number> = {};
+    const tfMap: Record<string, number> = {};
     
     if (profilesResult.data) {
       for (const profile of profilesResult.data) {
         avatarMap[profile.user_id] = profile.avatar_url || null;
+        tfMap[profile.user_id] = profile.trust_flow || 5.0;
       }
     }
     
@@ -72,11 +74,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Enrich users with avatar and SW data
+    // Enrich users with avatar, SW, and TF data
     const enrichedUsers = users.map((u: any) => ({
       ...u,
       avatar_url: avatarMap[u.id] || null,
       sw_score: swMap[u.id] || 0,
+      trust_flow: tfMap[u.id] || 5.0,
     }));
 
     return res.status(200).json({ users: enrichedUsers });

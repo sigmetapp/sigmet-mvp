@@ -24,7 +24,7 @@ function AdminUsersInner() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
   const [actionModal, setActionModal] = useState<{
-    type: 'suspend' | 'bonus' | 'penalty' | null;
+    type: 'suspend' | 'bonus' | 'penalty' | 'tf-bonus' | 'tf-penalty' | null;
     user: any | null;
   }>({ type: null, user: null });
   const [modalData, setModalData] = useState({ points: '', reason: '' });
@@ -165,6 +165,54 @@ function AdminUsersInner() {
     }
   }
 
+  async function addTFBonus(userId: string, points: number, reason: string) {
+    setActionLoading(true);
+    try {
+      const resp = await fetch('/api/admin/users.tf-bonus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, points, reason }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) {
+        alert(json?.error || 'Failed to add TF bonus');
+      } else {
+        alert(`Added ${points} TF points. New total: ${json.new_total.toFixed(2)}`);
+        await loadUsers();
+        setActionModal({ type: null, user: null });
+        setModalData({ points: '', reason: '' });
+      }
+    } catch (e) {
+      alert('Failed to add TF bonus');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function removeTFPenalty(userId: string, points: number, reason: string) {
+    setActionLoading(true);
+    try {
+      const resp = await fetch('/api/admin/users.tf-penalty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, points, reason }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) {
+        alert(json?.error || 'Failed to remove TF points');
+      } else {
+        alert(`Removed ${points} TF points. New total: ${json.new_total.toFixed(2)}`);
+        await loadUsers();
+        setActionModal({ type: null, user: null });
+        setModalData({ points: '', reason: '' });
+      }
+    } catch (e) {
+      alert('Failed to remove TF points');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   function handleModalSubmit() {
     if (!actionModal.user) return;
     
@@ -182,6 +230,20 @@ function AdminUsersInner() {
         return;
       }
       removeSWPenalty(actionModal.user.id, points, modalData.reason || 'Rule violation');
+    } else if (actionModal.type === 'tf-bonus') {
+      const points = parseFloat(modalData.points);
+      if (!points || points <= 0) {
+        alert('Please enter a valid positive number of points');
+        return;
+      }
+      addTFBonus(actionModal.user.id, points, modalData.reason || 'Admin bonus');
+    } else if (actionModal.type === 'tf-penalty') {
+      const points = parseFloat(modalData.points);
+      if (!points || points <= 0) {
+        alert('Please enter a valid positive number of points');
+        return;
+      }
+      removeTFPenalty(actionModal.user.id, points, modalData.reason || 'Rule violation');
     }
   }
 
@@ -301,6 +363,28 @@ function AdminUsersInner() {
                         -SW
                       </button>
                       <button
+                        onClick={() => setActionModal({ type: 'tf-bonus', user: u })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                          isLight
+                            ? 'border border-blue-300 text-blue-700 hover:bg-blue-50'
+                            : 'border border-blue-500/30 text-blue-300 hover:bg-blue-500/10'
+                        }`}
+                        title="Add bonus TF (Trust Flow) points"
+                      >
+                        +TF
+                      </button>
+                      <button
+                        onClick={() => setActionModal({ type: 'tf-penalty', user: u })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                          isLight
+                            ? 'border border-purple-300 text-purple-700 hover:bg-purple-50'
+                            : 'border border-purple-500/30 text-purple-300 hover:bg-purple-500/10'
+                        }`}
+                        title="Remove TF (Trust Flow) points for violation"
+                      >
+                        -TF
+                      </button>
+                      <button
                         onClick={() => suspendUser(u.id, !isSuspended)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                           isLight
@@ -357,12 +441,18 @@ function AdminUsersInner() {
               }`}>
                 {actionModal.type === 'bonus' && 'Add Bonus SW Points'}
                 {actionModal.type === 'penalty' && 'Remove SW Points (Penalty)'}
+                {actionModal.type === 'tf-bonus' && 'Add Bonus TF (Trust Flow) Points'}
+                {actionModal.type === 'tf-penalty' && 'Remove TF (Trust Flow) Points (Penalty)'}
               </h2>
               
               <div className={`mb-4 text-sm ${isLight ? 'text-black/70' : 'text-white/70'}`}>
                 User: {actionModal.user.email || '(no email)'}
                 <br />
-                Current SW: {(actionModal.user.sw_score || 0).toLocaleString()}
+                {actionModal.type === 'bonus' || actionModal.type === 'penalty' ? (
+                  <>Current SW: {(actionModal.user.sw_score || 0).toLocaleString()}</>
+                ) : (
+                  <>Current TF: {(actionModal.user.trust_flow || 5.0).toFixed(2)}</>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -374,7 +464,8 @@ function AdminUsersInner() {
                   </label>
                   <input
                     type="number"
-                    min="1"
+                    min="0.01"
+                    step={actionModal.type === 'tf-bonus' || actionModal.type === 'tf-penalty' ? "0.01" : "1"}
                     value={modalData.points}
                     onChange={(e) => setModalData({ ...modalData, points: e.target.value })}
                     className={`w-full px-3 py-2 rounded-lg border ${
@@ -382,7 +473,7 @@ function AdminUsersInner() {
                         ? 'border-black/20 bg-white text-black'
                         : 'border-white/20 bg-black/50 text-white'
                     } focus:outline-none focus:ring-2 focus:ring-primary-blue`}
-                    placeholder="Enter points"
+                    placeholder={actionModal.type === 'tf-bonus' || actionModal.type === 'tf-penalty' ? "Enter TF points (e.g., 2.5)" : "Enter points"}
                   />
                 </div>
 
@@ -427,10 +518,17 @@ function AdminUsersInner() {
                   className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
                     actionModal.type === 'bonus'
                       ? 'bg-green-600 text-white hover:bg-green-700'
-                      : 'bg-orange-600 text-white hover:bg-orange-700'
+                      : actionModal.type === 'penalty'
+                      ? 'bg-orange-600 text-white hover:bg-orange-700'
+                      : actionModal.type === 'tf-bonus'
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-purple-600 text-white hover:bg-purple-700'
                   } disabled:opacity-50`}
                 >
-                  {actionLoading ? 'Processing...' : actionModal.type === 'bonus' ? 'Add Bonus' : 'Remove Points'}
+                  {actionLoading ? 'Processing...' : 
+                    actionModal.type === 'bonus' ? 'Add Bonus' : 
+                    actionModal.type === 'penalty' ? 'Remove Points' :
+                    actionModal.type === 'tf-bonus' ? 'Add TF Bonus' : 'Remove TF Points'}
                 </button>
               </div>
             </div>
