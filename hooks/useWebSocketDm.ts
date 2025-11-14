@@ -1387,7 +1387,7 @@ export function useWebSocketDm(
         try {
           // For read status, use the messages.read endpoint which updates receipts to 'read'
           // For delivered status, we could use a different endpoint, but for now we'll use read
-          await fetch("/api/dms/messages.read", {
+            await fetch("/api/dms/messages.read", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -1400,6 +1400,7 @@ export function useWebSocketDm(
                 ? Math.trunc(sequenceNumber)
                 : null,
             }),
+              keepalive: true,
           });
         } catch (error) {
           console.error(

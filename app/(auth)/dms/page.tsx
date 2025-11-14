@@ -8,6 +8,7 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import DmsChatWindow from './DmsChatWindow';
+import DmAdminDebugPanel from './DmAdminDebugPanel';
 import Toast from '@/components/Toast';
 import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 import type { DmAttachment } from '@/lib/dm/attachments';
@@ -289,13 +290,14 @@ function DmsInner() {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paginationState, setPaginationState] = useState({ offset: 0, hasMore: true });
-  const [searchTerm, setSearchTerm] = useState('');
-  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
-  const [toast, setToast] = useState<{ message: string; type?: 'success' | 'error' | 'info' } | null>(
-    null
-  );
-  const [presenceOnlineMap, setPresenceOnlineMap] = useState<Record<string, boolean>>({});
+    const [paginationState, setPaginationState] = useState({ offset: 0, hasMore: true });
+    const [searchTerm, setSearchTerm] = useState('');
+    const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+    const [toast, setToast] = useState<{ message: string; type?: 'success' | 'error' | 'info' } | null>(
+      null
+    );
+    const [presenceOnlineMap, setPresenceOnlineMap] = useState<Record<string, boolean>>({});
+    const [isAdmin, setIsAdmin] = useState(false);
 
   const paginationRef = useRef({ offset: 0, hasMore: true });
   const partnersRef = useRef<PartnerListItem[]>([]);
@@ -315,6 +317,39 @@ function DmsInner() {
       setCurrentUserId(user?.id ?? null);
     })();
   }, []);
+
+    useEffect(() => {
+      if (!currentUserId) {
+        setIsAdmin(false);
+        return;
+      }
+
+      let cancelled = false;
+
+      (async () => {
+        try {
+          const { data, error } = await supabase.rpc('is_admin_uid');
+          if (cancelled) {
+            return;
+          }
+          if (error) {
+            console.warn('Failed to verify admin status', error);
+            setIsAdmin(false);
+          } else {
+            setIsAdmin(Boolean(data));
+          }
+        } catch (err) {
+          if (!cancelled) {
+            console.warn('Failed to verify admin status', err);
+            setIsAdmin(false);
+          }
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [currentUserId]);
 
   const persistCache = useCallback(
     async (items: PartnerListItem[], pagination: { offset: number; hasMore: boolean }) => {
@@ -1127,7 +1162,7 @@ function DmsInner() {
   }, []);
 
   return (
-    <div className="flex flex-col md:flex-row gap-2 md:gap-4 h-[100dvh] md:h-[calc(100vh-120px)] overflow-hidden">
+      <div className="flex flex-col md:flex-row gap-2 md:gap-4 h-[100dvh] md:h-[calc(100vh-120px)] overflow-hidden">
       {toast && (
         <Toast
           message={toast.message}
@@ -1377,21 +1412,22 @@ function DmsInner() {
               )}
             </div>
           </div>
-      </div>
-      <div className={["flex-1 min-w-0 min-h-0", !selectedPartnerId ? "hidden md:block" : "block"].join(" ") }>
-        {selectedPartnerId ? (
-          <Suspense fallback={<DmsLoading />}>
-            <DmsChatWindow partnerId={selectedPartnerId} onBack={() => setSelectedPartnerId(null)} />
-          </Suspense>
-        ) : (
-          <div className="card card-glow h-full flex items-center justify-center">
-            <div className="text-white/70 text-center">
-              <div className="text-lg mb-2">Select a conversation</div>
-              <div className="text-sm">Choose a user from the list to start messaging</div>
+        </div>
+        <div className={["flex-1 min-w-0 min-h-0", !selectedPartnerId ? "hidden md:block" : "block"].join(" ")}>
+          {selectedPartnerId ? (
+            <Suspense fallback={<DmsLoading />}>
+              <DmsChatWindow partnerId={selectedPartnerId} onBack={() => setSelectedPartnerId(null)} />
+            </Suspense>
+          ) : (
+            <div className="card card-glow h-full flex items-center justify-center">
+              <div className="text-white/70 text-center">
+                <div className="text-lg mb-2">Select a conversation</div>
+                <div className="text-sm">Choose a user from the list to start messaging</div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+        <DmAdminDebugPanel enabled={isAdmin} />
       </div>
-    </div>
-  );
-}
+    );
+  }
