@@ -97,6 +97,17 @@ function formatDateWithTodayYesterday(dateString: string): string {
   }).format(date);
 }
 
+function errorIncludes(error: any, phrase: string): boolean {
+  if (!error || !phrase) return false;
+  const normalized = phrase.toLowerCase();
+  return [error.message, error.details, error.hint]
+    .filter((value): value is string => typeof value === 'string')
+    .some((value) => value.toLowerCase().includes(normalized));
+}
+
+const isMissingTextColumnError = (error: any) =>
+  errorIncludes(error, "'text' column") || errorIncludes(error, 'text column');
+
 const EMPTY_COUNTS: Record<ReactionType, number> = {
   verify: 0,
   inspire: 0,
@@ -645,66 +656,64 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
             text: value,
             author_id: uid,
           };
-          
-          // Only add parent_id if it exists and is valid
-          if (parentId) {
-            insertData.parent_id = parentId;
-          }
-          
-          let { error, data } = await supabase
-            .from('comments')
-            .insert(insertData)
-            .select('id')
-            .single();
-          
-          // If text column doesn't exist, try body instead
-          if (error && error.message?.includes("'text' column")) {
-            insertData = {
-              post_id: postId,
-              body: value,
-              author_id: uid,
-            };
+            // Only add parent_id if it exists and is valid
             if (parentId) {
               insertData.parent_id = parentId;
             }
-            const retryResult = await supabase
+            let { error, data } = await supabase
               .from('comments')
               .insert(insertData)
               .select('id')
               .single();
-            error = retryResult.error;
-            data = retryResult.data;
-          }
-          
-          // If author_id fails, try user_id instead
-          if (error && (error.message?.includes('author_id') || error.message?.includes('field') || error.message?.includes('column'))) {
-            insertData = {
-              post_id: postId,
-              text: value,
-              user_id: uid,
-            };
-            if (parentId) {
-              insertData.parent_id = parentId;
-            }
-            // Try body if text failed
-            if (error.message?.includes("'text' column")) {
+
+            // If text column doesn't exist, try body instead
+            if (error && isMissingTextColumnError(error)) {
               insertData = {
                 post_id: postId,
                 body: value,
+                author_id: uid,
+              };
+              if (parentId) {
+                insertData.parent_id = parentId;
+              }
+              const retryResult = await supabase
+                .from('comments')
+                .insert(insertData)
+                .select('id')
+                .single();
+              error = retryResult.error;
+              data = retryResult.data;
+            }
+
+            // If author_id fails, try user_id instead
+            if (error && (error.message?.includes('author_id') || error.message?.includes('field') || error.message?.includes('column'))) {
+              insertData = {
+                post_id: postId,
+                text: value,
                 user_id: uid,
               };
               if (parentId) {
                 insertData.parent_id = parentId;
               }
+              // Try body if text failed
+              if (isMissingTextColumnError(error)) {
+                insertData = {
+                  post_id: postId,
+                  body: value,
+                  user_id: uid,
+                };
+                if (parentId) {
+                  insertData.parent_id = parentId;
+                }
+              }
+              const retryResult = await supabase
+                .from('comments')
+                .insert(insertData)
+                .select('id')
+                .single();
+              error = retryResult.error;
+              data = retryResult.data;
             }
-            const retryResult = await supabase
-              .from('comments')
-              .insert(insertData)
-              .select('id')
-              .single();
-            error = retryResult.error;
-            data = retryResult.data;
-          }
           if (error) throw error;
           setReplyInput((prev) => ({ ...prev, [parentId]: '' }));
           setReplyOpen((prev) => ({ ...prev, [parentId]: false }));
@@ -715,74 +724,74 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         } finally {
           setReplySubmitting((prev) => ({ ...prev, [parentId]: false }));
         }
-      } else {
-        const value = commentInput.trim();
-        if (!value) return;
-        setCommentSubmitting(true);
-        try {
-          // Try author_id first (as per schema), fallback to user_id if needed
-          // Try text first, fallback to body if text column doesn't exist
-          let insertData: any = {
-            post_id: postId,
-            text: value,
-            author_id: uid,
-          };
-          
-          let { error, data } = await supabase
-            .from('comments')
-            .insert(insertData)
-            .select('id')
-            .single();
-          
-          // If text column doesn't exist, try body instead
-          if (error && error.message?.includes("'text' column")) {
-            insertData = {
+        } else {
+          const value = commentInput.trim();
+          if (!value) return;
+          setCommentSubmitting(true);
+          try {
+            // Try author_id first (as per schema), fallback to user_id if needed
+            // Try text first, fallback to body if text column doesn't exist
+            let insertData: any = {
               post_id: postId,
-              body: value,
+              text: value,
               author_id: uid,
             };
-            const retryResult = await supabase
+            let { error, data } = await supabase
               .from('comments')
               .insert(insertData)
               .select('id')
               .single();
-            error = retryResult.error;
-            data = retryResult.data;
-          }
-          
-          // If author_id fails, try user_id instead
-          if (error && (error.message?.includes('author_id') || error.message?.includes('field') || error.message?.includes('column'))) {
-            insertData = {
-              post_id: postId,
-              text: value,
-              user_id: uid,
-            };
-            // Try body if text failed
-            if (error.message?.includes("'text' column")) {
+            
+            // If text column doesn't exist, try body instead
+            if (error && isMissingTextColumnError(error)) {
               insertData = {
                 post_id: postId,
                 body: value,
+                author_id: uid,
+              };
+              const retryResult = await supabase
+                .from('comments')
+                .insert(insertData)
+                .select('id')
+                .single();
+              error = retryResult.error;
+              data = retryResult.data;
+            }
+            
+            // If author_id fails, try user_id instead
+            if (error && (error.message?.includes('author_id') || error.message?.includes('field') || error.message?.includes('column'))) {
+              insertData = {
+                post_id: postId,
+                text: value,
                 user_id: uid,
               };
+              // Try body if text failed
+              if (isMissingTextColumnError(error)) {
+                insertData = {
+                  post_id: postId,
+                  body: value,
+                  user_id: uid,
+                };
+              }
+              const retryResult = await supabase
+                .from('comments')
+                .insert(insertData)
+                .select('id')
+                .single();
+              error = retryResult.error;
+              data = retryResult.data;
             }
-            const retryResult = await supabase
-              .from('comments')
-              .insert(insertData)
-              .select('id')
-              .single();
-            error = retryResult.error;
-            data = retryResult.data;
+            
+            if (error) throw error;
+            setCommentInput('');
+            await loadComments();
+          } catch (error: any) {
+            console.error('Failed to add comment', error);
+            alert(error?.message || 'Unable to add comment.');
+          } finally {
+            setCommentSubmitting(false);
           }
-          if (error) throw error;
-          setCommentInput('');
-          await loadComments();
-        } catch (error: any) {
-          console.error('Failed to add comment', error);
-          alert(error?.message || 'Unable to add comment.');
-        } finally {
-          setCommentSubmitting(false);
         }
-      }
     },
     [commentInput, loadComments, postId, replyInput, uid]
   );
