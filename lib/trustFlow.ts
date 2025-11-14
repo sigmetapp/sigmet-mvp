@@ -275,7 +275,7 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     console.log(`[Trust Flow] Querying trust_pushes for user ${userId}...`);
     const { data: pushes, error } = await supabase
       .from('trust_pushes')
-      .select('from_user_id, type, created_at')
+      .select('id, from_user_id, type, created_at')
       .eq('to_user_id', userId)
       .order('created_at', { ascending: true });
     
@@ -300,21 +300,21 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     }
     
     console.log(`[Trust Flow] Found ${pushes?.length || 0} pushes for user ${userId}`);
-    if (pushes && pushes.length > 0) {
-      const latestPush = pushes[pushes.length - 1];
-      const latestPushTime = new Date(latestPush.created_at).getTime();
-      const now = Date.now();
-      const timeSinceLatestPush = now - latestPushTime;
-      console.log(`[Trust Flow] Latest push: from=${latestPush.from_user_id}, type=${latestPush.type}, created_at=${latestPush.created_at}, time_since=${timeSinceLatestPush}ms`);
-      // Log all pushes for debugging
-      console.log(`[Trust Flow] All pushes:`, pushes.map(p => ({ from: p.from_user_id, type: p.type, created: p.created_at })));
-    }
     
     if (!pushes || pushes.length === 0) {
       // Return base Trust Flow value for new users
       console.log(`[Trust Flow] No pushes found for user ${userId}, returning base value: ${BASE_TRUST_FLOW}`);
       return BASE_TRUST_FLOW;
     }
+    
+    // Log pushes for debugging
+    const latestPush = pushes[pushes.length - 1];
+    const latestPushTime = new Date(latestPush.created_at).getTime();
+    const now = Date.now();
+    const timeSinceLatestPush = now - latestPushTime;
+    console.log(`[Trust Flow] Latest push: from=${latestPush.from_user_id}, type=${latestPush.type}, created_at=${latestPush.created_at}, time_since=${timeSinceLatestPush}ms`);
+    // Log all pushes for debugging
+    console.log(`[Trust Flow] All pushes (${pushes.length} total):`, pushes.map(p => ({ id: p.id, from: p.from_user_id, type: p.type, created: p.created_at })));
     
     console.log(`[Trust Flow] Processing ${pushes.length} pushes for user ${userId}`);
     
@@ -328,14 +328,18 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
       pushesByUser.get(fromUserId)!.push(push as TrustPush);
     }
     
-    // Get target user's Trust Flow (cached value, or calculate if not cached)
+    // Get target user's Trust Flow (cached value, or use BASE_TRUST_FLOW for initial calculation)
+    // Note: We can't recursively calculate target user's TF here, so we use BASE_TRUST_FLOW
+    // if not cached. This is fine for the first calculation.
     let targetUserTF = await getCachedTrustFlow(userId);
     if (targetUserTF === null) {
       // If target user's TF is not cached, use BASE_TRUST_FLOW for weight calculation
       // This ensures we can calculate weights even for new users
       targetUserTF = BASE_TRUST_FLOW;
+      console.log(`[Trust Flow] Target user ${userId} TF not cached, using BASE_TRUST_FLOW: ${targetUserTF.toFixed(2)}`);
+    } else {
+      console.log(`[Trust Flow] Target user ${userId} TF (cached): ${targetUserTF.toFixed(2)}`);
     }
-    console.log(`[Trust Flow] Target user ${userId} TF: ${targetUserTF.toFixed(2)}`);
     
     // Calculate base push weights for all unique pushers based on their TF relative to target user
     // New formula:
@@ -349,12 +353,16 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
       weightPromises.push(
         (async () => {
           try {
-            // Get pusher's Trust Flow (cached or calculate if needed)
+            // Get pusher's Trust Flow (cached value only, to avoid recursion)
+            // If not cached, use BASE_TRUST_FLOW - this is fine for initial calculations
             let pusherTF = await getCachedTrustFlow(fromUserId);
             if (pusherTF === null) {
-              // If pusher's TF is not cached, calculate it (but don't save to avoid recursion)
-              // For now, use BASE_TRUST_FLOW as fallback
+              // If pusher's TF is not cached, use BASE_TRUST_FLOW
+              // This ensures we can calculate weights even if pusher's TF hasn't been calculated yet
               pusherTF = BASE_TRUST_FLOW;
+              console.log(`[Trust Flow] Pusher ${fromUserId} TF not cached, using BASE_TRUST_FLOW: ${pusherTF.toFixed(2)}`);
+            } else {
+              console.log(`[Trust Flow] Pusher ${fromUserId} TF (cached): ${pusherTF.toFixed(2)}`);
             }
             
             // Calculate relative difference
