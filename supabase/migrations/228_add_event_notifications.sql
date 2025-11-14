@@ -1,6 +1,20 @@
 -- Add event notifications support
 begin;
 
+-- Create sw_events table if it doesn't exist
+create table if not exists public.sw_events (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null,
+  value int not null default 1,
+  meta jsonb,
+  created_at timestamptz default now()
+);
+
+-- Add index for user_id and created_at for better query performance
+create index if not exists sw_events_user_id_idx on public.sw_events(user_id);
+create index if not exists sw_events_created_at_idx on public.sw_events(created_at desc);
+
 -- Add 'event' to notification types
 alter table public.notifications
   drop constraint if exists notifications_type_check;
