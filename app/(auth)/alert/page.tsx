@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, TouchEvent } from 'react';
+import { useState, useEffect, useRef, TouchEvent, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
 import { Bell, MessageSquare, Heart, UserPlus, Shield, AtSign, X, TrendingUp, Link2 } from 'lucide-react';
@@ -82,6 +82,62 @@ export default function AlertPage() {
     loadNotifications();
   }, []);
 
+  // Subscribe to realtime updates for debug info (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !mounted) return null;
+
+      const channel = supabase
+        .channel(`debug_notifications:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            // Debounce to avoid too many updates
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            timeoutId = setTimeout(() => {
+              if (mounted) {
+                loadDebugInfo();
+              }
+            }, 500);
+          }
+        )
+        .subscribe();
+
+      return channel;
+    };
+
+    let channel: any = null;
+    setupRealtime().then((ch) => {
+      if (mounted) {
+        channel = ch;
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [isAdmin, loadDebugInfo]);
+
   const checkAdminStatus = async () => {
     try {
       const { data, error } = await supabase.rpc('is_admin_uid');
@@ -96,7 +152,7 @@ export default function AlertPage() {
     }
   };
 
-  const loadDebugInfo = async () => {
+  const loadDebugInfo = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -208,7 +264,7 @@ export default function AlertPage() {
       setDebugError(err.message || 'Failed to load debug info');
       console.error('Error loading debug info:', err);
     }
-  };
+  }, []);
 
   const loadNotifications = async () => {
     try {
@@ -248,16 +304,10 @@ export default function AlertPage() {
         setNotifications(fetchedNotifications);
         setUnreadCount(unread);
         
-        if (isAdmin && debugInfo) {
-          // Update debug info with API response
-          setDebugInfo((prev: any) => ({
-            ...prev,
-            apiResponse: {
-              ...prev?.apiResponse,
-              actualNotificationsCount: fetchedNotifications.length,
-              actualUnreadCount: unread,
-            },
-          }));
+        // Always update debug info if admin (even if not loaded yet)
+        if (isAdmin) {
+          // Reload full debug info to get latest data
+          loadDebugInfo();
         }
     } catch (err: any) {
       console.error('Error loading notifications:', err);
@@ -601,11 +651,28 @@ export default function AlertPage() {
                       <div className="text-red-400 mt-1">Error: {debugInfo.recentNotifications.error}</div>
                     )}
                     {debugInfo.recentNotifications?.data && debugInfo.recentNotifications.data.length > 0 && (
-                      <div className="mt-2 max-h-40 overflow-y-auto">
-                        <pre className="text-xs bg-gray-800 p-2 rounded">
-                          {JSON.stringify(debugInfo.recentNotifications.data.slice(0, 5), null, 2)}
-                        </pre>
-                      </div>
+                      <>
+                        <div className="mt-2 text-xs">
+                          <strong className="text-yellow-300">Latest dates:</strong>
+                          <ul className="ml-2 mt-1 space-y-0.5">
+                            {debugInfo.recentNotifications.data.slice(0, 5).map((n: any, idx: number) => (
+                              <li key={idx} className="text-gray-300">
+                                {idx + 1}. {n.type} - {n.created_at ? new Date(n.created_at).toISOString() : 'N/A'}
+                                {n.read_at && <span className="text-gray-500 ml-2">(read)</span>}
+                                {n.hidden && <span className="text-red-400 ml-2">(hidden)</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="mt-2 max-h-40 overflow-y-auto">
+                          <pre className="text-xs bg-gray-800 p-2 rounded">
+                            {JSON.stringify(debugInfo.recentNotifications.data.slice(0, 5), null, 2)}
+                          </pre>
+                        </div>
+                      </>
+                    )}
+                    {(!debugInfo.recentNotifications?.data || debugInfo.recentNotifications.data.length === 0) && (
+                      <div className="text-gray-500 mt-1">No recent notifications found</div>
                     )}
                   </div>
                 </div>
