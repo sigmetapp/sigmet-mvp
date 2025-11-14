@@ -77,81 +77,6 @@ export default function AlertPage() {
   const swipeCurrentX = useRef<number | null>(null);
   const swipeElementId = useRef<number | null>(null);
 
-  useEffect(() => {
-    checkAdminStatus();
-    loadNotifications();
-  }, []);
-
-  // Subscribe to realtime updates for debug info (admin only)
-  useEffect(() => {
-    if (!isAdmin) return;
-
-    let mounted = true;
-    let timeoutId: NodeJS.Timeout | null = null;
-
-    const setupRealtime = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !mounted) return null;
-
-      const channel = supabase
-        .channel(`debug_notifications:${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            // Debounce to avoid too many updates
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-            }
-            timeoutId = setTimeout(() => {
-              if (mounted) {
-                loadDebugInfo();
-              }
-            }, 500);
-          }
-        )
-        .subscribe();
-
-      return channel;
-    };
-
-    let channel: any = null;
-    setupRealtime().then((ch) => {
-      if (mounted) {
-        channel = ch;
-      }
-    });
-
-    return () => {
-      mounted = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, [isAdmin, loadDebugInfo]);
-
-  const checkAdminStatus = async () => {
-    try {
-      const { data, error } = await supabase.rpc('is_admin_uid');
-      if (!error && data) {
-        setIsAdmin(true);
-        if (data) {
-          loadDebugInfo();
-        }
-      }
-    } catch (err) {
-      console.error('Error checking admin status:', err);
-    }
-  };
-
   const loadDebugInfo = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -266,15 +191,13 @@ export default function AlertPage() {
     }
   }, []);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     try {
         const response = await fetch('/api/notifications/list');
         if (response.status === 401) {
           console.log('Not authenticated');
           setLoading(false);
-          if (isAdmin) {
-            setDebugError('API returned 401 - Not authenticated');
-          }
+          setDebugError((prev) => prev || 'API returned 401 - Not authenticated');
           return;
       }
 
@@ -282,9 +205,7 @@ export default function AlertPage() {
           const text = await response.text();
           const error = text || 'Failed to load notifications';
           console.error('API error:', error);
-          if (isAdmin) {
-            setDebugError(`API Error (${response.status}): ${error}`);
-          }
+          setDebugError((prev) => prev || `API Error (${response.status}): ${error}`);
           throw new Error(error);
         }
 
@@ -295,29 +216,97 @@ export default function AlertPage() {
         if (!fetchedNotifications || fetchedNotifications.length === 0) {
           setNotifications([]);
           setUnreadCount(0);
-          if (isAdmin) {
-            console.log('No notifications returned from API');
-          }
+          console.log('No notifications returned from API');
         return;
       }
 
         setNotifications(fetchedNotifications);
         setUnreadCount(unread);
         
-        // Always update debug info if admin (even if not loaded yet)
-        if (isAdmin) {
-          // Reload full debug info to get latest data
-          loadDebugInfo();
-        }
+        // Always update debug info (will check isAdmin inside)
+        loadDebugInfo();
     } catch (err: any) {
       console.error('Error loading notifications:', err);
-      if (isAdmin) {
-        setDebugError(err.message || 'Unknown error');
-      }
+      setDebugError((prev) => prev || err.message || 'Unknown error');
     } finally {
       setLoading(false);
     }
+  }, [loadDebugInfo]);
+
+  const checkAdminStatus = async () => {
+    try {
+      const { data, error } = await supabase.rpc('is_admin_uid');
+      if (!error && data) {
+        setIsAdmin(true);
+        if (data) {
+          loadDebugInfo();
+        }
+      }
+    } catch (err) {
+      console.error('Error checking admin status:', err);
+    }
   };
+
+  useEffect(() => {
+    checkAdminStatus();
+    loadNotifications();
+  }, [loadNotifications]);
+
+  // Subscribe to realtime updates for debug info (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !mounted) return null;
+
+      const channel = supabase
+        .channel(`debug_notifications:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            // Debounce to avoid too many updates
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            timeoutId = setTimeout(() => {
+              if (mounted) {
+                loadDebugInfo();
+              }
+            }, 500);
+          }
+        )
+        .subscribe();
+
+      return channel;
+    };
+
+    let channel: any = null;
+    setupRealtime().then((ch) => {
+      if (mounted) {
+        channel = ch;
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [isAdmin, loadDebugInfo]);
 
   const markAsRead = async (notificationId: number) => {
     if (markingRead === notificationId) return;
