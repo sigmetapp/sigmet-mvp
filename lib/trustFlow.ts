@@ -488,21 +488,29 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         
         // Count how many pushes from this user to this target within 30 days before this push
+        // Only count pushes that came BEFORE or AT the same time as this push
         const recentPushesBeforeThis = sortedPushes.filter(p => {
           const pDate = new Date(p.created_at);
           return pDate >= thirtyDaysAgo && pDate <= pushDate;
         });
         
         // Repeat count is the index of this push in the recent pushes (0-based)
-        const repeatCount = recentPushesBeforeThis.findIndex(p => p.created_at === push.created_at);
+        // This represents how many pushes came before this one in the 30-day window
+        const repeatCount = recentPushesBeforeThis.findIndex(p => {
+          // Match by created_at timestamp (with small tolerance for same-moment pushes)
+          return Math.abs(new Date(p.created_at).getTime() - pushDate.getTime()) < 1000;
+        });
+        
+        // If push not found in recent pushes (shouldn't happen), default to 0
+        const finalRepeatCount = repeatCount >= 0 ? repeatCount : 0;
         
         // Calculate effective weight: each repeat is 33% less (multiply by 0.67^repeatCount)
         // First push (repeatCount = 0): baseWeight * 0.67^0 = baseWeight
         // Second push (repeatCount = 1): baseWeight * 0.67^1 = baseWeight * 0.67
         // Third push (repeatCount = 2): baseWeight * 0.67^2 = baseWeight * 0.4489
-        const effectiveWeight = baseWeight * Math.pow(0.67, repeatCount);
+        const effectiveWeight = baseWeight * Math.pow(0.67, finalRepeatCount);
         
-        console.log(`[Trust Flow] Push ${i + 1}/${sortedPushes.length} from ${fromUserId}: type=${push.type}, repeatCount=${repeatCount} (within 30 days), baseWeight=${baseWeight.toFixed(1)}, effectiveWeight=${effectiveWeight.toFixed(4)}`);
+        console.log(`[Trust Flow] Push ${i + 1}/${sortedPushes.length} from ${fromUserId}: type=${push.type}, repeatCount=${finalRepeatCount} (within 30 days, found ${recentPushesBeforeThis.length} total), baseWeight=${baseWeight.toFixed(1)}, effectiveWeight=${effectiveWeight.toFixed(4)}`);
         
         if (push.type === 'positive') {
           positiveSum += effectiveWeight;
@@ -523,7 +531,7 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     const roundedTF = Math.round(trustFlow * 100) / 100; // Round to 2 decimal places
     
     console.log(`[Trust Flow] Calculation for user ${userId}: positiveSum=${positiveSum.toFixed(2)}, negativeSum=${negativeSum.toFixed(2)}, contributions=${contributions.toFixed(2)}, base=${BASE_TRUST_FLOW}, finalTF=${roundedTF.toFixed(2)}`);
-    console.log(`[Trust Flow] Weight cache:`, Array.from(weightCache.entries()).map(([uid, w]) => ({ userId: uid, weight: w.toFixed(4) })));
+    console.log(`[Trust Flow] Base weight cache:`, Array.from(baseWeightCache.entries()).map(([uid, w]) => ({ userId: uid, baseWeight: w.toFixed(1) })));
     console.log(`[Trust Flow] Pushes by user:`, Array.from(pushesByUser.entries()).map(([uid, ps]) => ({ userId: uid, count: ps.length, types: ps.map(p => p.type) })));
     
     // Ensure minimum base Trust Flow value (should always be >= BASE_TRUST_FLOW since we add to it)
