@@ -641,23 +641,9 @@ export default async function handler(
       let levelChangeTimestamp = cachedScore?.last_level_change ?? null;
       const levelChanged = Boolean(previousLevelName && newLevelName && previousLevelName !== newLevelName);
 
-      if (levelChanged && newLevelName) {
-        levelChangeTimestamp = new Date().toISOString();
-        try {
-          await supabase
-            .from('notifications')
-            .insert({
-              user_id: userId,
-              type: 'sw_level_update',
-              sw_level: newLevelName,
-            });
-        } catch (notificationError: any) {
-          console.error('[SW] Failed to insert sw_level_update notification:', {
-            error: notificationError?.message || notificationError,
-            userId,
-          });
+        if (levelChanged && newLevelName) {
+          levelChangeTimestamp = new Date().toISOString();
         }
-      }
 
     // Save to cache (sw_scores table)
       try {

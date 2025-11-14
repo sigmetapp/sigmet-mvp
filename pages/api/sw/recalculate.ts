@@ -474,23 +474,9 @@ export default async function handler(
     let levelChangeTimestamp = previousLevelChange;
     const levelChanged = Boolean(previousLevelName && newLevelName && previousLevelName !== newLevelName);
 
-    if (levelChanged && newLevelName) {
-      levelChangeTimestamp = new Date().toISOString();
-      try {
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: userId,
-            type: 'sw_level_update',
-            sw_level: newLevelName,
-          });
-      } catch (notificationError: any) {
-        console.error('[SW Recalculate] Failed to insert sw_level_update notification:', {
-          error: notificationError?.message || notificationError,
-          userId,
-        });
+      if (levelChanged && newLevelName) {
+        levelChangeTimestamp = new Date().toISOString();
       }
-    }
 
     // Build breakdown for caching
     const breakdown = {
