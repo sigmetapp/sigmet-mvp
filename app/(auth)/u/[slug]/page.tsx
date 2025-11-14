@@ -1134,6 +1134,7 @@ export default function PublicProfilePage() {
   async function openHistory() {
     if (!isMe || !profile?.user_id) return;
     setHistoryOpen(true);
+    console.log('[Change History] Loading history for user:', profile.user_id);
     try {
       // Load trust pushes, profile changes, and trust flow history
       const [pushesRes, changesRes, tfHistoryRes] = await Promise.all([
@@ -1156,6 +1157,20 @@ export default function PublicProfilePage() {
           .order('created_at', { ascending: false })
           .limit(50),
       ]);
+
+      console.log('[Change History] Pushes result:', { 
+        data: pushesRes.data?.length || 0, 
+        error: pushesRes.error?.message 
+      });
+      console.log('[Change History] Profile changes result:', { 
+        data: changesRes.data?.length || 0, 
+        error: changesRes.error?.message 
+      });
+      console.log('[Change History] TF history result:', { 
+        data: tfHistoryRes.data?.length || 0, 
+        error: tfHistoryRes.error?.message,
+        items: tfHistoryRes.data 
+      });
 
       let feedbackItems: any[] = [];
       
@@ -1304,18 +1319,27 @@ export default function PublicProfilePage() {
       }));
 
       // Map trust flow history items
-      const tfChangeItems = ((tfHistoryRes.data as any[]) || []).map((r) => ({
-        type: 'trust_flow_change' as const,
-        author_id: null, // Trust Flow changes are system-generated
-        comment: r.change_reason || null,
-        created_at: r.created_at as string | undefined,
-        tfChange: {
-          old_value: Number(r.old_value) || 0,
-          new_value: Number(r.new_value) || 0,
-          change_reason: r.change_reason || null,
-          push_id: r.push_id ? Number(r.push_id) : undefined,
-        },
-      }));
+      const tfChangeItems = ((tfHistoryRes.data as any[]) || []).map((r) => {
+        console.log('[Change History] Mapping TF history item:', r);
+        return {
+          type: 'trust_flow_change' as const,
+          author_id: null, // Trust Flow changes are system-generated
+          comment: r.change_reason || null,
+          created_at: r.created_at as string | undefined,
+          tfChange: {
+            old_value: Number(r.old_value) || 0,
+            new_value: Number(r.new_value) || 0,
+            change_reason: r.change_reason || null,
+            push_id: r.push_id ? Number(r.push_id) : undefined,
+          },
+        };
+      });
+
+      console.log('[Change History] Mapped items:', {
+        feedback: feedbackItems.length,
+        changes: changeItems.length,
+        tfChanges: tfChangeItems.length,
+      });
 
       // Combine and sort by date
       const allItems = [...feedbackItems, ...changeItems, ...tfChangeItems].sort((a, b) => {
@@ -1324,6 +1348,7 @@ export default function PublicProfilePage() {
         return dateB - dateA;
       });
 
+      console.log('[Change History] Total items after sorting:', allItems.length);
       setHistoryItems(allItems.slice(0, 50));
     } catch (error) {
       console.error('Error loading history:', error);

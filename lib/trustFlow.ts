@@ -497,6 +497,7 @@ export async function saveTrustFlowToCache(
   const supabase = supabaseAdmin();
   
   try {
+    console.log(`[Trust Flow] Saving TF ${trustFlow.toFixed(2)} to cache for user ${userId}, reason: ${options.changeReason || 'manual_recalc'}`);
     // Try to use RPC function first (if migration is applied)
     const { error: rpcError } = await supabase.rpc('update_user_trust_flow', {
       p_user_id: userId,
@@ -508,6 +509,7 @@ export async function saveTrustFlowToCache(
     });
     
     if (rpcError) {
+      console.error('[Trust Flow] RPC error saving to cache:', rpcError);
       // If RPC function doesn't exist, try direct update (fallback for when migration not applied)
       if (rpcError.message?.includes('function') || rpcError.message?.includes('does not exist')) {
         console.warn('[Trust Flow] RPC function not found, trying direct update (migration may not be applied)');
@@ -531,7 +533,7 @@ export async function saveTrustFlowToCache(
       }
       // Don't throw - caching failure shouldn't break the flow
     } else {
-      console.log(`[Trust Flow] Saved TF ${trustFlow.toFixed(2)} to cache for user ${userId}`);
+      console.log(`[Trust Flow] Successfully saved TF ${trustFlow.toFixed(2)} to cache and history for user ${userId}`);
     }
   } catch (error) {
     console.error('[Trust Flow] Exception saving to cache:', error);
