@@ -121,13 +121,13 @@ export default function AlertPage() {
         },
       };
 
-      // Check recent notifications
+      // Check recent notifications - get ALL notifications including hidden
       const { data: recentNotifications, error: recentError } = await supabase
         .from('notifications')
-        .select('id, type, created_at, read_at, hidden, actor_id, post_id, comment_id')
+        .select('id, type, created_at, read_at, hidden, actor_id, post_id, comment_id, event_id, connection_id, sw_level, trust_feedback_id')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
 
       debugData.recentNotifications = {
         count: recentNotifications?.length ?? 0,
@@ -135,20 +135,78 @@ export default function AlertPage() {
         error: recentError?.message,
       };
 
-      // Check notification types distribution
+      // Check notification types distribution - ALL notifications including hidden
       const { data: typeDistribution, error: typeError } = await supabase
         .from('notifications')
-        .select('type')
+        .select('type, created_at, hidden')
+        .eq('user_id', user.id);
+      
+      // Also check notifications by date ranges
+      const now = new Date();
+      const cutoffDate = new Date('2025-11-10T08:34:09');
+      const { data: notificationsAfterCutoff, error: afterCutoffError } = await supabase
+        .from('notifications')
+        .select('id, type, created_at, hidden, actor_id, post_id, comment_id, event_id, connection_id')
         .eq('user_id', user.id)
-        .eq('hidden', false);
+        .gt('created_at', cutoffDate.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (typeDistribution) {
         const distribution: Record<string, number> = {};
+        const distributionByHidden: Record<string, { total: number; hidden: number; visible: number }> = {};
         typeDistribution.forEach(n => {
           distribution[n.type] = (distribution[n.type] || 0) + 1;
+          if (!distributionByHidden[n.type]) {
+            distributionByHidden[n.type] = { total: 0, hidden: 0, visible: 0 };
+          }
+          distributionByHidden[n.type].total++;
+          if (n.hidden) {
+            distributionByHidden[n.type].hidden++;
+          } else {
+            distributionByHidden[n.type].visible++;
+          }
         });
         debugData.typeDistribution = distribution;
+        debugData.typeDistributionByHidden = distributionByHidden;
       }
+      
+      debugData.notificationsAfterCutoff = {
+        count: notificationsAfterCutoff?.length ?? 0,
+        data: notificationsAfterCutoff,
+        error: afterCutoffError?.message,
+        cutoffDate: cutoffDate.toISOString(),
+      };
+      
+      // Check for notifications with different fields populated
+      const { data: notificationsWithEventId, error: eventIdError } = await supabase
+        .from('notifications')
+        .select('id, type, created_at, event_id')
+        .eq('user_id', user.id)
+        .not('event_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      const { data: notificationsWithConnectionId, error: connectionIdError } = await supabase
+        .from('notifications')
+        .select('id, type, created_at, connection_id')
+        .eq('user_id', user.id)
+        .not('connection_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      debugData.specialNotifications = {
+        withEventId: {
+          count: notificationsWithEventId?.length ?? 0,
+          data: notificationsWithEventId,
+          error: eventIdError?.message,
+        },
+        withConnectionId: {
+          count: notificationsWithConnectionId?.length ?? 0,
+          data: notificationsWithConnectionId,
+          error: connectionIdError?.message,
+        },
+      };
 
       // Check if triggers exist (this will likely fail due to RLS, but we try)
       let triggersInfo: any = { error: null, note: null };
@@ -668,10 +726,101 @@ export default function AlertPage() {
 
                 {debugInfo.typeDistribution && (
                   <div className="border-t border-gray-700 pt-2">
-                    <strong className="text-yellow-400">Type Distribution:</strong>
+                    <strong className="text-yellow-400">Type Distribution (All):</strong>
                     <pre className="ml-4 mt-1 text-xs bg-gray-800 p-2 rounded">
                       {JSON.stringify(debugInfo.typeDistribution, null, 2)}
                     </pre>
+                    {debugInfo.typeDistributionByHidden && (
+                      <>
+                        <strong className="text-yellow-300 mt-2 block">By Hidden Status:</strong>
+                        <pre className="ml-4 mt-1 text-xs bg-gray-800 p-2 rounded">
+                          {JSON.stringify(debugInfo.typeDistributionByHidden, null, 2)}
+                        </pre>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {debugInfo.notificationsAfterCutoff && (
+                  <div className="border-t border-gray-700 pt-2">
+                    <strong className="text-yellow-400">Notifications After Cutoff (2025-11-10T08:34:09):</strong>
+                    <div className="ml-4 mt-1">
+                      Count: <span className="text-white">{debugInfo.notificationsAfterCutoff.count ?? 0}</span>
+                      {debugInfo.notificationsAfterCutoff.error && (
+                        <div className="text-red-400 mt-1">Error: {debugInfo.notificationsAfterCutoff.error}</div>
+                      )}
+                      {debugInfo.notificationsAfterCutoff.data && debugInfo.notificationsAfterCutoff.data.length > 0 && (
+                        <>
+                          <div className="mt-2 text-xs">
+                            <strong className="text-yellow-300">Latest after cutoff:</strong>
+                            <ul className="ml-2 mt-1 space-y-0.5">
+                              {debugInfo.notificationsAfterCutoff.data.slice(0, 10).map((n: any, idx: number) => (
+                                <li key={idx} className="text-gray-300">
+                                  {idx + 1}. {n.type} - {n.created_at ? new Date(n.created_at).toISOString() : 'N/A'}
+                                  {n.hidden && <span className="text-red-400 ml-2">(hidden)</span>}
+                                  {n.event_id && <span className="text-blue-400 ml-2">event_id: {n.event_id}</span>}
+                                  {n.connection_id && <span className="text-green-400 ml-2">connection_id: {n.connection_id}</span>}
+                                  {n.post_id && <span className="text-purple-400 ml-2">post_id: {n.post_id}</span>}
+                                  {n.comment_id && <span className="text-orange-400 ml-2">comment_id: {n.comment_id}</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div className="mt-2 max-h-40 overflow-y-auto">
+                            <pre className="text-xs bg-gray-800 p-2 rounded">
+                              {JSON.stringify(debugInfo.notificationsAfterCutoff.data.slice(0, 10), null, 2)}
+                            </pre>
+                          </div>
+                        </>
+                      )}
+                      {(!debugInfo.notificationsAfterCutoff.data || debugInfo.notificationsAfterCutoff.data.length === 0) && (
+                        <div className="text-gray-500 mt-1">No notifications found after cutoff date</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {debugInfo.specialNotifications && (
+                  <div className="border-t border-gray-700 pt-2">
+                    <strong className="text-yellow-400">Special Notifications:</strong>
+                    <div className="ml-4 mt-1 space-y-2">
+                      {debugInfo.specialNotifications.withEventId && (
+                        <div>
+                          <strong className="text-yellow-300">With event_id:</strong>
+                          <div className="text-xs">
+                            Count: <span className="text-white">{debugInfo.specialNotifications.withEventId.count ?? 0}</span>
+                            {debugInfo.specialNotifications.withEventId.error && (
+                              <div className="text-red-400">Error: {debugInfo.specialNotifications.withEventId.error}</div>
+                            )}
+                            {debugInfo.specialNotifications.withEventId.data && debugInfo.specialNotifications.withEventId.data.length > 0 && (
+                              <div className="mt-1 max-h-20 overflow-y-auto">
+                                <pre className="text-xs bg-gray-800 p-2 rounded">
+                                  {JSON.stringify(debugInfo.specialNotifications.withEventId.data, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {debugInfo.specialNotifications.withConnectionId && (
+                        <div>
+                          <strong className="text-yellow-300">With connection_id:</strong>
+                          <div className="text-xs">
+                            Count: <span className="text-white">{debugInfo.specialNotifications.withConnectionId.count ?? 0}</span>
+                            {debugInfo.specialNotifications.withConnectionId.error && (
+                              <div className="text-red-400">Error: {debugInfo.specialNotifications.withConnectionId.error}</div>
+                            )}
+                            {debugInfo.specialNotifications.withConnectionId.data && debugInfo.specialNotifications.withConnectionId.data.length > 0 && (
+                              <div className="mt-1 max-h-20 overflow-y-auto">
+                                <pre className="text-xs bg-gray-800 p-2 rounded">
+                                  {JSON.stringify(debugInfo.specialNotifications.withConnectionId.data, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
