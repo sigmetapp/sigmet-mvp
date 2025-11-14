@@ -2390,22 +2390,24 @@ export default function PublicProfilePage() {
 
       {/* History modal (owner only) */}
       {historyOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
           <div className="absolute inset-0 bg-black/80" onClick={() => setHistoryOpen(false)} />
-          <div className="relative z-10 w-full max-w-xl mx-auto p-4">
-            <div className="card p-4 md:p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-white/90 font-medium">Change history</div>
-                <button onClick={() => setHistoryOpen(false)} className="text-white/60 hover:text-white">✕</button>
+          <div className="relative z-10 w-full max-w-xl max-h-[90vh] flex flex-col">
+            <div className="card p-3 sm:p-4 md:p-5 flex flex-col flex-1 min-h-0 space-y-3">
+              <div className="flex items-center justify-between flex-shrink-0">
+                <div className="text-white/90 font-medium text-sm sm:text-base">Change history</div>
+                <button onClick={() => setHistoryOpen(false)} className="text-white/60 hover:text-white text-lg sm:text-xl leading-none">✕</button>
               </div>
               {historyItems.length === 0 ? (
-                <div className="text-white/60 text-sm">No history yet</div>
+                <div className="text-white/60 text-xs sm:text-sm">No history yet</div>
               ) : (
-                <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
-                  {historyItems.map((it, idx) => (
-                    <HistoryRow key={idx} item={it} />
-                  ))}
-                </ul>
+                <div className="flex-1 min-h-0 overflow-y-auto -mx-3 sm:-mx-4 md:-mx-5 px-3 sm:px-4 md:px-5">
+                  <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
+                    {historyItems.map((it, idx) => (
+                      <HistoryRow key={idx} item={it} />
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           </div>
@@ -2637,85 +2639,103 @@ function HistoryRow({
     const positive = (item.value || 0) > 0;
     const showTfDetails = item.tfDetails !== undefined;
     return (
-      <li className="flex items-start gap-3 px-3 py-2 text-sm">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={avatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10 flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <span className="text-white/80">
-            <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link>
-            {' '}
-            {positive ? <span className="text-emerald-300">UP</span> : <span className="text-rose-300">Down</span>}
-          </span>
-          {item.comment && (
-            <div className="text-white/60 text-xs mt-1 whitespace-pre-wrap break-words">{item.comment}</div>
-          )}
-          {showTfDetails && item.tfDetails && (
-            <div className="text-white/50 text-xs mt-2 space-y-1 bg-white/5 rounded-lg p-2 border border-white/10">
-              <div className="font-medium text-white/70 mb-1">TF Details:</div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                <div>
-                  <span className="text-white/60">Weight:</span>
-                  <span className="ml-2 text-white/80">{item.tfDetails.weight.toFixed(2)}</span>
-                </div>
-                <div>
-                  <span className="text-white/60">Repeat Count:</span>
-                  <span className="ml-2 text-white/80">{item.tfDetails.repeatCount}</span>
-                </div>
-                <div>
-                  <span className="text-white/60">Effective Weight:</span>
-                  <span className="ml-2 text-white/80">{item.tfDetails.effectiveWeight.toFixed(4)}</span>
-                </div>
-                <div>
-                  <span className="text-white/60">Contribution:</span>
-                  <span className={`ml-2 font-medium ${
-                    item.tfDetails.contribution >= 0 ? 'text-emerald-300' : 'text-rose-300'
-                  }`}>
-                    {item.tfDetails.contribution >= 0 ? '+' : ''}{item.tfDetails.contribution.toFixed(4)}
-                  </span>
-                </div>
+      <li className="px-2 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+          <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={avatar} alt="avatar" className="h-5 w-5 sm:h-6 sm:w-6 rounded-full object-cover border border-white/10 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                <span className="text-white/80">
+                  <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link>
+                </span>
+                {positive ? <span className="text-emerald-300 text-xs sm:text-sm">UP</span> : <span className="text-rose-300 text-xs sm:text-sm">Down</span>}
+                <span className="text-white/40 text-[10px] sm:text-xs ml-auto sm:ml-0 sm:hidden">
+                  {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                </span>
               </div>
+              {item.comment && (
+                <div className="text-white/60 text-[11px] sm:text-xs mt-1 whitespace-pre-wrap break-words">{item.comment}</div>
+              )}
+              {showTfDetails && item.tfDetails && (
+                <div className="text-white/50 text-[10px] sm:text-xs mt-2 bg-white/5 rounded-md sm:rounded-lg p-1.5 sm:p-2 border border-white/10">
+                  <div className="font-medium text-white/70 mb-1 text-[11px] sm:text-xs">TF Details:</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-2 gap-x-2 sm:gap-x-4 gap-y-0.5 sm:gap-y-1">
+                    <div className="truncate">
+                      <span className="text-white/60">W:</span>
+                      <span className="ml-1 text-white/80">{item.tfDetails.weight.toFixed(2)}</span>
+                    </div>
+                    <div className="truncate">
+                      <span className="text-white/60">R:</span>
+                      <span className="ml-1 text-white/80">{item.tfDetails.repeatCount}</span>
+                    </div>
+                    <div className="truncate">
+                      <span className="text-white/60">EW:</span>
+                      <span className="ml-1 text-white/80">{item.tfDetails.effectiveWeight.toFixed(4)}</span>
+                    </div>
+                    <div className="truncate">
+                      <span className="text-white/60">C:</span>
+                      <span className={`ml-1 font-medium ${
+                        item.tfDetails.contribution >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                      }`}>
+                        {item.tfDetails.contribution >= 0 ? '+' : ''}{item.tfDetails.contribution.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+          <span className="text-white/40 text-[10px] sm:text-xs flex-shrink-0 hidden sm:block ml-auto">
+            {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+          </span>
         </div>
-        <span className="ml-auto text-white/40 text-xs flex-shrink-0">
-          {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
-        </span>
       </li>
     );
   } else {
     // Profile change
     return (
-      <li className="flex items-start gap-3 px-3 py-2 text-sm">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={avatar} alt="avatar" className="h-6 w-6 rounded-full object-cover border border-white/10 flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <span className="text-white/80">
-            <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link>
-            {' '}changed <span className="text-blue-300">{getFieldLabel(item.field_name || '')}</span>
-          </span>
-          <div className="text-white/60 text-xs mt-1 space-y-1">
-            {item.old_value && (
-              <div>
-                <span className="text-rose-300">-</span> {item.old_value.length > 100 
-                  ? item.old_value.substring(0, 100) + '...' 
-                  : item.old_value}
+      <li className="px-2 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+          <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={avatar} alt="avatar" className="h-5 w-5 sm:h-6 sm:w-6 rounded-full object-cover border border-white/10 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                <span className="text-white/80">
+                  <Link href={`/u/${encodeURIComponent(u)}`} className="hover:underline">@{u}</Link>
+                </span>
+                <span className="text-white/70">changed</span>
+                <span className="text-blue-300">{getFieldLabel(item.field_name || '')}</span>
+                <span className="text-white/40 text-[10px] sm:text-xs ml-auto sm:ml-0 sm:hidden">
+                  {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                </span>
               </div>
-            )}
-            {item.new_value && (
-              <div>
-                <span className="text-emerald-300">+</span> {item.new_value.length > 100 
-                  ? item.new_value.substring(0, 100) + '...' 
-                  : item.new_value}
+              <div className="text-white/60 text-[11px] sm:text-xs mt-1 space-y-0.5 sm:space-y-1">
+                {item.old_value && (
+                  <div className="break-words">
+                    <span className="text-rose-300">-</span> <span className="break-all">{item.old_value.length > 80 
+                      ? item.old_value.substring(0, 80) + '...' 
+                      : item.old_value}</span>
+                  </div>
+                )}
+                {item.new_value && (
+                  <div className="break-words">
+                    <span className="text-emerald-300">+</span> <span className="break-all">{item.new_value.length > 80 
+                      ? item.new_value.substring(0, 80) + '...' 
+                      : item.new_value}</span>
+                  </div>
+                )}
+                {item.comment && (
+                  <div className="text-white/50 italic mt-1 break-words">{item.comment}</div>
+                )}
               </div>
-            )}
-            {item.comment && (
-              <div className="text-white/50 italic mt-1">{item.comment}</div>
-            )}
+            </div>
           </div>
+          <span className="text-white/40 text-[10px] sm:text-xs flex-shrink-0 hidden sm:block ml-auto">
+            {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+          </span>
         </div>
-        <span className="ml-auto text-white/40 text-xs flex-shrink-0">
-          {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
-        </span>
       </li>
     );
   }
