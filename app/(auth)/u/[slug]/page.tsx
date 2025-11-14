@@ -1228,61 +1228,52 @@ export default function PublicProfilePage() {
               pushesByUser.get(fromUserId)!.push(push);
             }
 
-            // Calculate weights for all unique pushers
-            const weightCache = new Map<string, number>();
-            const weightPromises: Promise<void>[] = [];
+            // Calculate base effective weights for all unique pushers (cache them)
+            // Base weight depends on pusher's Trust Flow (1.5, 2.0, or 2.5)
+            const baseWeightCache = new Map<string, number>();
+            const baseWeightPromises: Promise<void>[] = [];
             
             for (const fromUserId of pushesByUser.keys()) {
-              weightPromises.push(
-                calculateUserWeight(fromUserId).then((data) => {
-                  // Ensure weight is at least MIN_USER_WEIGHT
-                  const weight = Math.max(data.weight, MIN_USER_WEIGHT);
-                  weightCache.set(fromUserId, weight);
-                  console.log(`[TF History] User ${fromUserId} weight: ${data.weight}, activity: ${data.activityScore}, age: ${data.accountAgeDays} days`);
-                }).catch((error) => {
-                  console.error(`[TF History] Error calculating weight for user ${fromUserId}:`, error);
-                  weightCache.set(fromUserId, MIN_USER_WEIGHT);
-                })
-              );
-            }
-            
-            await Promise.all(weightPromises);
-
-            // Check if each user's first push to this target is their first push ever
-            const firstPushCheckPromises: Promise<{ fromUserId: string; isFirstPush: boolean }>[] = [];
-            for (const [fromUserId, userPushes] of pushesByUser.entries()) {
-              // Get the earliest push timestamp from this user to this target user
-              const sortedPushes = [...userPushes].sort((a, b) => 
-                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-              );
-              const firstPushTimestamp = sortedPushes[0]?.created_at;
-              
-              firstPushCheckPromises.push(
+              baseWeightPromises.push(
                 (async () => {
-                  // Check if this user has given any pushes before this one (to any user)
-                  const { count } = await supabase
-                    .from('trust_pushes')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('from_user_id', fromUserId)
-                    .lt('created_at', firstPushTimestamp || new Date().toISOString());
-                  
-                  return {
-                    fromUserId,
-                    isFirstPush: (count || 0) === 0,
-                  };
+                  try {
+                    // Get cached TF for pusher
+                    const { data: profile } = await supabase
+                      .from('profiles')
+                      .select('trust_flow')
+                      .eq('user_id', fromUserId)
+                      .maybeSingle();
+                    
+                    const tf = profile?.trust_flow !== null && profile?.trust_flow !== undefined 
+                      ? Number(profile.trust_flow) 
+                      : 5.0; // BASE_TRUST_FLOW
+                    
+                    // Determine base weight based on Trust Flow
+                    let baseWeight = 1.5; // Default
+                    if (tf < 10) {
+                      baseWeight = 1.5; // Low TF
+                    } else if (tf < 40) {
+                      baseWeight = 2.0; // Moderate TF
+                    } else {
+                      baseWeight = 2.5; // High TF
+                    }
+                    
+                    baseWeightCache.set(fromUserId, baseWeight);
+                    console.log(`[TF History] User ${fromUserId} base weight: ${baseWeight.toFixed(1)} (TF: ${tf.toFixed(2)})`);
+                  } catch (error) {
+                    console.error(`[TF History] Error calculating base weight for user ${fromUserId}:`, error);
+                    baseWeightCache.set(fromUserId, 1.5); // Default fallback
+                  }
                 })()
               );
             }
-            const firstPushChecks = await Promise.all(firstPushCheckPromises);
-            const firstPushMap = new Map<string, boolean>();
-            for (const check of firstPushChecks) {
-              firstPushMap.set(check.fromUserId, check.isFirstPush);
-            }
+            
+            await Promise.all(baseWeightPromises);
 
             // Calculate details for pushes that need recalculation
             for (const [fromUserId, userPushes] of pushesByUser.entries()) {
-              // Get weight from cache, fallback to minimum weight if not found
-              const weight = weightCache.get(fromUserId) ?? MIN_USER_WEIGHT;
+              // Get base weight from cache, fallback to 1.5 if not found
+              const baseWeight = baseWeightCache.get(fromUserId) ?? 1.5;
               
               // Sort pushes by created_at to process in chronological order
               const sortedPushes = [...userPushes].sort((a, b) => 
@@ -1298,15 +1289,25 @@ export default function PublicProfilePage() {
                   continue;
                 }
                 
-                const repeatCount = i; // How many pushes came before this one
+                const pushDate = new Date(push.created_at);
+                const thirtyDaysAgo = new Date(pushDate);
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
                 
-                // For new users' first push ever, use 1.5 instead of calculated weight
-                const isFirstPushEver = firstPushMap.get(fromUserId) === true && repeatCount === 0;
-                const effectiveWeight = isFirstPushEver ? 1.5 : weight / (1 + repeatCount);
+                // Count how many pushes from this user to this target within 30 days before this push
+                const recentPushesBeforeThis = sortedPushes.filter(p => {
+                  const pDate = new Date(p.created_at);
+                  return pDate >= thirtyDaysAgo && pDate <= pushDate;
+                });
+                
+                // Repeat count is the index of this push in the recent pushes (0-based)
+                const repeatCount = recentPushesBeforeThis.findIndex(p => p.created_at === push.created_at);
+                
+                // Calculate effective weight: each repeat is 33% less (multiply by 0.67^repeatCount)
+                const effectiveWeight = baseWeight * Math.pow(0.67, repeatCount);
                 const contribution = push.type === 'positive' ? effectiveWeight : -effectiveWeight;
                 
                 pushDetailsMap.set(pushId, {
-                  weight: isFirstPushEver ? 1.5 : weight, // Show 1.5 for first push ever, otherwise actual weight
+                  weight: baseWeight, // Show base weight (not used in calculation, just for display)
                   repeatCount,
                   effectiveWeight,
                   contribution,
