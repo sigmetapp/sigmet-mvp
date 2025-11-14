@@ -62,7 +62,7 @@ create table public.notifications (
   )),
   actor_id uuid references auth.users(id) on delete set null,
   post_id bigint references public.posts(id) on delete cascade,
-  comment_id bigint references public.comments(id) on delete cascade,
+  comment_id text,
   goal_id text,
   goal_reaction_kind text,
   trust_push_id bigint references public.trust_pushes(id) on delete cascade,
@@ -131,7 +131,7 @@ create or replace function public.create_notification(
   p_type text,
   p_actor_id uuid default null,
   p_post_id bigint default null,
-  p_comment_id bigint default null,
+  p_comment_id text default null,
   p_goal_id text default null,
   p_goal_reaction_kind text default null,
   p_trust_push_id bigint default null,
@@ -182,7 +182,6 @@ declare
   comment_author_id uuid;
   has_blocks boolean;
   comment_id_text text;
-  comment_id_bigint bigint := null;
 begin
   comment_author_id := coalesce(
     nullif((to_jsonb(new)->>'author_id'), '')::uuid,
@@ -192,9 +191,6 @@ begin
   post_author_id := public.resolve_post_author_id(new.post_id);
 
   comment_id_text := to_jsonb(new)->>'id';
-  if comment_id_text ~ '^[0-9]+$' then
-    comment_id_bigint := comment_id_text::bigint;
-  end if;
 
   if post_author_id is null or comment_author_id is null then
     return new;
@@ -227,7 +223,7 @@ begin
     p_type := 'comment_on_post',
     p_actor_id := comment_author_id,
     p_post_id := new.post_id,
-    p_comment_id := comment_id_bigint
+    p_comment_id := comment_id_text
   );
 
   return new;
@@ -250,7 +246,6 @@ declare
   reply_author uuid;
   has_blocks boolean;
   comment_id_text text;
-  comment_id_bigint bigint := null;
 begin
   if new.parent_id is null then
     return new;
@@ -271,9 +266,6 @@ begin
   limit 1;
 
   comment_id_text := to_jsonb(new)->>'id';
-  if comment_id_text ~ '^[0-9]+$' then
-    comment_id_bigint := comment_id_text::bigint;
-  end if;
 
   if parent_comment_author is null or reply_author is null then
     return new;
@@ -306,7 +298,7 @@ begin
     p_type := 'comment_on_comment',
     p_actor_id := reply_author,
     p_post_id := new.post_id,
-    p_comment_id := comment_id_bigint
+    p_comment_id := comment_id_text
   );
 
   return new;
@@ -381,9 +373,11 @@ as $$
 declare
   comment_author_id uuid;
   comment_post_id bigint;
-  comment_id_bigint bigint;
   comment_id_type text;
+  comment_id_text text;
 begin
+  comment_id_text := new.comment_id::text;
+
   select data_type into comment_id_type
   from information_schema.columns
   where table_schema = 'public'
@@ -410,7 +404,7 @@ begin
       p_type := 'reaction_on_comment',
       p_actor_id := new.user_id,
       p_post_id := comment_post_id,
-      p_comment_id := comment_id_bigint
+      p_comment_id := comment_id_text
     );
   end if;
 
