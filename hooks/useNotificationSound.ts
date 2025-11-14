@@ -8,8 +8,9 @@ import { supabase } from '@/lib/supabaseClient';
  */
 export function useNotificationSound() {
   const lastNotificationIdRef = useRef<number | null>(null);
-  const isPageVisibleRef = useRef(true);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const initializingRef = useRef(false);
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -62,12 +63,6 @@ export function useNotificationSound() {
     document.addEventListener('pointerdown', unlockAudioContext);
     document.addEventListener('keydown', unlockAudioContext);
 
-    const handleVisibilityChange = () => {
-      isPageVisibleRef.current = !document.hidden;
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     const playBeep = async () => {
       const ready = await ensureAudioContext();
       if (!ready || !audioContextRef.current) {
@@ -103,12 +98,39 @@ export function useNotificationSound() {
       }
     };
 
+    const handleNewNotification = async (notificationId: number) => {
+      if (lastNotificationIdRef.current === notificationId) {
+        return;
+      }
+      lastNotificationIdRef.current = notificationId;
+      await playBeep();
+      notifyBadgeUpdate();
+    };
+
+    const fetchLatestNotificationId = async () => {
+      if (cancelled || initializingRef.current) return;
+      try {
+        const response = await fetch('/api/notifications/list?limit=1&offset=0');
+        if (!response.ok) {
+          return;
+        }
+        const data = await response.json();
+        const latest = data.notifications?.[0]?.id;
+        if (typeof latest === 'number' && latest !== lastNotificationIdRef.current) {
+          await handleNewNotification(latest);
+        }
+      } catch (err) {
+        console.warn('Failed to poll notifications for sound:', err);
+      }
+    };
+
     const setupRealtime = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user || cancelled) return null;
 
+      initializingRef.current = true;
       await ensureAudioContext();
 
       const { data: latestNotification } = await supabase
@@ -123,6 +145,7 @@ export function useNotificationSound() {
       if (latestNotification) {
         lastNotificationIdRef.current = latestNotification.id;
       }
+      initializingRef.current = false;
 
       const notificationChannel = supabase
         .channel(`notification_sound:${user.id}`)
@@ -142,18 +165,9 @@ export function useNotificationSound() {
               return;
             }
 
-            const isNewNotification =
-              lastNotificationIdRef.current === null ||
-              notification.id !== lastNotificationIdRef.current;
-
-            if (isNewNotification) {
-              lastNotificationIdRef.current = notification.id;
-
-              if (isPageVisibleRef.current) {
-                void playBeep();
-              }
-
-              notifyBadgeUpdate();
+            const newId = notification.id;
+            if (typeof newId === 'number') {
+              void handleNewNotification(newId);
             }
           }
         )
@@ -166,13 +180,21 @@ export function useNotificationSound() {
       channel = ch;
     });
 
+    const POLL_INTERVAL = 6000;
+    pollIntervalRef.current = setInterval(() => {
+      void fetchLatestNotificationId();
+    }, POLL_INTERVAL);
+
     return () => {
       cancelled = true;
       document.removeEventListener('pointerdown', unlockAudioContext);
       document.removeEventListener('keydown', unlockAudioContext);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (channel) {
         supabase.removeChannel(channel);
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(console.warn);
