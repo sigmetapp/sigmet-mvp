@@ -249,24 +249,28 @@ export default function AlertPage() {
         }
         
         // Always set expected triggers for comparison
-        triggersInfo.expectedTriggers = [
-          { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
-          { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
-          { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
-          { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
-          { name: 'notify_connection_trigger', table: 'user_connections', event: 'INSERT' },
-          { name: 'notify_on_event_trigger', table: 'sw_events', event: 'INSERT' },
-        ];
+          triggersInfo.expectedTriggers = [
+            { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
+            { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
+            { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
+            { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
+            { name: 'notify_connection_trigger', table: 'user_connections', event: 'INSERT' },
+            { name: 'notify_on_event_trigger', table: 'sw_events', event: 'INSERT' },
+            { name: 'notify_goal_reaction_trigger', table: 'goal_reactions', event: 'INSERT' },
+            { name: 'notify_trust_push_trigger', table: 'trust_pushes', event: 'INSERT' },
+          ];
       } catch (triggersErr: any) {
         triggersInfo.error = triggersErr.message || 'Cannot check triggers';
-        triggersInfo.expectedTriggers = [
-          { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
-          { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
-          { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
-          { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
-          { name: 'notify_connection_trigger', table: 'user_connections', event: 'INSERT' },
-          { name: 'notify_on_event_trigger', table: 'sw_events', event: 'INSERT' },
-        ];
+          triggersInfo.expectedTriggers = [
+            { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
+            { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
+            { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
+            { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
+            { name: 'notify_connection_trigger', table: 'user_connections', event: 'INSERT' },
+            { name: 'notify_on_event_trigger', table: 'sw_events', event: 'INSERT' },
+            { name: 'notify_goal_reaction_trigger', table: 'goal_reactions', event: 'INSERT' },
+            { name: 'notify_trust_push_trigger', table: 'trust_pushes', event: 'INSERT' },
+          ];
       }
 
       // Note: create_notification function should exist if triggers are working
@@ -1140,14 +1144,16 @@ export default function AlertPage() {
                     {(!debugInfo.triggers?.triggers || debugInfo.triggers.triggers.length === 0) && !debugInfo.triggers?.expectedTriggers && (
                       <div className="mt-2 text-gray-400">
                         Check Supabase dashboard → Database → Triggers for:
-                        <ul className="ml-4 mt-1 list-disc">
-                          <li>notify_comment_on_post_trigger (on comments table, INSERT)</li>
-                          <li>notify_comment_on_comment_trigger (on comments table, INSERT)</li>
-                          <li>notify_reaction_on_post_trigger (on post_reactions table, INSERT)</li>
-                          <li>notify_reaction_on_comment_trigger (on comment_reactions table, INSERT)</li>
-                          <li>notify_connection_trigger (on user_connections table, INSERT)</li>
-                          <li>notify_on_event_trigger (on sw_events table, INSERT)</li>
-                        </ul>
+                          <ul className="ml-4 mt-1 list-disc">
+                            <li>notify_comment_on_post_trigger (on comments table, INSERT)</li>
+                            <li>notify_comment_on_comment_trigger (on comments table, INSERT)</li>
+                            <li>notify_reaction_on_post_trigger (on post_reactions table, INSERT)</li>
+                            <li>notify_reaction_on_comment_trigger (on comment_reactions table, INSERT)</li>
+                            <li>notify_connection_trigger (on user_connections table, INSERT)</li>
+                            <li>notify_on_event_trigger (on sw_events table, INSERT)</li>
+                            <li>notify_goal_reaction_trigger (on goal_reactions table, INSERT)</li>
+                            <li>notify_trust_push_trigger (on trust_pushes table, INSERT)</li>
+                          </ul>
                       </div>
                     )}
                   </div>
