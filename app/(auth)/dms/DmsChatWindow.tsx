@@ -15,6 +15,7 @@ import { listThreadReceipts } from '@/lib/dm/receipts';
 
 const INITIAL_MESSAGE_LIMIT = 30;
 const HISTORY_PAGE_LIMIT = 30;
+const READ_RECEIPT_ENDPOINT = '/api/dms/messages.read';
 
 type SelectedAttachment = {
   id: string;
@@ -24,6 +25,14 @@ type SelectedAttachment = {
   status: 'idle' | 'uploading' | 'done' | 'error';
   error?: string;
 };
+
+type ReadReceiptPayload = {
+  thread_id: string;
+  up_to_message_id: string;
+  up_to_sequence_number: number | null;
+};
+
+type DebugLevel = 'info' | 'warn' | 'error';
 
 type Props = {
   partnerId: string;
@@ -194,11 +203,147 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const messageNodeMap = useRef<Map<number, HTMLDivElement>>(new Map());
+    const latestReadPayloadRef = useRef<ReadReceiptPayload | null>(null);
 
-  const AVATAR_FALLBACK =
-    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
+    const AVATAR_FALLBACK =
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
 
-  // Initialize AudioContext early to avoid delay on first sound
+    const emitDebugEvent = useCallback(
+      (
+        kind: string,
+        extra: Record<string, unknown> & { level?: DebugLevel } = {}
+      ) => {
+        const { level, ...rest } = extra;
+        const normalizedKind = kind.toLowerCase();
+        const resolvedLevel: DebugLevel =
+          level === 'info' || level === 'warn' || level === 'error'
+            ? level
+            : normalizedKind.includes('error') || normalizedKind.includes('fail')
+              ? 'error'
+              : normalizedKind.includes('warn')
+                ? 'warn'
+                : 'info';
+        const detail = {
+          kind,
+          level: resolvedLevel,
+          timestamp: Date.now(),
+          ...rest,
+        };
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('dm:debug-log', { detail }));
+        }
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[DM][debug]', detail);
+        }
+      },
+      []
+    );
+
+    const flushPendingReadReceipt = useCallback(() => {
+      const payload = latestReadPayloadRef.current;
+      if (!payload) {
+        return;
+      }
+
+      if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') {
+        return;
+      }
+
+      try {
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        const success = navigator.sendBeacon(READ_RECEIPT_ENDPOINT, blob);
+        emitDebugEvent('read-receipt-beacon', {
+          level: success ? 'info' : 'warn',
+          payload,
+        });
+      } catch (err: any) {
+        emitDebugEvent('read-receipt-beacon-error', {
+          level: 'error',
+          payload,
+          error: err?.message ?? String(err),
+        });
+      }
+    }, [emitDebugEvent]);
+
+    const sendReadReceipt = useCallback(
+      async (payload: ReadReceiptPayload, context: string): Promise<boolean> => {
+        if (!payload.thread_id || !payload.up_to_message_id) {
+          return false;
+        }
+
+        latestReadPayloadRef.current = payload;
+
+        try {
+          const response = await fetch(READ_RECEIPT_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true,
+          });
+
+          if (!response.ok) {
+            let body: any = null;
+            try {
+              body = await response.json();
+            } catch {
+              body = null;
+            }
+            emitDebugEvent('read-receipt-failed', {
+              level: 'error',
+              context,
+              payload,
+              status: response.status,
+              error: body?.error ?? null,
+            });
+            return false;
+          }
+
+          emitDebugEvent('read-receipt-sent', {
+            level: 'info',
+            context,
+            payload,
+          });
+          return true;
+        } catch (err: any) {
+          emitDebugEvent('read-receipt-error', {
+            level: 'error',
+            context,
+            payload,
+            error: err?.message ?? String(err),
+          });
+          return false;
+        }
+      },
+      [emitDebugEvent]
+    );
+
+    useEffect(() => {
+      if (typeof document === 'undefined') {
+        return;
+      }
+
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'hidden') {
+          flushPendingReadReceipt();
+        }
+      };
+
+      const handlePageHide = () => {
+        flushPendingReadReceipt();
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('pagehide', handlePageHide);
+      window.addEventListener('beforeunload', handlePageHide);
+
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('pagehide', handlePageHide);
+        window.removeEventListener('beforeunload', handlePageHide);
+      };
+    }, [flushPendingReadReceipt]);
+
+    // Initialize AudioContext early to avoid delay on first sound
   useEffect(() => {
     const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext) as
       | typeof AudioContext
@@ -1239,18 +1384,14 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             partnerId &&
             threadId;
 
-          if (shouldMarkRead) {
-              fetch('/api/dms/messages.read', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  thread_id: String(threadId),
-                  up_to_message_id: messageId,
-                  up_to_sequence_number: newestMessage.sequence_number ?? null,
-                }),
-              })
-              .then((response) => {
-                if (response.ok) {
+            if (shouldMarkRead) {
+              const payload: ReadReceiptPayload = {
+                thread_id: String(threadId),
+                up_to_message_id: messageId,
+                up_to_sequence_number: newestMessage.sequence_number ?? null,
+              };
+              void sendReadReceipt(payload, 'thread-open').then((success) => {
+                if (success) {
                   window.dispatchEvent(
                     new CustomEvent('dm:message-read', {
                       detail: {
@@ -1259,25 +1400,9 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                       },
                     })
                   );
-                } else {
-                  response
-                    .json()
-                    .then((data) => {
-                      console.error('Error marking messages as read on thread open:', data);
-                    })
-                    .catch(() => {
-                      console.error(
-                        'Error marking messages as read on thread open:',
-                        response.status,
-                        response.statusText
-                      );
-                    });
                 }
-              })
-              .catch((err) => {
-                console.error('Error marking messages as read on thread open:', err);
               });
-          }
+            }
 
         setHasMoreHistory(sorted.length === INITIAL_MESSAGE_LIMIT);
         
@@ -1344,7 +1469,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [currentUserId, partnerId]);
+    }, [currentUserId, partnerId, sendReadReceipt]);
 
   // Initialize last message ID
   useEffect(() => {
@@ -1393,31 +1518,23 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 'read',
                 lastMessage.sequence_number ?? null
               );
-              fetch('/api/dms/messages.read', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  thread_id: String(thread.id),
-                  up_to_message_id: String(lastMessage.id),
-                  up_to_sequence_number: lastMessage.sequence_number ?? null,
-                }),
-              })
-            .then((response) => {
-              if (response.ok) {
-                // Dispatch event to update unread count in partner list
-                window.dispatchEvent(
-                  new CustomEvent('dm:message-read', {
-                    detail: {
-                      threadId: String(thread.id),
-                      partnerId: partnerId,
-                    },
-                  })
-                );
-              }
-            })
-            .catch((err) => {
-              console.error('Error marking message as read:', err);
-            });
+              const payload: ReadReceiptPayload = {
+                thread_id: String(thread.id),
+                up_to_message_id: String(lastMessage.id),
+                up_to_sequence_number: lastMessage.sequence_number ?? null,
+              };
+              void sendReadReceipt(payload, 'partner-message-auto').then((success) => {
+                if (success) {
+                  window.dispatchEvent(
+                    new CustomEvent('dm:message-read', {
+                      detail: {
+                        threadId: String(thread.id),
+                        partnerId,
+                      },
+                    })
+                  );
+                }
+              });
             setMessageReceipts((prev) => {
               const updated = new Map(prev);
               updated.set(String(lastMessage.id), 'read');
@@ -1429,7 +1546,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         }
       }
     }
-  }, [messages, currentUserId, partnerId, playIncomingNotification, thread?.id, acknowledgeMessage, isAtBottom]);
+    }, [messages, currentUserId, partnerId, playIncomingNotification, thread?.id, acknowledgeMessage, isAtBottom, sendReadReceipt]);
 
   // Typing indicators are handled by useWebSocketDm hook
 
@@ -1610,38 +1727,23 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       if (lastMessage && thread?.id) {
         // Mark all messages as read immediately when chat is opened
         // This ensures that on page refresh, these messages won't be unread
-          fetch('/api/dms/messages.read', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              thread_id: String(thread.id),
-              up_to_message_id: String(lastMessage.id),
-              up_to_sequence_number: lastMessage.sequence_number ?? null,
-            }),
-          })
-        .then((response) => {
-          if (response.ok) {
-            // Dispatch event to update unread count in partner list
-            window.dispatchEvent(
-              new CustomEvent('dm:message-read', {
-                detail: {
-                  threadId: String(thread.id),
-                  partnerId: partnerId,
-                },
-              })
-            );
-          } else {
-            // Log error response for debugging
-            response.json().then((data) => {
-              console.error('Error marking messages as read on initial scroll:', data);
-            }).catch(() => {
-              console.error('Error marking messages as read on initial scroll:', response.status, response.statusText);
-            });
-          }
-        })
-        .catch((err) => {
-          console.error('Error marking messages as read on initial scroll:', err);
-        });
+          const payload: ReadReceiptPayload = {
+            thread_id: String(thread.id),
+            up_to_message_id: String(lastMessage.id),
+            up_to_sequence_number: lastMessage.sequence_number ?? null,
+          };
+          void sendReadReceipt(payload, 'initial-scroll').then((success) => {
+            if (success) {
+              window.dispatchEvent(
+                new CustomEvent('dm:message-read', {
+                  detail: {
+                    threadId: String(thread.id),
+                    partnerId,
+                  },
+                })
+              );
+            }
+          });
       }
       return;
     }
@@ -1655,48 +1757,33 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       
       // Mark all messages as read when auto-scrolling to bottom
       const lastMessage = messages[messages.length - 1];
-      if (lastMessage && thread?.id) {
+        if (lastMessage && thread?.id) {
           acknowledgeMessage(
             lastMessage.id,
             thread.id,
             'read',
             lastMessage.sequence_number ?? null
           );
-          fetch('/api/dms/messages.read', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              thread_id: String(thread.id),
-              up_to_message_id: String(lastMessage.id),
-              up_to_sequence_number: lastMessage.sequence_number ?? null,
-            }),
-          })
-        .then((response) => {
-          if (response.ok) {
-            // Dispatch event to update unread count in partner list
-            window.dispatchEvent(
-              new CustomEvent('dm:message-read', {
-                detail: {
-                  threadId: String(thread.id),
-                  partnerId: partnerId,
-                },
-              })
-            );
-          } else {
-            // Log error response for debugging
-            response.json().then((data) => {
-              console.error('Error marking messages as read on auto-scroll:', data);
-            }).catch(() => {
-              console.error('Error marking messages as read on auto-scroll:', response.status, response.statusText);
-            });
-          }
-        })
-        .catch((err) => {
-          console.error('Error marking messages as read on auto-scroll:', err);
-        });
-      }
+          const payload: ReadReceiptPayload = {
+            thread_id: String(thread.id),
+            up_to_message_id: String(lastMessage.id),
+            up_to_sequence_number: lastMessage.sequence_number ?? null,
+          };
+          void sendReadReceipt(payload, 'auto-scroll').then((success) => {
+            if (success) {
+              window.dispatchEvent(
+                new CustomEvent('dm:message-read', {
+                  detail: {
+                    threadId: String(thread.id),
+                    partnerId,
+                  },
+                })
+              );
+            }
+          });
+        }
     }
-  }, [messages.length, thread?.id, currentUserId, partnerId, messages, acknowledgeMessage]);
+    }, [messages.length, thread?.id, currentUserId, partnerId, messages, acknowledgeMessage, sendReadReceipt]);
 
   // Track scroll position to toggle bottom stickiness and banner
   // Also mark messages as read when user scrolls to bottom
@@ -1736,39 +1823,23 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   );
                 lastMarkedReadMessageId = lastMessage.id;
                 
-                // Also call the API to update last_read_message_id
-                  fetch('/api/dms/messages.read', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      thread_id: String(thread.id),
-                      up_to_message_id: String(lastMessage.id),
-                      up_to_sequence_number: lastMessage.sequence_number ?? null,
-                    }),
-                  })
-                .then((response) => {
-                  if (response.ok) {
-                    // Dispatch event to update unread count in partner list
-                    window.dispatchEvent(
-                      new CustomEvent('dm:message-read', {
-                        detail: {
-                          threadId: String(thread.id),
-                          partnerId: partnerId,
-                        },
-                      })
-                    );
-                  } else {
-                    // Log error response for debugging
-                    response.json().then((data) => {
-                      console.error('Error marking messages as read:', data);
-                    }).catch(() => {
-                      console.error('Error marking messages as read:', response.status, response.statusText);
-                    });
-                  }
-                })
-                .catch((err) => {
-                  console.error('Error marking messages as read:', err);
-                });
+                  const payload: ReadReceiptPayload = {
+                    thread_id: String(thread.id),
+                    up_to_message_id: String(lastMessage.id),
+                    up_to_sequence_number: lastMessage.sequence_number ?? null,
+                  };
+                  void sendReadReceipt(payload, 'manual-scroll').then((success) => {
+                    if (success) {
+                      window.dispatchEvent(
+                        new CustomEvent('dm:message-read', {
+                          detail: {
+                            threadId: String(thread.id),
+                            partnerId,
+                          },
+                        })
+                      );
+                    }
+                  });
               }
             }, 500);
           }
@@ -1785,7 +1856,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         clearTimeout(markReadTimeout);
       }
     };
-  }, [thread?.id, currentUserId, partnerId, messages, acknowledgeMessage]);
+    }, [thread?.id, currentUserId, partnerId, messages, acknowledgeMessage, sendReadReceipt]);
 
   const handleJumpToBottom = useCallback(() => {
     const container = scrollRef.current;
@@ -1804,41 +1875,26 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
             'read',
             lastMessage.sequence_number ?? null
           );
-          fetch('/api/dms/messages.read', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+            const payload: ReadReceiptPayload = {
               thread_id: String(thread.id),
               up_to_message_id: String(lastMessage.id),
               up_to_sequence_number: lastMessage.sequence_number ?? null,
-            }),
-          })
-        .then((response) => {
-          if (response.ok) {
-            // Dispatch event to update unread count in partner list
-            window.dispatchEvent(
-              new CustomEvent('dm:message-read', {
-                detail: {
-                  threadId: String(thread.id),
-                  partnerId: partnerId,
-                },
-              })
-            );
-          } else {
-            // Log error response for debugging
-            response.json().then((data) => {
-              console.error('Error marking messages as read on jump to bottom:', data);
-            }).catch(() => {
-              console.error('Error marking messages as read on jump to bottom:', response.status, response.statusText);
+            };
+            void sendReadReceipt(payload, 'jump-to-bottom').then((success) => {
+              if (success) {
+                window.dispatchEvent(
+                  new CustomEvent('dm:message-read', {
+                    detail: {
+                      threadId: String(thread.id),
+                      partnerId,
+                    },
+                  })
+                );
+              }
             });
-          }
-        })
-        .catch((err) => {
-          console.error('Error marking messages as read on jump to bottom:', err);
-        });
       }
     }
-  }, [thread?.id, currentUserId, partnerId, messages, acknowledgeMessage]);
+    }, [thread?.id, currentUserId, partnerId, messages, acknowledgeMessage, sendReadReceipt]);
 
   // Auto-show/auto-hide banner with smooth animations
   useEffect(() => {
