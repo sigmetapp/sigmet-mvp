@@ -142,16 +142,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Mark receipts up to nextId as read
     // Get all message IDs up to and including the target message from partner
-    const { data: ids, error: idsError } = await execOrFetch(
-      client
+      const idsQuery = client
         .from('dms_messages')
-        .select('id, sender_id, created_at')
+        .select('id, sender_id, created_at, sequence_number')
         .eq('thread_id', threadId)
-          .lte('created_at', targetMessage.created_at)
         .neq('sender_id', user.id)
-        .is('deleted_at', null)
-        .limit(1000)
-    );
+        .is('deleted_at', null);
+
+      if (
+        targetMessage?.sequence_number !== null &&
+        targetMessage?.sequence_number !== undefined &&
+        Number.isFinite(Number(targetMessage.sequence_number))
+      ) {
+        idsQuery.lte('sequence_number', Number(targetMessage.sequence_number));
+      } else {
+        idsQuery.lte('created_at', targetMessage.created_at);
+      }
+
+      const { data: ids, error: idsError } = await execOrFetch(idsQuery);
 
     if (idsError) {
       console.error('Error fetching message IDs:', idsError);
