@@ -385,14 +385,14 @@ begin
     and column_name = 'comment_id';
 
   if comment_id_type = 'uuid' then
-    select author_id, post_id, id
-      into comment_author_id, comment_post_id, comment_id_bigint
+    select author_id, post_id, id::text
+      into comment_author_id, comment_post_id, comment_id_text
     from public.comments
     where id::uuid = new.comment_id
     limit 1;
   else
-    select author_id, post_id, id
-      into comment_author_id, comment_post_id, comment_id_bigint
+    select author_id, post_id, id::text
+      into comment_author_id, comment_post_id, comment_id_text
     from public.comments
     where id = new.comment_id::bigint
     limit 1;
