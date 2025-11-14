@@ -1,6 +1,28 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { normalizeConnectionStats } from '@/lib/sw/connectionStats';
+import { getSWLevel, SW_LEVELS, type SWLevel } from '@/lib/swLevels';
+
+function resolveSwLevels(rawLevels: any): SWLevel[] {
+  if (!rawLevels) {
+    return SW_LEVELS;
+  }
+
+  try {
+    const parsed = typeof rawLevels === 'string' ? JSON.parse(rawLevels) : rawLevels;
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((level) => typeof level?.minSW === 'number' && typeof level?.name === 'string')
+        .map((level) => ({
+          ...level,
+        })) as SWLevel[];
+    }
+  } catch (error) {
+    console.warn('[SW] Failed to parse sw_levels config in recalculate:', error);
+  }
+
+  return SW_LEVELS;
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -46,7 +68,24 @@ export default async function handler(
   };
 
   try {
-    const preferredUserColumns = ['user_id', 'author_id'];
+      const preferredUserColumns = ['user_id', 'author_id'];
+      let previousLevelName: string | null = null;
+      let previousLevelChange: string | null = null;
+
+      try {
+        const { data: existingScore, error: existingScoreError } = await supabase
+          .from('sw_scores')
+          .select('current_level, last_level_change')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (!existingScoreError && existingScore) {
+          previousLevelName = existingScore.current_level ?? null;
+          previousLevelChange = existingScore.last_level_change ?? null;
+        }
+      } catch (scoreErr) {
+        console.warn('[SW Recalculate] Unable to read sw_scores for level tracking:', scoreErr);
+      }
 
     const isUndefinedColumnError = (error: any) => {
       if (!error) return false;
@@ -136,10 +175,12 @@ export default async function handler(
       return res.status(500).json({ error: weightsError.message || 'Failed to load SW weights' });
     }
 
-    if (!weights) {
-      console.warn('[SW Recalculate API] Weights not found, cannot recalculate');
-      return res.status(500).json({ error: 'SW weights not configured' });
-    }
+      if (!weights) {
+        console.warn('[SW Recalculate API] Weights not found, cannot recalculate');
+        return res.status(500).json({ error: 'SW weights not configured' });
+      }
+
+      const swLevels = resolveSwLevels(weights.sw_levels);
 
     // Get user profile
     const { data: profile, error: profileError } = await supabase
@@ -428,6 +469,29 @@ export default async function handler(
     // Apply inflation to total SW
     const inflatedSW = Math.floor(totalSW * inflationRate);
 
+    const newLevel = getSWLevel(inflatedSW, swLevels);
+    const newLevelName = newLevel?.name ?? null;
+    let levelChangeTimestamp = previousLevelChange;
+    const levelChanged = Boolean(previousLevelName && newLevelName && previousLevelName !== newLevelName);
+
+    if (levelChanged && newLevelName) {
+      levelChangeTimestamp = new Date().toISOString();
+      try {
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: userId,
+            type: 'sw_level_update',
+            sw_level: newLevelName,
+          });
+      } catch (notificationError: any) {
+        console.error('[SW Recalculate] Failed to insert sw_level_update notification:', {
+          error: notificationError?.message || notificationError,
+          userId,
+        });
+      }
+    }
+
     // Build breakdown for caching
     const breakdown = {
       registration: {
@@ -503,6 +567,8 @@ export default async function handler(
           inflation_rate: inflationRate,
           inflation_last_updated: new Date().toISOString(),
           last_updated: new Date().toISOString(),
+          current_level: newLevelName,
+          last_level_change: levelChangeTimestamp,
         }, {
           onConflict: 'user_id',
         });

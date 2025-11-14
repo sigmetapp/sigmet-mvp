@@ -1,6 +1,28 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { normalizeConnectionStats } from '@/lib/sw/connectionStats';
+import { getSWLevel, SW_LEVELS, type SWLevel } from '@/lib/swLevels';
+
+function resolveSwLevels(rawLevels: any): SWLevel[] {
+  if (!rawLevels) {
+    return SW_LEVELS;
+  }
+
+  try {
+    const parsed = typeof rawLevels === 'string' ? JSON.parse(rawLevels) : rawLevels;
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((level) => typeof level?.minSW === 'number' && typeof level?.name === 'string')
+        .map((level) => ({
+          ...level,
+        })) as SWLevel[];
+    }
+  } catch (error) {
+    console.warn('[SW] Failed to parse sw_levels config:', error);
+  }
+
+  return SW_LEVELS;
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -66,17 +88,19 @@ export default async function handler(
       .eq('id', 1)
       .single();
 
-    if (weightsError || !weights) {
-      return res.status(500).json({ error: 'Failed to load SW weights' });
-    }
+      if (weightsError || !weights) {
+        return res.status(500).json({ error: 'Failed to load SW weights' });
+      }
+
+      const swLevels = resolveSwLevels(weights.sw_levels);
 
     // Check cache: if sw_scores was updated less than cache_duration_minutes ago, return cached value
     const cacheDurationMinutes = weights.cache_duration_minutes ?? 15;
     const CACHE_DURATION_MS = cacheDurationMinutes * 60 * 1000;
     
-    const { data: cachedScore, error: cacheError } = await supabase
-      .from('sw_scores')
-      .select('total, last_updated, breakdown, inflation_rate')
+      const { data: cachedScore, error: cacheError } = await supabase
+        .from('sw_scores')
+        .select('total, last_updated, breakdown, inflation_rate, current_level, last_level_change')
       .eq('user_id', userId)
       .single();
 
@@ -608,23 +632,49 @@ export default async function handler(
       inflationRate = 1.0; // Default to no inflation on error
     }
 
-    // Apply inflation to total SW
-    const inflatedSW = Math.floor(totalSW * inflationRate);
+      // Apply inflation to total SW
+      const inflatedSW = Math.floor(totalSW * inflationRate);
+
+      const newLevel = getSWLevel(inflatedSW, swLevels);
+      const newLevelName = newLevel?.name ?? null;
+      const previousLevelName = cachedScore?.current_level ?? null;
+      let levelChangeTimestamp = cachedScore?.last_level_change ?? null;
+      const levelChanged = Boolean(previousLevelName && newLevelName && previousLevelName !== newLevelName);
+
+      if (levelChanged && newLevelName) {
+        levelChangeTimestamp = new Date().toISOString();
+        try {
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: userId,
+              type: 'sw_level_update',
+              sw_level: newLevelName,
+            });
+        } catch (notificationError: any) {
+          console.error('[SW] Failed to insert sw_level_update notification:', {
+            error: notificationError?.message || notificationError,
+            userId,
+          });
+        }
+      }
 
     // Save to cache (sw_scores table)
-    try {
-      await supabase
-        .from('sw_scores')
-        .upsert({
-          user_id: userId,
-          total: inflatedSW,
-          breakdown: breakdown,
-          inflation_rate: inflationRate,
-          inflation_last_updated: new Date().toISOString(),
-          last_updated: new Date().toISOString(),
-        }, {
-          onConflict: 'user_id',
-        });
+      try {
+        await supabase
+          .from('sw_scores')
+          .upsert({
+            user_id: userId,
+            total: inflatedSW,
+            breakdown: breakdown,
+            inflation_rate: inflationRate,
+            inflation_last_updated: new Date().toISOString(),
+            last_updated: new Date().toISOString(),
+            current_level: newLevelName,
+            last_level_change: levelChangeTimestamp,
+          }, {
+            onConflict: 'user_id',
+          });
     } catch (cacheErr) {
       console.warn('Error saving to sw_scores cache:', cacheErr);
       // Continue even if cache save fails

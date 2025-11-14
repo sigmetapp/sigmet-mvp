@@ -78,16 +78,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         )
       );
 
-      const trustIdsRaw = notifications
-        .map((n) => n.trust_feedback_id)
-        .filter((id): id is number | string => id !== null && id !== undefined);
-      const trustIdsNumeric = Array.from(
-        new Set(
-          trustIdsRaw
-            .map((id) => (typeof id === 'number' ? id : /^\d+$/.test(id) ? Number(id) : null))
-            .filter((id): id is number => id !== null)
-        )
-      );
+        const trustIdsRaw = notifications
+          .map((n) => n.trust_feedback_id)
+          .filter((id): id is number | string => id !== null && id !== undefined);
+        const trustIdsNumeric = Array.from(
+          new Set(
+            trustIdsRaw
+              .map((id) => (typeof id === 'number' ? id : /^\d+$/.test(id) ? Number(id) : null))
+              .filter((id): id is number => id !== null)
+          )
+        );
+
+        const trustPushIdsRaw = notifications
+          .map((n: any) => n.trust_push_id)
+          .filter((id): id is number | string => id !== null && id !== undefined);
+        const trustPushIdsNumeric = Array.from(
+          new Set(
+            trustPushIdsRaw
+              .map((id) => (typeof id === 'number' ? id : /^\d+$/.test(id) ? Number(id) : null))
+              .filter((id): id is number => id !== null)
+          )
+        );
 
       const eventIdsRaw = notifications
         .map((n) => (n as any).event_id)
@@ -158,20 +169,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      const trustFeedbackMap = new Map<string, any>();
-      if (trustIdsNumeric.length > 0) {
-        const { data: trustFeedbackData, error: trustFeedbackError } = await client
-          .from('trust_feedback')
-          .select('id, value, comment, author_id')
-          .in('id', trustIdsNumeric);
-        if (!trustFeedbackError && trustFeedbackData) {
-          for (const trust of trustFeedbackData) {
-            trustFeedbackMap.set(String(trust.id), trust);
+        const trustFeedbackMap = new Map<string, any>();
+        if (trustIdsNumeric.length > 0) {
+          const { data: trustFeedbackData, error: trustFeedbackError } = await client
+            .from('trust_feedback')
+            .select('id, value, comment, author_id')
+            .in('id', trustIdsNumeric);
+          if (!trustFeedbackError && trustFeedbackData) {
+            for (const trust of trustFeedbackData) {
+              trustFeedbackMap.set(String(trust.id), trust);
+            }
+          } else if (trustFeedbackError) {
+            console.warn('Failed to load trust feedback for notifications:', trustFeedbackError);
           }
-        } else if (trustFeedbackError) {
-          console.warn('Failed to load trust feedback for notifications:', trustFeedbackError);
         }
-      }
+
+        const trustPushMap = new Map<string, any>();
+        if (trustPushIdsNumeric.length > 0) {
+          const { data: trustPushData, error: trustPushError } = await client
+            .from('trust_pushes')
+            .select('id, type, reason, created_at')
+            .in('id', trustPushIdsNumeric);
+          if (!trustPushError && trustPushData) {
+            for (const trustPush of trustPushData) {
+              trustPushMap.set(String(trustPush.id), trustPush);
+            }
+          } else if (trustPushError) {
+            console.warn('Failed to load trust pushes for notifications:', trustPushError);
+          }
+        }
 
       const eventsMap = new Map<string, any>();
       if (eventIdsNumeric.length > 0) {
@@ -199,6 +225,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         trust_feedback:
           n.trust_feedback_id !== null && n.trust_feedback_id !== undefined
             ? trustFeedbackMap.get(String(n.trust_feedback_id)) ?? null
+            : null,
+        trust_push:
+          (n as any).trust_push_id !== null && (n as any).trust_push_id !== undefined
+            ? trustPushMap.get(String((n as any).trust_push_id)) ?? null
             : null,
         event:
           (n as any).event_id !== null && (n as any).event_id !== undefined
