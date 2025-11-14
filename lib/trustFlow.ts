@@ -251,6 +251,88 @@ export async function canUserPush(
 }
 
 /**
+ * Calculate push details (weight, repeatCount, effectiveWeight, contribution) for a specific push
+ * This is used to save metadata in trust_flow_history
+ */
+export async function calculatePushDetails(
+  pushId: number,
+  fromUserId: string,
+  toUserId: string
+): Promise<{
+  weight: number;
+  repeatCount: number;
+  effectiveWeight: number;
+  contribution: number;
+} | null> {
+  const supabase = supabaseAdmin();
+  
+  try {
+    // Get the specific push
+    const { data: push, error: pushError } = await supabase
+      .from('trust_pushes')
+      .select('id, from_user_id, to_user_id, type, created_at')
+      .eq('id', pushId)
+      .single();
+    
+    if (pushError || !push) {
+      console.error('[Trust Flow] Error fetching push for details:', pushError);
+      return null;
+    }
+    
+    // Get all pushes from this user to this target, sorted chronologically
+    const { data: allPushes, error: allPushesError } = await supabase
+      .from('trust_pushes')
+      .select('id, from_user_id, to_user_id, type, created_at')
+      .eq('from_user_id', fromUserId)
+      .eq('to_user_id', toUserId)
+      .order('created_at', { ascending: true });
+    
+    if (allPushesError || !allPushes) {
+      console.error('[Trust Flow] Error fetching all pushes for details:', allPushesError);
+      return null;
+    }
+    
+    // Find the index of this push (repeat count)
+    const pushIndex = allPushes.findIndex(p => p.id === pushId);
+    if (pushIndex === -1) {
+      console.error('[Trust Flow] Push not found in chronological list');
+      return null;
+    }
+    
+    const repeatCount = pushIndex;
+    
+    // Check if this is the first push ever from this user
+    const { count: previousPushesCount } = await supabase
+      .from('trust_pushes')
+      .select('id', { count: 'exact', head: true })
+      .eq('from_user_id', fromUserId)
+      .lt('created_at', push.created_at);
+    
+    const isFirstPushEver = (previousPushesCount || 0) === 0;
+    
+    // Calculate weight
+    const weightData = await calculateUserWeight(fromUserId);
+    const weight = Math.max(weightData.weight, MIN_USER_WEIGHT);
+    
+    // Calculate effective weight
+    const effectiveWeight = isFirstPushEver && repeatCount === 0 ? 1.5 : weight / (1 + repeatCount);
+    
+    // Calculate contribution
+    const contribution = push.type === 'positive' ? effectiveWeight : -effectiveWeight;
+    
+    return {
+      weight: isFirstPushEver && repeatCount === 0 ? 1.5 : weight,
+      repeatCount,
+      effectiveWeight,
+      contribution,
+    };
+  } catch (error) {
+    console.error('[Trust Flow] Error calculating push details:', error);
+    return null;
+  }
+}
+
+/**
  * Calculate Trust Flow for a user
  * TF = Σ(PositivePush_i * W_i / (1 + RepeatCount_i)) - Σ(NegativePush_j * W_j / (1 + RepeatCount_j))
  */
@@ -574,13 +656,38 @@ export async function calculateAndSaveTrustFlow(
   const trustFlow = await calculateTrustFlowForUser(userId);
   console.log(`[Trust Flow] Calculated TF: ${trustFlow.toFixed(2)} for user ${userId}`);
   
+  // If pushId is provided, calculate push details and include in metadata
+  let metadata = options.metadata;
+  if (options.pushId && !metadata) {
+    const supabase = supabaseAdmin();
+    // Get push info to find from_user_id
+    const { data: push } = await supabase
+      .from('trust_pushes')
+      .select('from_user_id, to_user_id')
+      .eq('id', options.pushId)
+      .single();
+    
+    if (push) {
+      const pushDetails = await calculatePushDetails(options.pushId, push.from_user_id, push.to_user_id);
+      if (pushDetails) {
+        metadata = {
+          weight: pushDetails.weight,
+          repeatCount: pushDetails.repeatCount,
+          effectiveWeight: pushDetails.effectiveWeight,
+          contribution: pushDetails.contribution,
+        };
+        console.log(`[Trust Flow] Calculated push details for push ${options.pushId}:`, metadata);
+      }
+    }
+  }
+  
   // Save to cache and log history
   console.log(`[Trust Flow] Saving TF ${trustFlow.toFixed(2)} to cache for user ${userId}...`);
   await saveTrustFlowToCache(userId, trustFlow, {
     changeReason: options.changeReason || 'manual_recalc',
     pushId: options.pushId,
     calculatedBy: options.calculatedBy || 'api',
-    metadata: options.metadata,
+    metadata: metadata,
   });
   console.log(`[Trust Flow] Saved TF ${trustFlow.toFixed(2)} to cache for user ${userId}`);
   

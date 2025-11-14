@@ -15,11 +15,13 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { id: userId, recalculate } = req.query;
+  const { id: userId, recalculate, pushId } = req.query;
 
   if (!userId || typeof userId !== 'string') {
     return res.status(400).json({ error: 'User ID is required' });
   }
+  
+  const pushIdNum = pushId ? parseInt(String(pushId), 10) : undefined;
 
   try {
     console.log(`[Trust Flow API] Request for user ${userId}, recalculate=${recalculate}`);
@@ -75,6 +77,7 @@ export default async function handler(
           changeReason: 'api_recalc',
           calculatedBy: 'api',
           useCache: false,
+          pushId: pushIdNum,
         });
         console.log(`[Trust Flow API] Recalculation completed, got TF: ${trustFlow.toFixed(2)}`);
       } catch (calcError: any) {
