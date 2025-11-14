@@ -145,7 +145,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (commentIdsNumeric.length > 0) {
         const { data: numericComments, error: numericCommentsError } = await client
           .from('comments')
-          .select('id, text, body, post_id, author_id, user_id, parent_id')
+          .select('id, text, post_id, author_id, user_id, parent_id')
           .in('id', commentIdsNumeric);
         if (!numericCommentsError && numericComments) {
           for (const comment of numericComments) {
@@ -158,7 +158,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (commentIdsUuid.length > 0) {
         const { data: uuidComments, error: uuidCommentsError } = await client
           .from('comments')
-          .select('id, text, body, post_id, author_id, user_id, parent_id')
+          .select('id, text, post_id, author_id, user_id, parent_id')
           .in('id', commentIdsUuid);
         if (!uuidCommentsError && uuidComments) {
           for (const comment of uuidComments) {
@@ -243,9 +243,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .eq('hidden', false)
         .is('read_at', null);
 
+      // Get total count for pagination
+      const { count: totalCount } = await client
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('hidden', false);
+
       return res.json({
         notifications: enrichedNotifications,
         unreadCount: unreadCount || 0,
+        totalCount: totalCount || 0,
         debug: process.env.NODE_ENV === 'development' ? {
           rawCount: notifications.length,
           enrichedCount: enrichedNotifications.length,

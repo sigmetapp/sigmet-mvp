@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, TouchEvent, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
-import { Bell, MessageSquare, Heart, UserPlus, Shield, AtSign, X, TrendingUp, Link2, Flame } from 'lucide-react';
+import { Bell, MessageSquare, Heart, UserPlus, Shield, AtSign, X, TrendingUp, Link2, Flame, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
 interface Notification {
@@ -74,6 +74,8 @@ interface Notification {
   } | null;
 }
 
+const NOTIFICATIONS_PER_PAGE = 30;
+
 export default function AlertPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +85,8 @@ export default function AlertPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [debugError, setDebugError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const swipeStartX = useRef<number | null>(null);
   const swipeCurrentX = useRef<number | null>(null);
   const swipeElementId = useRef<number | null>(null);
@@ -373,9 +377,10 @@ export default function AlertPage() {
     }
   }, []);
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async (page: number = currentPage) => {
     try {
-        const response = await fetch('/api/notifications/list');
+        const offset = (page - 1) * NOTIFICATIONS_PER_PAGE;
+        const response = await fetch(`/api/notifications/list?limit=${NOTIFICATIONS_PER_PAGE}&offset=${offset}`);
         if (response.status === 401) {
           console.log('Not authenticated');
           setLoading(false);
@@ -394,16 +399,19 @@ export default function AlertPage() {
         const payload = await response.json();
         const fetchedNotifications: Notification[] = payload.notifications || [];
         const unread = payload.unreadCount || 0;
+        const total = payload.totalCount || 0;
 
         if (!fetchedNotifications || fetchedNotifications.length === 0) {
           setNotifications([]);
-          setUnreadCount(0);
+          setUnreadCount(unread);
+          setTotalCount(total);
           console.log('No notifications returned from API');
         return;
       }
 
         setNotifications(fetchedNotifications);
         setUnreadCount(unread);
+        setTotalCount(total);
         
         // Always update debug info (will check isAdmin inside)
         loadDebugInfo();
@@ -413,7 +421,7 @@ export default function AlertPage() {
     } finally {
       setLoading(false);
     }
-  }, [loadDebugInfo]);
+  }, [currentPage, loadDebugInfo]);
 
   const checkAdminStatus = async () => {
     try {
@@ -431,8 +439,76 @@ export default function AlertPage() {
 
   useEffect(() => {
     checkAdminStatus();
-    loadNotifications();
-  }, [loadNotifications]);
+    loadNotifications(currentPage);
+  }, [currentPage]);
+
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1) return;
+    setLoading(true);
+    setCurrentPage(newPage);
+    // Scroll to top when changing pages
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Subscribe to realtime updates for notifications list
+  useEffect(() => {
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !mounted) return null;
+
+      const channel = supabase
+        .channel(`notifications_list:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            // Debounce to avoid too many updates
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            timeoutId = setTimeout(() => {
+              if (mounted) {
+                // Reload notifications for current page when changes occur
+                // This ensures new notifications appear on page 1
+                const pageToReload = currentPage;
+                loadNotifications(pageToReload);
+                // Dispatch event to update badge counter in Header
+                window.dispatchEvent(new CustomEvent('notification:update'));
+              }
+            }, 300);
+          }
+        )
+        .subscribe();
+
+      return channel;
+    };
+
+    let channel: any = null;
+    setupRealtime().then((ch) => {
+      if (mounted) {
+        channel = ch;
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [currentPage, loadNotifications]);
 
   // Subscribe to realtime updates for debug info (admin only)
   useEffect(() => {
@@ -1249,6 +1325,47 @@ export default function AlertPage() {
 
               return <div key={notification.id}>{content}</div>;
             })}
+            
+            {/* Pagination */}
+            {(totalCount > NOTIFICATIONS_PER_PAGE || currentPage > 1) && (
+              <div className="mt-6 flex items-center justify-center gap-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || loading}
+                  className={`px-3 py-2 rounded-lg border transition flex items-center gap-1 ${
+                    currentPage === 1 || loading
+                      ? 'opacity-50 cursor-not-allowed border-gray-700 text-gray-500'
+                      : 'border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10'
+                  }`}
+                >
+                  <ChevronLeft size={16} />
+                  Previous
+                </button>
+                
+                <div className="px-4 py-2 text-sm text-gray-400">
+                  Page {currentPage}
+                  {totalCount > 0 && (
+                    <span className="ml-1">
+                      (showing {((currentPage - 1) * NOTIFICATIONS_PER_PAGE) + 1}-
+                      {Math.min(currentPage * NOTIFICATIONS_PER_PAGE, totalCount)} of {totalCount})
+                    </span>
+                  )}
+                </div>
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage * NOTIFICATIONS_PER_PAGE >= totalCount || loading}
+                  className={`px-3 py-2 rounded-lg border transition flex items-center gap-1 ${
+                    currentPage * NOTIFICATIONS_PER_PAGE >= totalCount || loading
+                      ? 'opacity-50 cursor-not-allowed border-gray-700 text-gray-500'
+                      : 'border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10'
+                  }`}
+                >
+                  Next
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
