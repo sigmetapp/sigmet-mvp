@@ -208,14 +208,46 @@ export default function AlertPage() {
         },
       };
 
-      // Check if triggers exist (this will likely fail due to RLS, but we try)
-      let triggersInfo: any = { error: null, note: null };
+      // Check if triggers exist and are active
+      let triggersInfo: any = { error: null, note: null, triggers: [] };
       try {
-        // Try to check triggers - this usually requires direct DB access
-        triggersInfo.note = 'Trigger check requires direct database access. Check Supabase dashboard.';
+        // Try to use the check_notification_triggers function
+        const { data: triggersData, error: triggersError } = await supabase.rpc('check_notification_triggers');
+        
+        if (triggersError) {
+          triggersInfo.note = 'Cannot check triggers via function. Check Supabase dashboard → Database → Triggers.';
+          triggersInfo.error = triggersError.message;
+        } else {
+          triggersInfo.triggers = triggersData || [];
+        }
+        
+        // Always set expected triggers for comparison
+        triggersInfo.expectedTriggers = [
+          { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
+          { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
+          { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
+          { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
+          { name: 'notify_connection_trigger', table: 'user_connections', event: 'INSERT' },
+          { name: 'notify_on_event_trigger', table: 'sw_events', event: 'INSERT' },
+        ];
       } catch (triggersErr: any) {
         triggersInfo.error = triggersErr.message || 'Cannot check triggers';
+        triggersInfo.expectedTriggers = [
+          { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
+          { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
+          { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
+          { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
+          { name: 'notify_connection_trigger', table: 'user_connections', event: 'INSERT' },
+          { name: 'notify_on_event_trigger', table: 'sw_events', event: 'INSERT' },
+        ];
       }
+
+      // Note: create_notification function should exist if triggers are working
+      // We can't directly check it via RPC, but if triggers are found, the function exists
+      triggersInfo.createNotificationFunction = {
+        exists: triggersInfo.triggers && triggersInfo.triggers.length > 0,
+        note: 'Function existence inferred from triggers. If triggers are missing, function may need to be recreated.',
+      };
 
       debugData.triggers = triggersInfo;
 
@@ -926,23 +958,71 @@ export default function AlertPage() {
 
                 <div className="border-t border-gray-700 pt-2">
                   <strong className="text-yellow-400">Triggers Info:</strong>
-                  <div className="ml-4 mt-1">
+                  <div className="ml-4 mt-1 text-xs">
                     {debugInfo.triggers?.note && (
                       <div className="text-yellow-300">{debugInfo.triggers.note}</div>
                     )}
                     {debugInfo.triggers?.error && (
                       <div className="text-red-400">Error: {debugInfo.triggers.error}</div>
                     )}
-                    <div className="mt-2 text-xs text-gray-400">
-                      Check Supabase dashboard → Database → Triggers for:
-                      <ul className="ml-4 mt-1 list-disc">
-                        <li>notify_comment_on_post_trigger</li>
-                        <li>notify_reaction_on_post_trigger</li>
-                        <li>notify_reaction_on_comment_trigger</li>
-                        <li>notify_connection_trigger</li>
-                        <li>notify_on_event_trigger (if events enabled)</li>
-                      </ul>
-                    </div>
+                    
+                    {debugInfo.triggers?.createNotificationFunction && (
+                      <div className="mt-2">
+                        <strong className="text-yellow-300">create_notification function:</strong>
+                        <div className="ml-2">
+                          {debugInfo.triggers.createNotificationFunction.exists ? (
+                            <span className="text-green-400">✓ Exists</span>
+                          ) : (
+                            <span className="text-red-400">✗ Missing: {debugInfo.triggers.createNotificationFunction.error}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {debugInfo.triggers?.triggers && Array.isArray(debugInfo.triggers.triggers) && debugInfo.triggers.triggers.length > 0 && (
+                      <div className="mt-2">
+                        <strong className="text-yellow-300">Found Triggers ({debugInfo.triggers.triggers.length}):</strong>
+                        <ul className="ml-2 mt-1 space-y-0.5">
+                          {debugInfo.triggers.triggers.map((t: any, idx: number) => (
+                            <li key={idx} className="text-green-400">
+                              ✓ {t.name || t.trigger_name} on {t.table || t.event_object_table} ({t.event || t.event_manipulation || 'INSERT'})
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {debugInfo.triggers?.expectedTriggers && (
+                      <div className="mt-2">
+                        <strong className="text-yellow-300">Expected Triggers:</strong>
+                        <ul className="ml-2 mt-1 space-y-0.5">
+                          {debugInfo.triggers.expectedTriggers.map((t: any, idx: number) => {
+                            const found = debugInfo.triggers?.triggers?.some((tr: any) => 
+                              (tr.name || tr.trigger_name) === t.name
+                            );
+                            return (
+                              <li key={idx} className={found ? 'text-green-400' : 'text-red-400'}>
+                                {found ? '✓' : '✗'} {t.name} on {t.table} ({t.event})
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {(!debugInfo.triggers?.triggers || debugInfo.triggers.triggers.length === 0) && !debugInfo.triggers?.expectedTriggers && (
+                      <div className="mt-2 text-gray-400">
+                        Check Supabase dashboard → Database → Triggers for:
+                        <ul className="ml-4 mt-1 list-disc">
+                          <li>notify_comment_on_post_trigger (on comments table, INSERT)</li>
+                          <li>notify_comment_on_comment_trigger (on comments table, INSERT)</li>
+                          <li>notify_reaction_on_post_trigger (on post_reactions table, INSERT)</li>
+                          <li>notify_reaction_on_comment_trigger (on comment_reactions table, INSERT)</li>
+                          <li>notify_connection_trigger (on user_connections table, INSERT)</li>
+                          <li>notify_on_event_trigger (on sw_events table, INSERT)</li>
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
 
