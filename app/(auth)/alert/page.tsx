@@ -242,6 +242,75 @@ export default function AlertPage() {
         note: 'RLS policies can be checked in Supabase dashboard',
       };
 
+      // Check recent comments on user's posts to see if notifications were created
+      const { data: userPosts, error: postsError } = await supabase
+        .from('posts')
+        .select('id, author_id, user_id, text, body, created_at')
+        .or(`author_id.eq.${user.id},user_id.eq.${user.id}`)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (userPosts && userPosts.length > 0) {
+        const postIds = userPosts.map(p => p.id);
+        const { data: recentComments, error: commentsError } = await supabase
+          .from('comments')
+          .select('id, post_id, author_id, user_id, text, body, created_at')
+          .in('post_id', postIds)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        
+        if (recentComments && recentComments.length > 0) {
+          // Check if notifications exist for these comments
+          const commentIds = recentComments.map(c => c.id).filter((id): id is number => typeof id === 'number');
+          const { data: commentNotifications, error: commentNotifError } = await supabase
+            .from('notifications')
+            .select('id, type, comment_id, post_id, created_at, actor_id')
+            .eq('user_id', user.id)
+            .eq('type', 'comment_on_post')
+            .in('comment_id', commentIds.length > 0 ? commentIds : [-1]) // Use -1 if empty to avoid SQL error
+            .order('created_at', { ascending: false });
+          
+          debugData.recentCommentsAnalysis = {
+            userPostsCount: userPosts.length,
+            recentCommentsCount: recentComments.length,
+            comments: recentComments.map(c => ({
+              id: c.id,
+              post_id: c.post_id,
+              author_id: c.author_id || c.user_id,
+              text: (c.text || c.body || '').substring(0, 50),
+              created_at: c.created_at,
+            })),
+            notificationsForComments: commentNotifications || [],
+            notificationsCount: commentNotifications?.length || 0,
+            missingNotifications: recentComments.filter(c => {
+              const commentId = c.id;
+              return !commentNotifications?.some(n => n.comment_id === commentId);
+            }).map(c => ({
+              comment_id: c.id,
+              post_id: c.post_id,
+              comment_author: c.author_id || c.user_id,
+              created_at: c.created_at,
+            })),
+            errors: {
+              posts: postsError?.message,
+              comments: commentsError?.message,
+              notifications: commentNotifError?.message,
+            },
+          };
+        } else {
+          debugData.recentCommentsAnalysis = {
+            userPostsCount: userPosts.length,
+            recentCommentsCount: 0,
+            error: commentsError?.message || 'No comments found',
+          };
+        }
+      } else {
+        debugData.recentCommentsAnalysis = {
+          userPostsCount: 0,
+          error: postsError?.message || 'No posts found for user',
+        };
+      }
+
       setDebugInfo(debugData);
     } catch (err: any) {
       setDebugError(err.message || 'Failed to load debug info');
@@ -876,6 +945,52 @@ export default function AlertPage() {
                     </div>
                   </div>
                 </div>
+
+                {debugInfo.recentCommentsAnalysis && (
+                  <div className="border-t border-gray-700 pt-2">
+                    <strong className="text-yellow-400">Recent Comments Analysis:</strong>
+                    <div className="ml-4 mt-1 text-xs">
+                      <div>
+                        User posts found: <span className="text-white">{debugInfo.recentCommentsAnalysis.userPostsCount ?? 0}</span>
+                      </div>
+                      <div>
+                        Recent comments on your posts: <span className="text-white">{debugInfo.recentCommentsAnalysis.recentCommentsCount ?? 0}</span>
+                      </div>
+                      <div>
+                        Notifications created: <span className="text-white">{debugInfo.recentCommentsAnalysis.notificationsCount ?? 0}</span>
+                      </div>
+                      {debugInfo.recentCommentsAnalysis.missingNotifications && debugInfo.recentCommentsAnalysis.missingNotifications.length > 0 && (
+                        <div className="mt-2">
+                          <strong className="text-red-400">⚠️ Missing Notifications ({debugInfo.recentCommentsAnalysis.missingNotifications.length}):</strong>
+                          <ul className="ml-2 mt-1 space-y-1">
+                            {debugInfo.recentCommentsAnalysis.missingNotifications.map((missing: any, idx: number) => (
+                              <li key={idx} className="text-red-300">
+                                Comment ID: {missing.comment_id}, Post ID: {missing.post_id}, 
+                                Comment Author: {missing.comment_author?.substring(0, 8)}...,
+                                Created: {missing.created_at ? new Date(missing.created_at).toISOString() : 'N/A'}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {debugInfo.recentCommentsAnalysis.comments && debugInfo.recentCommentsAnalysis.comments.length > 0 && (
+                        <div className="mt-2">
+                          <strong className="text-yellow-300">Recent Comments:</strong>
+                          <div className="mt-1 max-h-40 overflow-y-auto">
+                            <pre className="text-xs bg-gray-800 p-2 rounded">
+                              {JSON.stringify(debugInfo.recentCommentsAnalysis.comments.slice(0, 10), null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+                      {debugInfo.recentCommentsAnalysis.errors && (
+                        <div className="mt-2 text-red-400">
+                          Errors: {JSON.stringify(debugInfo.recentCommentsAnalysis.errors, null, 2)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-gray-500">Click "Debug" button to load debug information</div>
