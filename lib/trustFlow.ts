@@ -530,14 +530,34 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     const trustFlow = BASE_TRUST_FLOW + contributions;
     const roundedTF = Math.round(trustFlow * 100) / 100; // Round to 2 decimal places
     
-    console.log(`[Trust Flow] Calculation for user ${userId}: positiveSum=${positiveSum.toFixed(2)}, negativeSum=${negativeSum.toFixed(2)}, contributions=${contributions.toFixed(2)}, base=${BASE_TRUST_FLOW}, finalTF=${roundedTF.toFixed(2)}`);
+    // Get admin adjustments and add them to the calculated TF
+    let adminAdjustments = 0;
+    try {
+      const { data: adjustmentsData, error: adjustmentsError } = await supabase
+        .rpc('get_admin_tf_adjustments_total', { target_user_id: userId });
+      
+      if (adjustmentsError) {
+        console.warn('[Trust Flow] Error getting admin TF adjustments:', adjustmentsError);
+      } else {
+        adminAdjustments = adjustmentsData || 0;
+      }
+    } catch (adjustmentError: any) {
+      console.warn('[Trust Flow] Exception getting admin TF adjustments:', adjustmentError);
+    }
+    
+    // Add admin adjustments to the calculated TF
+    const tfWithAdjustments = roundedTF + adminAdjustments;
+    const finalRoundedTF = Math.round(tfWithAdjustments * 100) / 100;
+    
+    console.log(`[Trust Flow] Calculation for user ${userId}: positiveSum=${positiveSum.toFixed(2)}, negativeSum=${negativeSum.toFixed(2)}, contributions=${contributions.toFixed(2)}, base=${BASE_TRUST_FLOW}, calculatedTF=${roundedTF.toFixed(2)}, adminAdjustments=${adminAdjustments.toFixed(2)}, finalTF=${finalRoundedTF.toFixed(2)}`);
     console.log(`[Trust Flow] Base weight cache:`, Array.from(baseWeightCache.entries()).map(([uid, w]) => ({ userId: uid, baseWeight: w.toFixed(1) })));
     console.log(`[Trust Flow] Pushes by user:`, Array.from(pushesByUser.entries()).map(([uid, ps]) => ({ userId: uid, count: ps.length, types: ps.map(p => p.type) })));
     
     // Ensure minimum base Trust Flow value (should always be >= BASE_TRUST_FLOW since we add to it)
-    const finalTF = Math.max(roundedTF, BASE_TRUST_FLOW);
+    // But admin adjustments can push it below BASE_TRUST_FLOW if they're negative, so we allow that
+    const finalTF = Math.max(finalRoundedTF, BASE_TRUST_FLOW);
     
-    console.log(`[Trust Flow] Final TF for user ${userId}: ${finalTF.toFixed(2)} (base: ${BASE_TRUST_FLOW}, contributions: ${contributions.toFixed(2)})`);
+    console.log(`[Trust Flow] Final TF for user ${userId}: ${finalTF.toFixed(2)} (base: ${BASE_TRUST_FLOW}, contributions: ${contributions.toFixed(2)}, admin adjustments: ${adminAdjustments.toFixed(2)})`);
     
     return finalTF;
   } catch (error: any) {
