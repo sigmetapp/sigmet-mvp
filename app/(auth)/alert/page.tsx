@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, TouchEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
-import { Bell, MessageSquare, Heart, UserPlus, Shield, AtSign } from 'lucide-react';
+import { Bell, MessageSquare, Heart, UserPlus, Shield, AtSign, X, TrendingUp, Link2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface Notification {
@@ -12,13 +12,18 @@ interface Notification {
     | 'mention_in_post'
     | 'comment_on_post'
     | 'reaction_on_post'
+    | 'reaction_on_comment'
     | 'comment_on_comment'
     | 'subscription'
-    | 'trust_flow_entry';
+    | 'connection'
+    | 'trust_flow_entry'
+    | 'sw_level_update';
   actor_id: string | null;
   post_id: number | string | null;
   comment_id: number | string | null;
   trust_feedback_id: number | string | null;
+  connection_id: number | string | null;
+  sw_level: string | null;
   read_at: string | null;
   created_at: string;
   actor?: {
@@ -56,6 +61,10 @@ export default function AlertPage() {
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [markingRead, setMarkingRead] = useState<number | null>(null);
+  const [hiding, setHiding] = useState<number | null>(null);
+  const swipeStartX = useRef<number | null>(null);
+  const swipeCurrentX = useRef<number | null>(null);
+  const swipeElementId = useRef<number | null>(null);
 
   useEffect(() => {
     loadNotifications();
@@ -128,7 +137,8 @@ export default function AlertPage() {
         .from('notifications')
         .update({ read_at: new Date().toISOString() })
         .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
-        .is('read_at', null);
+        .is('read_at', null)
+        .eq('hidden', false);
 
       if (error) throw error;
 
@@ -144,6 +154,69 @@ export default function AlertPage() {
     }
   };
 
+  const hideNotification = async (notificationId: number) => {
+    if (hiding === notificationId) return;
+    setHiding(notificationId);
+
+    try {
+      const response = await fetch('/api/notifications/hide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId }),
+      });
+
+      if (!response.ok) throw new Error('Failed to hide notification');
+
+      // Remove from local state
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      
+      // Update unread count if it was unread
+      const notification = notifications.find(n => n.id === notificationId);
+      if (notification && !notification.read_at) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      
+      // Dispatch event to update badge counter in Header
+      window.dispatchEvent(new CustomEvent('notification:read'));
+    } catch (err: any) {
+      console.error('Error hiding notification:', err);
+    } finally {
+      setHiding(null);
+    }
+  };
+
+  // Swipe gesture handlers for mobile
+  const handleTouchStart = (e: TouchEvent<HTMLDivElement>, notificationId: number) => {
+    swipeStartX.current = e.touches[0].clientX;
+    swipeElementId.current = notificationId;
+  };
+
+  const handleTouchMove = (e: TouchEvent<HTMLDivElement>) => {
+    if (swipeStartX.current === null) return;
+    swipeCurrentX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: TouchEvent<HTMLDivElement>) => {
+    if (swipeStartX.current === null || swipeCurrentX.current === null || swipeElementId.current === null) {
+      swipeStartX.current = null;
+      swipeCurrentX.current = null;
+      swipeElementId.current = null;
+      return;
+    }
+
+    const diff = swipeStartX.current - swipeCurrentX.current;
+    const threshold = 100; // Minimum swipe distance
+
+    // Swipe left to hide (more than threshold)
+    if (diff > threshold) {
+      hideNotification(swipeElementId.current);
+    }
+
+    swipeStartX.current = null;
+    swipeCurrentX.current = null;
+    swipeElementId.current = null;
+  };
+
   const getNotificationIcon = (type: Notification['type'], actor?: Notification['actor']) => {
     const icon = (() => {
       switch (type) {
@@ -153,11 +226,16 @@ export default function AlertPage() {
         case 'comment_on_comment':
           return <MessageSquare size={18} />;
         case 'reaction_on_post':
+        case 'reaction_on_comment':
           return <Heart size={18} />;
         case 'subscription':
           return <UserPlus size={18} />;
+        case 'connection':
+          return <Link2 size={18} />;
         case 'trust_flow_entry':
           return <Shield size={18} />;
+        case 'sw_level_update':
+          return <TrendingUp size={18} />;
         default:
           return <Bell size={18} />;
       }
@@ -210,12 +288,18 @@ export default function AlertPage() {
         return `${actorName} commented on your post`;
       case 'reaction_on_post':
         return `${actorName} reacted to your post`;
+      case 'reaction_on_comment':
+        return `${actorName} reacted to your comment`;
       case 'comment_on_comment':
         return `${actorName} replied to your comment`;
       case 'subscription':
         return `${actorName} followed you`;
+      case 'connection':
+        return `${actorName} connected with you`;
       case 'trust_flow_entry':
         return `${actorName} left a Trust Flow entry`;
+      case 'sw_level_update':
+        return `Your Social Wealth level updated${notification.sw_level ? ` to ${notification.sw_level}` : ''}`;
       default:
         return 'New notification';
     }
@@ -302,11 +386,14 @@ export default function AlertPage() {
               const isUnread = !notification.read_at;
               const content = (
                 <div
-                  className={`p-3 rounded-lg border transition ${
+                  className={`relative p-3 rounded-lg border transition touch-pan-y ${
                     isUnread
                       ? 'bg-primary-blue/10 border-primary-blue/30'
                       : 'bg-gray-800 border-gray-700'
                   }`}
+                  onTouchStart={(e) => handleTouchStart(e, notification.id)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
                 >
                   <div className="flex items-start gap-2.5">
                     <div className={`flex-shrink-0 w-9 h-9 rounded-full ${
@@ -341,30 +428,53 @@ export default function AlertPage() {
                             </p>
                           )}
                         </div>
-                        {isUnread && (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {isUnread && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                markAsRead(notification.id);
+                              }}
+                              disabled={markingRead === notification.id}
+                              className="px-2 py-0.5 text-xs text-primary-blue hover:text-primary-blue-light border border-primary-blue/30 rounded hover:bg-primary-blue/10 transition"
+                              title="Mark as read"
+                            >
+                              {markingRead === notification.id ? '...' : 'Read'}
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              markAsRead(notification.id);
+                              hideNotification(notification.id);
                             }}
-                            disabled={markingRead === notification.id}
-                            className="flex-shrink-0 px-2 py-0.5 text-xs text-primary-blue hover:text-primary-blue-light border border-primary-blue/30 rounded hover:bg-primary-blue/10 transition"
+                            disabled={hiding === notification.id}
+                            className="px-2 py-1 text-xs text-gray-400 hover:text-red-400 border border-gray-600 rounded hover:bg-gray-700/50 transition flex items-center justify-center"
+                            title="Hide notification permanently"
                           >
-                            {markingRead === notification.id ? '...' : 'Read'}
+                            {hiding === notification.id ? '...' : <X size={14} />}
                           </button>
-                        )}
+                        </div>
                       </div>
                     </div>
                   </div>
+                  {/* Swipe hint for mobile - only show on unread notifications */}
+                  {isUnread && (
+                    <div className="md:hidden absolute inset-y-0 right-0 flex items-center pr-2 text-xs text-gray-500 pointer-events-none">
+                      <span className="opacity-30">← Swipe to hide</span>
+                    </div>
+                  )}
                 </div>
               );
 
               if (link) {
                 return (
-                  <Link key={notification.id} href={link}>
-                    {content}
-                  </Link>
+                  <div key={notification.id} className="relative">
+                    <Link href={link} className="block">
+                      {content}
+                    </Link>
+                  </div>
                 );
               }
 

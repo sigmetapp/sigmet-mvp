@@ -18,6 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .from('notifications')
         .select('*')
         .eq('user_id', userId)
+        .eq('hidden', false)
         .order('created_at', { ascending: false })
         .range(offsetNum, offsetNum + limitNum - 1);
 
@@ -169,6 +170,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .from('notifications')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
+        .eq('hidden', false)
         .is('read_at', null);
 
       return res.json({
