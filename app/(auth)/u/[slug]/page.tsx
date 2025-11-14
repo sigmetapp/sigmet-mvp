@@ -226,7 +226,7 @@ export default function PublicProfilePage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState<
     Array<{
-      type: 'feedback' | 'profile_change';
+      type: 'feedback' | 'profile_change' | 'trust_flow_change';
       author_id: string | null;
       value?: number;
       field_name?: string;
@@ -241,6 +241,13 @@ export default function PublicProfilePage() {
         effectiveWeight: number;
         contribution: number;
         pushType: 'positive' | 'negative';
+      };
+      // Trust Flow change details
+      tfChange?: {
+        old_value: number;
+        new_value: number;
+        change_reason?: string;
+        push_id?: number;
       };
     }>
   >([]);
@@ -1128,8 +1135,8 @@ export default function PublicProfilePage() {
     if (!isMe || !profile?.user_id) return;
     setHistoryOpen(true);
     try {
-      // Load both trust pushes and profile changes
-      const [pushesRes, changesRes] = await Promise.all([
+      // Load trust pushes, profile changes, and trust flow history
+      const [pushesRes, changesRes, tfHistoryRes] = await Promise.all([
         supabase
           .from('trust_pushes')
           .select('id, from_user_id, type, reason, created_at')
@@ -1140,6 +1147,12 @@ export default function PublicProfilePage() {
           .from('profile_changes')
           .select('editor_id, field_name, old_value, new_value, comment, created_at')
           .eq('target_user_id', profile.user_id)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase
+          .from('trust_flow_history')
+          .select('old_value, new_value, change_reason, push_id, created_at')
+          .eq('user_id', profile.user_id)
           .order('created_at', { ascending: false })
           .limit(50),
       ]);
@@ -1290,8 +1303,22 @@ export default function PublicProfilePage() {
         created_at: r.created_at as string | undefined,
       }));
 
+      // Map trust flow history items
+      const tfChangeItems = ((tfHistoryRes.data as any[]) || []).map((r) => ({
+        type: 'trust_flow_change' as const,
+        author_id: null, // Trust Flow changes are system-generated
+        comment: r.change_reason || null,
+        created_at: r.created_at as string | undefined,
+        tfChange: {
+          old_value: Number(r.old_value) || 0,
+          new_value: Number(r.new_value) || 0,
+          change_reason: r.change_reason || null,
+          push_id: r.push_id ? Number(r.push_id) : undefined,
+        },
+      }));
+
       // Combine and sort by date
-      const allItems = [...feedbackItems, ...changeItems].sort((a, b) => {
+      const allItems = [...feedbackItems, ...changeItems, ...tfChangeItems].sort((a, b) => {
         const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
         return dateB - dateA;
@@ -2520,7 +2547,7 @@ function HistoryRow({
   item 
 }: { 
   item: {
-    type: 'feedback' | 'profile_change';
+    type: 'feedback' | 'profile_change' | 'trust_flow_change';
     author_id: string | null;
     value?: number;
     field_name?: string;
@@ -2534,6 +2561,12 @@ function HistoryRow({
       effectiveWeight: number;
       contribution: number;
       pushType: 'positive' | 'negative';
+    };
+    tfChange?: {
+      old_value: number;
+      new_value: number;
+      change_reason?: string;
+      push_id?: number;
     };
   };
 }) {
@@ -2570,7 +2603,41 @@ function HistoryRow({
     return labels[field] || field;
   };
 
-  if (item.type === 'feedback') {
+  if (item.type === 'trust_flow_change') {
+    const tfChange = item.tfChange;
+    if (!tfChange) return null;
+    const diff = tfChange.new_value - tfChange.old_value;
+    const isPositive = diff >= 0;
+    return (
+      <li className="flex items-start gap-3 px-3 py-2 text-sm">
+        <div className="h-6 w-6 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+          <span className="text-blue-300 text-xs">TF</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className="text-white/80">
+            Trust Flow changed from <span className="text-white/60">{tfChange.old_value.toFixed(2)}</span> to{' '}
+            <span className={isPositive ? 'text-emerald-300' : 'text-rose-300'}>
+              {tfChange.new_value.toFixed(2)}
+            </span>
+            {diff !== 0 && (
+              <span className={`ml-1 ${isPositive ? 'text-emerald-300' : 'text-rose-300'}`}>
+                ({isPositive ? '+' : ''}{diff.toFixed(2)})
+              </span>
+            )}
+          </span>
+          {tfChange.change_reason && (
+            <div className="text-white/60 text-xs mt-1">Reason: {tfChange.change_reason}</div>
+          )}
+          {tfChange.push_id && (
+            <div className="text-white/50 text-xs mt-1">Push ID: {tfChange.push_id}</div>
+          )}
+        </div>
+        <span className="ml-auto text-white/40 text-xs flex-shrink-0">
+          {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
+        </span>
+      </li>
+    );
+  } else if (item.type === 'feedback') {
     const positive = (item.value || 0) > 0;
     const showTfDetails = item.tfDetails !== undefined;
     return (

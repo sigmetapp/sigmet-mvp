@@ -328,21 +328,60 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
       pushesByUser.get(fromUserId)!.push(push as TrustPush);
     }
     
-    // Calculate weights for all unique pushers (cache them)
+    // Get target user's Trust Flow (cached value, or calculate if not cached)
+    let targetUserTF = await getCachedTrustFlow(userId);
+    if (targetUserTF === null) {
+      // If target user's TF is not cached, use BASE_TRUST_FLOW for weight calculation
+      // This ensures we can calculate weights even for new users
+      targetUserTF = BASE_TRUST_FLOW;
+    }
+    console.log(`[Trust Flow] Target user ${userId} TF: ${targetUserTF.toFixed(2)}`);
+    
+    // Calculate base push weights for all unique pushers based on their TF relative to target user
+    // New formula:
+    // - If pusher's TF is 20% lower than target → weight = 1.5
+    // - If pusher's TF is within ±20% of target → weight = 2.0
+    // - If pusher's TF is 20% higher than target → weight = 2.5
     const weightCache = new Map<string, number>();
     const weightPromises: Promise<void>[] = [];
     
     for (const fromUserId of pushesByUser.keys()) {
       weightPromises.push(
-        calculateUserWeight(fromUserId).then((data) => {
-          // Ensure weight is at least MIN_USER_WEIGHT
-          const weight = Math.max(data.weight, MIN_USER_WEIGHT);
-          weightCache.set(fromUserId, weight);
-          console.log(`[Trust Flow] User ${fromUserId} weight: ${data.weight.toFixed(4)}, activity: ${data.activityScore}, age: ${data.accountAgeDays} days`);
-        }).catch((error) => {
-          console.error(`[Trust Flow] Error calculating weight for user ${fromUserId}:`, error);
-          weightCache.set(fromUserId, MIN_USER_WEIGHT);
-        })
+        (async () => {
+          try {
+            // Get pusher's Trust Flow (cached or calculate if needed)
+            let pusherTF = await getCachedTrustFlow(fromUserId);
+            if (pusherTF === null) {
+              // If pusher's TF is not cached, calculate it (but don't save to avoid recursion)
+              // For now, use BASE_TRUST_FLOW as fallback
+              pusherTF = BASE_TRUST_FLOW;
+            }
+            
+            // Calculate relative difference
+            const tfDifference = (pusherTF - targetUserTF) / targetUserTF;
+            const tfDifferencePercent = tfDifference * 100;
+            
+            // Determine base weight based on TF difference
+            let baseWeight: number;
+            if (tfDifferencePercent < -20) {
+              // Pusher's TF is more than 20% lower
+              baseWeight = 1.5;
+            } else if (tfDifferencePercent > 20) {
+              // Pusher's TF is more than 20% higher
+              baseWeight = 2.5;
+            } else {
+              // Pusher's TF is within ±20%
+              baseWeight = 2.0;
+            }
+            
+            weightCache.set(fromUserId, baseWeight);
+            console.log(`[Trust Flow] User ${fromUserId} TF: ${pusherTF.toFixed(2)}, target TF: ${targetUserTF.toFixed(2)}, diff: ${tfDifferencePercent.toFixed(2)}%, base weight: ${baseWeight}`);
+          } catch (error) {
+            console.error(`[Trust Flow] Error getting TF for user ${fromUserId}:`, error);
+            // Fallback to default weight if error
+            weightCache.set(fromUserId, 2.0);
+          }
+        })()
       );
     }
     
@@ -356,45 +395,12 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
     let negativeSum = 0;
     
     console.log(`[Trust Flow] Starting TF calculation with positiveSum=${positiveSum}, negativeSum=${negativeSum}`);
-    
-    // Check if this is the first push ever from each user (to determine if they're "new")
-    const firstPushCheckPromises: Promise<{ fromUserId: string; isFirstPush: boolean }>[] = [];
-    for (const [fromUserId, userPushes] of pushesByUser.entries()) {
-      // Get the earliest push timestamp from this user to this target user
-      const sortedPushes = [...userPushes].sort((a, b) => 
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      );
-      const firstPushTimestamp = sortedPushes[0]?.created_at;
-      
-      firstPushCheckPromises.push(
-        (async () => {
-          // Check if this user has given any pushes before this one (to any user)
-          const { count } = await supabase
-            .from('trust_pushes')
-            .select('id', { count: 'exact', head: true })
-            .eq('from_user_id', fromUserId)
-            .lt('created_at', firstPushTimestamp || new Date().toISOString());
-          
-          return {
-            fromUserId,
-            isFirstPush: (count || 0) === 0,
-          };
-        })()
-      );
-    }
-    const firstPushChecks = await Promise.all(firstPushCheckPromises);
-    const firstPushMap = new Map<string, boolean>();
-    for (const check of firstPushChecks) {
-      firstPushMap.set(check.fromUserId, check.isFirstPush);
-      console.log(`[Trust Flow] First push check for ${check.fromUserId}: isFirstPush=${check.isFirstPush}`);
-    }
-    
     console.log(`[Trust Flow] Processing ${pushesByUser.size} unique pushers for user ${userId}`);
     
     for (const [fromUserId, userPushes] of pushesByUser.entries()) {
-      // Get weight from cache, fallback to minimum weight if not found
-      const weight = weightCache.get(fromUserId) ?? MIN_USER_WEIGHT;
-      console.log(`[Trust Flow] Processing pushes from user ${fromUserId}, weight: ${weight.toFixed(4)}, push count: ${userPushes.length}`);
+      // Get base weight from cache (based on TF difference)
+      const baseWeight = weightCache.get(fromUserId) ?? 2.0;
+      console.log(`[Trust Flow] Processing pushes from user ${fromUserId}, base weight: ${baseWeight.toFixed(4)}, push count: ${userPushes.length}`);
       
       // Sort pushes by created_at to process in chronological order
       const sortedPushes = [...userPushes].sort((a, b) => 
@@ -403,14 +409,30 @@ export async function calculateTrustFlowForUser(userId: string): Promise<number>
       
       for (let i = 0; i < sortedPushes.length; i++) {
         const push = sortedPushes[i];
-        // Repeat count is how many pushes came before this one (i is the count)
-        const repeatCount = i;
+        const pushDate = new Date(push.created_at);
         
-        // For new users' first push ever, use 1.5 instead of calculated weight
-        const isFirstPushEver = firstPushMap.get(fromUserId) === true && repeatCount === 0;
-        const effectiveWeight = isFirstPushEver ? 1.5 : weight / (1 + repeatCount);
+        // Count how many pushes from this user to this target occurred within 30 days before this push
+        // This is the repeat count for the 30-day window protection
+        let repeatCountIn30Days = 0;
+        for (let j = 0; j < i; j++) {
+          const prevPush = sortedPushes[j];
+          const prevPushDate = new Date(prevPush.created_at);
+          const daysDiff = (pushDate.getTime() - prevPushDate.getTime()) / (1000 * 60 * 60 * 24);
+          
+          // If previous push was within 30 days before this push, count it
+          if (daysDiff <= 30 && daysDiff >= 0) {
+            repeatCountIn30Days++;
+          }
+        }
         
-        console.log(`[Trust Flow] Push ${i + 1}/${sortedPushes.length} from ${fromUserId}: type=${push.type}, repeatCount=${repeatCount}, effectiveWeight=${effectiveWeight.toFixed(4)}, isFirstPushEver=${isFirstPushEver}`);
+        // Calculate effective weight with 33% reduction for each repeat within 30 days
+        // First push: full weight, second push: 67% of weight, third push: 44.89% of weight, etc.
+        let effectiveWeight = baseWeight;
+        for (let r = 0; r < repeatCountIn30Days; r++) {
+          effectiveWeight = effectiveWeight * 0.67; // 33% reduction = multiply by 0.67
+        }
+        
+        console.log(`[Trust Flow] Push ${i + 1}/${sortedPushes.length} from ${fromUserId}: type=${push.type}, repeatCountIn30Days=${repeatCountIn30Days}, baseWeight=${baseWeight.toFixed(4)}, effectiveWeight=${effectiveWeight.toFixed(4)}`);
         
         if (push.type === 'positive') {
           positiveSum += effectiveWeight;
