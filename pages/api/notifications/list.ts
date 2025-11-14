@@ -22,7 +22,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .order('created_at', { ascending: false })
         .range(offsetNum, offsetNum + limitNum - 1);
 
-      if (notificationsError) throw notificationsError;
+      if (notificationsError) {
+        console.error('Error fetching notifications from DB:', {
+          error: notificationsError,
+          userId,
+          code: notificationsError.code,
+          message: notificationsError.message,
+          details: notificationsError.details,
+          hint: notificationsError.hint,
+        });
+        throw notificationsError;
+      }
 
       const notifications = notificationsData || [];
 
@@ -206,9 +216,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.json({
         notifications: enrichedNotifications,
         unreadCount: unreadCount || 0,
+        debug: process.env.NODE_ENV === 'development' ? {
+          rawCount: notifications.length,
+          enrichedCount: enrichedNotifications.length,
+          userId,
+        } : undefined,
       });
     } catch (error: any) {
-      console.error('Error fetching notifications:', error);
-      return res.status(500).json({ error: error.message || 'Internal server error' });
+      console.error('Error fetching notifications:', {
+        error: error.message,
+        stack: error.stack,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        userId,
+      });
+      return res.status(500).json({ 
+        error: error.message || 'Internal server error',
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
     }
 }

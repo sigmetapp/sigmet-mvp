@@ -70,13 +70,150 @@ export default function AlertPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [markingRead, setMarkingRead] = useState<number | null>(null);
   const [hiding, setHiding] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [debugError, setDebugError] = useState<string | null>(null);
   const swipeStartX = useRef<number | null>(null);
   const swipeCurrentX = useRef<number | null>(null);
   const swipeElementId = useRef<number | null>(null);
 
   useEffect(() => {
+    checkAdminStatus();
     loadNotifications();
   }, []);
+
+  const checkAdminStatus = async () => {
+    try {
+      const { data, error } = await supabase.rpc('is_admin_uid');
+      if (!error && data) {
+        setIsAdmin(true);
+        if (data) {
+          loadDebugInfo();
+        }
+      }
+    } catch (err) {
+      console.error('Error checking admin status:', err);
+    }
+  };
+
+  const loadDebugInfo = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setDebugError('User not authenticated');
+        return;
+      }
+
+      const debugData: any = {
+        userId: user.id,
+        userEmail: user.email,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Check notifications count directly from DB
+      const { count: totalCount, error: totalError } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      const { count: unreadCountDb, error: unreadError } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('hidden', false)
+        .is('read_at', null);
+
+      const { count: hiddenCount, error: hiddenError } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('hidden', true);
+
+      debugData.notifications = {
+        total: totalCount ?? 0,
+        unread: unreadCountDb ?? 0,
+        hidden: hiddenCount ?? 0,
+        errors: {
+          total: totalError?.message,
+          unread: unreadError?.message,
+          hidden: hiddenError?.message,
+        },
+      };
+
+      // Check recent notifications
+      const { data: recentNotifications, error: recentError } = await supabase
+        .from('notifications')
+        .select('id, type, created_at, read_at, hidden, actor_id, post_id, comment_id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      debugData.recentNotifications = {
+        count: recentNotifications?.length ?? 0,
+        data: recentNotifications,
+        error: recentError?.message,
+      };
+
+      // Check notification types distribution
+      const { data: typeDistribution, error: typeError } = await supabase
+        .from('notifications')
+        .select('type')
+        .eq('user_id', user.id)
+        .eq('hidden', false);
+
+      if (typeDistribution) {
+        const distribution: Record<string, number> = {};
+        typeDistribution.forEach(n => {
+          distribution[n.type] = (distribution[n.type] || 0) + 1;
+        });
+        debugData.typeDistribution = distribution;
+      }
+
+      // Check if triggers exist
+      const { data: triggers, error: triggersError } = await supabase
+        .rpc('exec_sql', {
+          query: `
+            SELECT trigger_name, event_object_table, action_statement
+            FROM information_schema.triggers
+            WHERE trigger_schema = 'public'
+            AND trigger_name LIKE '%notification%'
+            ORDER BY trigger_name;
+          `
+        }).catch(() => ({ data: null, error: 'Cannot check triggers (RLS)' }));
+
+      debugData.triggers = {
+        error: triggersError?.message || 'Cannot check (requires direct DB access)',
+      };
+
+      // Check API response
+      try {
+        const apiResponse = await fetch('/api/notifications/list');
+        const apiData = await apiResponse.json();
+        debugData.apiResponse = {
+          status: apiResponse.status,
+          statusText: apiResponse.statusText,
+          dataKeys: apiData ? Object.keys(apiData) : [],
+          notificationsCount: apiData?.notifications?.length ?? 0,
+          unreadCount: apiData?.unreadCount ?? 0,
+          error: apiData?.error,
+        };
+      } catch (apiErr: any) {
+        debugData.apiResponse = {
+          error: apiErr.message,
+        };
+      }
+
+      // Check RLS policies
+      debugData.rlsInfo = {
+        note: 'RLS policies can be checked in Supabase dashboard',
+      };
+
+      setDebugInfo(debugData);
+    } catch (err: any) {
+      setDebugError(err.message || 'Failed to load debug info');
+      console.error('Error loading debug info:', err);
+    }
+  };
 
   const loadNotifications = async () => {
     try {
@@ -84,12 +221,20 @@ export default function AlertPage() {
         if (response.status === 401) {
           console.log('Not authenticated');
           setLoading(false);
+          if (isAdmin) {
+            setDebugError('API returned 401 - Not authenticated');
+          }
           return;
       }
 
         if (!response.ok) {
           const text = await response.text();
-          throw new Error(text || 'Failed to load notifications');
+          const error = text || 'Failed to load notifications';
+          console.error('API error:', error);
+          if (isAdmin) {
+            setDebugError(`API Error (${response.status}): ${error}`);
+          }
+          throw new Error(error);
         }
 
         const payload = await response.json();
@@ -99,13 +244,31 @@ export default function AlertPage() {
         if (!fetchedNotifications || fetchedNotifications.length === 0) {
           setNotifications([]);
           setUnreadCount(0);
+          if (isAdmin) {
+            console.log('No notifications returned from API');
+          }
         return;
       }
 
         setNotifications(fetchedNotifications);
         setUnreadCount(unread);
+        
+        if (isAdmin && debugInfo) {
+          // Update debug info with API response
+          setDebugInfo((prev: any) => ({
+            ...prev,
+            apiResponse: {
+              ...prev?.apiResponse,
+              actualNotificationsCount: fetchedNotifications.length,
+              actualUnreadCount: unread,
+            },
+          }));
+        }
     } catch (err: any) {
       console.error('Error loading notifications:', err);
+      if (isAdmin) {
+        setDebugError(err.message || 'Unknown error');
+      }
     } finally {
       setLoading(false);
     }
@@ -371,15 +534,132 @@ export default function AlertPage() {
               </span>
             )}
           </h1>
-          {unreadCount > 0 && (
-            <button
-              onClick={markAllAsRead}
-              className="px-4 py-2 text-sm text-primary-blue hover:text-primary-blue-light border border-primary-blue/30 rounded-lg hover:bg-primary-blue/10 transition"
-            >
-              Mark all as read
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                onClick={loadDebugInfo}
+                className="px-3 py-1.5 text-xs bg-yellow-600 hover:bg-yellow-700 text-white rounded border border-yellow-500"
+                title="Reload debug info"
+              >
+                🔍 Debug
+              </button>
+            )}
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllAsRead}
+                className="px-4 py-2 text-sm text-primary-blue hover:text-primary-blue-light border border-primary-blue/30 rounded-lg hover:bg-primary-blue/10 transition"
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Debug Panel for Admins */}
+        {isAdmin && (
+          <div className="mb-6 bg-gray-900 border border-yellow-600/30 rounded-lg p-4 text-xs font-mono">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-yellow-400 font-bold text-sm">🔧 Debug Information (Admin Only)</h2>
+              <button
+                onClick={() => setDebugInfo(null)}
+                className="text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {debugError && (
+              <div className="mb-3 p-2 bg-red-900/30 border border-red-600/50 rounded text-red-300">
+                <strong>Error:</strong> {debugError}
+              </div>
+            )}
+
+            {debugInfo ? (
+              <div className="space-y-3 text-gray-300">
+                <div>
+                  <strong className="text-yellow-400">User ID:</strong> {debugInfo.userId}
+                  <br />
+                  <strong className="text-yellow-400">Email:</strong> {debugInfo.userEmail}
+                  <br />
+                  <strong className="text-yellow-400">Timestamp:</strong> {debugInfo.timestamp}
+                </div>
+
+                <div className="border-t border-gray-700 pt-2">
+                  <strong className="text-yellow-400">Database Notifications:</strong>
+                  <ul className="ml-4 mt-1 space-y-1">
+                    <li>Total: <span className="text-white">{debugInfo.notifications?.total ?? 'N/A'}</span></li>
+                    <li>Unread: <span className="text-white">{debugInfo.notifications?.unread ?? 'N/A'}</span></li>
+                    <li>Hidden: <span className="text-white">{debugInfo.notifications?.hidden ?? 'N/A'}</span></li>
+                    {debugInfo.notifications?.errors && (
+                      <li className="text-red-400">
+                        Errors: {JSON.stringify(debugInfo.notifications.errors, null, 2)}
+                      </li>
+                    )}
+                  </ul>
+                </div>
+
+                <div className="border-t border-gray-700 pt-2">
+                  <strong className="text-yellow-400">Recent Notifications (last 10):</strong>
+                  <div className="ml-4 mt-1">
+                    Count: <span className="text-white">{debugInfo.recentNotifications?.count ?? 0}</span>
+                    {debugInfo.recentNotifications?.error && (
+                      <div className="text-red-400 mt-1">Error: {debugInfo.recentNotifications.error}</div>
+                    )}
+                    {debugInfo.recentNotifications?.data && debugInfo.recentNotifications.data.length > 0 && (
+                      <div className="mt-2 max-h-40 overflow-y-auto">
+                        <pre className="text-xs bg-gray-800 p-2 rounded">
+                          {JSON.stringify(debugInfo.recentNotifications.data.slice(0, 5), null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {debugInfo.typeDistribution && (
+                  <div className="border-t border-gray-700 pt-2">
+                    <strong className="text-yellow-400">Type Distribution:</strong>
+                    <pre className="ml-4 mt-1 text-xs bg-gray-800 p-2 rounded">
+                      {JSON.stringify(debugInfo.typeDistribution, null, 2)}
+                    </pre>
+                  </div>
+                )}
+
+                <div className="border-t border-gray-700 pt-2">
+                  <strong className="text-yellow-400">API Response:</strong>
+                  <div className="ml-4 mt-1">
+                    Status: <span className="text-white">{debugInfo.apiResponse?.status ?? 'N/A'}</span>
+                    <br />
+                    Notifications from API: <span className="text-white">{debugInfo.apiResponse?.notificationsCount ?? 0}</span>
+                    <br />
+                    Unread from API: <span className="text-white">{debugInfo.apiResponse?.unreadCount ?? 0}</span>
+                    {debugInfo.apiResponse?.actualNotificationsCount !== undefined && (
+                      <>
+                        <br />
+                        Actual loaded: <span className="text-white">{debugInfo.apiResponse.actualNotificationsCount}</span>
+                      </>
+                    )}
+                    {debugInfo.apiResponse?.error && (
+                      <div className="text-red-400 mt-1">Error: {debugInfo.apiResponse.error}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-700 pt-2">
+                  <strong className="text-yellow-400">UI State:</strong>
+                  <div className="ml-4 mt-1">
+                    Loading: <span className="text-white">{loading ? 'Yes' : 'No'}</span>
+                    <br />
+                    Notifications in state: <span className="text-white">{notifications.length}</span>
+                    <br />
+                    Unread count in state: <span className="text-white">{unreadCount}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-gray-500">Click "Debug" button to load debug information</div>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="space-y-4">
