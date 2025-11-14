@@ -120,7 +120,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   } | null>(null);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [socialWeight, setSocialWeight] = useState<number>(75);
-  const [trustFlow, setTrustFlow] = useState<number>(80);
   const [daysStreak, setDaysStreak] = useState<number>(0);
   
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -612,7 +611,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     })();
   }, []);
 
-  // Load partner profile with SW and Trust Flow
+  // Load partner profile with SW
   useEffect(() => {
     if (!partnerId) return;
     (async () => {
@@ -668,20 +667,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           setSocialWeight(75);
         }
 
-        // Load Trust Flow
-        try {
-          const { data: feedback } = await supabase
-            .from('trust_feedback')
-            .select('value')
-            .eq('target_user_id', partnerId);
-        
-          const sum = ((feedback as any[]) || []).reduce((acc, r) => acc + (Number(r.value) || 0), 0);
-          const rating = Math.max(0, Math.min(120, 80 + sum * 2));
-          setTrustFlow(rating);
-        } catch {
-          setTrustFlow(80);
-        }
-        
         // Calculate days streak (consecutive days of communication)
         // This will be calculated when thread is loaded
       } catch (err) {
@@ -2385,14 +2370,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   title="Social Weight"
                 >
                   SW: {socialWeight}/100
-                </span>
-
-                {/* Trust Flow Badge */}
-                <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                  title="Trust Flow"
-                >
-                  TF: {trustFlow}%
                 </span>
 
                 {/* Days Streak Badge */}
