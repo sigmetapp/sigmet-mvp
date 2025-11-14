@@ -3,33 +3,26 @@
 import { useState, useEffect, useRef, TouchEvent, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
-import { Bell, MessageSquare, Heart, UserPlus, Shield, AtSign, X, TrendingUp, Link2, Flame, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bell, MessageSquare, Heart, Shield, X, TrendingUp, Flame, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
 interface Notification {
   id: number;
-  type:
-    | 'mention_in_post'
-    | 'comment_on_post'
-    | 'reaction_on_post'
-    | 'reaction_on_comment'
-    | 'comment_on_comment'
-    | 'subscription'
-    | 'connection'
-    | 'trust_flow_entry'
-    | 'sw_level_update'
-      | 'event'
-      | 'goal_reaction';
+    type:
+      | 'comment_on_post'
+      | 'comment_on_comment'
+      | 'reaction_on_post'
+      | 'reaction_on_comment'
+      | 'goal_reaction'
+      | 'trust_flow_entry'
+      | 'sw_level_update';
   actor_id: string | null;
   post_id: number | string | null;
   comment_id: number | string | null;
-  trust_feedback_id: number | string | null;
-  connection_id: number | string | null;
-  sw_level: string | null;
-  event_id: number | string | null;
-    trust_push_id?: number | string | null;
-    goal_id?: string | null;
-    goal_reaction_kind?: string | null;
+    sw_level: string | null;
+      trust_push_id?: number | string | null;
+      goal_id?: string | null;
+      goal_reaction_kind?: string | null;
   read_at: string | null;
   created_at: string;
   actor?: {
@@ -54,24 +47,12 @@ interface Notification {
     user_id?: string | null;
     parent_id?: number | string | null;
   } | null;
-  trust_feedback?: {
-    id: number | string;
-    value: number;
-    comment: string | null;
-    author_id: string | null;
-  } | null;
     trust_push?: {
       id: number | string;
       type: 'positive' | 'negative';
       reason: string | null;
       created_at?: string | null;
     } | null;
-  event?: {
-    id: number | string;
-    type: string;
-    value: number;
-    meta: any;
-  } | null;
 }
 
 const NOTIFICATIONS_PER_PAGE = 30;
@@ -136,9 +117,9 @@ export default function AlertPage() {
       };
 
       // Check recent notifications - get ALL notifications including hidden
-        const { data: recentNotifications, error: recentError } = await supabase
-          .from('notifications')
-          .select('id, type, created_at, read_at, hidden, actor_id, post_id, comment_id, event_id, connection_id, sw_level, trust_feedback_id, trust_push_id, goal_id, goal_reaction_kind')
+          const { data: recentNotifications, error: recentError } = await supabase
+            .from('notifications')
+            .select('id, type, created_at, read_at, hidden, actor_id, post_id, comment_id, sw_level, trust_push_id, goal_id, goal_reaction_kind')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20);
@@ -158,9 +139,9 @@ export default function AlertPage() {
       // Also check notifications by date ranges
       const now = new Date();
       const cutoffDate = new Date('2025-11-10T08:34:09');
-        const { data: notificationsAfterCutoff, error: afterCutoffError } = await supabase
-          .from('notifications')
-          .select('id, type, created_at, hidden, actor_id, post_id, comment_id, event_id, connection_id, trust_push_id, goal_id, goal_reaction_kind, sw_level, trust_feedback_id')
+          const { data: notificationsAfterCutoff, error: afterCutoffError } = await supabase
+            .from('notifications')
+            .select('id, type, created_at, hidden, actor_id, post_id, comment_id, trust_push_id, goal_id, goal_reaction_kind, sw_level')
         .eq('user_id', user.id)
         .gt('created_at', cutoffDate.toISOString())
         .order('created_at', { ascending: false })
@@ -192,46 +173,33 @@ export default function AlertPage() {
         cutoffDate: cutoffDate.toISOString(),
       };
       
-      // Check for notifications with different fields populated
-        const { data: notificationsWithEventId, error: eventIdError } = await supabase
-          .from('notifications')
-          .select('id, type, created_at, event_id')
-          .eq('user_id', user.id)
-          .not('event_id', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(10);
-        
-        const { data: notificationsWithConnectionId, error: connectionIdError } = await supabase
-          .from('notifications')
-          .select('id, type, created_at, connection_id')
-          .eq('user_id', user.id)
-          .not('connection_id', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(10);
-
-        const { data: notificationsWithTrustPushId, error: trustPushIdError } = await supabase
+        // Check for notifications with different fields populated
+          const { data: notificationsWithTrustPushId, error: trustPushIdError } = await supabase
           .from('notifications')
           .select('id, type, created_at, trust_push_id')
           .eq('user_id', user.id)
           .not('trust_push_id', 'is', null)
           .order('created_at', { ascending: false })
           .limit(10);
-      
+          
+          const { data: notificationsWithGoalId, error: goalIdError } = await supabase
+            .from('notifications')
+            .select('id, type, created_at, goal_id, goal_reaction_kind')
+            .eq('user_id', user.id)
+            .not('goal_id', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(10);
+
         debugData.specialNotifications = {
-          withEventId: {
-            count: notificationsWithEventId?.length ?? 0,
-            data: notificationsWithEventId,
-            error: eventIdError?.message,
-          },
-          withConnectionId: {
-            count: notificationsWithConnectionId?.length ?? 0,
-            data: notificationsWithConnectionId,
-            error: connectionIdError?.message,
-          },
           withTrustPushId: {
             count: notificationsWithTrustPushId?.length ?? 0,
             data: notificationsWithTrustPushId,
             error: trustPushIdError?.message,
+            },
+            withGoalId: {
+              count: notificationsWithGoalId?.length ?? 0,
+              data: notificationsWithGoalId,
+              error: goalIdError?.message,
           },
         };
 
@@ -249,24 +217,26 @@ export default function AlertPage() {
         }
         
         // Always set expected triggers for comparison
-        triggersInfo.expectedTriggers = [
-          { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
-          { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
-          { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
-          { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
-          { name: 'notify_connection_trigger', table: 'user_connections', event: 'INSERT' },
-          { name: 'notify_on_event_trigger', table: 'sw_events', event: 'INSERT' },
-        ];
+          triggersInfo.expectedTriggers = [
+            { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
+            { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
+            { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
+            { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
+            { name: 'notify_goal_reaction_trigger', table: 'goal_reactions', event: 'INSERT' },
+            { name: 'notify_trust_push_trigger', table: 'trust_pushes', event: 'INSERT' },
+            { name: 'notify_sw_level_change_trigger', table: 'sw_scores', event: 'UPDATE' },
+          ];
       } catch (triggersErr: any) {
         triggersInfo.error = triggersErr.message || 'Cannot check triggers';
-        triggersInfo.expectedTriggers = [
-          { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
-          { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
-          { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
-          { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
-          { name: 'notify_connection_trigger', table: 'user_connections', event: 'INSERT' },
-          { name: 'notify_on_event_trigger', table: 'sw_events', event: 'INSERT' },
-        ];
+          triggersInfo.expectedTriggers = [
+            { name: 'notify_comment_on_post_trigger', table: 'comments', event: 'INSERT' },
+            { name: 'notify_comment_on_comment_trigger', table: 'comments', event: 'INSERT' },
+            { name: 'notify_reaction_on_post_trigger', table: 'post_reactions', event: 'INSERT' },
+            { name: 'notify_reaction_on_comment_trigger', table: 'comment_reactions', event: 'INSERT' },
+            { name: 'notify_goal_reaction_trigger', table: 'goal_reactions', event: 'INSERT' },
+            { name: 'notify_trust_push_trigger', table: 'trust_pushes', event: 'INSERT' },
+            { name: 'notify_sw_level_change_trigger', table: 'sw_scores', event: 'UPDATE' },
+          ];
       }
 
       // Note: create_notification function should exist if triggers are working
@@ -681,32 +651,24 @@ export default function AlertPage() {
   };
 
   const getNotificationIcon = (type: Notification['type'], actor?: Notification['actor']) => {
-    const icon = (() => {
-      switch (type) {
-        case 'mention_in_post':
-          return <AtSign size={18} />;
-        case 'comment_on_post':
-        case 'comment_on_comment':
-          return <MessageSquare size={18} />;
-        case 'reaction_on_post':
-        case 'reaction_on_comment':
-          return <Heart size={18} />;
-        case 'subscription':
-          return <UserPlus size={18} />;
-        case 'connection':
-          return <Link2 size={18} />;
-        case 'trust_flow_entry':
-          return <Shield size={18} />;
-        case 'sw_level_update':
-          return <TrendingUp size={18} />;
-        case 'goal_reaction':
-          return <Flame size={18} />;
-        case 'event':
-          return <Bell size={18} />;
-        default:
-          return <Bell size={18} />;
-      }
-    })();
+      const icon = (() => {
+        switch (type) {
+          case 'comment_on_post':
+          case 'comment_on_comment':
+            return <MessageSquare size={18} />;
+          case 'reaction_on_post':
+          case 'reaction_on_comment':
+            return <Heart size={18} />;
+          case 'goal_reaction':
+            return <Flame size={18} />;
+          case 'trust_flow_entry':
+            return <Shield size={18} />;
+          case 'sw_level_update':
+            return <TrendingUp size={18} />;
+          default:
+            return <Bell size={18} />;
+        }
+      })();
 
     // If actor has avatar, show it with icon overlay
     if (actor?.avatar_url) {
@@ -748,41 +710,29 @@ export default function AlertPage() {
       console.log('Actor not loaded for notification:', notification.id, 'actor_id:', notification.actor_id);
     }
     
-      switch (notification.type) {
-      case 'mention_in_post':
-        return `${actorName} mentioned you in a post`;
-      case 'comment_on_post':
-        return `${actorName} commented on your post`;
-      case 'reaction_on_post':
-        return `${actorName} reacted to your post`;
-      case 'reaction_on_comment':
-        return `${actorName} reacted to your comment`;
-      case 'comment_on_comment':
-        return `${actorName} replied to your comment`;
-      case 'subscription':
-        return `${actorName} followed you`;
-      case 'connection':
-        return `${actorName} connected with you`;
-      case 'trust_flow_entry':
-        if (notification.trust_push) {
-          const isPositive = notification.trust_push.type === 'positive';
-          return `${actorName} ${isPositive ? 'boosted' : 'reduced'} your Trust Flow`;
+        switch (notification.type) {
+          case 'comment_on_post':
+            return `${actorName} commented on your post`;
+          case 'reaction_on_post':
+            return `${actorName} reacted to your post`;
+          case 'reaction_on_comment':
+            return `${actorName} reacted to your comment`;
+          case 'comment_on_comment':
+            return `${actorName} replied to your comment`;
+          case 'goal_reaction':
+            return `${actorName} reacted to your goal${notification.goal_reaction_kind ? ` (${notification.goal_reaction_kind})` : ''}`;
+          case 'trust_flow_entry':
+            if (notification.trust_push) {
+              const isPositive = notification.trust_push.type === 'positive';
+              return `${actorName} ${isPositive ? 'boosted' : 'reduced'} your Trust Flow`;
+            }
+            return `${actorName} left a Trust Flow entry`;
+          case 'sw_level_update':
+            return `Your Social Wealth level updated${notification.sw_level ? ` to ${notification.sw_level}` : ''}`;
+          default:
+            return 'New notification';
         }
-        return `${actorName} left a Trust Flow entry`;
-      case 'sw_level_update':
-        return `Your Social Wealth level updated${notification.sw_level ? ` to ${notification.sw_level}` : ''}`;
-      case 'goal_reaction':
-        return `${actorName} reacted to your goal${notification.goal_reaction_kind ? ` (${notification.goal_reaction_kind})` : ''}`;
-      case 'event':
-        if (notification.event) {
-          const eventType = notification.event.type || 'event';
-          return `New event: ${eventType}`;
-        }
-        return 'New event occurred';
-      default:
-        return 'New notification';
-    }
-  };
+      };
 
   const getNotificationLink = (notification: Notification) => {
     if (notification.post_id) {
@@ -966,8 +916,6 @@ export default function AlertPage() {
                                 <li key={idx} className="text-gray-300">
                                   {idx + 1}. {n.type} - {n.created_at ? new Date(n.created_at).toISOString() : 'N/A'}
                                   {n.hidden && <span className="text-red-400 ml-2">(hidden)</span>}
-                                  {n.event_id && <span className="text-blue-400 ml-2">event_id: {n.event_id}</span>}
-                                  {n.connection_id && <span className="text-green-400 ml-2">connection_id: {n.connection_id}</span>}
                                   {n.post_id && <span className="text-purple-400 ml-2">post_id: {n.post_id}</span>}
                                   {n.comment_id && <span className="text-orange-400 ml-2">comment_id: {n.comment_id}</span>}
                                   {n.trust_push_id && <span className="text-yellow-300 ml-2">trust_push_id: {n.trust_push_id}</span>}
@@ -990,67 +938,49 @@ export default function AlertPage() {
                   </div>
                 )}
 
-                {debugInfo.specialNotifications && (
-                  <div className="border-t border-gray-700 pt-2">
-                    <strong className="text-yellow-400">Special Notifications:</strong>
-                    <div className="ml-4 mt-1 space-y-2">
-                      {debugInfo.specialNotifications.withEventId && (
-                        <div>
-                          <strong className="text-yellow-300">With event_id:</strong>
-                          <div className="text-xs">
-                            Count: <span className="text-white">{debugInfo.specialNotifications.withEventId.count ?? 0}</span>
-                            {debugInfo.specialNotifications.withEventId.error && (
-                              <div className="text-red-400">Error: {debugInfo.specialNotifications.withEventId.error}</div>
-                            )}
-                            {debugInfo.specialNotifications.withEventId.data && debugInfo.specialNotifications.withEventId.data.length > 0 && (
-                              <div className="mt-1 max-h-20 overflow-y-auto">
-                                <pre className="text-xs bg-gray-800 p-2 rounded">
-                                  {JSON.stringify(debugInfo.specialNotifications.withEventId.data, null, 2)}
-                                </pre>
-                              </div>
-                            )}
+                  {debugInfo.specialNotifications && (
+                    <div className="border-t border-gray-700 pt-2">
+                      <strong className="text-yellow-400">Special Notifications:</strong>
+                      <div className="ml-4 mt-1 space-y-2">
+                        {debugInfo.specialNotifications.withTrustPushId && (
+                          <div>
+                            <strong className="text-yellow-300">With trust_push_id:</strong>
+                            <div className="text-xs">
+                              Count: <span className="text-white">{debugInfo.specialNotifications.withTrustPushId.count ?? 0}</span>
+                              {debugInfo.specialNotifications.withTrustPushId.error && (
+                                <div className="text-red-400">Error: {debugInfo.specialNotifications.withTrustPushId.error}</div>
+                              )}
+                              {debugInfo.specialNotifications.withTrustPushId.data && debugInfo.specialNotifications.withTrustPushId.data.length > 0 && (
+                                <div className="mt-1 max-h-20 overflow-y-auto">
+                                  <pre className="text-xs bg-gray-800 p-2 rounded">
+                                    {JSON.stringify(debugInfo.specialNotifications.withTrustPushId.data, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {debugInfo.specialNotifications.withConnectionId && (
-                        <div>
-                          <strong className="text-yellow-300">With connection_id:</strong>
-                          <div className="text-xs">
-                            Count: <span className="text-white">{debugInfo.specialNotifications.withConnectionId.count ?? 0}</span>
-                            {debugInfo.specialNotifications.withConnectionId.error && (
-                              <div className="text-red-400">Error: {debugInfo.specialNotifications.withConnectionId.error}</div>
-                            )}
-                            {debugInfo.specialNotifications.withConnectionId.data && debugInfo.specialNotifications.withConnectionId.data.length > 0 && (
-                              <div className="mt-1 max-h-20 overflow-y-auto">
-                                <pre className="text-xs bg-gray-800 p-2 rounded">
-                                  {JSON.stringify(debugInfo.specialNotifications.withConnectionId.data, null, 2)}
-                                </pre>
-                              </div>
-                            )}
+                        )}
+                        {debugInfo.specialNotifications.withGoalId && (
+                          <div>
+                            <strong className="text-yellow-300">With goal_id:</strong>
+                            <div className="text-xs">
+                              Count: <span className="text-white">{debugInfo.specialNotifications.withGoalId.count ?? 0}</span>
+                              {debugInfo.specialNotifications.withGoalId.error && (
+                                <div className="text-red-400">Error: {debugInfo.specialNotifications.withGoalId.error}</div>
+                              )}
+                              {debugInfo.specialNotifications.withGoalId.data && debugInfo.specialNotifications.withGoalId.data.length > 0 && (
+                                <div className="mt-1 max-h-20 overflow-y-auto">
+                                  <pre className="text-xs bg-gray-800 p-2 rounded">
+                                    {JSON.stringify(debugInfo.specialNotifications.withGoalId.data, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {debugInfo.specialNotifications.withTrustPushId && (
-                        <div>
-                          <strong className="text-yellow-300">With trust_push_id:</strong>
-                          <div className="text-xs">
-                            Count: <span className="text-white">{debugInfo.specialNotifications.withTrustPushId.count ?? 0}</span>
-                            {debugInfo.specialNotifications.withTrustPushId.error && (
-                              <div className="text-red-400">Error: {debugInfo.specialNotifications.withTrustPushId.error}</div>
-                            )}
-                            {debugInfo.specialNotifications.withTrustPushId.data && debugInfo.specialNotifications.withTrustPushId.data.length > 0 && (
-                              <div className="mt-1 max-h-20 overflow-y-auto">
-                                <pre className="text-xs bg-gray-800 p-2 rounded">
-                                  {JSON.stringify(debugInfo.specialNotifications.withTrustPushId.data, null, 2)}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 <div className="border-t border-gray-700 pt-2">
                   <strong className="text-yellow-400">API Response:</strong>
@@ -1139,15 +1069,16 @@ export default function AlertPage() {
                     
                     {(!debugInfo.triggers?.triggers || debugInfo.triggers.triggers.length === 0) && !debugInfo.triggers?.expectedTriggers && (
                       <div className="mt-2 text-gray-400">
-                        Check Supabase dashboard → Database → Triggers for:
-                        <ul className="ml-4 mt-1 list-disc">
-                          <li>notify_comment_on_post_trigger (on comments table, INSERT)</li>
-                          <li>notify_comment_on_comment_trigger (on comments table, INSERT)</li>
-                          <li>notify_reaction_on_post_trigger (on post_reactions table, INSERT)</li>
-                          <li>notify_reaction_on_comment_trigger (on comment_reactions table, INSERT)</li>
-                          <li>notify_connection_trigger (on user_connections table, INSERT)</li>
-                          <li>notify_on_event_trigger (on sw_events table, INSERT)</li>
-                        </ul>
+                          Check Supabase dashboard → Database → Triggers for:
+                          <ul className="ml-4 mt-1 list-disc">
+                            <li>notify_comment_on_post_trigger (on comments table, INSERT)</li>
+                            <li>notify_comment_on_comment_trigger (on comments table, INSERT)</li>
+                            <li>notify_reaction_on_post_trigger (on post_reactions table, INSERT)</li>
+                            <li>notify_reaction_on_comment_trigger (on comment_reactions table, INSERT)</li>
+                            <li>notify_goal_reaction_trigger (on goal_reactions table, INSERT)</li>
+                            <li>notify_trust_push_trigger (on trust_pushes table, INSERT)</li>
+                            <li>notify_sw_level_change_trigger (on sw_scores table, UPDATE)</li>
+                          </ul>
                       </div>
                     )}
                   </div>
@@ -1262,11 +1193,6 @@ export default function AlertPage() {
                                 {notification.comment.text || notification.comment.body}
                             </p>
                           )}
-                            {notification.trust_feedback?.comment && (
-                              <p className="text-xs text-gray-400 mt-1 line-clamp-2">
-                                {notification.trust_feedback.comment}
-                              </p>
-                            )}
                             {notification.trust_push?.reason && (
                               <p className="text-xs text-gray-400 mt-1 line-clamp-2">
                                 {notification.trust_push.reason}
