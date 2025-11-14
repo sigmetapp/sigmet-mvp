@@ -79,6 +79,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         )
       );
 
+      const eventIdsRaw = notifications
+        .map((n) => (n as any).event_id)
+        .filter((id): id is number | string => id !== null && id !== undefined);
+      const eventIdsNumeric = Array.from(
+        new Set(
+          eventIdsRaw
+            .map((id) => (typeof id === 'number' ? id : /^\d+$/.test(id) ? Number(id) : null))
+            .filter((id): id is number => id !== null)
+        )
+      );
+
       const actorsMap = new Map<string, any>();
       if (actorIds.length > 0) {
         const { data: actorsData, error: actorsError } = await client
@@ -152,6 +163,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
+      const eventsMap = new Map<string, any>();
+      if (eventIdsNumeric.length > 0) {
+        const { data: eventsData, error: eventsError } = await client
+          .from('sw_events')
+          .select('id, type, value, meta')
+          .in('id', eventIdsNumeric);
+        if (!eventsError && eventsData) {
+          for (const event of eventsData) {
+            eventsMap.set(String(event.id), event);
+          }
+        } else if (eventsError) {
+          console.warn('Failed to load events for notifications:', eventsError);
+        }
+      }
+
       const enrichedNotifications = notifications.map((n) => ({
         ...n,
         actor: n.actor_id ? actorsMap.get(n.actor_id) ?? null : null,
@@ -163,6 +189,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         trust_feedback:
           n.trust_feedback_id !== null && n.trust_feedback_id !== undefined
             ? trustFeedbackMap.get(String(n.trust_feedback_id)) ?? null
+            : null,
+        event:
+          (n as any).event_id !== null && (n as any).event_id !== undefined
+            ? eventsMap.get(String((n as any).event_id)) ?? null
             : null,
       }));
 

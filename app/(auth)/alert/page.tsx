@@ -17,13 +17,15 @@ interface Notification {
     | 'subscription'
     | 'connection'
     | 'trust_flow_entry'
-    | 'sw_level_update';
+    | 'sw_level_update'
+    | 'event';
   actor_id: string | null;
   post_id: number | string | null;
   comment_id: number | string | null;
   trust_feedback_id: number | string | null;
   connection_id: number | string | null;
   sw_level: string | null;
+  event_id: number | string | null;
   read_at: string | null;
   created_at: string;
   actor?: {
@@ -53,6 +55,12 @@ interface Notification {
     value: number;
     comment: string | null;
     author_id: string | null;
+  } | null;
+  event?: {
+    id: number | string;
+    type: string;
+    value: number;
+    meta: any;
   } | null;
 }
 
@@ -236,6 +244,8 @@ export default function AlertPage() {
           return <Shield size={18} />;
         case 'sw_level_update':
           return <TrendingUp size={18} />;
+        case 'event':
+          return <Bell size={18} />;
         default:
           return <Bell size={18} />;
       }
@@ -300,6 +310,12 @@ export default function AlertPage() {
         return `${actorName} left a Trust Flow entry`;
       case 'sw_level_update':
         return `Your Social Wealth level updated${notification.sw_level ? ` to ${notification.sw_level}` : ''}`;
+      case 'event':
+        if (notification.event) {
+          const eventType = notification.event.type || 'event';
+          return `New event: ${eventType}`;
+        }
+        return 'New event occurred';
       default:
         return 'New notification';
     }
