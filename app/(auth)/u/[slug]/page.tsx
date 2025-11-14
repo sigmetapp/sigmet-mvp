@@ -1058,13 +1058,14 @@ export default function PublicProfilePage() {
       
       // Recalculate Trust Flow - API will now save to cache automatically
       // Use recalculate=true to force recalculation after push
+      // Pass pushId so metadata can be saved in history
       let retries = 3;
       let recalculated = false;
       
       while (retries > 0 && !recalculated) {
         try {
           console.log(`[Trust Push] Recalculating Trust Flow (attempt ${4 - retries}/3)...`);
-          const res = await fetch(`/api/users/${profile.user_id}/trust-flow?recalculate=true`, {
+          const res = await fetch(`/api/users/${profile.user_id}/trust-flow?recalculate=true&pushId=${insertData.id}`, {
             headers: {
               Authorization: `Bearer ${session.access_token}`,
             },
@@ -1128,8 +1129,8 @@ export default function PublicProfilePage() {
     if (!isMe || !profile?.user_id) return;
     setHistoryOpen(true);
     try {
-      // Load both trust pushes and profile changes
-      const [pushesRes, changesRes] = await Promise.all([
+      // Load trust pushes, profile changes, and trust_flow_history (for saved metadata)
+      const [pushesRes, changesRes, historyRes] = await Promise.all([
         supabase
           .from('trust_pushes')
           .select('id, from_user_id, type, reason, created_at')
@@ -1142,13 +1143,43 @@ export default function PublicProfilePage() {
           .eq('target_user_id', profile.user_id)
           .order('created_at', { ascending: false })
           .limit(50),
+        supabase
+          .from('trust_flow_history')
+          .select('push_id, metadata')
+          .eq('user_id', profile.user_id)
+          .not('push_id', 'is', null),
       ]);
+      
+      // Create a map of push_id to saved metadata
+      const savedMetadataMap = new Map<number, {
+        weight: number;
+        repeatCount: number;
+        effectiveWeight: number;
+        contribution: number;
+      }>();
+      
+      if (historyRes.data) {
+        for (const historyItem of historyRes.data) {
+          if (historyItem.push_id && historyItem.metadata) {
+            const metadata = historyItem.metadata as any;
+            if (metadata.weight !== undefined && metadata.repeatCount !== undefined && 
+                metadata.effectiveWeight !== undefined && metadata.contribution !== undefined) {
+              savedMetadataMap.set(historyItem.push_id, {
+                weight: Number(metadata.weight),
+                repeatCount: Number(metadata.repeatCount),
+                effectiveWeight: Number(metadata.effectiveWeight),
+                contribution: Number(metadata.contribution),
+              });
+            }
+          }
+        }
+      }
 
       let feedbackItems: any[] = [];
       
       if (isAdmin) {
-        // For admins: calculate detailed TF data for each push
-        // First, get all pushes sorted chronologically to calculate repeat counts correctly
+        // For admins: use saved metadata from trust_flow_history if available, otherwise recalculate
+        // First, get all pushes sorted chronologically to calculate repeat counts correctly (as fallback)
         const { data: allPushes } = await supabase
           .from('trust_pushes')
           .select('id, from_user_id, type, reason, created_at')
@@ -1156,68 +1187,8 @@ export default function PublicProfilePage() {
           .order('created_at', { ascending: true }); // Ascending for correct repeat count calculation
 
         if (allPushes && allPushes.length > 0) {
-          // Group pushes by from_user_id to calculate repeat counts
-          const pushesByUser = new Map<string, typeof allPushes>();
-          for (const push of allPushes) {
-            const fromUserId = push.from_user_id;
-            if (!pushesByUser.has(fromUserId)) {
-              pushesByUser.set(fromUserId, []);
-            }
-            pushesByUser.get(fromUserId)!.push(push);
-          }
-
-          // Calculate weights for all unique pushers
-          const weightCache = new Map<string, number>();
-          const weightPromises: Promise<void>[] = [];
-          
-          for (const fromUserId of pushesByUser.keys()) {
-            weightPromises.push(
-              calculateUserWeight(fromUserId).then((data) => {
-                // Ensure weight is at least MIN_USER_WEIGHT
-                const weight = Math.max(data.weight, MIN_USER_WEIGHT);
-                weightCache.set(fromUserId, weight);
-                console.log(`[TF History] User ${fromUserId} weight: ${data.weight}, activity: ${data.activityScore}, age: ${data.accountAgeDays} days`);
-              }).catch((error) => {
-                console.error(`[TF History] Error calculating weight for user ${fromUserId}:`, error);
-                weightCache.set(fromUserId, MIN_USER_WEIGHT);
-              })
-            );
-          }
-          
-          await Promise.all(weightPromises);
-
-          // Check if each user's first push to this target is their first push ever
-          const firstPushCheckPromises: Promise<{ fromUserId: string; isFirstPush: boolean }>[] = [];
-          for (const [fromUserId, userPushes] of pushesByUser.entries()) {
-            // Get the earliest push timestamp from this user to this target user
-            const sortedPushes = [...userPushes].sort((a, b) => 
-              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            );
-            const firstPushTimestamp = sortedPushes[0]?.created_at;
-            
-            firstPushCheckPromises.push(
-              (async () => {
-                // Check if this user has given any pushes before this one (to any user)
-                const { count } = await supabase
-                  .from('trust_pushes')
-                  .select('id', { count: 'exact', head: true })
-                  .eq('from_user_id', fromUserId)
-                  .lt('created_at', firstPushTimestamp || new Date().toISOString());
-                
-                return {
-                  fromUserId,
-                  isFirstPush: (count || 0) === 0,
-                };
-              })()
-            );
-          }
-          const firstPushChecks = await Promise.all(firstPushCheckPromises);
-          const firstPushMap = new Map<string, boolean>();
-          for (const check of firstPushChecks) {
-            firstPushMap.set(check.fromUserId, check.isFirstPush);
-          }
-
           // Create a map of push ID to TF details
+          // First, try to use saved metadata, then fallback to recalculation
           const pushDetailsMap = new Map<number, {
             weight: number;
             repeatCount: number;
@@ -1226,31 +1197,123 @@ export default function PublicProfilePage() {
             pushType: 'positive' | 'negative';
           }>();
 
-          for (const [fromUserId, userPushes] of pushesByUser.entries()) {
-            // Get weight from cache, fallback to minimum weight if not found
-            const weight = weightCache.get(fromUserId) ?? MIN_USER_WEIGHT;
-            
-            // Sort pushes by created_at to process in chronological order
-            const sortedPushes = [...userPushes].sort((a, b) => 
-              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            );
-            
-            for (let i = 0; i < sortedPushes.length; i++) {
-              const push = sortedPushes[i];
-              const repeatCount = i; // How many pushes came before this one
-              
-              // For new users' first push ever, use 1.5 instead of calculated weight
-              const isFirstPushEver = firstPushMap.get(fromUserId) === true && repeatCount === 0;
-              const effectiveWeight = isFirstPushEver ? 1.5 : weight / (1 + repeatCount);
-              const contribution = push.type === 'positive' ? effectiveWeight : -effectiveWeight;
-              
+          // Check which pushes have saved metadata
+          const pushesNeedingRecalc: typeof allPushes = [];
+          for (const push of allPushes) {
+            const savedMetadata = savedMetadataMap.get(Number(push.id));
+            if (savedMetadata) {
+              // Use saved metadata
               pushDetailsMap.set(Number(push.id), {
-                weight: isFirstPushEver ? 1.5 : weight, // Show 1.5 for first push ever, otherwise actual weight
-                repeatCount,
-                effectiveWeight,
-                contribution,
+                weight: savedMetadata.weight,
+                repeatCount: savedMetadata.repeatCount,
+                effectiveWeight: savedMetadata.effectiveWeight,
+                contribution: savedMetadata.contribution,
                 pushType: push.type as 'positive' | 'negative',
               });
+            } else {
+              // Need to recalculate for this push
+              pushesNeedingRecalc.push(push);
+            }
+          }
+
+          // If some pushes need recalculation, do it
+          if (pushesNeedingRecalc.length > 0) {
+            // Group pushes by from_user_id to calculate repeat counts
+            const pushesByUser = new Map<string, typeof allPushes>();
+            for (const push of allPushes) {
+              const fromUserId = push.from_user_id;
+              if (!pushesByUser.has(fromUserId)) {
+                pushesByUser.set(fromUserId, []);
+              }
+              pushesByUser.get(fromUserId)!.push(push);
+            }
+
+            // Calculate base effective weights for all unique pushers (cache them)
+            // Base weight depends on pusher's Trust Flow (1.5, 2.0, or 2.5)
+            const baseWeightCache = new Map<string, number>();
+            const baseWeightPromises: Promise<void>[] = [];
+            
+            for (const fromUserId of pushesByUser.keys()) {
+              baseWeightPromises.push(
+                (async () => {
+                  try {
+                    // Get cached TF for pusher
+                    const { data: profile } = await supabase
+                      .from('profiles')
+                      .select('trust_flow')
+                      .eq('user_id', fromUserId)
+                      .maybeSingle();
+                    
+                    const tf = profile?.trust_flow !== null && profile?.trust_flow !== undefined 
+                      ? Number(profile.trust_flow) 
+                      : 5.0; // BASE_TRUST_FLOW
+                    
+                    // Determine base weight based on Trust Flow
+                    let baseWeight = 1.5; // Default
+                    if (tf < 10) {
+                      baseWeight = 1.5; // Low TF
+                    } else if (tf < 40) {
+                      baseWeight = 2.0; // Moderate TF
+                    } else {
+                      baseWeight = 2.5; // High TF
+                    }
+                    
+                    baseWeightCache.set(fromUserId, baseWeight);
+                    console.log(`[TF History] User ${fromUserId} base weight: ${baseWeight.toFixed(1)} (TF: ${tf.toFixed(2)})`);
+                  } catch (error) {
+                    console.error(`[TF History] Error calculating base weight for user ${fromUserId}:`, error);
+                    baseWeightCache.set(fromUserId, 1.5); // Default fallback
+                  }
+                })()
+              );
+            }
+            
+            await Promise.all(baseWeightPromises);
+
+            // Calculate details for pushes that need recalculation
+            for (const [fromUserId, userPushes] of pushesByUser.entries()) {
+              // Get base weight from cache, fallback to 1.5 if not found
+              const baseWeight = baseWeightCache.get(fromUserId) ?? 1.5;
+              
+              // Sort pushes by created_at to process in chronological order
+              const sortedPushes = [...userPushes].sort((a, b) => 
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              );
+              
+              for (let i = 0; i < sortedPushes.length; i++) {
+                const push = sortedPushes[i];
+                const pushId = Number(push.id);
+                
+                // Skip if we already have saved metadata for this push
+                if (pushDetailsMap.has(pushId)) {
+                  continue;
+                }
+                
+                const pushDate = new Date(push.created_at);
+                const thirtyDaysAgo = new Date(pushDate);
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                
+                // Count how many pushes from this user to this target within 30 days before this push
+                const recentPushesBeforeThis = sortedPushes.filter(p => {
+                  const pDate = new Date(p.created_at);
+                  return pDate >= thirtyDaysAgo && pDate <= pushDate;
+                });
+                
+                // Repeat count is the index of this push in the recent pushes (0-based)
+                const repeatCount = recentPushesBeforeThis.findIndex(p => p.created_at === push.created_at);
+                
+                // Calculate effective weight: each repeat is 33% less (multiply by 0.67^repeatCount)
+                const effectiveWeight = baseWeight * Math.pow(0.67, repeatCount);
+                const contribution = push.type === 'positive' ? effectiveWeight : -effectiveWeight;
+                
+                pushDetailsMap.set(pushId, {
+                  weight: baseWeight, // Show base weight (not used in calculation, just for display)
+                  repeatCount,
+                  effectiveWeight,
+                  contribution,
+                  pushType: push.type as 'positive' | 'negative',
+                });
+              }
             }
           }
 
