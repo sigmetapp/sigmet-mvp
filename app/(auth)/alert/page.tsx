@@ -169,21 +169,16 @@ export default function AlertPage() {
         debugData.typeDistribution = distribution;
       }
 
-      // Check if triggers exist
-      const { data: triggers, error: triggersError } = await supabase
-        .rpc('exec_sql', {
-          query: `
-            SELECT trigger_name, event_object_table, action_statement
-            FROM information_schema.triggers
-            WHERE trigger_schema = 'public'
-            AND trigger_name LIKE '%notification%'
-            ORDER BY trigger_name;
-          `
-        }).catch(() => ({ data: null, error: 'Cannot check triggers (RLS)' }));
+      // Check if triggers exist (this will likely fail due to RLS, but we try)
+      let triggersInfo: any = { error: null, note: null };
+      try {
+        // Try to check triggers - this usually requires direct DB access
+        triggersInfo.note = 'Trigger check requires direct database access. Check Supabase dashboard.';
+      } catch (triggersErr: any) {
+        triggersInfo.error = triggersErr.message || 'Cannot check triggers';
+      }
 
-      debugData.triggers = {
-        error: triggersError?.message || 'Cannot check (requires direct DB access)',
-      };
+      debugData.triggers = triggersInfo;
 
       // Check API response
       try {
@@ -652,6 +647,28 @@ export default function AlertPage() {
                     Notifications in state: <span className="text-white">{notifications.length}</span>
                     <br />
                     Unread count in state: <span className="text-white">{unreadCount}</span>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-700 pt-2">
+                  <strong className="text-yellow-400">Triggers Info:</strong>
+                  <div className="ml-4 mt-1">
+                    {debugInfo.triggers?.note && (
+                      <div className="text-yellow-300">{debugInfo.triggers.note}</div>
+                    )}
+                    {debugInfo.triggers?.error && (
+                      <div className="text-red-400">Error: {debugInfo.triggers.error}</div>
+                    )}
+                    <div className="mt-2 text-xs text-gray-400">
+                      Check Supabase dashboard → Database → Triggers for:
+                      <ul className="ml-4 mt-1 list-disc">
+                        <li>notify_comment_on_post_trigger</li>
+                        <li>notify_reaction_on_post_trigger</li>
+                        <li>notify_reaction_on_comment_trigger</li>
+                        <li>notify_connection_trigger</li>
+                        <li>notify_on_event_trigger (if events enabled)</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </div>
