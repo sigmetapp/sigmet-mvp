@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, TouchEvent, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
-import { Bell, MessageSquare, Heart, Shield, X, TrendingUp, Flame, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bell, MessageSquare, Heart, Shield, X, TrendingUp, Flame, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import Link from 'next/link';
 
 interface Notification {
@@ -64,8 +64,9 @@ export default function AlertPage() {
   const [markingRead, setMarkingRead] = useState<number | null>(null);
   const [hiding, setHiding] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<any>(null);
-  const [debugError, setDebugError] = useState<string | null>(null);
+    const [debugInfo, setDebugInfo] = useState<any>(null);
+    const [debugError, setDebugError] = useState<string | null>(null);
+    const [isDebugPanelOpen, setIsDebugPanelOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const swipeStartX = useRef<number | null>(null);
@@ -347,7 +348,7 @@ export default function AlertPage() {
     }
   }, []);
 
-  const loadNotifications = useCallback(async (page: number = currentPage) => {
+    const loadNotifications = useCallback(async (page: number = currentPage) => {
     try {
         const offset = (page - 1) * NOTIFICATIONS_PER_PAGE;
         const response = await fetch(`/api/notifications/list?limit=${NOTIFICATIONS_PER_PAGE}&offset=${offset}`);
@@ -382,35 +383,44 @@ export default function AlertPage() {
         setNotifications(fetchedNotifications);
         setUnreadCount(unread);
         setTotalCount(total);
-        
-        // Always update debug info (will check isAdmin inside)
-        loadDebugInfo();
+          
+          if (isAdmin && isDebugPanelOpen) {
+            loadDebugInfo();
+          }
     } catch (err: any) {
       console.error('Error loading notifications:', err);
       setDebugError((prev) => prev || err.message || 'Unknown error');
     } finally {
       setLoading(false);
     }
-  }, [currentPage, loadDebugInfo]);
+    }, [currentPage, isAdmin, isDebugPanelOpen, loadDebugInfo]);
 
   const checkAdminStatus = async () => {
     try {
       const { data, error } = await supabase.rpc('is_admin_uid');
       if (!error && data) {
         setIsAdmin(true);
-        if (data) {
-          loadDebugInfo();
-        }
+        } else {
+          setIsAdmin(false);
       }
     } catch (err) {
       console.error('Error checking admin status:', err);
     }
   };
 
-  useEffect(() => {
-    checkAdminStatus();
-    loadNotifications(currentPage);
-  }, [currentPage]);
+    useEffect(() => {
+      checkAdminStatus();
+    }, []);
+
+    useEffect(() => {
+      loadNotifications(currentPage);
+    }, [currentPage, loadNotifications]);
+
+    useEffect(() => {
+      if (isAdmin && isDebugPanelOpen) {
+        loadDebugInfo();
+      }
+    }, [isAdmin, isDebugPanelOpen, loadDebugInfo]);
 
   // Handle page change
   const handlePageChange = (newPage: number) => {
@@ -420,6 +430,22 @@ export default function AlertPage() {
     // Scroll to top when changing pages
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+    const toggleDebugPanel = () => {
+      setIsDebugPanelOpen((prev) => {
+        if (prev) {
+          setDebugInfo(null);
+          setDebugError(null);
+        }
+        return !prev;
+      });
+    };
+
+    const closeDebugPanel = () => {
+      setIsDebugPanelOpen(false);
+      setDebugInfo(null);
+      setDebugError(null);
+    };
 
   // Subscribe to realtime updates for notifications list
   useEffect(() => {
@@ -481,8 +507,8 @@ export default function AlertPage() {
   }, [currentPage, loadNotifications]);
 
   // Subscribe to realtime updates for debug info (admin only)
-  useEffect(() => {
-    if (!isAdmin) return;
+    useEffect(() => {
+      if (!isAdmin || !isDebugPanelOpen) return;
 
     let mounted = true;
     let timeoutId: NodeJS.Timeout | null = null;
@@ -534,7 +560,7 @@ export default function AlertPage() {
         supabase.removeChannel(channel);
       }
     };
-  }, [isAdmin, loadDebugInfo]);
+    }, [isAdmin, isDebugPanelOpen, loadDebugInfo]);
 
   const markAsRead = async (notificationId: number) => {
     if (markingRead === notificationId) return;
@@ -785,15 +811,22 @@ export default function AlertPage() {
             )}
           </h1>
           <div className="flex items-center gap-2">
-            {isAdmin && (
-              <button
-                onClick={loadDebugInfo}
-                className="px-3 py-1.5 text-xs bg-yellow-600 hover:bg-yellow-700 text-white rounded border border-yellow-500"
-                title="Reload debug info"
-              >
-                🔍 Debug
-              </button>
-            )}
+              {isAdmin && (
+                <button
+                  onClick={toggleDebugPanel}
+                  className={`px-3 py-1.5 text-xs rounded border flex items-center gap-1 transition ${
+                    isDebugPanelOpen
+                      ? 'bg-yellow-600/80 border-yellow-500 text-white'
+                      : 'bg-gray-800/60 border-yellow-500/60 text-yellow-200 hover:bg-gray-800'
+                  }`}
+                  aria-pressed={isDebugPanelOpen}
+                  aria-expanded={isDebugPanelOpen}
+                  title="Toggle debug panel"
+                >
+                  <Menu size={14} />
+                  {isDebugPanelOpen ? 'Hide debug' : 'Debug panel'}
+                </button>
+              )}
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
@@ -805,18 +838,27 @@ export default function AlertPage() {
           </div>
         </div>
 
-        {/* Debug Panel for Admins */}
-        {isAdmin && (
-          <div className="mb-6 bg-gray-900 border border-yellow-600/30 rounded-lg p-4 text-xs font-mono">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-yellow-400 font-bold text-sm">🔧 Debug Information (Admin Only)</h2>
-              <button
-                onClick={() => setDebugInfo(null)}
-                className="text-gray-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
+          {/* Debug Panel for Admins */}
+          {isAdmin && isDebugPanelOpen && (
+            <div className="mb-6 bg-gray-900 border border-yellow-600/30 rounded-lg p-4 text-xs font-mono">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-yellow-400 font-bold text-sm">🔧 Debug Information (Admin Only)</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={loadDebugInfo}
+                    className="text-yellow-300 hover:text-yellow-100 px-2 py-1 rounded border border-yellow-500/40 text-[11px]"
+                  >
+                    Refresh
+                  </button>
+                  <button
+                    onClick={closeDebugPanel}
+                    className="text-gray-400 hover:text-white"
+                    aria-label="Close debug panel"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
             
             {debugError && (
               <div className="mb-3 p-2 bg-red-900/30 border border-red-600/50 rounded text-red-300">

@@ -8,89 +8,144 @@ import { supabase } from '@/lib/supabaseClient';
  */
 export function useNotificationSound() {
   const lastNotificationIdRef = useRef<number | null>(null);
-  const isPageVisibleRef = useRef(true);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const initializingRef = useRef(false);
 
-  // Initialize audio element
   useEffect(() => {
-    let audioContext: AudioContext | null = null;
-    let channel: any = null;
-    let isInitialized = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
 
-    // Create audio element with a simple notification sound
-    // Using Web Audio API to generate a simple beep sound
-    const initAudioContext = () => {
-      try {
-        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      } catch (err) {
-        console.warn('Failed to initialize audio context:', err);
-      }
-    };
-    
-    // Function to play a beep sound
-    const playBeep = () => {
-      if (!audioContext) {
-        initAudioContext();
-        if (!audioContext) return;
-      }
-
-      try {
-        // Resume audio context if it's suspended (browser autoplay policy)
-        if (audioContext.state === 'suspended') {
-          audioContext.resume().catch(console.warn);
+    const ensureAudioContext = async () => {
+      if (typeof window === 'undefined') return false;
+      if (!audioContextRef.current) {
+        try {
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+          if (!AudioCtx) {
+            console.warn('Web Audio API is not supported in this browser.');
+            return false;
+          }
+          audioContextRef.current = new AudioCtx();
+        } catch (err) {
+          console.warn('Failed to initialize audio context:', err);
+          return false;
         }
+      }
 
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
+      const context = audioContextRef.current;
+      if (!context) return false;
+
+      if (context.state === 'suspended') {
+        try {
+          await context.resume();
+        } catch (err) {
+          console.warn('Failed to resume audio context:', err);
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    const unlockAudioContext = () => {
+      ensureAudioContext()
+        .then((ready) => {
+          if (ready) {
+            document.removeEventListener('pointerdown', unlockAudioContext);
+            document.removeEventListener('keydown', unlockAudioContext);
+          }
+        })
+        .catch(() => {
+          /* noop */
+        });
+    };
+
+    document.addEventListener('pointerdown', unlockAudioContext);
+    document.addEventListener('keydown', unlockAudioContext);
+
+    const playBeep = async () => {
+      const ready = await ensureAudioContext();
+      if (!ready || !audioContextRef.current) {
+        return;
+      }
+
+      try {
+        const ctx = audioContextRef.current;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
         oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800; // Frequency in Hz
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.3);
+        gainNode.connect(ctx.destination);
+
+        oscillator.frequency.value = 780;
+        oscillator.type = 'triangle';
+
+        const now = ctx.currentTime;
+        gainNode.gain.setValueAtTime(0.0001, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.2, now + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+
+        oscillator.start(now);
+        oscillator.stop(now + 0.4);
       } catch (err) {
         console.warn('Failed to play notification sound:', err);
       }
     };
 
-    // Check if page is visible
-    const handleVisibilityChange = () => {
-      isPageVisibleRef.current = !document.hidden;
+    const notifyBadgeUpdate = () => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('notification:update'));
+      }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const handleNewNotification = async (notificationId: number) => {
+      if (lastNotificationIdRef.current === notificationId) {
+        return;
+      }
+      lastNotificationIdRef.current = notificationId;
+      await playBeep();
+      notifyBadgeUpdate();
+    };
 
-    // Subscribe to realtime updates for new notifications
+    const fetchLatestNotificationId = async () => {
+      if (cancelled || initializingRef.current) return;
+      try {
+        const response = await fetch('/api/notifications/list?limit=1&offset=0');
+        if (!response.ok) {
+          return;
+        }
+        const data = await response.json();
+        const latest = data.notifications?.[0]?.id;
+        if (typeof latest === 'number' && latest !== lastNotificationIdRef.current) {
+          await handleNewNotification(latest);
+        }
+      } catch (err) {
+        console.warn('Failed to poll notifications for sound:', err);
+      }
+    };
+
     const setupRealtime = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return null;
 
-      // Initialize audio context on user interaction (to comply with browser autoplay policy)
-      initAudioContext();
+      initializingRef.current = true;
+      await ensureAudioContext();
 
-      // Wait a bit before initializing to avoid playing sound on page load
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Get the latest notification ID to avoid playing sound on initial load
       const { data: latestNotification } = await supabase
         .from('notifications')
-        .select('id, created_at')
+        .select('id')
         .eq('user_id', user.id)
         .eq('hidden', false)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (latestNotification) {
         lastNotificationIdRef.current = latestNotification.id;
       }
-
-      isInitialized = true;
+      initializingRef.current = false;
 
       const notificationChannel = supabase
         .channel(`notification_sound:${user.id}`)
@@ -103,30 +158,16 @@ export function useNotificationSound() {
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
-            // Only play sound if:
-            // 1. Hook is initialized (avoid playing on page load)
-            // 2. Page is visible (user is on the site)
-            // 3. This is a new notification (not the initial one we loaded)
-            // 4. Notification is not hidden
-            if (
-              isInitialized &&
-              isPageVisibleRef.current &&
-              payload.new &&
-              (payload.new as any).hidden === false &&
-              lastNotificationIdRef.current !== null &&
-              (payload.new as any).id !== lastNotificationIdRef.current
-            ) {
-              playBeep();
-              lastNotificationIdRef.current = (payload.new as any).id;
-            } else if (
-              isInitialized &&
-              isPageVisibleRef.current &&
-              payload.new &&
-              (payload.new as any).hidden === false &&
-              lastNotificationIdRef.current === null
-            ) {
-              // First notification after initialization - don't play sound
-              lastNotificationIdRef.current = (payload.new as any).id;
+            if (!payload.new || cancelled) return;
+
+            const notification = payload.new as { id: number; hidden?: boolean | null };
+            if (notification.hidden) {
+              return;
+            }
+
+            const newId = notification.id;
+            if (typeof newId === 'number') {
+              void handleNewNotification(newId);
             }
           }
         )
@@ -139,13 +180,25 @@ export function useNotificationSound() {
       channel = ch;
     });
 
+    const POLL_INTERVAL = 6000;
+    pollIntervalRef.current = setInterval(() => {
+      void fetchLatestNotificationId();
+    }, POLL_INTERVAL);
+
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      cancelled = true;
+      document.removeEventListener('pointerdown', unlockAudioContext);
+      document.removeEventListener('keydown', unlockAudioContext);
       if (channel) {
         supabase.removeChannel(channel);
       }
-      if (audioContext && audioContext.state !== 'closed') {
-        audioContext.close().catch(console.warn);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(console.warn);
+        audioContextRef.current = null;
       }
     };
   }, []);

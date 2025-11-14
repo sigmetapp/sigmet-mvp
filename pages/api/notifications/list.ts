@@ -1,18 +1,24 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAuthedClient } from '@/lib/dm/supabaseServer';
 
+const DEFAULT_LIMIT = 30;
+const MAX_LIMIT = 100;
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+    let currentUserId: string | null = null;
     try {
       const { client, user } = await getAuthedClient(req);
       const userId = user.id;
+      currentUserId = userId;
 
-      const { limit = 1000, offset = 0 } = req.query;
-      const limitNum = Math.min(Number(limit) || 1000, 1000);
-      const offsetNum = Number(offset) || 0;
+      const { limit = DEFAULT_LIMIT, offset = 0 } = req.query;
+      const parsedLimit = Number(limit);
+      const limitNum = Math.min(parsedLimit > 0 ? parsedLimit : DEFAULT_LIMIT, MAX_LIMIT);
+      const offsetNum = Math.max(Number(offset) || 0, 0);
 
       const { data: notificationsData, error: notificationsError } = await client
         .from('notifications')
@@ -200,13 +206,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } : undefined,
       });
     } catch (error: any) {
-      console.error('Error fetching notifications:', {
+        console.error('Error fetching notifications:', {
         error: error.message,
         stack: error.stack,
         code: error.code,
         details: error.details,
         hint: error.hint,
-        userId,
+          userId: currentUserId,
       });
       return res.status(500).json({ 
         error: error.message || 'Internal server error',
