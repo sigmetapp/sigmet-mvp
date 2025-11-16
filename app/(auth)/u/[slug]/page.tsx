@@ -244,6 +244,8 @@ export default function PublicProfilePage() {
       };
     }>
   >([]);
+  const historyModalHeight = 'calc(100dvh - (env(safe-area-inset-top, 0px) + 4.5rem) - 2rem)';
+  const historyModalHeightFallback = 'calc(100vh - (env(safe-area-inset-top, 0px) + 4.5rem) - 2rem)';
 
   // Prevent body scroll when history modal is open (mobile fix)
   useEffect(() => {
@@ -2447,8 +2449,11 @@ export default function PublicProfilePage() {
       {/* History modal (owner only) */}
       {historyOpen && (
         <div 
-          className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-2 sm:p-4" 
-          style={{ paddingTop: 'max(4.5rem, calc(env(safe-area-inset-top, 0px) + 4.5rem))' }}
+          className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-0 sm:p-4 overflow-y-auto" 
+          style={{ 
+            paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4.5rem)',
+            paddingBottom: '1.5rem'
+          }}
           onClick={(e) => {
             // Close modal when clicking on backdrop
             if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('modal-backdrop')) {
@@ -2458,14 +2463,16 @@ export default function PublicProfilePage() {
         >
           <div className="absolute inset-0 bg-black/80 modal-backdrop" onClick={() => setHistoryOpen(false)} />
           <div 
-            className="relative z-10 w-full max-w-xl flex flex-col"
+            className="relative z-10 w-full max-w-xl flex flex-col px-0 sm:px-2"
             style={{
-              maxHeight: 'calc(100vh - max(4.5rem, calc(env(safe-area-inset-top, 0px) + 4.5rem)) - 2rem)',
-              height: 'calc(100vh - max(4.5rem, calc(env(safe-area-inset-top, 0px) + 4.5rem)) - 2rem)',
+              height: `var(--history-modal-height, ${historyModalHeightFallback})`,
+              maxHeight: `var(--history-modal-height, ${historyModalHeightFallback})`,
+              minHeight: '18rem',
+              ['--history-modal-height' as const]: historyModalHeight,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="card p-3 sm:p-4 md:p-5 flex flex-col flex-1 min-h-0 space-y-3 overflow-hidden h-full sm:h-auto">
+            <div className="card p-3 sm:p-4 md:p-5 flex flex-col flex-1 min-h-0 space-y-3 overflow-hidden h-full sm:h-auto rounded-none sm:rounded-2xl">
               <div className="flex items-center justify-between flex-shrink-0">
                 <div className="text-white/90 font-medium text-sm sm:text-base">Change history</div>
                 <button onClick={() => setHistoryOpen(false)} className="text-white/60 hover:text-white text-lg sm:text-xl leading-none">✕</button>
