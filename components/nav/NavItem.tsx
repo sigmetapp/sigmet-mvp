@@ -50,10 +50,14 @@ export default function NavItem({ label, href, icon, badgeCount, bordered }: Nav
           {icon}
         </span>
         <span className={`truncate ${isActive ? isLight ? "text-white" : "text-primary-blue-light" : ""}`}>{label}</span>
-        {typeof badgeCount === 'number' && badgeCount > 0 && (
-          <span className={`ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-            isLight ? "bg-primary-blue text-white" : "bg-primary-blue-light text-white"
-          }`}>
+          {typeof badgeCount === 'number' && badgeCount > 0 && (
+            <span
+              className={`ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                isLight
+                  ? "bg-primary-blue text-white"
+                  : "bg-transparent text-white border border-white/80"
+              }`}
+            >
             {badgeCount}
           </span>
         )}
