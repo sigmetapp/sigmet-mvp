@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 /**
@@ -37,6 +37,7 @@ export function useUnreadDmCount() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const lastRealtimeTriggerRef = useRef(0);
 
   // Get current user
   useEffect(() => {
@@ -57,6 +58,7 @@ export function useUnreadDmCount() {
     }
 
     let cancelled = false;
+    let eventTimeout: NodeJS.Timeout | null = null;
 
     const fetchUnreadCount = async () => {
       try {
@@ -91,38 +93,49 @@ export function useUnreadDmCount() {
       }
     };
 
-    void fetchUnreadCount();
+      void fetchUnreadCount();
 
-    // Listen for custom events from DmGlobalNotifications
-    const handleNewMessage = () => {
-      // Small delay to ensure database is updated
-      setTimeout(() => {
-        void fetchUnreadCount();
-      }, 100);
-    };
+      // Listen for custom events from DmGlobalNotifications
+      const scheduleThrottledFetch = () => {
+        const now = Date.now();
+        if (now - lastRealtimeTriggerRef.current < 300) {
+          return;
+        }
+        lastRealtimeTriggerRef.current = now;
+        if (eventTimeout) {
+          clearTimeout(eventTimeout);
+        }
+        eventTimeout = setTimeout(() => {
+          void fetchUnreadCount();
+        }, 120);
+      };
 
-    const handleMessageRead = () => {
-      // Small delay to ensure database is updated
-      setTimeout(() => {
-        void fetchUnreadCount();
-      }, 100);
-    };
+      const handleNewMessage = () => {
+        scheduleThrottledFetch();
+      };
 
-    window.addEventListener('dm:new-message', handleNewMessage);
-    window.addEventListener('dm:message-read', handleMessageRead);
+      const handleMessageRead = () => {
+        scheduleThrottledFetch();
+      };
 
-    return () => {
-      cancelled = true;
-      window.removeEventListener('dm:new-message', handleNewMessage);
-      window.removeEventListener('dm:message-read', handleMessageRead);
-    };
+      window.addEventListener('dm:new-message', handleNewMessage);
+      window.addEventListener('dm:message-read', handleMessageRead);
+
+      return () => {
+        cancelled = true;
+        window.removeEventListener('dm:new-message', handleNewMessage);
+        window.removeEventListener('dm:message-read', handleMessageRead);
+        if (eventTimeout) {
+          clearTimeout(eventTimeout);
+        }
+      };
   }, [currentUserId]);
 
   // Subscribe to realtime updates for unread count changes
   useEffect(() => {
     if (!currentUserId) return;
 
-    let timeoutId: NodeJS.Timeout | null = null;
+      let timeoutId: NodeJS.Timeout | null = null;
 
     // Subscribe to changes in dms_thread_participants to detect when messages are read
     const channel = supabase
@@ -135,31 +148,34 @@ export function useUnreadDmCount() {
           table: 'dms_thread_participants',
           filter: `user_id=eq.${currentUserId}`,
         },
-        () => {
-          // Debounce refetch to avoid too many requests
-          if (timeoutId) {
-            clearTimeout(timeoutId);
-          }
-          timeoutId = setTimeout(() => {
-            // Refetch unread count when participant data changes (e.g., last_read_message_id)
-            const fetchUnreadCount = async () => {
-              try {
-                const response = await fetch('/api/dms/partners.list?limit=100&offset=0');
-                if (!response.ok) return;
+          () => {
+            const now = Date.now();
+            if (now - lastRealtimeTriggerRef.current < 300) {
+              return;
+            }
+            lastRealtimeTriggerRef.current = now;
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            timeoutId = setTimeout(() => {
+              const fetchUnreadCount = async () => {
+                try {
+                  const response = await fetch('/api/dms/partners.list?limit=100&offset=0');
+                  if (!response.ok) return;
 
-                const data = await response.json();
-                if (!data.ok || !Array.isArray(data.partners)) return;
+                  const data = await response.json();
+                  if (!data.ok || !Array.isArray(data.partners)) return;
 
-                const total = computeUnreadTotal(data.partners);
+                  const total = computeUnreadTotal(data.partners);
 
-                setUnreadCount(total);
-              } catch (err) {
-                console.error('Error fetching unread count:', err);
-              }
-            };
+                  setUnreadCount(total);
+                } catch (err) {
+                  console.error('Error fetching unread count:', err);
+                }
+              };
 
-            void fetchUnreadCount();
-          }, 300);
+              void fetchUnreadCount();
+            }, 120);
         }
       )
       .subscribe();
