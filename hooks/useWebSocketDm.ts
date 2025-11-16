@@ -485,8 +485,86 @@ export function useWebSocketDm(
       // This ensures we only load messages on demand (lazy loading)
     });
 
-    if (transport === "websocket") {
-      wsClient.subscribe(normalizedThreadId);
+      const setupSupabaseFallback = async (markConnected: boolean) => {
+        try {
+          const unsubscribe = await subscribeToThread(normalizedThreadId, {
+            onMessage: (change) => {
+              const payload = change.payload;
+              const row = (payload.new || payload.old) as any;
+              if (!row) return;
+
+              const serverMsgId =
+                typeof row.id === "string"
+                  ? parseInt(row.id, 10)
+                  : Number(row.id);
+              const normalizedMessage: Message = {
+                id: serverMsgId,
+                thread_id: normalizedThreadId,
+                sender_id: row.sender_id,
+                kind: row.kind || "text",
+                body: row.body,
+                attachments: Array.isArray(row.attachments)
+                  ? row.attachments
+                  : [],
+                created_at: row.created_at,
+                edited_at: row.edited_at || null,
+                deleted_at: row.deleted_at || null,
+                sequence_number:
+                  row.sequence_number === null ||
+                  row.sequence_number === undefined
+                    ? null
+                    : typeof row.sequence_number === "string"
+                      ? parseInt(row.sequence_number, 10)
+                      : Number(row.sequence_number),
+                client_msg_id: row.client_msg_id ?? null,
+                reply_to_message_id: row.reply_to_message_id
+                  ? typeof row.reply_to_message_id === "string"
+                    ? parseInt(row.reply_to_message_id, 10)
+                    : Number(row.reply_to_message_id)
+                  : null,
+              };
+
+              if (normalizedMessage.reply_to_message_id) {
+                console.log("[useWebSocketDm] Realtime message with reply:", {
+                  messageId: normalizedMessage.id,
+                  replyToMessageId: normalizedMessage.reply_to_message_id,
+                  messageBody: normalizedMessage.body,
+                });
+              }
+
+              setMessagesState((prev) => {
+                if (change.type === "DELETE") {
+                  return prev.filter((m) => m.id !== serverMsgId);
+                }
+
+                return addOrUpdateMessage(prev, normalizedMessage);
+              });
+
+              setLastServerMsgId(serverMsgId);
+              lastServerMsgIdRef.current = serverMsgId;
+            },
+            onTyping: ({ userId, typing }) => {
+              if (userId !== currentUserIdRef.current) {
+                setPartnerTyping(!!typing);
+              }
+            },
+          });
+
+          fallbackThreadUnsubscribeRef.current = unsubscribe;
+          if (markConnected) {
+            setIsConnected(true);
+          }
+        } catch (error) {
+          console.error(
+            "Error subscribing to Supabase realtime fallback:",
+            error,
+          );
+        }
+      };
+
+      if (transport === "websocket") {
+        void setupSupabaseFallback(false);
+        wsClient.subscribe(normalizedThreadId);
 
       const handleMessage = (event: WSEvent) => {
         if (
@@ -561,7 +639,7 @@ export function useWebSocketDm(
                 (msg as any).client_msg_id === clientMsgIdFromServer
                   ? {
                       ...msg,
-                      delivery_state: "sent",
+                        delivery_state: "delivered",
                       send_error: undefined,
                     }
                   : msg,
@@ -790,123 +868,49 @@ export function useWebSocketDm(
         }
       );
 
-      return () => {
-        cancelled = true;
-        unsubMessage();
-        unsubTyping();
-        unsubPresence();
-        unsubSync();
-        unsubConnected();
-        unsubError();
-        unsubMessageAck();
-        unsubMessagePersisted();
-        wsClient.unsubscribe(normalizedThreadId);
-        if (queueProcessorCleanupRef.current) {
-          queueProcessorCleanupRef.current();
-          queueProcessorCleanupRef.current = null;
-        }
-        if (syncCleanupRef.current) {
-          syncCleanupRef.current();
-          syncCleanupRef.current = null;
-        }
-        clearSyncState(normalizedThreadId);
-      };
-    } else {
-      // Only set up Supabase fallback if WebSocket is not being used
-      // Supabase fallback (Realtime + presence)
-      const setupFallback = async () => {
-        try {
-          const unsubscribe = await subscribeToThread(normalizedThreadId, {
-            onMessage: (change) => {
-              const payload = change.payload;
-              const row = (payload.new || payload.old) as any;
-              if (!row) return;
+        return () => {
+          cancelled = true;
+          unsubMessage();
+          unsubTyping();
+          unsubPresence();
+          unsubSync();
+          unsubConnected();
+          unsubError();
+          unsubMessageAck();
+          unsubMessagePersisted();
+          wsClient.unsubscribe(normalizedThreadId);
+          if (queueProcessorCleanupRef.current) {
+            queueProcessorCleanupRef.current();
+            queueProcessorCleanupRef.current = null;
+          }
+          if (syncCleanupRef.current) {
+            syncCleanupRef.current();
+            syncCleanupRef.current = null;
+          }
+          if (fallbackThreadUnsubscribeRef.current) {
+            void fallbackThreadUnsubscribeRef.current();
+            fallbackThreadUnsubscribeRef.current = null;
+          }
+          clearSyncState(normalizedThreadId);
+        };
+      } else {
+        void setupSupabaseFallback(true);
 
-              const serverMsgId =
-                typeof row.id === "string"
-                  ? parseInt(row.id, 10)
-                  : Number(row.id);
-              const normalizedMessage: Message = {
-                id: serverMsgId,
-                thread_id: normalizedThreadId,
-                sender_id: row.sender_id,
-                kind: row.kind || "text",
-                body: row.body,
-                attachments: Array.isArray(row.attachments)
-                  ? row.attachments
-                  : [],
-                created_at: row.created_at,
-                edited_at: row.edited_at || null,
-                deleted_at: row.deleted_at || null,
-                sequence_number:
-                  row.sequence_number === null ||
-                  row.sequence_number === undefined
-                    ? null
-                    : typeof row.sequence_number === "string"
-                      ? parseInt(row.sequence_number, 10)
-                      : Number(row.sequence_number),
-                client_msg_id: row.client_msg_id ?? null,
-                reply_to_message_id: row.reply_to_message_id
-                  ? typeof row.reply_to_message_id === "string"
-                    ? parseInt(row.reply_to_message_id, 10)
-                    : Number(row.reply_to_message_id)
-                  : null,
-              };
-              
-              if (normalizedMessage.reply_to_message_id) {
-                console.log('[useWebSocketDm] Realtime message with reply:', {
-                  messageId: normalizedMessage.id,
-                  replyToMessageId: normalizedMessage.reply_to_message_id,
-                  messageBody: normalizedMessage.body,
-                });
-              }
+        // No automatic sync - only sync via realtime events
+        // This ensures we only load messages on demand (lazy loading)
 
-              setMessagesState((prev) => {
-                if (change.type === "DELETE") {
-                  return prev.filter((m) => m.id !== serverMsgId);
-                }
-
-                // Simplified deduplication: use addOrUpdateMessage
-                return addOrUpdateMessage(prev, normalizedMessage);
-              });
-
-              setLastServerMsgId(serverMsgId);
-              lastServerMsgIdRef.current = serverMsgId;
-            },
-            onTyping: ({ userId, typing }) => {
-              if (userId !== currentUserIdRef.current) {
-                setPartnerTyping(!!typing);
-              }
-            },
-          });
-
-          fallbackThreadUnsubscribeRef.current = unsubscribe;
-          setIsConnected(true);
-        } catch (error) {
-          console.error(
-            "Error subscribing to Supabase realtime fallback:",
-            error,
-          );
-        }
-      };
-
-      void setupFallback();
-
-      // No automatic sync - only sync via realtime events
-      // This ensures we only load messages on demand (lazy loading)
-
-      return () => {
-        cancelled = true;
-        if (fallbackThreadUnsubscribeRef.current) {
-          void fallbackThreadUnsubscribeRef.current();
-          fallbackThreadUnsubscribeRef.current = null;
-        }
-        if (syncCleanupRef.current) {
-          syncCleanupRef.current();
-          syncCleanupRef.current = null;
-        }
-        clearSyncState(normalizedThreadId);
-      };
+        return () => {
+          cancelled = true;
+          if (fallbackThreadUnsubscribeRef.current) {
+            void fallbackThreadUnsubscribeRef.current();
+            fallbackThreadUnsubscribeRef.current = null;
+          }
+          if (syncCleanupRef.current) {
+            syncCleanupRef.current();
+            syncCleanupRef.current = null;
+          }
+          clearSyncState(normalizedThreadId);
+        };
     }
   }, [threadId, transport, initialLimit]);
 
@@ -1098,8 +1102,8 @@ export function useWebSocketDm(
       filterTimeoutsRef.current.set(clientMsgId, filterTimeout);
 
       // Create local-echo message with 'sending' status
-      const localEchoMessage: Message & {
-        delivery_state?: "sending" | "failed" | "sent";
+        const localEchoMessage: Message & {
+          delivery_state?: "sending" | "failed" | "sent" | "delivered" | "read";
         send_error?: string;
       } = {
         id: -1, // Temporary ID
@@ -1201,7 +1205,7 @@ export function useWebSocketDm(
                             ...saved,
                             client_msg_id: clientMsgId,
                             send_error: undefined,
-                            delivery_state: "sent",
+                              delivery_state: "delivered",
                           }
                         : m,
                     ),
@@ -1278,7 +1282,7 @@ export function useWebSocketDm(
                     ...savedMessage,
                     client_msg_id: clientMsgId,
                     send_error: undefined,
-                    delivery_state: "sent",
+                    delivery_state: "delivered",
                   };
                 }
                 return msg;
@@ -1306,7 +1310,7 @@ export function useWebSocketDm(
               ...savedMessage,
               client_msg_id: clientMsgId,
               send_error: undefined,
-              delivery_state: "sent",
+                delivery_state: "delivered",
             },
           ]);
         });

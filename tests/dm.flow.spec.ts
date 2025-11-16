@@ -126,6 +126,32 @@ vi.mock('@/lib/dm/supabaseServer', () => {
     },
   } as any;
 
+    mockClient.rpc = async (fn: string, payload: any) => {
+      if (fn !== 'dms_mark_receipts_up_to') {
+        return { data: null, error: new Error(`Unsupported rpc: ${fn}`) };
+      }
+      const rawId = payload?.p_message_id ?? payload?.p_sequence_number ?? 0;
+      const upToId = Number(rawId);
+      const targetIds =
+        Number.isFinite(upToId) && upToId > 0
+          ? state.messages.filter((m) => m.id <= upToId).map((m) => m.id)
+          : state.messages.map((m) => m.id);
+      state.receiptsUpdates.push({
+        user_id: payload?.p_user_id ?? 'unknown',
+        status: payload?.p_status ?? 'read',
+        message_ids: targetIds,
+      });
+      return {
+        data: [
+          {
+            last_read_message_id: upToId,
+            last_read_at: new Date().toISOString(),
+          },
+        ],
+        error: null,
+      };
+    };
+
   return {
     getAuthedClient: async () => ({ client: mockClient, user: { id: CURRENT_USER_ID } }),
   };
