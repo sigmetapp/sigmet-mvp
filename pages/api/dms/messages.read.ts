@@ -142,24 +142,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Mark receipts up to nextId as read
     // Get all message IDs up to and including the target message from partner
-      const idsQuery = client
-        .from('dms_messages')
-        .select('id, sender_id, created_at, sequence_number')
-        .eq('thread_id', threadId)
-        .neq('sender_id', user.id)
-        .is('deleted_at', null);
+      const buildMessageQuery = () =>
+        client
+          .from('dms_messages')
+          .select('id, sender_id, created_at, sequence_number')
+          .eq('thread_id', threadId)
+          .neq('sender_id', user.id)
+          .is('deleted_at', null);
 
-      if (
+      const hasSequenceNumber =
         targetMessage?.sequence_number !== null &&
         targetMessage?.sequence_number !== undefined &&
-        Number.isFinite(Number(targetMessage.sequence_number))
-      ) {
-        idsQuery.lte('sequence_number', Number(targetMessage.sequence_number));
-      } else {
-        idsQuery.lte('created_at', targetMessage.created_at);
-      }
+        Number.isFinite(Number(targetMessage.sequence_number));
 
-      const { data: ids, error: idsError } = await execOrFetch(idsQuery);
+      let ids: any[] | null = null;
+      let idsError: any = null;
+
+      if (hasSequenceNumber) {
+        const seqValue = Number(targetMessage.sequence_number);
+        const createdAtValue = targetMessage.created_at;
+
+          const [withSequenceRes, withoutSequenceRes] = await Promise.all([
+            execOrFetch(
+              buildMessageQuery()
+                .not('sequence_number', 'is', null)
+                .lte('sequence_number', seqValue)
+            ),
+            createdAtValue
+              ? execOrFetch(
+                  buildMessageQuery()
+                    .is('sequence_number', null)
+                    .lte('created_at', createdAtValue)
+                )
+              : Promise.resolve({ data: [], error: null }),
+          ]);
+
+        if (withSequenceRes.error) {
+          idsError = withSequenceRes.error;
+        } else if (withoutSequenceRes.error) {
+          idsError = withoutSequenceRes.error;
+        } else {
+          ids = [
+            ...(withSequenceRes.data ?? []),
+            ...(withoutSequenceRes.data ?? []),
+          ];
+        }
+      } else {
+        const singleQuery = buildMessageQuery().lte('created_at', targetMessage.created_at);
+        const { data, error } = await execOrFetch(singleQuery);
+        ids = data ?? [];
+        idsError = error ?? null;
+      }
 
     if (idsError) {
       console.error('Error fetching message IDs:', idsError);
