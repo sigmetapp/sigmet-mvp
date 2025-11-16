@@ -11,8 +11,8 @@ import { resolveAvatarUrl } from '@/lib/utils';
 import Button from '@/components/Button';
 import EmojiPicker from '@/components/EmojiPicker';
 import { formatTextWithMentions } from '@/lib/formatText';
-import CommentReactions, { ReactionType } from '@/components/CommentReactions';
-import PostReactions from '@/components/PostReactions';
+import CommentReactions, { ReactionType as CommentReactionType } from '@/components/CommentReactions';
+import PostReactions, { ReactionType as PostReactionType } from '@/components/PostReactions';
 
 type BlogPost = {
   id: number;
@@ -178,23 +178,24 @@ export default function BlogPostPage() {
   const [updatingComment, setUpdatingComment] = useState<Record<number, boolean>>({});
   const [deletingComment, setDeletingComment] = useState<Record<number, boolean>>({});
   
-  // Post reactions state
-  const [postReactionCounts, setPostReactionCounts] = useState<Record<ReactionType, number>>({
-    inspire: 0,
-    respect: 0,
-    relate: 0,
-    support: 0,
-    celebrate: 0,
-  });
-  const [postSelectedReaction, setPostSelectedReaction] = useState<ReactionType | null>(null);
-  
-  // Comment reactions state
-  const [commentReactions, setCommentReactions] = useState<Record<number, {
-    counts: Record<ReactionType, number>;
-    selected: ReactionType | null;
-  }>>({});
-  
-  const EMPTY_COUNTS: Record<ReactionType, number> = {
+    // Post reactions state
+    const [postReactionCounts, setPostReactionCounts] = useState<Record<PostReactionType, number>>({
+      inspire: 0,
+      respect: 0,
+      relate: 0,
+      support: 0,
+      celebrate: 0,
+      verify: 0,
+    });
+    const [postSelectedReaction, setPostSelectedReaction] = useState<PostReactionType | null>(null);
+    
+    // Comment reactions state
+    const [commentReactions, setCommentReactions] = useState<Record<number, {
+      counts: Record<CommentReactionType, number>;
+      selected: CommentReactionType | null;
+    }>>({});
+    
+    const EMPTY_COUNTS: Record<CommentReactionType, number> = {
     inspire: 0,
     respect: 0,
     relate: 0,
@@ -220,60 +221,75 @@ export default function BlogPostPage() {
       const commentIds = comments.map(c => c.id);
       loadBlogCommentReactions(commentIds);
     }
-    if (post && user) {
-      loadBlogPostReactions();
-    }
-  }, [user]);
-  
-  const loadBlogPostReactions = async () => {
+      if (post && user) {
+        loadBlogPostReactions();
+      }
+    }, [user]);
+    
+    const loadBlogPostReactions = async () => {
     if (!post) return;
     
     try {
-      const { data, error } = await supabase
-        .from('blog_post_reactions')
-        .select('kind, user_id')
-        .eq('post_id', post.id);
-      
-      if (error) {
-        console.error('Failed to load blog post reactions:', error);
-        return;
-      }
-
-      const counts: Record<ReactionType, number> = {
-        inspire: 0,
-        respect: 0,
-        relate: 0,
-        support: 0,
-        celebrate: 0,
-      };
-      let selected: ReactionType | null = null;
-
-      const reactionMap: Record<string, ReactionType> = {
-        inspire: 'inspire',
-        respect: 'inspire',
-        relate: 'inspire',
-        support: 'inspire',
-        celebrate: 'inspire',
-      };
-
-      const userId = user?.id;
-      for (const row of (data || []) as Array<{ kind: string; user_id: string }>) {
-        const reactionType = reactionMap[row.kind];
-        if (!reactionType) continue;
-        counts.inspire = (counts.inspire || 0) + 1;
-        if (userId && row.user_id === userId) {
-          selected = 'inspire';
+        const { data, error } = await supabase
+          .from('blog_post_reactions')
+          .select('kind, user_id')
+          .eq('post_id', post.id);
+        
+        if (error) {
+          console.error('Failed to load blog post reactions:', error);
+          return;
         }
-      }
+
+        const counts: Record<PostReactionType, number> = {
+          inspire: 0,
+          respect: 0,
+          relate: 0,
+          support: 0,
+          celebrate: 0,
+          verify: 0,
+        };
+        let selected: PostReactionType | null = null;
+
+        const reactionMap: Record<string, PostReactionType> = {
+          inspire: 'inspire',
+          respect: 'inspire',
+          relate: 'inspire',
+          support: 'inspire',
+          celebrate: 'inspire',
+          like: 'inspire',
+          growth: 'inspire',
+          value: 'inspire',
+          with_you: 'inspire',
+          proud: 'inspire',
+          grateful: 'inspire',
+          drained: 'inspire',
+          verify: 'verify',
+        };
+
+        const userId = user?.id;
+        for (const row of (data || []) as Array<{ kind: string; user_id: string }>) {
+          const reactionType = reactionMap[row.kind];
+          if (!reactionType) continue;
+
+          if (reactionType === 'verify') {
+            counts.verify = (counts.verify || 0) + 1;
+          } else {
+            counts.inspire = (counts.inspire || 0) + 1;
+          }
+
+          if (userId && row.user_id === userId) {
+            selected = reactionType;
+          }
+        }
 
       setPostReactionCounts(counts);
       setPostSelectedReaction(selected);
-    } catch (error) {
-      console.error('Error loading blog post reactions:', error);
-    }
-  };
-  
-  const handleBlogPostReactionChange = async (reaction: ReactionType | null, counts?: Record<ReactionType, number>) => {
+      } catch (error) {
+        console.error('Error loading blog post reactions:', error);
+      }
+    };
+    
+    const handleBlogPostReactionChange = async (reaction: PostReactionType | null, counts?: Record<PostReactionType, number>) => {
     if (!user || !post) {
       alert('Sign in required');
       return;
@@ -376,7 +392,7 @@ export default function BlogPostPage() {
     }
   };
   
-  const loadBlogCommentReactions = async (commentIds: number[]) => {
+    const loadBlogCommentReactions = async (commentIds: number[]) => {
     if (commentIds.length === 0) return;
     
     try {
@@ -390,10 +406,10 @@ export default function BlogPostPage() {
         return;
       }
 
-      const reactionsMap: Record<number, {
-        counts: Record<ReactionType, number>;
-        selected: ReactionType | null;
-      }> = {};
+        const reactionsMap: Record<number, {
+          counts: Record<CommentReactionType, number>;
+          selected: CommentReactionType | null;
+        }> = {};
 
       // Initialize all comments with empty counts
       commentIds.forEach(id => {
@@ -404,7 +420,7 @@ export default function BlogPostPage() {
       });
 
       // Process reactions
-      const reactionMap: Record<string, ReactionType> = {
+        const reactionMap: Record<string, CommentReactionType> = {
         inspire: 'inspire',
         respect: 'inspire',
         relate: 'inspire',
@@ -433,7 +449,7 @@ export default function BlogPostPage() {
     }
   };
   
-  const handleBlogCommentReactionChange = async (commentId: number, reaction: ReactionType | null, counts?: Record<ReactionType, number>) => {
+    const handleBlogCommentReactionChange = async (commentId: number, reaction: CommentReactionType | null, counts?: Record<CommentReactionType, number>) => {
     if (!user) {
       alert('Sign in required');
       return;
@@ -459,7 +475,7 @@ export default function BlogPostPage() {
       setCommentReactions(prev => ({
         ...prev,
         [commentId]: {
-          counts: counts || prev[commentId]?.counts || EMPTY_COUNTS,
+            counts: counts || prev[commentId]?.counts || EMPTY_COUNTS,
           selected: reaction,
         },
       }));
