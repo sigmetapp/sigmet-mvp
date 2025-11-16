@@ -13,6 +13,7 @@ type PartnerSummary = {
   last_read_message_id?: string | number | null;
   last_message_at?: string | null;
   last_read_at?: string | null;
+  last_message_sender_id?: string | null;
 };
 
 function normalizeId(value: string | number | null | undefined): string {
@@ -23,13 +24,21 @@ function normalizeId(value: string | number | null | undefined): string {
     return Number.isFinite(value) ? String(value) : '';
   }
   const trimmed = value.trim();
-  return trimmed;
+  return trimmed.toLowerCase();
 }
 
-function shouldIgnoreUnread(partner: PartnerSummary): boolean {
+function shouldIgnoreUnread(partner: PartnerSummary, currentUserId?: string | null): boolean {
   const lastMessageId = normalizeId(partner.last_message_id);
   const lastReadId = normalizeId(partner.last_read_message_id);
   if (lastMessageId && lastReadId && lastMessageId === lastReadId) {
+    return true;
+  }
+
+  if (
+    currentUserId &&
+    partner.last_message_sender_id &&
+    partner.last_message_sender_id === currentUserId
+  ) {
     return true;
   }
 
@@ -44,7 +53,7 @@ function shouldIgnoreUnread(partner: PartnerSummary): boolean {
   return false;
 }
 
-function computeUnreadTotal(partners: PartnerSummary[]): number {
+function computeUnreadTotal(partners: PartnerSummary[], currentUserId?: string | null): number {
   if (!Array.isArray(partners) || partners.length === 0) {
     return 0;
   }
@@ -62,7 +71,7 @@ function computeUnreadTotal(partners: PartnerSummary[]): number {
       if (!Number.isFinite(numeric) || numeric <= 0) {
       return acc;
     }
-      if (shouldIgnoreUnread(partner)) {
+      if (shouldIgnoreUnread(partner, currentUserId)) {
         console.warn('[useUnreadDmCount] Ignoring phantom unread for thread', partner.thread_id, 'last_message_id=', partner.last_message_id, 'last_read_message_id=', partner.last_read_message_id);
         return acc;
       }
@@ -112,7 +121,7 @@ export function useUnreadDmCount() {
         if (cancelled) return;
 
         // Sum up all unread counts
-        const total = computeUnreadTotal(data.partners);
+        const total = computeUnreadTotal(data.partners, currentUserId);
 
         console.log('[useUnreadDmCount] Total unread:', total, 'Partners:', data.partners.length);
         data.partners.forEach((p: any) => {
@@ -203,7 +212,7 @@ export function useUnreadDmCount() {
                   const data = await response.json();
                   if (!data.ok || !Array.isArray(data.partners)) return;
 
-                  const total = computeUnreadTotal(data.partners);
+                    const total = computeUnreadTotal(data.partners, currentUserId);
 
                   setUnreadCount(total);
                 } catch (err) {
@@ -240,7 +249,7 @@ export function useUnreadDmCount() {
           throw new Error('Invalid response');
         }
 
-        const total = computeUnreadTotal(data.partners);
+          const total = computeUnreadTotal(data.partners, currentUserId);
 
         console.log('[useUnreadDmCount] Manual refresh - Total unread:', total);
         setUnreadCount(total);
