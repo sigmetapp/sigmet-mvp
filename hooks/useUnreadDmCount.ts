@@ -9,7 +9,40 @@ import { supabase } from '@/lib/supabaseClient';
 type PartnerSummary = {
   thread_id?: string | null;
   unread_count?: number | null;
+  last_message_id?: string | number | null;
+  last_read_message_id?: string | number | null;
+  last_message_at?: string | null;
+  last_read_at?: string | null;
 };
+
+function normalizeId(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : '';
+  }
+  const trimmed = value.trim();
+  return trimmed;
+}
+
+function shouldIgnoreUnread(partner: PartnerSummary): boolean {
+  const lastMessageId = normalizeId(partner.last_message_id);
+  const lastReadId = normalizeId(partner.last_read_message_id);
+  if (lastMessageId && lastReadId && lastMessageId === lastReadId) {
+    return true;
+  }
+
+  if (partner.last_message_at && partner.last_read_at) {
+    const lastMessageTime = Date.parse(partner.last_message_at);
+    const lastReadTime = Date.parse(partner.last_read_at);
+    if (!Number.isNaN(lastMessageTime) && !Number.isNaN(lastReadTime) && lastReadTime >= lastMessageTime) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 function computeUnreadTotal(partners: PartnerSummary[]): number {
   if (!Array.isArray(partners) || partners.length === 0) {
@@ -26,10 +59,14 @@ function computeUnreadTotal(partners: PartnerSummary[]): number {
         : raw !== null && raw !== undefined
           ? Number(raw)
           : 0;
-    if (!Number.isFinite(numeric) || numeric <= 0) {
+      if (!Number.isFinite(numeric) || numeric <= 0) {
       return acc;
     }
-    return acc + numeric;
+      if (shouldIgnoreUnread(partner)) {
+        console.warn('[useUnreadDmCount] Ignoring phantom unread for thread', partner.thread_id, 'last_message_id=', partner.last_message_id, 'last_read_message_id=', partner.last_read_message_id);
+        return acc;
+      }
+      return acc + numeric;
   }, 0);
 }
 
