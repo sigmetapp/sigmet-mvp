@@ -625,36 +625,77 @@ export default function AlertPage() {
               return comment.author_id || comment.user_id;
             };
 
-          const commentIdsRaw = userAuthoredComments
-            .map(comment => comment.id)
-            .filter((id): id is string | number => id !== null && id !== undefined);
-          const commentIdsForNotifications = Array.from(
-            new Set(commentIdsRaw.map(id => id.toString()))
-          );
+            const commentIdsRaw = userAuthoredComments
+              .map(comment => comment.id)
+              .filter((id): id is string | number => id !== null && id !== undefined)
+              .map(id => id.toString());
 
-          let commentReactions: any[] = [];
-          let commentReactionsError: any = null;
-          if (commentIdsRaw.length > 0) {
-            const commentReactionsResponse = await supabase
-              .from('comment_reactions')
-              .select('comment_id, user_id, kind, created_at')
-              .in('comment_id', commentIdsRaw)
+            const isUuid = (value: string) =>
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+            const isNumericId = (value: string) => /^[0-9]+$/.test(value);
+
+            const commentIdsUuid = commentIdsRaw.filter(id => isUuid(id));
+            const commentIdsNumeric = commentIdsRaw
+              .filter(id => isNumericId(id))
+              .map(id => parseInt(id, 10))
+              .filter(Number.isFinite);
+
+            const commentIdsForNotifications = Array.from(new Set(commentIdsUuid));
+
+            let commentReactions: any[] = [];
+            let commentReactionsError: any = null;
+
+            try {
+              if (commentIdsUuid.length > 0) {
+                const commentReactionsResponse = await supabase
+                  .from('comment_reactions')
+                  .select('comment_id, user_id, kind, created_at')
+                  .in('comment_id', commentIdsUuid)
+                  .order('created_at', { ascending: false })
+                  .limit(50);
+                commentReactions = commentReactionsResponse.data || [];
+                commentReactionsError = commentReactionsResponse.error;
+              }
+            } catch (uuidErr: any) {
+              commentReactionsError = uuidErr;
+            }
+
+            try {
+              if (commentIdsNumeric.length > 0) {
+                const blogCommentReactionsResponse = await supabase
+                  .from('blog_comment_reactions')
+                  .select('comment_id, user_id, kind, created_at')
+                  .in('comment_id', commentIdsNumeric)
+                  .order('created_at', { ascending: false })
+                  .limit(50);
+                commentReactions = [
+                  ...(commentReactions || []),
+                  ...(blogCommentReactionsResponse.data || []).map(reaction => ({
+                    ...reaction,
+                    comment_id: reaction.comment_id?.toString(),
+                  })),
+                ];
+                if (blogCommentReactionsResponse.error) {
+                  commentReactionsError = blogCommentReactionsResponse.error;
+                }
+              }
+            } catch (blogErr: any) {
+              commentReactionsError = blogErr;
+            }
+
+            const { data: commentReactionNotifications, error: commentReactionNotifError } = await supabase
+              .from('notifications')
+              .select('id, type, comment_id, post_id, actor_id, created_at')
+              .eq('user_id', user.id)
+              .eq('type', 'reaction_on_comment')
+              .in(
+                'comment_id',
+                commentIdsForNotifications.length > 0
+                  ? commentIdsForNotifications
+                  : ['00000000-0000-0000-0000-000000000000']
+              )
               .order('created_at', { ascending: false })
-              .limit(50);
-            commentReactions = commentReactionsResponse.data || [];
-            commentReactionsError = commentReactionsResponse.error;
-          } else {
-            commentReactions = [];
-          }
-
-          const { data: commentReactionNotifications, error: commentReactionNotifError } = await supabase
-            .from('notifications')
-            .select('id, type, comment_id, post_id, actor_id, created_at')
-            .eq('user_id', user.id)
-            .eq('type', 'reaction_on_comment')
-            .in('comment_id', commentIdsForNotifications.length > 0 ? commentIdsForNotifications : ['-1'])
-            .order('created_at', { ascending: false })
-            .limit(100);
+              .limit(100);
 
             const commentMetaMap = new Map<
               string,
