@@ -496,15 +496,24 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
 
     setCommentsLoading(false);
     
-    // Load reactions for all comments
-    if (list.length > 0) {
+    // Load reactions for all comments (only if uid is available)
+    if (list.length > 0 && uid) {
       loadCommentReactions(list.map(c => c.id));
     }
-  }, [postId]);
+  }, [postId, uid, loadCommentReactions]);
 
   useEffect(() => {
     loadComments();
   }, [loadComments]);
+
+  // Reload comment reactions when uid changes (after auth is established)
+  useEffect(() => {
+    if (uid && comments.length > 0) {
+      const commentIds = comments.map(c => c.id);
+      loadCommentReactions(commentIds);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, comments.length]);
 
   const loadCommentReactions = useCallback(async (commentIds: (number | string)[]) => {
     if (commentIds.length === 0) return;
