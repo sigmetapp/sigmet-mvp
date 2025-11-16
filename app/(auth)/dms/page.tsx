@@ -1,19 +1,28 @@
 'use client';
 
-import { Suspense } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useTheme } from '@/components/ThemeProvider';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { RequireAuth } from '@/components/RequireAuth';
-import DmsChatWindow from './DmsChatWindow';
-import DmAdminDebugPanel from './DmAdminDebugPanel';
 import Toast from '@/components/Toast';
-import { subscribeToPresence, getPresenceMap } from '@/lib/dm/presence';
 import type { DmAttachment } from '@/lib/dm/attachments';
 import DmsLoading from './loading';
 import { resolveAvatarUrl } from '@/lib/utils';
+
+type PresenceModule = typeof import('@/lib/dm/presence');
+
+const DmsChatWindow = dynamic(() => import('./DmsChatWindow'), {
+  loading: () => <DmsLoading />,
+  ssr: false,
+});
+
+const DmAdminDebugPanel = dynamic(() => import('./DmAdminDebugPanel'), {
+  loading: () => null,
+  ssr: false,
+});
 
 export default function DmsPage() {
   return (
@@ -49,6 +58,7 @@ type PartnerListItem = {
 
 const PARTNER_CACHE_TTL = 3 * 60 * 1000;
 const PARTNER_PAGE_SIZE = 20;
+const PARTNER_BOOTSTRAP_PAGE_SIZE = 8;
 
 function sortPartners(a: PartnerListItem, b: PartnerListItem): number {
   if (a.is_pinned !== b.is_pinned) {
@@ -305,6 +315,16 @@ function DmsInner() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const listContainerRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map<string, HTMLDivElement>());
+    const presenceModuleRef = useRef<PresenceModule | null>(null);
+
+    const loadPresenceModule = useCallback(async () => {
+      if (presenceModuleRef.current) {
+        return presenceModuleRef.current;
+      }
+      const module = await import('@/lib/dm/presence');
+      presenceModuleRef.current = module;
+      return module;
+    }, []);
 
   const AVATAR_FALLBACK =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='100%' height='100%' fill='%23222'/><circle cx='32' cy='24' r='14' fill='%23555'/><rect x='12' y='44' width='40' height='12' rx='6' fill='%23555'/></svg>";
@@ -459,8 +479,8 @@ function DmsInner() {
     })();
   }, [currentUserId]);
 
-  const fetchPartners = useCallback(
-    async ({ reset = false }: { reset?: boolean } = {}) => {
+    const fetchPartners = useCallback(
+      async ({ reset = false, limitOverride }: { reset?: boolean; limitOverride?: number } = {}) => {
       if (!currentUserId) {
         return;
       }
@@ -483,10 +503,14 @@ function DmsInner() {
         setLoadingMore(true);
       }
 
-      try {
+        try {
         const fetchOffset = reset ? 0 : offset;
+          const effectiveLimit =
+            typeof limitOverride === 'number' && Number.isFinite(limitOverride) && limitOverride > 0
+              ? Math.min(Math.floor(limitOverride), PARTNER_PAGE_SIZE)
+              : PARTNER_PAGE_SIZE;
         const params = new URLSearchParams({
-          limit: String(PARTNER_PAGE_SIZE),
+            limit: String(effectiveLimit),
           offset: String(fetchOffset),
         });
 
@@ -559,10 +583,29 @@ function DmsInner() {
     [currentUserId, persistCache]
   );
 
-  useEffect(() => {
-    if (!currentUserId) return;
-    void fetchPartners({ reset: true });
-  }, [currentUserId, fetchPartners]);
+    useEffect(() => {
+      if (!currentUserId) {
+        return;
+      }
+
+      let cancelled = false;
+
+      const bootstrap = async () => {
+        await fetchPartners({ reset: true, limitOverride: PARTNER_BOOTSTRAP_PAGE_SIZE });
+        if (cancelled) {
+          return;
+        }
+        if (paginationRef.current.hasMore) {
+          void fetchPartners({ reset: false });
+        }
+      };
+
+      void bootstrap();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [currentUserId, fetchPartners]);
 
   const applyPartnerUpdate = useCallback(
     (userId: string, updater: (current: PartnerListItem) => PartnerLike) => {
@@ -807,12 +850,61 @@ function DmsInner() {
   }, [flatPartners]);
 
   // Subscribe to presence updates for users in the watch list
-  useEffect(() => {
-    let cancelled = false;
-    let unsubscribe: (() => void | Promise<void>) | null = null;
+    useEffect(() => {
+      let cancelled = false;
+      let unsubscribe: (() => void | Promise<void>) | null = null;
 
-    if (presenceWatchList.length === 0) {
-      setPresenceOnlineMap({});
+      if (presenceWatchList.length === 0) {
+        setPresenceOnlineMap({});
+        return () => {
+          cancelled = true;
+          if (unsubscribe) {
+            const result = unsubscribe();
+            if (result instanceof Promise) void result;
+          }
+        };
+      }
+
+      const subscribe = async () => {
+        try {
+          const module = await loadPresenceModule();
+          if (cancelled) {
+            return;
+          }
+          unsubscribe = await module.subscribeToPresence(presenceWatchList, (userId, online) => {
+            setPresenceOnlineMap((prev) => {
+              if (prev[userId] === online) {
+                return prev;
+              }
+              return { ...prev, [userId]: online };
+            });
+          });
+
+          await Promise.all(
+            presenceWatchList.map(async (userId) => {
+              try {
+                const presenceState = await module.getPresenceMap(userId);
+                const online = !!presenceState?.[userId]?.[0];
+                if (!cancelled) {
+                  setPresenceOnlineMap((prev) => {
+                    if (prev[userId] === online) {
+                      return prev;
+                    }
+                    return { ...prev, [userId]: online };
+                  });
+                }
+              } catch (err) {
+                console.error('Failed to fetch presence map for user', userId, err);
+              }
+            })
+          );
+        } catch (err) {
+          console.error('Failed to subscribe to presence updates', err);
+        }
+      };
+
+      void subscribe();
+
       return () => {
         cancelled = true;
         if (unsubscribe) {
@@ -820,52 +912,7 @@ function DmsInner() {
           if (result instanceof Promise) void result;
         }
       };
-    }
-
-    const subscribe = async () => {
-      try {
-        unsubscribe = await subscribeToPresence(presenceWatchList, (userId, online) => {
-          setPresenceOnlineMap((prev) => {
-            if (prev[userId] === online) {
-              return prev;
-            }
-            return { ...prev, [userId]: online };
-          });
-        });
-
-        await Promise.all(
-          presenceWatchList.map(async (userId) => {
-            try {
-              const presenceState = await getPresenceMap(userId);
-              const online = !!presenceState?.[userId]?.[0];
-              if (!cancelled) {
-                setPresenceOnlineMap((prev) => {
-                  if (prev[userId] === online) {
-                    return prev;
-                  }
-                  return { ...prev, [userId]: online };
-                });
-              }
-            } catch (err) {
-              console.error('Failed to fetch presence map for user', userId, err);
-            }
-          })
-        );
-      } catch (err) {
-        console.error('Failed to subscribe to presence updates', err);
-      }
-    };
-
-    void subscribe();
-
-    return () => {
-      cancelled = true;
-      if (unsubscribe) {
-        const result = unsubscribe();
-        if (result instanceof Promise) void result;
-      }
-    };
-  }, [presenceWatchList]);
+    }, [presenceWatchList, loadPresenceModule]);
 
   // Prune presence map when watch list changes
   useEffect(() => {
@@ -996,14 +1043,19 @@ function DmsInner() {
     [moveHighlight]
   );
 
-  const handleRefresh = useCallback(() => {
-    if (fetchInFlightRef.current) return;
-    setError(null);
-    const resetPagination = { offset: 0, hasMore: true };
-    paginationRef.current = resetPagination;
-    setPaginationState(resetPagination);
-    void fetchPartners({ reset: true });
-  }, [fetchPartners]);
+    const handleRefresh = useCallback(() => {
+      if (fetchInFlightRef.current) return;
+      setError(null);
+      const resetPagination = { offset: 0, hasMore: true };
+      paginationRef.current = resetPagination;
+      setPaginationState(resetPagination);
+      void (async () => {
+        await fetchPartners({ reset: true, limitOverride: PARTNER_BOOTSTRAP_PAGE_SIZE });
+        if (paginationRef.current.hasMore) {
+          void fetchPartners({ reset: false });
+        }
+      })();
+    }, [fetchPartners]);
 
   const handleTogglePin = useCallback(
     async (partner: PartnerListItem) => {
@@ -1420,12 +1472,10 @@ function DmsInner() {
             </div>
           </div>
         </div>
-        <div className={["flex-1 min-w-0 min-h-0", !selectedPartnerId ? "hidden md:block" : "block"].join(" ")}>
-          {selectedPartnerId ? (
-            <Suspense fallback={<DmsLoading />}>
+          <div className={["flex-1 min-w-0 min-h-0", !selectedPartnerId ? "hidden md:block" : "block"].join(" ")}>
+            {selectedPartnerId ? (
               <DmsChatWindow partnerId={selectedPartnerId} onBack={() => setSelectedPartnerId(null)} />
-            </Suspense>
-          ) : (
+            ) : (
             <div className="card card-glow h-full flex items-center justify-center">
               <div className="text-white/70 text-center">
                 <div className="text-lg mb-2">Select a conversation</div>
@@ -1434,7 +1484,7 @@ function DmsInner() {
             </div>
           )}
         </div>
-        <DmAdminDebugPanel enabled={isAdmin} />
+          {isAdmin ? <DmAdminDebugPanel enabled /> : null}
       </div>
     );
   }
