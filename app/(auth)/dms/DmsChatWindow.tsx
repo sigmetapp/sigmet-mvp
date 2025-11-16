@@ -824,8 +824,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         }
       })();
 
-    ...
-
     const handleImageClick = useCallback(async () => {
       if (!url || stableAttachment.type !== 'image') return;
       
