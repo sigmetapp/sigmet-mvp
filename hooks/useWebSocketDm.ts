@@ -317,6 +317,22 @@ export function useWebSocketDm(
     })();
   }, []);
 
+  const extendPendingEchoWatchdog = useCallback(
+    (clientMsgId: string, delayMs: number) => {
+      const handler = pendingEchoHandlersRef.current.get(clientMsgId);
+      if (!handler) {
+        return;
+      }
+      const current = pendingEchoTimeoutsRef.current.get(clientMsgId);
+      if (current) {
+        clearTimeout(current);
+      }
+      const timeoutId = setTimeout(handler, delayMs);
+      pendingEchoTimeoutsRef.current.set(clientMsgId, timeoutId);
+    },
+    []
+  );
+
   // Subscribe to thread (WebSocket or Supabase fallback)
   useEffect(() => {
     // Cleanup any existing fallback subscriptions before setting up new ones
@@ -1065,22 +1081,6 @@ export function useWebSocketDm(
   // Queue processor cleanup ref
   const queueProcessorCleanupRef = useRef<(() => void) | null>(null);
   const syncCleanupRef = useRef<(() => void) | null>(null);
-
-  const extendPendingEchoWatchdog = useCallback(
-    (clientMsgId: string, delayMs: number) => {
-      const handler = pendingEchoHandlersRef.current.get(clientMsgId);
-      if (!handler) {
-        return;
-      }
-      const current = pendingEchoTimeoutsRef.current.get(clientMsgId);
-      if (current) {
-        clearTimeout(current);
-      }
-      const timeoutId = setTimeout(handler, delayMs);
-      pendingEchoTimeoutsRef.current.set(clientMsgId, timeoutId);
-    },
-    []
-  );
 
   // Send message with local-echo support and reliable queue
   const sendMessage = useCallback(
