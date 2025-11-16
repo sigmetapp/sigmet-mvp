@@ -2190,10 +2190,11 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         client_msg_id: tempId,
         delivery_state: 'sending',
       };
-    setMessagesFromHook((prev) => mergeMessages(prev, [localEcho]));
-    requestAnimationFrame(() => {
-      scrollToBottomInstant();
-    });
+      setMessagesFromHook((prev) => mergeMessages(prev, [localEcho]));
+      requestAnimationFrame(() => {
+        scrollToBottomInstant();
+      });
+      setSending(false);
 
     try {
       const messageBody = textToSend || null;
@@ -2283,10 +2284,9 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     });
     
     setMessageText(previousDraft);
-    } finally {
-      setSending(false);
-      setUploadingAttachments(false);
-    }
+      } finally {
+        setUploadingAttachments(false);
+      }
   }
 
     function annotateDocumentVersions(
@@ -2713,6 +2713,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   </>
                 );
               };
+                const deliveryState = (msg as any).delivery_state;
+                const sendError = (msg as any).send_error;
 
               return (
                 <div key={msg.id} ref={(el) => {
@@ -2789,136 +2791,126 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                           {/* Message status indicators (always show for sent messages) */}
                           {isMine && (
                               <div className="flex items-center ml-1">
-                                  {(() => {
-                                    // Check for local-echo message status first
-                                    const deliveryState = (msg as any).delivery_state;
-                                    const sendError = (msg as any).send_error;
-                                    const receiptStatus = messageReceipts.get(String(msg.id));
-                                  
-                                    // Failed message
-                                    if (sendError || deliveryState === 'failed') {
-                                      return (
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 16 16"
-                                          width="14"
-                                          height="14"
-                                          className="text-red-400"
-                                          aria-label="Failed"
-                                          title={sendError || 'Failed to send'}
-                                          fill="currentColor"
-                                          style={{ minWidth: '14px' }}
-                                        >
-                                          <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
-                                          <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
-                                        </svg>
-                                      );
-                                    }
+                                    {(() => {
+                                      // Check for local-echo message status first
+                                      const receiptStatus = messageReceipts.get(String(msg.id));
+                                      const isPendingLocalEcho = msg.id === -1 || deliveryState === 'sending';
                                     
-                                    // Sending message (local-echo)
-                                    if (msg.id === -1 || deliveryState === 'sending') {
-                                      return (
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 16 16"
-                                          width="14"
-                                          height="14"
-                                          className="text-white/40 animate-pulse"
-                                          aria-label="Sending"
-                                          title="Sending..."
-                                          fill="currentColor"
-                                          style={{ minWidth: '14px' }}
-                                        >
-                                          <circle cx="8" cy="8" r="1.5" />
-                                        </svg>
-                                      );
-                                    }
-                                    
-                                    // Read status - check both receiptStatus and deliveryState
-                                    // Also check if message was read by checking if it's not from partner and was acknowledged
-                                    const isRead =
-                                      receiptStatus === 'read' ||
-                                      (deliveryState === 'read' && msg.id !== -1);
+                                      // Failed message
+                                      if (sendError || deliveryState === 'failed') {
+                                        return (
+                                          <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            viewBox="0 0 16 16"
+                                            width="14"
+                                            height="14"
+                                            className="text-red-400"
+                                            aria-label="Failed"
+                                            title={sendError || 'Failed to send'}
+                                            fill="currentColor"
+                                            style={{ minWidth: '14px' }}
+                                          >
+                                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
+                                          </svg>
+                                        );
+                                      }
+                                      
+                                      // Read status - check both receiptStatus and deliveryState
+                                      // Also check if message was read by checking if it's not from partner and was acknowledged
+                                      const isRead =
+                                        receiptStatus === 'read' ||
+                                        (deliveryState === 'read' && msg.id !== -1);
 
-                                    if (isRead) {
-                                      // Double checkmark — read (blue)
-                                      return (
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 16 15"
-                                          width="14"
-                                          height="14"
-                                          className="text-blue-400"
-                                          aria-label="Read"
-                                          title="Read"
-                                          fill="currentColor"
-                                          style={{ minWidth: '14px' }}
-                                        >
-                                          <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
-                                        </svg>
-                                      );
-                                    } else if (receiptStatus === 'delivered' || deliveryState === 'delivered') {
-                                      // Double checkmark — delivered (gray)
-                                      return (
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 16 15"
-                                          width="14"
-                                          height="14"
-                                          className="text-white/70"
-                                          aria-label="Delivered"
-                                          title="Delivered"
-                                          fill="currentColor"
-                                          style={{ minWidth: '14px' }}
-                                        >
-                                          <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
-                                        </svg>
-                                      );
-                                    } else if (deliveryState === 'sent' || receiptStatus === 'sent') {
-                                      // Single checkmark — sent (more transparent)
+                                      if (isRead) {
+                                        // Double checkmark — read (blue)
+                                        return (
+                                          <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            viewBox="0 0 16 15"
+                                            width="14"
+                                            height="14"
+                                            className="text-blue-400"
+                                            aria-label="Read"
+                                            title="Read"
+                                            fill="currentColor"
+                                            style={{ minWidth: '14px' }}
+                                          >
+                                            <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
+                                          </svg>
+                                        );
+                                      }
+
+                                      const isDelivered = receiptStatus === 'delivered' || deliveryState === 'delivered';
+                                      if (isDelivered) {
+                                        // Double checkmark — delivered (gray)
+                                        return (
+                                          <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            viewBox="0 0 16 15"
+                                            width="14"
+                                            height="14"
+                                            className="text-white/70"
+                                            aria-label="Delivered"
+                                            title="Delivered"
+                                            fill="currentColor"
+                                            style={{ minWidth: '14px' }}
+                                          >
+                                            <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.175a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.175a.365.365 0 0 0-.063-.51z" />
+                                          </svg>
+                                        );
+                                      }
+
+                                      const isSent =
+                                        isPendingLocalEcho ||
+                                        deliveryState === 'sent' ||
+                                        receiptStatus === 'sent';
+
+                                      if (isSent) {
+                                        // Single checkmark — sent (subtle)
+                                        return (
+                                          <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            viewBox="0 0 16 16"
+                                            width="14"
+                                            height="14"
+                                            className="text-white/50"
+                                            aria-label="Sent"
+                                            title="Sent"
+                                            fill="currentColor"
+                                            style={{ minWidth: '14px' }}
+                                          >
+                                            <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                                          </svg>
+                                        );
+                                      }
+
+                                      // Default: single checkmark — queued (very subtle)
                                       return (
                                         <svg
                                           xmlns="http://www.w3.org/2000/svg"
                                           viewBox="0 0 16 16"
                                           width="14"
                                           height="14"
-                                        className="text-white/50"
-                                        aria-label="Sent"
-                                        title="Sent"
-                                        fill="currentColor"
-                                        style={{ minWidth: '14px' }}
-                                      >
-                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                                      </svg>
-                                    );
-                                  } else {
-                                    // Default: single checkmark — sent (most transparent)
-                                    return (
-                                      <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 16 16"
-                                        width="14"
-                                        height="14"
-                                        className="text-white/40"
-                                        aria-label="Sent"
-                                        title="Sent"
-                                        fill="currentColor"
-                                        style={{ minWidth: '14px' }}
-                                      >
-                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                                      </svg>
-                                    );
-                                  }
-                                })()}
+                                          className="text-white/40"
+                                          aria-label="Sent"
+                                          title="Sent"
+                                          fill="currentColor"
+                                          style={{ minWidth: '14px' }}
+                                        >
+                                          <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                                        </svg>
+                                      );
+                                    })()}
                               </div>
                             )}
                           </div>
-                          {/* Local echo controls: show for pending messages (id === -1) */}
-                          {isMine && msg.id === -1 && (
-                            <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                              <span className={theme === 'light' ? 'text-[11px] text-black/60' : 'text-[11px] text-white/70'}>
-                                {(msg as any)?.send_error ? 'Failed to send' : 'Sending…'}
-                              </span>
+                            {/* Local echo controls: show only when send failed */}
+                            {isMine && sendError && (
+                              <div className={`flex items-center gap-2 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                                <span className={theme === 'light' ? 'text-[11px] text-black/60' : 'text-[11px] text-white/70'}>
+                                  Failed to send
+                                </span>
                               <button
                                 type="button"
                                 className={[
@@ -2946,15 +2938,15 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                                       : 'bg-blue-500/20 border-blue-500/30 text-blue-200 hover:bg-blue-500/25',
                                   ].join(' ')}
                                   onClick={() => {
-                                    // Retry: remove echo and resend with fresh client id
-                                    const echoBody = msg.body || null;
-                                    const echoAttachments = Array.isArray(msg.attachments)
-                                      ? (msg.attachments as any[])
-                                      : [];
-                                    setMessagesFromHook((prev: any[]) =>
-                                      prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id)
-                                    );
-                                    void sendMessageHook(thread!.id, echoBody, echoAttachments);
+                                      // Retry: remove echo and resend with fresh client id
+                                      const echoBody = msg.body || null;
+                                      const echoAttachments = Array.isArray(msg.attachments)
+                                        ? (msg.attachments as any[])
+                                        : [];
+                                      setMessagesFromHook((prev: any[]) =>
+                                        prev.filter((m) => (m as any).client_msg_id !== (msg as any).client_msg_id)
+                                      );
+                                      void sendMessageHook(thread!.id, echoBody, echoAttachments);
                                   }}
                                 >
                                   Retry
@@ -3233,23 +3225,18 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   isOffline
                 }
               >
-              {isOffline ? (
-                <span className="flex items-center gap-1">
-                  Offline
-                </span>
-              ) : uploadingAttachments ? (
-                <span className="flex items-center gap-1">
-                  <span className="animate-spin">?</span>
-                  Uploading...
-                </span>
-              ) : sending ? (
-                <span className="flex items-center gap-1">
-                  <span className="animate-pulse">?</span>
-                  Sending...
-                </span>
-              ) : (
-                'Send'
-              )}
+                {isOffline ? (
+                  <span className="flex items-center gap-1">
+                    Offline
+                  </span>
+                ) : uploadingAttachments ? (
+                  <span className="flex items-center gap-1">
+                    <span className="animate-spin">?</span>
+                    Uploading...
+                  </span>
+                ) : (
+                  'Send'
+                )}
             </button>
           </div>
         </div>
