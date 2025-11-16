@@ -154,7 +154,7 @@ function ProfileSettings() {
       profileToSave.goals = validGoals;
     }
     
-    const { error } = await supabase.from('profiles').upsert(profileToSave, { onConflict: 'user_id' });
+    const { error } = await supabase.from('profiles').upsert(profileToSave);
     if (error) {
       setNote(error.message);
       setShowSuccess(false);
@@ -178,7 +178,7 @@ function ProfileSettings() {
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
     // Persist to DB immediately so other pages (public profile, feed, comments) see it
     try {
-      await supabase.from('profiles').upsert({ user_id: user.id, avatar_url: data.publicUrl }, { onConflict: 'user_id' });
+      await supabase.from('profiles').upsert({ user_id: user.id, avatar_url: data.publicUrl });
       setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }));
       setNote('Avatar updated');
     } catch (e: any) {

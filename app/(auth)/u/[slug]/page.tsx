@@ -915,7 +915,7 @@ export default function PublicProfilePage() {
       if (upErr) throw upErr;
       const { data } = bucket.getPublicUrl(path);
       const url = data.publicUrl;
-      await supabase.from('profiles').upsert({ user_id: me, avatar_url: url }, { onConflict: 'user_id' });
+      await supabase.from('profiles').upsert({ user_id: me, avatar_url: url });
       setProfile((p) => (p ? { ...p, avatar_url: url } : p));
     } catch (e) {
       // no-op
