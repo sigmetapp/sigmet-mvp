@@ -114,213 +114,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ ok: false, error: message });
       }
 
-      const nextId = String(targetMessage.id ?? upTo);
-      const prev = participant.last_read_message_id ? String(participant.last_read_message_id) : null;
+        const nextId = String(targetMessage.id ?? upTo);
+        const serviceClient =
+          process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim() !== ''
+            ? createSupabaseForRequest(req, true)
+            : null;
 
-      const serviceClient =
-        process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim() !== ''
-          ? createSupabaseForRequest(req, true)
-          : null;
+        const privilegedClient = serviceClient ?? client;
 
-      const privilegedClient = serviceClient ?? client;
+    // Mark receipts via SQL helper to avoid client-side batching limits
+    const { data: rpcData, error: rpcError } = await privilegedClient.rpc('dms_mark_read_up_to', {
+      p_user_id: user.id,
+      p_thread_id: threadId,
+      p_message_id: nextId,
+      p_sequence_number: upToSequence,
+    });
 
-        if (nextId !== prev) {
-          const lastReadTimestamp = targetMessage?.created_at || new Date().toISOString();
-        try {
-          await privilegedClient
-            .from('dms_thread_participants')
-            .update({
-              last_read_message_id: targetMessage.id ?? upTo,
-                last_read_at: lastReadTimestamp,
-            })
-            .eq('thread_id', threadId)
-            .eq('user_id', user.id);
-        } catch (err: any) {
-          console.error('Error updating last_read_message_id:', err);
-          // Column may not exist; ignore update failure in that case
-        }
-      }
-
-    // Mark receipts up to nextId as read
-    // Get all message IDs up to and including the target message from partner
-      const buildMessageQuery = () =>
-        client
-          .from('dms_messages')
-          .select('id, sender_id, created_at, sequence_number')
-          .eq('thread_id', threadId)
-          .neq('sender_id', user.id)
-          .is('deleted_at', null);
-
-      const hasSequenceNumber =
-        targetMessage?.sequence_number !== null &&
-        targetMessage?.sequence_number !== undefined &&
-        Number.isFinite(Number(targetMessage.sequence_number));
-
-      let ids: any[] | null = null;
-      let idsError: any = null;
-
-      if (hasSequenceNumber) {
-        const seqValue = Number(targetMessage.sequence_number);
-        const createdAtValue = targetMessage.created_at;
-
-          const [withSequenceRes, withoutSequenceRes] = await Promise.all([
-            execOrFetch(
-              buildMessageQuery()
-                .not('sequence_number', 'is', null)
-                .lte('sequence_number', seqValue)
-            ),
-            createdAtValue
-              ? execOrFetch(
-                  buildMessageQuery()
-                    .is('sequence_number', null)
-                    .lte('created_at', createdAtValue)
-                )
-              : Promise.resolve({ data: [], error: null }),
-          ]);
-
-        if (withSequenceRes.error) {
-          idsError = withSequenceRes.error;
-        } else if (withoutSequenceRes.error) {
-          idsError = withoutSequenceRes.error;
-        } else {
-          ids = [
-            ...(withSequenceRes.data ?? []),
-            ...(withoutSequenceRes.data ?? []),
-          ];
-        }
-      } else {
-        const singleQuery = buildMessageQuery().lte('created_at', targetMessage.created_at);
-        const { data, error } = await execOrFetch(singleQuery);
-        ids = data ?? [];
-        idsError = error ?? null;
-      }
-
-    if (idsError) {
-      console.error('Error fetching message IDs:', idsError);
-      return res.status(400).json({ ok: false, error: idsError.message || 'Failed to fetch messages' });
+    if (rpcError) {
+      console.error('dms_mark_read_up_to failed:', rpcError);
+      return res.status(400).json({ ok: false, error: rpcError.message || 'Failed to mark messages as read' });
     }
 
-    let idList: string[] = Array.from(
-      new Set(
-        (ids || [])
-          .map((x: any) => {
-            if (x?.id === null || x?.id === undefined) {
-              return null;
-            }
-            const value = String(x.id);
-            return value.trim() ? value : null;
-          })
-          .filter((id): id is string => Boolean(id))
-      )
-    );
+    const responsePayload = Array.isArray(rpcData) && rpcData.length > 0 ? rpcData[0] : null;
 
-    if (idList.length === 0) {
-      // Fallback: include the up-to id directly if it's from partner
-      const { data: msgCheck2, error: msgCheck2Error } = await client
-        .from('dms_messages')
-        .select('sender_id')
-        .eq('thread_id', threadId)
-          .eq('id', nextId)
-        .is('deleted_at', null)
-        .maybeSingle();
-
-      if (msgCheck2Error) {
-        console.error('Error checking message sender:', msgCheck2Error);
-      } else if (msgCheck2 && msgCheck2.sender_id !== user.id) {
-        idList = [nextId];
-      }
-    }
-
-      if (idList.length > 0) {
-        const nowIso = new Date().toISOString();
-        const normalizedIds = idList
-          .map((value) => value.trim())
-          .filter((value) => {
-            if (!value) {
-              return false;
-            }
-            const lower = value.toLowerCase();
-            if (lower === '-1' || lower === 'nan' || lower === 'undefined' || lower === 'null') {
-              return false;
-            }
-            if (lower.startsWith('temp-')) {
-              return false;
-            }
-            return true;
-          });
-
-        if (normalizedIds.length > 0) {
-          let existingStatusById = new Map<string, string | null>();
-
-          try {
-            const { data: existingRows, error: existingError } = await privilegedClient
-              .from('dms_message_receipts')
-              .select('message_id, status')
-              .eq('user_id', user.id)
-              .in('message_id', normalizedIds);
-
-            if (existingError) {
-              throw existingError;
-            }
-
-            for (const row of existingRows ?? []) {
-              const key = String(row.message_id);
-              existingStatusById.set(key, row.status ?? null);
-            }
-          } catch (fetchError) {
-            console.error('Error fetching existing receipts:', fetchError);
-            existingStatusById = new Map();
-          }
-
-          const insertPayload: Array<{
-            message_id: string;
-            user_id: string;
-            status: 'read';
-            created_at: string;
-            updated_at: string;
-          }> = [];
-          const updateIds: string[] = [];
-
-          for (const id of normalizedIds) {
-            const status = existingStatusById.get(id);
-            if (!status) {
-              insertPayload.push({
-                message_id: id,
-                user_id: user.id,
-                status: 'read',
-                created_at: nowIso,
-                updated_at: nowIso,
-              });
-            } else if (status !== 'read') {
-              updateIds.push(id);
-            }
-          }
-
-          if (insertPayload.length > 0) {
-            const { error: insertError } = await privilegedClient
-              .from('dms_message_receipts')
-              .insert(insertPayload);
-
-            if (insertError) {
-              console.error('Error inserting read receipts:', insertError);
-            }
-          }
-
-          if (updateIds.length > 0) {
-            const { error: updateError } = await privilegedClient
-              .from('dms_message_receipts')
-              .update({ status: 'read', updated_at: nowIso })
-              .eq('user_id', user.id)
-              .in('message_id', updateIds);
-
-            if (updateError) {
-              console.error('Error updating read receipts:', updateError);
-            }
-          }
-        }
-      }
-
-    return res.status(200).json({ ok: true, last_read_message_id: nextId });
+    return res.status(200).json({
+      ok: true,
+      last_read_message_id: responsePayload?.last_read_message_id ?? nextId,
+      last_read_at: responsePayload?.last_read_at ?? targetMessage.created_at ?? new Date().toISOString(),
+    });
   } catch (e: any) {
     const status = e?.status || 500;
     return res.status(status).json({ ok: false, error: e?.message || 'Internal error' });

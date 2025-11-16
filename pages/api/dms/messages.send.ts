@@ -234,7 +234,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Prepare service role client for parallel operations
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const serviceClient = serviceRoleKey 
+      const isServiceClient = Boolean(serviceRoleKey);
+      const serviceClient = isServiceClient
       ? createClient(url, serviceRoleKey, {
           auth: { persistSession: false, autoRefreshToken: false },
         })
@@ -259,11 +260,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Create receipts for all recipients (except sender)
-    if (otherIds.length > 0) {
-      const receipts = otherIds.map((recipientId) => ({
-        message_id: finalMessage.id,
-        user_id: recipientId,
-        status: 'sent',
+      if (otherIds.length > 0 && isServiceClient) {
+        const receipts = otherIds.map((recipientId) => ({
+          message_id: finalMessage.id,
+          user_id: recipientId,
+          status: 'delivered',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }));
