@@ -158,10 +158,11 @@ export default function SignupPage() {
         normalizedInviteCode = normalizedCode;
       }
 
-      const redirectTo =
+      const origin =
         typeof window !== "undefined"
-          ? `${window.location.origin}/auth/callback`
+          ? process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin
           : undefined;
+      const redirectTo = origin ? `${origin}/auth/callback` : undefined;
 
       const metadata: Record<string, any> = { full_name: fullName || null };
       if (normalizedInviteCode) {
@@ -226,14 +227,15 @@ export default function SignupPage() {
   async function handleResend() {
     setErrorMsg(null);
     try {
+      const origin =
+        typeof window !== "undefined"
+          ? process.env.NEXT_PUBLIC_REDIRECT_ORIGIN || window.location.origin
+          : undefined;
       await supabase.auth.resend({
         type: "signup",
         email,
         options: {
-          emailRedirectTo:
-            typeof window !== "undefined"
-              ? `${window.location.origin}/auth/callback`
-              : undefined,
+          emailRedirectTo: origin ? `${origin}/auth/callback` : undefined,
         },
       });
       setNotice(
