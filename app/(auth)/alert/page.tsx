@@ -411,12 +411,35 @@ export default function AlertPage() {
           };
       }
 
-        const { data: userAuthoredComments, error: userCommentsError } = await supabase
+        let userAuthoredComments: any[] = [];
+        let userCommentsError: any = null;
+
+        const authoredCommentsResponse = await supabase
           .from('comments')
           .select('id, post_id, author_id, user_id, text, body, created_at')
           .or(`author_id.eq.${user.id},user_id.eq.${user.id}`)
           .order('created_at', { ascending: false })
           .limit(10);
+
+        const missingAuthorIdColumn =
+          authoredCommentsResponse.error &&
+          (authoredCommentsResponse.error.code === '42703' ||
+            authoredCommentsResponse.error.message?.toLowerCase().includes('author_id'));
+
+        if (missingAuthorIdColumn) {
+          const fallbackCommentsResponse = await supabase
+            .from('comments')
+            .select('id, post_id, user_id, text, body, created_at')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+          userAuthoredComments = fallbackCommentsResponse.data || [];
+          userCommentsError = fallbackCommentsResponse.error;
+        } else {
+          userAuthoredComments = authoredCommentsResponse.data || [];
+          userCommentsError = authoredCommentsResponse.error;
+        }
 
         if (userAuthoredComments && userAuthoredComments.length > 0) {
           const commentIdsRaw = userAuthoredComments
