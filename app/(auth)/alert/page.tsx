@@ -442,94 +442,79 @@ export default function AlertPage() {
         };
 
         const missingCommentColumnsSet = new Set<string>();
-        const commentSchemaInfo: { columns?: string[]; metadataError?: string | null } = {};
+        const attemptedCommentOwnerColumns = new Set<string>();
+        const detectedCommentColumns: string[] = [];
+        let commentSchemaProbeError: string | null = null;
 
         let resolvedCommentOwnerColumn: string | null = null;
         let userAuthoredComments: any[] = [];
         let userCommentsErrorMessage: string | null = null;
 
-        const { data: commentColumnsMeta, error: commentColumnsMetaError } = await supabase
-          .from('information_schema.columns')
-          .select('column_name, data_type')
-          .eq('table_schema', 'public')
-          .eq('table_name', 'comments');
-
-        if (!commentColumnsMetaError && commentColumnsMeta) {
-          commentSchemaInfo.columns = commentColumnsMeta.map(col => col.column_name);
-          ['author_id', 'user_id'].forEach(expectedColumn => {
-            if (!commentSchemaInfo.columns?.includes(expectedColumn)) {
-              missingCommentColumnsSet.add(expectedColumn);
-            }
-          });
-
-          const preferredColumn = commentOwnerColumnsPreference.find(candidate =>
-            commentSchemaInfo.columns?.includes(candidate)
-          );
-
-          if (preferredColumn) {
-            resolvedCommentOwnerColumn = preferredColumn;
-          } else {
-            const fallbackCandidate = commentColumnsMeta.find(
-              meta =>
-                meta.data_type === 'uuid' &&
-                !['id', 'parent_id', 'post_id'].includes(meta.column_name)
-            );
-            resolvedCommentOwnerColumn = fallbackCandidate?.column_name ?? null;
+        try {
+          const { data: commentProbeData, error: commentProbeError } = await supabase
+            .from('comments')
+            .select('*')
+            .limit(1);
+          if (commentProbeError) {
+            commentSchemaProbeError = commentProbeError.message;
+          } else if (commentProbeData && commentProbeData.length > 0) {
+            const sample = commentProbeData[0];
+            Object.keys(sample || {}).forEach(key => {
+              if (key) {
+                detectedCommentColumns.push(key);
+              }
+            });
           }
-        } else if (commentColumnsMetaError) {
-          commentSchemaInfo.metadataError = commentColumnsMetaError.message;
+        } catch (probeErr: any) {
+          commentSchemaProbeError = probeErr?.message || 'Unknown schema probe error';
         }
 
-        const attemptedCommentOwnerColumns = new Set<string>();
+        const heuristicOwnerColumns = detectedCommentColumns
+          .filter(column => {
+            const lower = column.toLowerCase();
+            if (['id', 'post_id', 'parent_id', 'created_at', 'text', 'body'].includes(lower)) {
+              return false;
+            }
+            return (
+              lower.includes('author') ||
+              lower.includes('user') ||
+              lower.includes('profile') ||
+              lower.includes('owner') ||
+              lower.includes('creator') ||
+              lower.includes('commenter') ||
+              lower.endsWith('_id')
+            );
+          })
+          .filter(column => !commentOwnerColumnsPreference.includes(column));
 
-        if (resolvedCommentOwnerColumn) {
-          attemptedCommentOwnerColumns.add(resolvedCommentOwnerColumn);
-          const commentsResponse = await supabase
+        const commentOwnerColumnsCandidates = Array.from(
+          new Set([...commentOwnerColumnsPreference, ...heuristicOwnerColumns])
+        );
+
+        const fetchCommentsByColumn = async (columnName: string) => {
+          return supabase
             .from('comments')
-            .select(buildCommentSelect(resolvedCommentOwnerColumn))
-            .eq(resolvedCommentOwnerColumn as any, user.id)
+            .select(buildCommentSelect(columnName))
+            .eq(columnName as any, user.id)
             .order('created_at', { ascending: false })
             .limit(20);
+        };
 
+        for (const columnName of commentOwnerColumnsCandidates) {
+          attemptedCommentOwnerColumns.add(columnName);
+          const commentsResponse = await fetchCommentsByColumn(columnName);
           if (commentsResponse.error) {
-            if (isMissingColumnError(commentsResponse.error, resolvedCommentOwnerColumn)) {
-              missingCommentColumnsSet.add(resolvedCommentOwnerColumn);
-              resolvedCommentOwnerColumn = null;
-            } else {
-              userCommentsErrorMessage = commentsResponse.error.message;
-            }
-          } else {
-            userAuthoredComments = commentsResponse.data || [];
-          }
-        }
-
-        if (!resolvedCommentOwnerColumn) {
-          for (const columnName of commentOwnerColumnsPreference) {
-            if (attemptedCommentOwnerColumns.has(columnName)) {
+            if (isMissingColumnError(commentsResponse.error, columnName)) {
+              missingCommentColumnsSet.add(columnName);
               continue;
             }
-            attemptedCommentOwnerColumns.add(columnName);
-
-            const commentsResponse = await supabase
-              .from('comments')
-              .select(buildCommentSelect(columnName))
-              .eq(columnName as any, user.id)
-              .order('created_at', { ascending: false })
-              .limit(20);
-
-            if (commentsResponse.error) {
-              if (isMissingColumnError(commentsResponse.error, columnName)) {
-                missingCommentColumnsSet.add(columnName);
-                continue;
-              }
-              userCommentsErrorMessage = commentsResponse.error.message;
-              break;
-            }
-
-            resolvedCommentOwnerColumn = columnName;
-            userAuthoredComments = commentsResponse.data || [];
+            userCommentsErrorMessage = commentsResponse.error.message;
             break;
           }
+
+          resolvedCommentOwnerColumn = columnName;
+          userAuthoredComments = commentsResponse.data || [];
+          break;
         }
 
         const missingCommentColumns = Array.from(missingCommentColumnsSet);
@@ -537,8 +522,8 @@ export default function AlertPage() {
         if (missingCommentColumns.length > 0) {
           schemaDiagnostics.push(`Missing columns: ${missingCommentColumns.join(', ')}`);
         }
-        if (commentSchemaInfo.metadataError) {
-          schemaDiagnostics.push(`Schema metadata error: ${commentSchemaInfo.metadataError}`);
+        if (commentSchemaProbeError) {
+          schemaDiagnostics.push(`Schema probe error: ${commentSchemaProbeError}`);
         }
         const commentsSchemaNote = schemaDiagnostics.length > 0 ? schemaDiagnostics.join(' | ') : null;
 
@@ -661,9 +646,9 @@ export default function AlertPage() {
               schemaInfo: {
                 ownerColumnUsed: resolvedCommentOwnerColumn,
                 missingColumns: missingCommentColumns,
-                availableColumns: commentSchemaInfo.columns,
                 attemptedColumns: Array.from(attemptedCommentOwnerColumns),
-                metadataError: commentSchemaInfo.metadataError,
+                  detectedColumns: detectedCommentColumns,
+                  heuristicColumnsTried: heuristicOwnerColumns,
               },
           };
         } else {
@@ -675,9 +660,9 @@ export default function AlertPage() {
               schemaInfo: {
                 ownerColumnUsed: resolvedCommentOwnerColumn,
                 missingColumns: missingCommentColumns,
-                availableColumns: commentSchemaInfo.columns,
                 attemptedColumns: Array.from(attemptedCommentOwnerColumns),
-                metadataError: commentSchemaInfo.metadataError,
+                detectedColumns: detectedCommentColumns,
+                heuristicColumnsTried: heuristicOwnerColumns,
               },
           };
         }
