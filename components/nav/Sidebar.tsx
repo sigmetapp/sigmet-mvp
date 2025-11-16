@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Trophy, Rss, User, Users, MessageSquare, Sprout, Settings as SettingsIcon } from 'lucide-react';
 import NavItem from './NavItem';
 import { useTheme } from '@/components/ThemeProvider';
+import { useUnreadDmCount } from '@/hooks/useUnreadDmCount';
 
 export type SidebarProps = {
   user: User;
@@ -38,6 +39,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const isLight = theme === "light";
   const [adminOpen, setAdminOpen] = useState(false);
   const [canRenderPortal, setCanRenderPortal] = useState(false);
+    const { unreadCount } = useUnreadDmCount();
 
   const userEmail = user.email || null;
   const isAdmin = userEmail && ADMIN_EMAILS.has(userEmail);
@@ -60,15 +62,16 @@ export default function Sidebar({ user }: SidebarProps) {
         </div>
         <nav className="px-2">
           <ul className="space-y-1">
-            {menu.map((item) => (
-              <NavItem
-                key={item.href}
-                label={item.label}
-                href={item.href}
-                icon={item.icon}
-                bordered={item.bordered}
-              />
-            ))}
+              {menu.map((item) => (
+                <NavItem
+                  key={item.href}
+                  label={item.label}
+                  href={item.href}
+                  icon={item.icon}
+                  bordered={item.bordered}
+                  badgeCount={item.href === '/dms' ? unreadCount : undefined}
+                />
+              ))}
           </ul>
         </nav>
         {isAdmin && (
