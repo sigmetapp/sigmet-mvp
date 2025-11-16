@@ -64,7 +64,7 @@ begin
   v_cutoff := coalesce(v_target.created_at, now());
 
   update dms_thread_participants
-    set last_read_message_id = v_target.id,
+    set last_read_message_id = v_target.id::text,
         last_read_at = v_cutoff
     where (
       (v_use_direct_thread and thread_id = v_thread_id)
