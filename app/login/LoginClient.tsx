@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
 import { useTheme } from '@/components/ThemeProvider';
+import SocialAuthButtons from '@/components/SocialAuthButtons';
 
 type Mode = 'login' | 'signup';
 
@@ -197,6 +198,11 @@ export default function LoginClient() {
               : 'Sign up'}
           </Button>
         </form>
+
+        <SocialAuthButtons 
+          mode={mode} 
+          onError={(err) => setError(err)}
+        />
 
         <div className="mt-4 text-sm text-white/70">
           {mode === 'login' ? (

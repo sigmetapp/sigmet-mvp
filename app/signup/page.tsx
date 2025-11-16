@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Button from "@/components/Button";
 import { useTheme } from "@/components/ThemeProvider";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
+import SocialAuthButtons from "@/components/SocialAuthButtons";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -391,6 +392,11 @@ export default function SignupPage() {
                   I already have an account
                 </Button>
               </div>
+
+              <SocialAuthButtons 
+                mode="signup" 
+                onError={(err) => setErrorMsg(err)}
+              />
             </form>
 
             <div
