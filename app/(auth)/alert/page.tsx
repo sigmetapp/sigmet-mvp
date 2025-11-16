@@ -419,6 +419,7 @@ export default function AlertPage() {
         };
 
         const commentOwnerColumnsPreference = [
+          // snake_case
           'author_id',
           'user_id',
           'profile_id',
@@ -431,6 +432,35 @@ export default function AlertPage() {
           'created_by_id',
           'created_by_uuid',
           'commenter_id',
+          'creator_id',
+          'creator_uuid',
+          'poster_id',
+          'member_id',
+          'account_id',
+          'user_uuid',
+          'author_uuid',
+          'user_uid',
+          'author_uid',
+          // camelCase / Pascal variants
+          'authorId',
+          'userId',
+          'profileId',
+          'userProfileId',
+          'profileUuid',
+          'ownerId',
+          'createdBy',
+          'createdById',
+          'createdByUuid',
+          'commenterId',
+          'creatorId',
+          'creatorUuid',
+          'posterId',
+          'memberId',
+          'accountId',
+          'userUuid',
+          'authorUuid',
+          'userUid',
+          'authorUid',
         ];
 
         const buildCommentSelect = (columnName?: string | null) => {
