@@ -618,6 +618,109 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       [setMessagesFromHook],
     );
 
+    const updateMessageReceiptStatus = useCallback(
+      (
+        messageId: string,
+        status: 'sent' | 'delivered' | 'read',
+        source:
+          | 'ack'
+          | 'ack-db'
+          | 'realtime'
+          | 'realtime-db'
+          | 'refresh'
+          | 'bootstrap'
+          | 'local',
+      ) => {
+        if (!messageId) {
+          return;
+        }
+
+        let appliedStatus: 'sent' | 'delivered' | 'read' | null = null;
+
+        setMessageReceipts((prev) => {
+          const previousStatus = prev.get(messageId);
+          if (previousStatus) {
+            const prevRank = RECEIPT_STATUS_PRIORITY[previousStatus];
+            const nextRank = RECEIPT_STATUS_PRIORITY[status];
+            if (nextRank < prevRank) {
+              console.debug('[DM] Ignoring receipt downgrade attempt', {
+                messageId,
+                attemptedStatus: status,
+                previousStatus,
+                source,
+              });
+              return prev;
+            }
+            if (previousStatus === status) {
+              console.debug('[DM] Receipt status unchanged', {
+                messageId,
+                status,
+                source,
+              });
+              return prev;
+            }
+          }
+
+          const next = new Map(prev);
+          next.set(messageId, status);
+          appliedStatus = status;
+          console.log('[DM] Receipt status updated', {
+            messageId,
+            previousStatus,
+            status,
+            source,
+          });
+          return next;
+        });
+
+        if (!appliedStatus) {
+          return;
+        }
+
+        setMessagesFromHook((prev) => {
+          let changed = false;
+          const updated = prev.map((msg) => {
+            if (String(msg.id) !== messageId) {
+              return msg;
+            }
+
+            const nextDeliveryState =
+              appliedStatus === 'read'
+                ? 'read'
+                : appliedStatus === 'delivered'
+                  ? 'delivered'
+                  : 'sent';
+
+            const currentDeliveryState = (msg as any).delivery_state;
+            const currentSendError = (msg as any).send_error;
+
+            if (currentDeliveryState === nextDeliveryState && currentSendError === undefined) {
+              return msg;
+            }
+
+            changed = true;
+            return {
+              ...msg,
+              delivery_state: nextDeliveryState,
+              send_error: undefined,
+            };
+          });
+
+          if (changed) {
+            console.debug('[DM] Updated message delivery_state due to receipt', {
+              messageId,
+              status: appliedStatus,
+              source,
+            });
+            return updated;
+          }
+
+          return prev;
+        });
+      },
+      [setMessageReceipts, setMessagesFromHook],
+    );
+
     function cleanupAttachmentPreviews(files: SelectedAttachment[]) {
       files.forEach((file) => {
         if (file.previewUrl) {
@@ -1236,102 +1339,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       clearInterval(pollInterval);
     };
   }, [partnerProfile?.user_id, partnerProfile?.show_online_status, applyOnlineStatus]);
-
-  const updateMessageReceiptStatus = useCallback(
-    (
-      messageId: string,
-      status: 'sent' | 'delivered' | 'read',
-      source: 'ack' | 'realtime' | 'refresh' | 'bootstrap',
-    ) => {
-      if (!messageId) {
-        return;
-      }
-
-      let appliedStatus: 'sent' | 'delivered' | 'read' | null = null;
-
-      setMessageReceipts((prev) => {
-        const previousStatus = prev.get(messageId);
-        if (previousStatus) {
-          const prevRank = RECEIPT_STATUS_PRIORITY[previousStatus];
-          const nextRank = RECEIPT_STATUS_PRIORITY[status];
-          if (nextRank < prevRank) {
-            console.debug('[DM] Ignoring receipt downgrade attempt', {
-              messageId,
-              attemptedStatus: status,
-              previousStatus,
-              source,
-            });
-            return prev;
-          }
-          if (previousStatus === status) {
-            console.debug('[DM] Receipt status unchanged', {
-              messageId,
-              status,
-              source,
-            });
-            return prev;
-          }
-        }
-
-        const next = new Map(prev);
-        next.set(messageId, status);
-        appliedStatus = status;
-        console.log('[DM] Receipt status updated', {
-          messageId,
-          previousStatus,
-          status,
-          source,
-        });
-        return next;
-      });
-
-      if (!appliedStatus) {
-        return;
-      }
-
-      setMessagesFromHook((prev) => {
-        let changed = false;
-        const updated = prev.map((msg) => {
-          if (String(msg.id) !== messageId) {
-            return msg;
-          }
-
-          const nextDeliveryState =
-            appliedStatus === 'read'
-              ? 'read'
-              : appliedStatus === 'delivered'
-                ? 'delivered'
-                : 'sent';
-
-          const currentDeliveryState = (msg as any).delivery_state;
-          const currentSendError = (msg as any).send_error;
-
-          if (currentDeliveryState === nextDeliveryState && currentSendError === undefined) {
-            return msg;
-          }
-
-          changed = true;
-          return {
-            ...msg,
-            delivery_state: nextDeliveryState,
-            send_error: undefined,
-          };
-        });
-
-        if (changed) {
-          console.debug('[DM] Updated message delivery_state due to receipt', {
-            messageId,
-              status: appliedStatus,
-            source,
-          });
-          return updated;
-        }
-
-        return prev;
-      });
-    },
-    [setMessageReceipts, setMessagesFromHook],
-  );
 
   useEffect(() => {
     setMessageReceipts(new Map());
