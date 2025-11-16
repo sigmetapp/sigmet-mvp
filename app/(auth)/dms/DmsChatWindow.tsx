@@ -1515,6 +1515,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
 
     useEffect(() => {
       if (!thread?.id || !partnerId || !currentUserId) {
+        deliveredUpToRef.current = null;
         return;
       }
       if (messages.length === 0) {
@@ -1528,14 +1529,17 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         return;
       }
       const messageId = String(lastPartnerMessage.id);
-      if (!messageId || messageId === deliveredUpToRef.current) {
+      const sequenceNumber = lastPartnerMessage.sequence_number ?? null;
+      const key = sequenceNumber != null ? `seq:${sequenceNumber}` : `id:${messageId}`;
+      if (!messageId || deliveredUpToRef.current === key) {
         return;
       }
       const payload: ReadReceiptPayload = {
         thread_id: String(thread.id),
         up_to_message_id: messageId,
-        up_to_sequence_number: lastPartnerMessage.sequence_number ?? null,
+        up_to_sequence_number: sequenceNumber,
       };
+      deliveredUpToRef.current = key;
       void sendDeliveryReceipt(payload, 'auto-deliver');
     }, [messages, thread?.id, partnerId, currentUserId, sendDeliveryReceipt]);
 
