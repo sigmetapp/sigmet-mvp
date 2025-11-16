@@ -234,7 +234,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Prepare service role client for parallel operations
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const serviceClient = serviceRoleKey 
+      const isServiceClient = Boolean(serviceRoleKey);
+      const serviceClient = isServiceClient
       ? createClient(url, serviceRoleKey, {
           auth: { persistSession: false, autoRefreshToken: false },
         })
@@ -259,14 +260,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Create receipts for all recipients (except sender)
-    if (otherIds.length > 0) {
-      const receipts = otherIds.map((recipientId) => ({
-        message_id: finalMessage.id,
-        user_id: recipientId,
-        status: 'sent',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
+        if (otherIds.length > 0 && isServiceClient) {
+          const receipts = otherIds.map((recipientId) => ({
+            message_id: finalMessage.id,
+            user_id: recipientId,
+            status: 'sent',
+          }));
 
       const receiptsBuilder = serviceClient.from('dms_message_receipts') as any;
       if (typeof receiptsBuilder.upsert === 'function') {
@@ -277,7 +276,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               ignoreDuplicates: false,
             })
             .then(() => {})
-            .catch((receiptErr: unknown) => {
+              .catch((receiptErr: unknown) => {
               console.error('Error creating receipts:', receiptErr);
             })
         );
@@ -287,7 +286,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           receiptsBuilder
             .insert(receipts)
             .then(() => {})
-            .catch((receiptErr: unknown) => {
+              .catch((receiptErr: unknown) => {
               console.error('Error creating receipts via insert:', receiptErr);
             })
         );

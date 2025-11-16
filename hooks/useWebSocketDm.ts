@@ -54,14 +54,25 @@ function compareMessages(a: Message, b: Message): number {
     return 1;
   }
 
-  const timeA = new Date(a.created_at).getTime();
-  const timeB = new Date(b.created_at).getTime();
-  if (timeA !== timeB) return timeA - timeB;
-  return String(a.id).localeCompare(String(b.id));
+const timeA = new Date(a.created_at).getTime();
+const timeB = new Date(b.created_at).getTime();
+if (timeA !== timeB) return timeA - timeB;
+return normalizeMessageId(a.id).localeCompare(normalizeMessageId(b.id));
 }
 
 function sortMessagesChronologically(messages: Message[]): Message[] {
   return [...messages].sort(compareMessages);
+}
+
+function normalizeMessageId(value: Message['id']): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value);
+}
+
+function idsEqual(a: Message['id'], b: Message['id']): boolean {
+  return normalizeMessageId(a) === normalizeMessageId(b);
 }
 
 /**
@@ -74,7 +85,9 @@ function addOrUpdateMessage(
   newMessage: Message,
 ): Message[] {
   // Check if message already exists by id (primary key)
-  const existingIndex = messages.findIndex((m) => m.id === newMessage.id);
+  const existingIndex = messages.findIndex((m) =>
+    idsEqual(m.id, newMessage.id),
+  );
 
   if (existingIndex !== -1) {
     // Update existing message (in case of edits or updates)
@@ -1277,13 +1290,13 @@ export function useWebSocketDm(
             return updated;
           }
 
-          if (
-            prev.some(
-              (m) =>
-                m.id === savedMessage.id ||
-                (m as any).client_msg_id === clientMsgId,
-            )
-          ) {
+            if (
+              prev.some(
+                (m) =>
+                  idsEqual(m.id, savedMessage.id) ||
+                  (m as any).client_msg_id === clientMsgId,
+              )
+            ) {
             return prev;
           }
 
@@ -1387,7 +1400,7 @@ export function useWebSocketDm(
         try {
           // For read status, use the messages.read endpoint which updates receipts to 'read'
           // For delivered status, we could use a different endpoint, but for now we'll use read
-          await fetch("/api/dms/messages.read", {
+            await fetch("/api/dms/messages.read", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -1400,6 +1413,7 @@ export function useWebSocketDm(
                 ? Math.trunc(sequenceNumber)
                 : null,
             }),
+              keepalive: true,
           });
         } catch (error) {
           console.error(
@@ -1510,12 +1524,12 @@ export function useWebSocketDm(
         // Prepend older messages to existing messages
         setMessagesState((prev) => {
           // Merge and sort to avoid duplicates
-          const merged = [...olderMessages, ...prev];
-          const byId = new Map<number, Message>();
-          for (const msg of merged) {
-            byId.set(msg.id, msg);
-          }
-          return sortMessagesChronologically(Array.from(byId.values()));
+      const merged = [...olderMessages, ...prev];
+      const byId = new Map<string, Message>();
+      for (const msg of merged) {
+        byId.set(normalizeMessageId(msg.id), msg);
+      }
+      return sortMessagesChronologically(Array.from(byId.values()));
         });
 
         return olderMessages;
