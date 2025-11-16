@@ -244,6 +244,29 @@ export default function PublicProfilePage() {
       };
     }>
   >([]);
+
+  // Prevent body scroll when history modal is open (mobile fix)
+  useEffect(() => {
+    if (historyOpen) {
+      // Save current scroll position
+      const scrollY = window.scrollY;
+      // Prevent body scroll
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+      
+      return () => {
+        // Restore body scroll
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        // Restore scroll position
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [historyOpen]);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [presenceChannel, setPresenceChannel] = useState<RealtimeChannel | null>(null);
 
@@ -2390,9 +2413,21 @@ export default function PublicProfilePage() {
 
       {/* History modal (owner only) */}
       {historyOpen && (
-        <div className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-2 sm:p-4" style={{ paddingTop: 'max(4.5rem, calc(env(safe-area-inset-top, 0px) + 4.5rem))' }}>
-          <div className="absolute inset-0 bg-black/80" onClick={() => setHistoryOpen(false)} />
-          <div className="relative z-10 w-full max-w-xl max-h-[calc(100vh-6rem)] sm:max-h-[90vh] flex flex-col">
+        <div 
+          className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-2 sm:p-4" 
+          style={{ paddingTop: 'max(4.5rem, calc(env(safe-area-inset-top, 0px) + 4.5rem))' }}
+          onClick={(e) => {
+            // Close modal when clicking on backdrop
+            if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('modal-backdrop')) {
+              setHistoryOpen(false);
+            }
+          }}
+        >
+          <div className="absolute inset-0 bg-black/80 modal-backdrop" onClick={() => setHistoryOpen(false)} />
+          <div 
+            className="relative z-10 w-full max-w-xl max-h-[calc(100vh-6rem)] sm:max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="card p-3 sm:p-4 md:p-5 flex flex-col flex-1 min-h-0 space-y-3">
               <div className="flex items-center justify-between flex-shrink-0">
                 <div className="text-white/90 font-medium text-sm sm:text-base">Change history</div>
@@ -2401,7 +2436,13 @@ export default function PublicProfilePage() {
               {historyItems.length === 0 ? (
                 <div className="text-white/60 text-xs sm:text-sm">No history yet</div>
               ) : (
-                <div className="flex-1 min-h-0 overflow-y-auto -mx-3 sm:-mx-4 md:-mx-5 px-3 sm:px-4 md:px-5">
+                <div 
+                  className="flex-1 min-h-0 overflow-y-auto -mx-3 sm:-mx-4 md:-mx-5 px-3 sm:px-4 md:px-5"
+                  style={{ 
+                    WebkitOverflowScrolling: 'touch',
+                    touchAction: 'pan-y'
+                  }}
+                >
                   <ul className="divide-y divide-white/10 rounded-xl border border-white/10 overflow-hidden">
                     {historyItems.map((it, idx) => (
                       <HistoryRow key={idx} item={it} />
