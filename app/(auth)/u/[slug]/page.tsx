@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { upsertProfileByUserId } from '@/lib/profileUpsert';
 import Button from '@/components/Button';
 import { getPresenceMap } from '@/lib/dm/presence';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -947,8 +948,8 @@ export default function PublicProfilePage() {
       const { error: upErr } = await bucket.upload(path, file, { upsert: true });
       if (upErr) throw upErr;
       const { data } = bucket.getPublicUrl(path);
-      const url = data.publicUrl;
-      await supabase.from('profiles').upsert({ user_id: me, avatar_url: url }, { onConflict: 'user_id' });
+        const url = data.publicUrl;
+        await upsertProfileByUserId(supabase, { user_id: me, avatar_url: url });
       setProfile((p) => (p ? { ...p, avatar_url: url } : p));
     } catch (e) {
       // no-op

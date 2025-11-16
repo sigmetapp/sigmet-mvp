@@ -11,6 +11,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import ProfileSkeleton from '@/components/ProfileSkeleton';
 import ProfileLoading from './loading';
 import { resolveAvatarUrl } from '@/lib/utils';
+import { upsertProfileByUserId } from '@/lib/profileUpsert';
 
 export default function ProfilePage() {
   return (
@@ -185,13 +186,10 @@ function ProfileSettings() {
       }
     }
     
-    // Use upsert with explicit conflict resolution on user_id
-    const { error } = await supabase
-      .from('profiles')
-      .upsert(profileToSave, { onConflict: 'user_id' });
+    const { error: saveError } = await upsertProfileByUserId(supabase, profileToSave);
     
-    if (error) {
-      setNote(error.message);
+    if (saveError) {
+      setNote(saveError.message);
       setShowSuccess(false);
     } else {
       setNote('');
@@ -203,24 +201,24 @@ function ProfileSettings() {
       }, 3000);
     }
   }
-
-  async function uploadAvatar() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !file) return;
-    const path = `${user.id}/avatar.png`;
-    const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-    if (upErr) { setNote(upErr.message); return; }
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-    // Persist to DB immediately so other pages (public profile, feed, comments) see it
-    try {
-      await supabase.from('profiles').upsert({ user_id: user.id, avatar_url: data.publicUrl }, { onConflict: 'user_id' });
-      setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }));
-      setNote('Avatar updated');
-    } catch (e: any) {
-      setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }));
-      setNote('Avatar uploaded, but failed to save profile');
+  
+    async function uploadAvatar() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !file) return;
+      const path = `${user.id}/avatar.png`;
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      if (upErr) { setNote(upErr.message); return; }
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      // Persist to DB immediately so other pages (public profile, feed, comments) see it
+      try {
+        await upsertProfileByUserId(supabase, { user_id: user.id, avatar_url: data.publicUrl });
+        setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }));
+        setNote('Avatar updated');
+      } catch (e: any) {
+        setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }));
+        setNote('Avatar uploaded, but failed to save profile');
+      }
     }
-  }
 
   async function changePassword() {
     if (!currentPassword || !newPassword || !confirmPassword) {
