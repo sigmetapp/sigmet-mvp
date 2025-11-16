@@ -5,12 +5,12 @@ type ProfilePayload = {
   [key: string]: any;
 };
 
-const CONFLICT_ERROR_PATTERN = /no unique or exclusion constraint/i;
+const CONSTRAINT_ERROR_PATTERN =
+  /(duplicate key value|no unique or exclusion constraint)/i;
 
 /**
- * Attempts to upsert a profile row by `user_id`.
- * If the target database is missing the expected unique constraint,
- * falls back to manual update/insert logic so profile saving still works.
+ * Safe profile upsert helper that works even if the DB instance
+ * lacks the expected `user_id` unique constraint.
  */
 export async function upsertProfileByUserId(
   client: SupabaseClient<any, any, any>,
@@ -20,36 +20,41 @@ export async function upsertProfileByUserId(
     throw new Error('user_id is required to upsert profile');
   }
 
-  const { error } = await client
+  // Try update first (covers most cases and avoids ON CONFLICT entirely)
+  const updateResult = await client
     .from('profiles')
-    .upsert(payload, { onConflict: 'user_id' });
+    .update(payload)
+    .eq('user_id', payload.user_id)
+    .select('user_id');
 
-  if (error && error.message && CONFLICT_ERROR_PATTERN.test(error.message)) {
-    const { data: existing, error: lookupError } = await client
-      .from('profiles')
-      .select('user_id')
-      .eq('user_id', payload.user_id)
-      .maybeSingle();
-
-    if (lookupError) {
-      return { error: lookupError };
-    }
-
-    if (existing) {
-      const { error: updateError } = await client
-        .from('profiles')
-        .update(payload)
-        .eq('user_id', payload.user_id);
-
-      return { error: updateError };
-    }
-
-    const { error: insertError } = await client
-      .from('profiles')
-      .insert(payload);
-
-    return { error: insertError };
+  if (updateResult.error && !isNoRowsError(updateResult.error)) {
+    return { error: updateResult.error };
   }
 
-  return { error };
+  const updatedRows = updateResult.data ?? [];
+  if (updatedRows.length > 0) {
+    return { error: null };
+  }
+
+  // No existing row — insert a new one.
+  const insertResult = await client.from('profiles').insert(payload);
+  if (
+    insertResult.error &&
+    CONSTRAINT_ERROR_PATTERN.test(insertResult.error.message || '')
+  ) {
+    // Someone else inserted concurrently or constraint finally exists.
+    const retryResult = await client
+      .from('profiles')
+      .update(payload)
+      .eq('user_id', payload.user_id);
+    return { error: retryResult.error || null };
+  }
+
+  return { error: insertResult.error || null };
+}
+
+function isNoRowsError(error: PostgrestError | null) {
+  if (!error) return false;
+  // PostgREST returns PGRST116 when Prefer: return=representation finds no rows.
+  return error.code === 'PGRST116';
 }
