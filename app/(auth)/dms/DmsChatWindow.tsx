@@ -154,7 +154,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
-  const hasUploadingAttachment = selectedFiles.some((item) => item.status === 'uploading');
   const [isOffline, setIsOffline] = useState<boolean>(typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const [outbox, setOutbox] = useState<
     Array<{ body: string | null; attachments: DmAttachment[]; clientMsgId: string }>
@@ -220,6 +219,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [searchIndex, setSearchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const messagesRef = useRef<Message[]>([]);
+    const attachmentMessageMapRef = useRef<Map<string, string>>(new Map());
     const messageNodeMap = useRef<Map<number, HTMLDivElement>>(new Map());
     const deliveredUpToRef = useRef<string | null>(null);
     const latestReadPayloadRef = useRef<ReadReceiptPayload | null>(null);
@@ -565,6 +565,177 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     [isOnlineByActivity]
   );
 
+    const updateMessageByClientId = useCallback(
+      (
+        clientMsgId: string,
+        mutator: (message: Message & { attachments?: any[] }) => Message & { attachments?: any[] },
+      ) => {
+        setMessagesFromHook((prev) => {
+          let changed = false;
+          const next = prev.map((msg) => {
+            if ((msg as any).client_msg_id !== clientMsgId) {
+              return msg;
+            }
+            changed = true;
+            return mutator(msg);
+          });
+          return changed ? next : prev;
+        });
+      },
+      [setMessagesFromHook],
+    );
+
+    const updatePlaceholderAttachment = useCallback(
+      (clientMsgId: string, placeholderId: string, patch: Record<string, unknown>) => {
+        updateMessageByClientId(clientMsgId, (message) => {
+          const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+          let mutated = false;
+          const nextAttachments = attachments.map((att: any) => {
+            if (att?.__placeholderId !== placeholderId) {
+              return att;
+            }
+            mutated = true;
+            return { ...att, ...patch };
+          });
+          if (!mutated) {
+            return message;
+          }
+          return {
+            ...message,
+            attachments: nextAttachments,
+          };
+        });
+      },
+      [updateMessageByClientId],
+    );
+
+    const removeLocalEcho = useCallback(
+      (clientMsgId: string) => {
+        setMessagesFromHook((prev) =>
+          prev.filter((msg) => (msg as any).client_msg_id !== clientMsgId),
+        );
+      },
+      [setMessagesFromHook],
+    );
+
+    function cleanupAttachmentPreviews(files: SelectedAttachment[]) {
+      files.forEach((file) => {
+        if (file.previewUrl) {
+          try {
+            URL.revokeObjectURL(file.previewUrl);
+          } catch {
+            // ignore revoke errors
+          }
+        }
+      });
+    }
+
+    const uploadFileWithPlaceholder = useCallback(
+      (item: SelectedAttachment, clientMsgId: string) => {
+        return uploadAttachment(item.file, {
+          onProgress: ({ uploadedBytes, totalBytes }) => {
+            if (!totalBytes) {
+              return;
+            }
+            const progress = Math.min(100, Math.round((uploadedBytes / totalBytes) * 100));
+            updatePlaceholderAttachment(clientMsgId, item.id, { progress });
+          },
+        })
+          .then((uploaded) => {
+            updatePlaceholderAttachment(clientMsgId, item.id, {
+              progress: 100,
+              placeholderStatus: 'uploaded',
+            });
+            return uploaded;
+          })
+          .catch((error) => {
+            updatePlaceholderAttachment(clientMsgId, item.id, {
+              placeholderStatus: 'error',
+              placeholderError: error?.message || 'Failed to upload attachment',
+            });
+            throw error;
+          });
+      },
+      [updatePlaceholderAttachment],
+    );
+
+    const finalizeSendAfterUploads = useCallback(
+      async ({
+        tempId,
+        attachments,
+        messageBody,
+        threadId,
+      }: {
+        tempId: string;
+        attachments: DmAttachment[];
+        messageBody: string | null;
+        threadId: string;
+      }) => {
+        const annotated = annotateDocumentVersions(attachments, messagesRef.current);
+
+        updateMessageByClientId(tempId, (message) => ({
+          ...message,
+          attachments: annotated,
+          delivery_state: 'sending',
+          send_error: undefined,
+        }));
+
+        if (isOffline) {
+          setOutbox((prev) => [
+            ...prev,
+            { body: messageBody, attachments: annotated, clientMsgId: tempId },
+          ]);
+          return;
+        }
+
+        try {
+          const { sendMessage: sendMessageLib } = await import('@/lib/dms');
+          const savedMessage = await sendMessageLib(
+            threadId,
+            messageBody,
+            annotated as unknown[],
+            tempId,
+          );
+
+          setMessagesFromHook((prev: Message[]) =>
+            prev.map((msg) =>
+              (msg as any).client_msg_id === tempId && msg.id === -1
+                ? ({
+                    ...(savedMessage as Message),
+                    client_msg_id: (savedMessage as any)?.client_msg_id ?? tempId,
+                    delivery_state: 'delivered',
+                    send_error: undefined,
+                  } as Message & { delivery_state?: 'delivered'; send_error?: undefined })
+                : msg,
+            ),
+          );
+          updateMessageReceiptStatus(String(savedMessage.id), 'delivered', 'local');
+        } catch (err: any) {
+          updateMessageByClientId(tempId, (message) => ({
+            ...message,
+            delivery_state: 'failed',
+            send_error: err?.message || 'Failed to send',
+          }));
+
+          try {
+            const { handleDmError, getUserFriendlyMessage } = await import('@/lib/dm/errorHandler');
+            handleDmError(err, {
+              component: 'DmsChatWindow',
+              action: 'send_message',
+              threadId,
+            });
+            const userMessage = getUserFriendlyMessage(err);
+            setError(userMessage);
+          } catch {
+            setError(err?.message || 'Failed to send message');
+          }
+
+          throw err;
+        }
+      },
+      [isOffline, setOutbox, updateMessageByClientId, setMessagesFromHook, updateMessageReceiptStatus, setError],
+    );
+
   function getAttachmentIcon(type?: DmAttachment['type']) {
     switch (type) {
       case 'image':
@@ -579,14 +750,27 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   }
 
   // Attachment preview component
-  function AttachmentPreview({ attachment, allAttachments, attachmentIndex }: { attachment: DmAttachment; allAttachments?: DmAttachment[]; attachmentIndex?: number }) {
+  function AttachmentPreview({
+    attachment,
+    allAttachments,
+    attachmentIndex,
+  }: {
+    attachment: DmAttachment;
+    allAttachments?: DmAttachment[];
+    attachmentIndex?: number;
+  }) {
     const [url, setUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [imageLoaded, setImageLoaded] = useState(false);
     const [error, setError] = useState(false);
 
+    const isPlaceholder = (attachment as any)?.__placeholder;
+
     const attachmentKey = useMemo(() => {
       if (!attachment) return 'null';
+      if (isPlaceholder) {
+        return `${(attachment as any).__placeholderId ?? 'placeholder'}|${(attachment as any).progress ?? 0}|${(attachment as any).placeholderError ?? ''}`;
+      }
       return [
         attachment.path ?? '',
         (attachment as any)?.storagePath ?? '',
@@ -597,7 +781,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         attachment.bucket ?? (attachment as any)?.bucket ?? '',
         attachment.version ?? '',
       ].join('|');
-    }, [attachment]);
+    }, [attachment, isPlaceholder]);
 
     const stableAttachment = useMemo(() => attachment, [attachmentKey]);
 
@@ -605,6 +789,14 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       if (!stableAttachment) {
         setUrl(null);
         setLoading(false);
+        return;
+      }
+
+      if ((stableAttachment as any)?.__placeholder) {
+        setUrl((stableAttachment as any)?.previewUrl ?? null);
+        setLoading(false);
+        setError(Boolean((stableAttachment as any)?.placeholderError));
+        setImageLoaded(Boolean((stableAttachment as any)?.previewUrl));
         return;
       }
 
@@ -632,10 +824,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         }
       })();
 
-      return () => {
-        cancelled = true;
-      };
-    }, [stableAttachment, attachmentKey]);
+    ...
 
     const handleImageClick = useCallback(async () => {
       if (!url || stableAttachment.type !== 'image') return;
@@ -673,6 +862,50 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       setLightboxImage({ url, alt: stableAttachment.originalName ?? (stableAttachment as any)?.original_name ?? 'Image' });
       setLightboxOpen(true);
     }, [url, stableAttachment, allAttachments, attachmentIndex]);
+
+    if (isPlaceholder) {
+      const placeholderProgress = Math.max(
+        0,
+        Math.min(100, Number((stableAttachment as any)?.progress ?? 0)),
+      );
+      const placeholderError = (stableAttachment as any)?.placeholderError as string | undefined;
+      return (
+        <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/5 px-3 py-2.5">
+          <div className="h-12 w-12 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center border border-white/10">
+            {url ? (
+              <img
+                src={url}
+                alt={stableAttachment.originalName ?? 'Attachment'}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="text-base" role="img" aria-hidden="true">
+                {getAttachmentIcon(stableAttachment.type)}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-white/90 truncate">
+              {stableAttachment.originalName ?? 'Attachment'}
+            </div>
+            <div className="text-[11px] text-white/50">
+              {placeholderError ? 'Upload failed' : `Uploading… ${placeholderProgress}%`}
+            </div>
+            <div className="mt-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${
+                  placeholderError ? 'bg-red-400' : 'bg-gradient-to-r from-cyan-400 to-blue-500'
+                } transition-all`}
+                style={{ width: `${placeholderProgress}%` }}
+              />
+            </div>
+            {placeholderError && (
+              <div className="text-[11px] text-red-300 mt-1">{placeholderError}</div>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     if (loading) {
       return (
@@ -2098,221 +2331,172 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     }
   }, []);
 
-  // Handle send message
-  async function handleSend() {
-    if (!thread || !thread.id || !currentUserId || sending) {
-      return;
-    }
-
-    const previousDraft = messageText;
-    const textToSend = previousDraft.trim();
-    const filesToSend = selectedFiles;
-
-    if (!textToSend && filesToSend.length === 0) {
-      return;
-    }
-
-    setMessageText('');
-    const threadId = thread.id;
-
-    setSending(true);
-
-    const hasAttachments = filesToSend.length > 0;
-    if (hasAttachments) {
-      setUploadingAttachments(true);
-    }
-
-    setIsTyping(false);
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-    if (threadId) {
-      wsSendTyping(threadId, false);
-    }
-
-    let attachments: DmAttachment[] = [];
-
-    if (hasAttachments) {
-      try {
-        attachments = await Promise.all(
-          filesToSend.map(async (item) => {
-            setSelectedFiles((prev) =>
-              prev.map((entry) =>
-                entry.id === item.id
-                  ? { ...entry, status: 'uploading', progress: 0, error: undefined }
-                  : entry
-              )
-            );
-
-            const attachment = await uploadAttachment(item.file, {
-              onProgress: ({ uploadedBytes, totalBytes }) => {
-                setSelectedFiles((prev) =>
-                  prev.map((entry) =>
-                    entry.id === item.id
-                      ? {
-                          ...entry,
-                          progress: Math.min(100, Math.round((uploadedBytes / totalBytes) * 100)),
-                        }
-                      : entry
-                  )
-                );
-              },
-            });
-
-            setSelectedFiles((prev) =>
-              prev.map((entry) =>
-                entry.id === item.id ? { ...entry, status: 'done', progress: 100 } : entry
-              )
-            );
-
-            return attachment;
-          })
-        );
-      } catch (err: any) {
-        console.error('Error uploading attachments:', err);
-        setSelectedFiles((prev) =>
-          prev.map((entry) => {
-            if (filesToSend.some((upload) => upload.id === entry.id)) {
-              const alreadyDone = entry.status === 'done';
-              return {
-                ...entry,
-                status: alreadyDone ? entry.status : 'error',
-                error: alreadyDone ? entry.error : err?.message || 'Failed to upload',
-              };
-            }
-            return entry;
-          })
-        );
-        setError(err?.message || 'Failed to upload attachments');
-        setSending(false);
-        setUploadingAttachments(false);
+    // Handle send message
+    async function handleSend() {
+      if (!thread || !thread.id || !currentUserId || sending) {
         return;
-      } finally {
-        setUploadingAttachments(false);
       }
-    }
 
-      playSendConfirmation();
+      const previousDraft = messageText;
+      const textToSend = previousDraft.trim();
+      const filesToSend = selectedFiles;
+
+      if (!textToSend && filesToSend.length === 0) {
+        return;
+      }
+
+      setMessageText('');
+      const threadId = thread.id;
+
+      setSending(true);
+
+      const hasAttachments = filesToSend.length > 0;
+      if (hasAttachments) {
+        setUploadingAttachments(true);
+      }
+
+      setIsTyping(false);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      if (threadId) {
+        wsSendTyping(threadId, false);
+      }
+
+      const messageBody = textToSend || null;
+
+      const attachmentsSnapshot = filesToSend.map((item) => {
+        const needsPreview = !item.previewUrl && item.file.type.startsWith('image/');
+        const previewUrl = needsPreview ? URL.createObjectURL(item.file) : item.previewUrl;
+        return {
+          ...item,
+          previewUrl,
+          progress: 0,
+          status: 'idle',
+          error: undefined,
+        };
+      });
 
       const tempId =
         (globalThis.crypto?.randomUUID
           ? `temp-${globalThis.crypto.randomUUID()}`
           : `temp-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-    const localEcho: Message & {
-        delivery_state?: 'sending' | 'failed' | 'sent' | 'delivered' | 'read';
+
+      const placeholderAttachments = attachmentsSnapshot.map((item) => ({
+        __placeholder: true,
+        __placeholderId: item.id,
+        type: item.file.type.startsWith('image/')
+          ? 'image'
+          : item.file.type.startsWith('video/')
+            ? 'video'
+            : item.file.type.startsWith('audio/')
+              ? 'audio'
+              : 'file',
+        originalName: item.file.name,
+        mime: item.file.type,
+        size: item.file.size,
+        previewUrl: item.previewUrl ?? null,
+        progress: 0,
+      }));
+
+      if (attachmentsSnapshot.length > 0) {
+        attachmentsSnapshot.forEach((item) => {
+          attachmentMessageMapRef.current.set(item.id, tempId);
+        });
+      }
+
+      playSendConfirmation();
+
+      const localEcho: Message & {
+        delivery_state?: 'uploading' | 'sending' | 'failed' | 'sent' | 'delivered' | 'read';
         send_error?: string;
       } = {
         id: -1,
         thread_id: threadId,
         sender_id: currentUserId,
         kind: 'text',
-        body: textToSend || null,
-        attachments,
+        body: messageBody,
+        attachments: hasAttachments ? (placeholderAttachments as unknown as DmAttachment[]) : [],
         created_at: new Date().toISOString(),
         edited_at: null,
         deleted_at: null,
         client_msg_id: tempId,
-        delivery_state: 'sending',
+        delivery_state: hasAttachments ? 'uploading' : 'sending',
       };
+
       setMessagesFromHook((prev) => mergeMessages(prev, [localEcho]));
       requestAnimationFrame(() => {
         scrollToBottomInstant();
       });
+
+      setSelectedFiles([]);
       setSending(false);
 
-    try {
-      const messageBody = textToSend || null;
-      if (isOffline) {
-        setOutbox((prev) => [
-          ...prev,
-          { body: messageBody, attachments, clientMsgId: tempId },
-        ]);
-        setSelectedFiles((prev) => {
-          prev.forEach((entry) => {
-            if (entry.previewUrl) {
-              URL.revokeObjectURL(entry.previewUrl);
-            }
-          });
-          return [];
-        });
-        playSendConfirmation();
-        return;
-      }
-        // Use sendMessage from lib/dms
-        const { sendMessage: sendMessageLib } = await import('@/lib/dms');
-        const savedMessage = await sendMessageLib(
-          threadId,
-          messageBody,
-          annotateDocumentVersions(attachments, messages) as unknown[],
-          tempId
-        );
-
-        setMessagesFromHook((prev: Message[]) =>
-          prev.map((msg) =>
-            (msg as any).client_msg_id === tempId && msg.id === -1
-              ? ({
-                  ...(savedMessage as Message),
-                  client_msg_id: (savedMessage as any)?.client_msg_id ?? tempId,
-                  delivery_state: 'delivered',
-                  send_error: undefined,
-                } as Message & { delivery_state?: 'delivered'; send_error?: undefined })
-              : msg
-          )
-        );
-        updateMessageReceiptStatus(String(savedMessage.id), 'delivered', 'local');
-
-      setMessageText('');
-      setSelectedFiles((prev) => {
-        prev.forEach((entry) => {
-          if (entry.previewUrl) {
-            URL.revokeObjectURL(entry.previewUrl);
+      const runPipeline = async () => {
+        if (!hasAttachments) {
+          try {
+            await finalizeSendAfterUploads({ tempId, attachments: [], messageBody, threadId });
+          } catch (err) {
+            setMessageText(previousDraft);
+            throw err;
+          } finally {
+            setUploadingAttachments(false);
           }
-        });
-        return [];
-      });
-
-      setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          return;
         }
-      }, 100);
-      playSendConfirmation();
-    } catch (err: any) {
-        console.error('Error sending message:', err);
-        setMessagesFromHook((prev) =>
-          prev.map((msg) =>
-            (msg as any).client_msg_id === tempId && msg.id === -1
-              ? {
-                  ...msg,
-                  delivery_state: 'failed',
-                  send_error: err?.message || 'Failed to send',
-                }
-              : msg
-          )
+
+        const uploadJobs = attachmentsSnapshot.map((item) =>
+          uploadFileWithPlaceholder(item, tempId),
         );
-      
-      // Use centralized error handling
-      import('@/lib/dm/errorHandler').then(({ handleDmError, getUserFriendlyMessage }) => {
-        handleDmError(err, {
-          component: 'DmsChatWindow',
-          action: 'send_message',
-          threadId: threadId ? String(threadId) : undefined,
-        });
-        
-        // Show user-friendly error message
-        const userMessage = getUserFriendlyMessage(err);
-      setError(userMessage);
-    }).catch(() => {
-      // Fallback if error handler not available
-      setError(err?.message || 'Failed to send message');
-    });
-    
-    setMessageText(previousDraft);
-      } finally {
-        setUploadingAttachments(false);
-      }
-  }
+
+        try {
+          const results = await Promise.allSettled(uploadJobs);
+          attachmentsSnapshot.forEach((item) => attachmentMessageMapRef.current.delete(item.id));
+
+          const failures = results.filter(
+            (result): result is PromiseRejectedResult => result.status === 'rejected',
+          );
+
+          if (failures.length > 0) {
+            const firstError = failures[0]?.reason?.message || 'Failed to upload attachments';
+            removeLocalEcho(tempId);
+            setError(firstError);
+            setMessageText(previousDraft);
+            setSelectedFiles(
+              attachmentsSnapshot.map((item) => ({
+                ...item,
+                status: 'idle',
+                progress: 0,
+                error: undefined,
+              })),
+            );
+            return;
+          }
+
+          const uploaded = results.map(
+            (result) => (result as PromiseFulfilledResult<DmAttachment>).value,
+          );
+
+          try {
+            await finalizeSendAfterUploads({
+              tempId,
+              attachments: uploaded,
+              messageBody,
+              threadId,
+            });
+            cleanupAttachmentPreviews(attachmentsSnapshot);
+          } catch (err) {
+            setMessageText(previousDraft);
+            throw err;
+          }
+        } finally {
+          setUploadingAttachments(false);
+        }
+      };
+
+      void runPipeline();
+    }
 
     function annotateDocumentVersions(
       uploads: DmAttachment[],
@@ -2822,7 +3006,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                                       const isPendingLocalEcho = msg.id === -1 || deliveryState === 'sending';
                                     
                                       // Failed message
-                                      if (sendError || deliveryState === 'failed') {
+                                        if (sendError || deliveryState === 'failed') {
                                         return (
                                           <svg
                                             xmlns="http://www.w3.org/2000/svg"
@@ -2840,6 +3024,27 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                                           </svg>
                                         );
                                       }
+
+                                        if (deliveryState === 'uploading') {
+                                          return (
+                                            <svg
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              viewBox="0 0 24 24"
+                                              width="14"
+                                              height="14"
+                                              className="text-white/70 animate-spin"
+                                              aria-label="Uploading"
+                                              title="Uploading attachments"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth="2"
+                                              style={{ minWidth: '14px' }}
+                                            >
+                                              <circle cx="12" cy="12" r="10" strokeOpacity="0.3" />
+                                              <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
+                                            </svg>
+                                          );
+                                        }
                                       
                                       // Read status - check both receiptStatus and deliveryState
                                       // Also check if message was read by checking if it's not from partner and was acknowledged
@@ -2886,7 +3091,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                                         );
                                       }
 
-                                      const isSent =
+                                        const isSent =
                                         isPendingLocalEcho ||
                                         deliveryState === 'sent' ||
                                         receiptStatus === 'sent';
@@ -3211,7 +3416,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
               />
             </svg>
           </button>
-          <textarea
+            <textarea
             ref={textareaRef}
             className="flex-1 bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-white/40 resize-none max-h-32 overflow-y-auto text-sm text-white leading-6 py-1.5 px-1"
             value={messageText}
@@ -3222,8 +3427,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                 void handleSend();
               }
             }}
-            placeholder="Type a message..."
-            disabled={uploadingAttachments || isOffline}
+              placeholder="Type a message..."
+              disabled={isOffline}
             rows={1}
             style={{
               height: 'auto',
@@ -3239,14 +3444,12 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           />
           <div className="flex items-center gap-1 flex-shrink-0">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} position="top" />
-              <button
+                <button
                 className="btn btn-primary rounded-xl px-4 py-2 text-sm font-medium"
                 onClick={handleSend}
                 disabled={
                   (!messageText.trim() && selectedFiles.length === 0) ||
                   sending ||
-                  uploadingAttachments ||
-                  hasUploadingAttachment ||
                   isOffline
                 }
               >
