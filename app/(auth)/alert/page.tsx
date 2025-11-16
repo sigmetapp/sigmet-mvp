@@ -280,8 +280,10 @@ export default function AlertPage() {
         .order('created_at', { ascending: false })
         .limit(5);
       
-      if (userPosts && userPosts.length > 0) {
-        const postIds = userPosts.map(p => p.id);
+        if (userPosts && userPosts.length > 0) {
+          const postIds = userPosts
+            .map(p => p.id)
+            .filter((id): id is number | string => id !== null && id !== undefined);
         const { data: recentComments, error: commentsError } = await supabase
           .from('comments')
           .select('id, post_id, author_id, user_id, text, body, created_at')
@@ -334,12 +336,187 @@ export default function AlertPage() {
             error: commentsError?.message || 'No comments found',
           };
         }
+
+          if (postIds.length > 0) {
+            const { data: postReactions, error: postReactionsError } = await supabase
+              .from('post_reactions')
+              .select('post_id, user_id, kind, created_at')
+              .in('post_id', postIds)
+              .order('created_at', { ascending: false })
+              .limit(50);
+
+            const filteredPostReactions = (postReactions || []).filter(
+              reaction => reaction.user_id && reaction.user_id !== user.id
+            );
+
+            const { data: postReactionNotifications, error: postReactionNotifError } = await supabase
+              .from('notifications')
+              .select('id, type, post_id, actor_id, created_at')
+              .eq('user_id', user.id)
+              .eq('type', 'reaction_on_post')
+              .in('post_id', postIds)
+              .order('created_at', { ascending: false })
+              .limit(100);
+
+            const missingPostReactionNotifications = filteredPostReactions
+              .filter(reaction => {
+                const postIdValue = reaction.post_id?.toString?.() ?? reaction.post_id;
+                const actorIdValue = reaction.user_id;
+                if (!postIdValue || !actorIdValue) {
+                  return false;
+                }
+                return !postReactionNotifications?.some(notification => {
+                  const notificationPostId = notification.post_id?.toString?.() ?? notification.post_id;
+                  return notificationPostId === postIdValue && notification.actor_id === actorIdValue;
+                });
+              })
+              .map(reaction => ({
+                post_id: reaction.post_id,
+                reactor_id: reaction.user_id,
+                kind: reaction.kind,
+                created_at: reaction.created_at,
+              }));
+
+            debugData.postReactionsAnalysis = {
+              userPostsCount: userPosts.length,
+              reactionsCount: filteredPostReactions.length,
+              notificationsCount: postReactionNotifications?.length ?? 0,
+              recentReactions: filteredPostReactions.slice(0, 10),
+              notificationsSample: postReactionNotifications?.slice(0, 10) ?? [],
+              missingNotifications: missingPostReactionNotifications,
+              errors: {
+                posts: postsError?.message,
+                reactions: postReactionsError?.message,
+                notifications: postReactionNotifError?.message,
+              },
+            };
+          } else {
+            debugData.postReactionsAnalysis = {
+              userPostsCount: userPosts.length,
+              reactionsCount: 0,
+              notificationsCount: 0,
+              error: 'No post ids available for reactions analysis',
+            };
+          }
       } else {
         debugData.recentCommentsAnalysis = {
           userPostsCount: 0,
           error: postsError?.message || 'No posts found for user',
         };
+          debugData.postReactionsAnalysis = {
+            userPostsCount: 0,
+            reactionsCount: 0,
+            notificationsCount: 0,
+            error: postsError?.message || 'No posts found for user',
+          };
       }
+
+        const { data: userAuthoredComments, error: userCommentsError } = await supabase
+          .from('comments')
+          .select('id, post_id, author_id, user_id, text, body, created_at')
+          .or(`author_id.eq.${user.id},user_id.eq.${user.id}`)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (userAuthoredComments && userAuthoredComments.length > 0) {
+          const commentIdsRaw = userAuthoredComments
+            .map(comment => comment.id)
+            .filter((id): id is string | number => id !== null && id !== undefined);
+          const commentIdsForNotifications = Array.from(
+            new Set(commentIdsRaw.map(id => id.toString()))
+          );
+
+          let commentReactions: any[] = [];
+          let commentReactionsError: any = null;
+          if (commentIdsRaw.length > 0) {
+            const commentReactionsResponse = await supabase
+              .from('comment_reactions')
+              .select('comment_id, user_id, kind, created_at')
+              .in('comment_id', commentIdsRaw)
+              .order('created_at', { ascending: false })
+              .limit(50);
+            commentReactions = commentReactionsResponse.data || [];
+            commentReactionsError = commentReactionsResponse.error;
+          } else {
+            commentReactions = [];
+          }
+
+          const { data: commentReactionNotifications, error: commentReactionNotifError } = await supabase
+            .from('notifications')
+            .select('id, type, comment_id, post_id, actor_id, created_at')
+            .eq('user_id', user.id)
+            .eq('type', 'reaction_on_comment')
+            .in('comment_id', commentIdsForNotifications.length > 0 ? commentIdsForNotifications : ['-1'])
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+          const commentMetaMap = new Map<string, { post_id: any; text: string; created_at: string }>();
+          userAuthoredComments.forEach(comment => {
+            const key = comment.id?.toString();
+            if (!key) return;
+            commentMetaMap.set(key, {
+              post_id: comment.post_id,
+              text: (comment.text || comment.body || '').substring(0, 80),
+              created_at: comment.created_at,
+            });
+          });
+
+          const relevantCommentReactions = (commentReactions || []).filter(
+            reaction => reaction.comment_id && reaction.user_id && reaction.user_id !== user.id
+          );
+
+          const missingCommentReactionNotifications = relevantCommentReactions
+            .filter(reaction => {
+              const commentIdValue = reaction.comment_id?.toString?.() ?? reaction.comment_id;
+              const actorIdValue = reaction.user_id;
+              if (!commentIdValue || !actorIdValue) {
+                return false;
+              }
+              return !commentReactionNotifications?.some(notification => {
+                const notificationCommentId = notification.comment_id?.toString?.() ?? notification.comment_id;
+                return notificationCommentId === commentIdValue && notification.actor_id === actorIdValue;
+              });
+            })
+            .map(reaction => {
+              const commentIdValue = reaction.comment_id?.toString?.() ?? reaction.comment_id;
+              const meta = commentMetaMap.get(commentIdValue || '');
+              return {
+                comment_id: reaction.comment_id,
+                reactor_id: reaction.user_id,
+                kind: reaction.kind,
+                created_at: reaction.created_at,
+                post_id: meta?.post_id,
+                comment_preview: meta?.text,
+              };
+            });
+
+          debugData.commentReactionsAnalysis = {
+            userCommentsCount: userAuthoredComments.length,
+            reactionsCount: relevantCommentReactions.length,
+            notificationsCount: commentReactionNotifications?.length ?? 0,
+            recentComments: userAuthoredComments.slice(0, 10).map(comment => ({
+              id: comment.id,
+              post_id: comment.post_id,
+              created_at: comment.created_at,
+              text: (comment.text || comment.body || '').substring(0, 80),
+            })),
+            recentReactions: relevantCommentReactions.slice(0, 10),
+            notificationsSample: commentReactionNotifications?.slice(0, 10) ?? [],
+            missingNotifications: missingCommentReactionNotifications,
+            errors: {
+              comments: userCommentsError?.message,
+              reactions: commentReactionsError?.message,
+              notifications: commentReactionNotifError?.message,
+            },
+          };
+        } else {
+          debugData.commentReactionsAnalysis = {
+            userCommentsCount: 0,
+            reactionsCount: 0,
+            notificationsCount: 0,
+            error: userCommentsError?.message || 'No comments authored by user found',
+          };
+        }
 
       setDebugInfo(debugData);
     } catch (err: any) {
@@ -1126,51 +1303,170 @@ export default function AlertPage() {
                   </div>
                 </div>
 
-                {debugInfo.recentCommentsAnalysis && (
-                  <div className="border-t border-gray-700 pt-2">
-                    <strong className="text-yellow-400">Recent Comments Analysis:</strong>
-                    <div className="ml-4 mt-1 text-xs">
-                      <div>
-                        User posts found: <span className="text-white">{debugInfo.recentCommentsAnalysis.userPostsCount ?? 0}</span>
-                      </div>
-                      <div>
-                        Recent comments on your posts: <span className="text-white">{debugInfo.recentCommentsAnalysis.recentCommentsCount ?? 0}</span>
-                      </div>
-                      <div>
-                        Notifications created: <span className="text-white">{debugInfo.recentCommentsAnalysis.notificationsCount ?? 0}</span>
-                      </div>
-                      {debugInfo.recentCommentsAnalysis.missingNotifications && debugInfo.recentCommentsAnalysis.missingNotifications.length > 0 && (
-                        <div className="mt-2">
-                          <strong className="text-red-400">⚠️ Missing Notifications ({debugInfo.recentCommentsAnalysis.missingNotifications.length}):</strong>
-                          <ul className="ml-2 mt-1 space-y-1">
-                            {debugInfo.recentCommentsAnalysis.missingNotifications.map((missing: any, idx: number) => (
-                              <li key={idx} className="text-red-300">
-                                Comment ID: {missing.comment_id}, Post ID: {missing.post_id}, 
-                                Comment Author: {missing.comment_author?.substring(0, 8)}...,
-                                Created: {missing.created_at ? new Date(missing.created_at).toISOString() : 'N/A'}
-                              </li>
-                            ))}
-                          </ul>
+                  {debugInfo.recentCommentsAnalysis && (
+                    <div className="border-t border-gray-700 pt-2">
+                      <strong className="text-yellow-400">Recent Comments Analysis:</strong>
+                      <div className="ml-4 mt-1 text-xs">
+                        <div>
+                          User posts found: <span className="text-white">{debugInfo.recentCommentsAnalysis.userPostsCount ?? 0}</span>
                         </div>
-                      )}
-                      {debugInfo.recentCommentsAnalysis.comments && debugInfo.recentCommentsAnalysis.comments.length > 0 && (
-                        <div className="mt-2">
-                          <strong className="text-yellow-300">Recent Comments:</strong>
-                          <div className="mt-1 max-h-40 overflow-y-auto">
-                            <pre className="text-xs bg-gray-800 p-2 rounded">
-                              {JSON.stringify(debugInfo.recentCommentsAnalysis.comments.slice(0, 10), null, 2)}
-                            </pre>
+                        <div>
+                          Recent comments on your posts: <span className="text-white">{debugInfo.recentCommentsAnalysis.recentCommentsCount ?? 0}</span>
+                        </div>
+                        <div>
+                          Notifications created: <span className="text-white">{debugInfo.recentCommentsAnalysis.notificationsCount ?? 0}</span>
+                        </div>
+                        {debugInfo.recentCommentsAnalysis.missingNotifications && debugInfo.recentCommentsAnalysis.missingNotifications.length > 0 && (
+                          <div className="mt-2">
+                            <strong className="text-red-400">⚠️ Missing Notifications ({debugInfo.recentCommentsAnalysis.missingNotifications.length}):</strong>
+                            <ul className="ml-2 mt-1 space-y-1">
+                              {debugInfo.recentCommentsAnalysis.missingNotifications.map((missing: any, idx: number) => (
+                                <li key={idx} className="text-red-300">
+                                  Comment ID: {missing.comment_id}, Post ID: {missing.post_id}, 
+                                  Comment Author: {missing.comment_author?.substring(0, 8)}...,
+                                  Created: {missing.created_at ? new Date(missing.created_at).toISOString() : 'N/A'}
+                                </li>
+                              ))}
+                            </ul>
                           </div>
-                        </div>
-                      )}
-                      {debugInfo.recentCommentsAnalysis.errors && (
-                        <div className="mt-2 text-red-400">
-                          Errors: {JSON.stringify(debugInfo.recentCommentsAnalysis.errors, null, 2)}
-                        </div>
-                      )}
+                        )}
+                        {debugInfo.recentCommentsAnalysis.comments && debugInfo.recentCommentsAnalysis.comments.length > 0 && (
+                          <div className="mt-2">
+                            <strong className="text-yellow-300">Recent Comments:</strong>
+                            <div className="mt-1 max-h-40 overflow-y-auto">
+                              <pre className="text-xs bg-gray-800 p-2 rounded">
+                                {JSON.stringify(debugInfo.recentCommentsAnalysis.comments.slice(0, 10), null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                        {debugInfo.recentCommentsAnalysis.errors && (
+                          <div className="mt-2 text-red-400">
+                            Errors: {JSON.stringify(debugInfo.recentCommentsAnalysis.errors, null, 2)}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {debugInfo.postReactionsAnalysis && (
+                    <div className="border-t border-gray-700 pt-2">
+                      <strong className="text-yellow-400">Post Reactions Analysis:</strong>
+                      <div className="ml-4 mt-1 text-xs">
+                        <div>
+                          User posts found: <span className="text-white">{debugInfo.postReactionsAnalysis.userPostsCount ?? 0}</span>
+                        </div>
+                        <div>
+                          Reactions detected: <span className="text-white">{debugInfo.postReactionsAnalysis.reactionsCount ?? 0}</span>
+                        </div>
+                        <div>
+                          Notifications created: <span className="text-white">{debugInfo.postReactionsAnalysis.notificationsCount ?? 0}</span>
+                        </div>
+                        {debugInfo.postReactionsAnalysis.error && (
+                          <div className="mt-2 text-red-400">
+                            Error: {debugInfo.postReactionsAnalysis.error}
+                          </div>
+                        )}
+                        {debugInfo.postReactionsAnalysis.missingNotifications && debugInfo.postReactionsAnalysis.missingNotifications.length > 0 && (
+                          <div className="mt-2">
+                            <strong className="text-red-400">⚠️ Missing Reaction Notifications ({debugInfo.postReactionsAnalysis.missingNotifications.length}):</strong>
+                            <ul className="ml-2 mt-1 space-y-1">
+                              {debugInfo.postReactionsAnalysis.missingNotifications.map((missing: any, idx: number) => (
+                                <li key={idx} className="text-red-300">
+                                  Post ID: {missing.post_id}, Reactor: {missing.reactor_id?.substring(0, 8)}..., Kind: {missing.kind}, Created:{' '}
+                                  {missing.created_at ? new Date(missing.created_at).toISOString() : 'N/A'}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {debugInfo.postReactionsAnalysis.recentReactions && debugInfo.postReactionsAnalysis.recentReactions.length > 0 && (
+                          <div className="mt-2">
+                            <strong className="text-yellow-300">Recent Reactions:</strong>
+                            <div className="mt-1 max-h-40 overflow-y-auto">
+                              <pre className="text-xs bg-gray-800 p-2 rounded">
+                                {JSON.stringify(debugInfo.postReactionsAnalysis.recentReactions, null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                        {debugInfo.postReactionsAnalysis.notificationsSample && debugInfo.postReactionsAnalysis.notificationsSample.length > 0 && (
+                          <div className="mt-2">
+                            <strong className="text-yellow-300">Recent Notifications:</strong>
+                            <div className="mt-1 max-h-40 overflow-y-auto">
+                              <pre className="text-xs bg-gray-800 p-2 rounded">
+                                {JSON.stringify(debugInfo.postReactionsAnalysis.notificationsSample, null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                        {debugInfo.postReactionsAnalysis.errors && (
+                          <div className="mt-2 text-red-400">
+                            Errors: {JSON.stringify(debugInfo.postReactionsAnalysis.errors, null, 2)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {debugInfo.commentReactionsAnalysis && (
+                    <div className="border-t border-gray-700 pt-2">
+                      <strong className="text-yellow-400">Comment Reactions Analysis:</strong>
+                      <div className="ml-4 mt-1 text-xs">
+                        <div>
+                          User comments found: <span className="text-white">{debugInfo.commentReactionsAnalysis.userCommentsCount ?? 0}</span>
+                        </div>
+                        <div>
+                          Reactions detected: <span className="text-white">{debugInfo.commentReactionsAnalysis.reactionsCount ?? 0}</span>
+                        </div>
+                        <div>
+                          Notifications created: <span className="text-white">{debugInfo.commentReactionsAnalysis.notificationsCount ?? 0}</span>
+                        </div>
+                        {debugInfo.commentReactionsAnalysis.error && (
+                          <div className="mt-2 text-red-400">
+                            Error: {debugInfo.commentReactionsAnalysis.error}
+                          </div>
+                        )}
+                        {debugInfo.commentReactionsAnalysis.missingNotifications && debugInfo.commentReactionsAnalysis.missingNotifications.length > 0 && (
+                          <div className="mt-2">
+                            <strong className="text-red-400">⚠️ Missing Reaction Notifications ({debugInfo.commentReactionsAnalysis.missingNotifications.length}):</strong>
+                            <ul className="ml-2 mt-1 space-y-1">
+                              {debugInfo.commentReactionsAnalysis.missingNotifications.map((missing: any, idx: number) => (
+                                <li key={idx} className="text-red-300">
+                                  Comment ID: {missing.comment_id}, Post ID: {missing.post_id}, Reactor: {missing.reactor_id?.substring(0, 8)}..., Kind: {missing.kind}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {debugInfo.commentReactionsAnalysis.recentReactions && debugInfo.commentReactionsAnalysis.recentReactions.length > 0 && (
+                          <div className="mt-2">
+                            <strong className="text-yellow-300">Recent Comment Reactions:</strong>
+                            <div className="mt-1 max-h-40 overflow-y-auto">
+                              <pre className="text-xs bg-gray-800 p-2 rounded">
+                                {JSON.stringify(debugInfo.commentReactionsAnalysis.recentReactions, null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                        {debugInfo.commentReactionsAnalysis.notificationsSample && debugInfo.commentReactionsAnalysis.notificationsSample.length > 0 && (
+                          <div className="mt-2">
+                            <strong className="text-yellow-300">Recent Notifications:</strong>
+                            <div className="mt-1 max-h-40 overflow-y-auto">
+                              <pre className="text-xs bg-gray-800 p-2 rounded">
+                                {JSON.stringify(debugInfo.commentReactionsAnalysis.notificationsSample, null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                        {debugInfo.commentReactionsAnalysis.errors && (
+                          <div className="mt-2 text-red-400">
+                            Errors: {JSON.stringify(debugInfo.commentReactionsAnalysis.errors, null, 2)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
               </div>
             ) : (
               <div className="text-gray-500">Click "Debug" button to load debug information</div>
