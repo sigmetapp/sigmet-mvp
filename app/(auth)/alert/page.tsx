@@ -418,86 +418,151 @@ export default function AlertPage() {
           return message.includes('column') && message.includes(column.toLowerCase());
         };
 
-        let userAuthoredComments: any[] = [];
-        let userCommentsErrorMessage: string | null = null;
-        const missingCommentColumns: string[] = [];
-
-        const commentsByAuthorResponse = await supabase
-          .from('comments')
-          .select('id, post_id, author_id, text, body, created_at')
-          .eq('author_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        if (commentsByAuthorResponse.error) {
-          if (isMissingColumnError(commentsByAuthorResponse.error, 'author_id')) {
-            missingCommentColumns.push('author_id');
-          } else {
-            userCommentsErrorMessage = commentsByAuthorResponse.error.message || userCommentsErrorMessage;
-          }
-        }
-
-        const commentsByUserResponse = await supabase
-          .from('comments')
-          .select('id, post_id, user_id, text, body, created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        if (commentsByUserResponse.error) {
-          if (isMissingColumnError(commentsByUserResponse.error, 'user_id')) {
-            missingCommentColumns.push('user_id');
-          } else {
-            userCommentsErrorMessage = userCommentsErrorMessage
-              ? `${userCommentsErrorMessage}; ${commentsByUserResponse.error.message}`
-              : commentsByUserResponse.error.message;
-          }
-        }
-
-        const combinedComments = [
-          ...(commentsByAuthorResponse.data ?? []),
-          ...(commentsByUserResponse.data ?? []),
+        const commentOwnerColumnsPreference = [
+          'author_id',
+          'user_id',
+          'profile_id',
+          'profileid',
+          'user_profile_id',
+          'profile_uuid',
+          'owner_id',
+          'owner',
+          'created_by',
+          'created_by_id',
+          'created_by_uuid',
+          'commenter_id',
         ];
 
-        if (combinedComments.length > 0) {
-          const deduped = Array.from(
-            combinedComments.reduce((map, comment) => {
-              const key = comment.id?.toString();
-              if (!key) {
-                return map;
-              }
-              if (map.has(key)) {
-                const existing = map.get(key);
-                map.set(key, {
-                  ...existing,
-                  ...comment,
-                  author_id: existing.author_id ?? comment.author_id,
-                  user_id: existing.user_id ?? comment.user_id,
-                });
-              } else {
-                map.set(key, { ...comment });
-              }
-              return map;
-            }, new Map<string, any>())
-          )
-            .sort((a, b) => {
-              const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-              const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-              return bTime - aTime;
-            })
-            .slice(0, 10);
+        const buildCommentSelect = (columnName?: string | null) => {
+          const baseFields = ['id', 'post_id', 'text', 'body', 'created_at'];
+          if (columnName && !baseFields.includes(columnName)) {
+            baseFields.push(columnName);
+          }
+          return baseFields.join(', ');
+        };
 
-          userAuthoredComments = deduped;
+        const missingCommentColumnsSet = new Set<string>();
+        const commentSchemaInfo: { columns?: string[]; metadataError?: string | null } = {};
+
+        let resolvedCommentOwnerColumn: string | null = null;
+        let userAuthoredComments: any[] = [];
+        let userCommentsErrorMessage: string | null = null;
+
+        const { data: commentColumnsMeta, error: commentColumnsMetaError } = await supabase
+          .from('information_schema.columns')
+          .select('column_name, data_type')
+          .eq('table_schema', 'public')
+          .eq('table_name', 'comments');
+
+        if (!commentColumnsMetaError && commentColumnsMeta) {
+          commentSchemaInfo.columns = commentColumnsMeta.map(col => col.column_name);
+          ['author_id', 'user_id'].forEach(expectedColumn => {
+            if (!commentSchemaInfo.columns?.includes(expectedColumn)) {
+              missingCommentColumnsSet.add(expectedColumn);
+            }
+          });
+
+          const preferredColumn = commentOwnerColumnsPreference.find(candidate =>
+            commentSchemaInfo.columns?.includes(candidate)
+          );
+
+          if (preferredColumn) {
+            resolvedCommentOwnerColumn = preferredColumn;
+          } else {
+            const fallbackCandidate = commentColumnsMeta.find(
+              meta =>
+                meta.data_type === 'uuid' &&
+                !['id', 'parent_id', 'post_id'].includes(meta.column_name)
+            );
+            resolvedCommentOwnerColumn = fallbackCandidate?.column_name ?? null;
+          }
+        } else if (commentColumnsMetaError) {
+          commentSchemaInfo.metadataError = commentColumnsMetaError.message;
         }
 
-        const commentsSchemaNote =
-          missingCommentColumns.length > 0 ? `Missing columns: ${missingCommentColumns.join(', ')}` : null;
+        const attemptedCommentOwnerColumns = new Set<string>();
 
-        if (!userCommentsErrorMessage && !commentsSchemaNote && userAuthoredComments.length === 0) {
+        if (resolvedCommentOwnerColumn) {
+          attemptedCommentOwnerColumns.add(resolvedCommentOwnerColumn);
+          const commentsResponse = await supabase
+            .from('comments')
+            .select(buildCommentSelect(resolvedCommentOwnerColumn))
+            .eq(resolvedCommentOwnerColumn as any, user.id)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+          if (commentsResponse.error) {
+            if (isMissingColumnError(commentsResponse.error, resolvedCommentOwnerColumn)) {
+              missingCommentColumnsSet.add(resolvedCommentOwnerColumn);
+              resolvedCommentOwnerColumn = null;
+            } else {
+              userCommentsErrorMessage = commentsResponse.error.message;
+            }
+          } else {
+            userAuthoredComments = commentsResponse.data || [];
+          }
+        }
+
+        if (!resolvedCommentOwnerColumn) {
+          for (const columnName of commentOwnerColumnsPreference) {
+            if (attemptedCommentOwnerColumns.has(columnName)) {
+              continue;
+            }
+            attemptedCommentOwnerColumns.add(columnName);
+
+            const commentsResponse = await supabase
+              .from('comments')
+              .select(buildCommentSelect(columnName))
+              .eq(columnName as any, user.id)
+              .order('created_at', { ascending: false })
+              .limit(20);
+
+            if (commentsResponse.error) {
+              if (isMissingColumnError(commentsResponse.error, columnName)) {
+                missingCommentColumnsSet.add(columnName);
+                continue;
+              }
+              userCommentsErrorMessage = commentsResponse.error.message;
+              break;
+            }
+
+            resolvedCommentOwnerColumn = columnName;
+            userAuthoredComments = commentsResponse.data || [];
+            break;
+          }
+        }
+
+        const missingCommentColumns = Array.from(missingCommentColumnsSet);
+        const schemaDiagnostics: string[] = [];
+        if (missingCommentColumns.length > 0) {
+          schemaDiagnostics.push(`Missing columns: ${missingCommentColumns.join(', ')}`);
+        }
+        if (commentSchemaInfo.metadataError) {
+          schemaDiagnostics.push(`Schema metadata error: ${commentSchemaInfo.metadataError}`);
+        }
+        const commentsSchemaNote = schemaDiagnostics.length > 0 ? schemaDiagnostics.join(' | ') : null;
+
+        let combinedCommentErrorMessage =
+          [userCommentsErrorMessage, commentsSchemaNote].filter(Boolean).join(' | ') || null;
+
+        if (!combinedCommentErrorMessage && userAuthoredComments.length === 0) {
           userCommentsErrorMessage = 'No comments authored by user found';
+          combinedCommentErrorMessage =
+            [userCommentsErrorMessage, commentsSchemaNote].filter(Boolean).join(' | ') || null;
         }
 
-        if (userAuthoredComments && userAuthoredComments.length > 0) {
+          if (userAuthoredComments && userAuthoredComments.length > 0) {
+            const resolveCommentOwnerId = (comment: any) => {
+              if (!comment) return undefined;
+              if (
+                resolvedCommentOwnerColumn &&
+                Object.prototype.hasOwnProperty.call(comment, resolvedCommentOwnerColumn)
+              ) {
+                return comment?.[resolvedCommentOwnerColumn];
+              }
+              return comment.author_id || comment.user_id;
+            };
+
           const commentIdsRaw = userAuthoredComments
             .map(comment => comment.id)
             .filter((id): id is string | number => id !== null && id !== undefined);
@@ -529,7 +594,10 @@ export default function AlertPage() {
             .order('created_at', { ascending: false })
             .limit(100);
 
-          const commentMetaMap = new Map<string, { post_id: any; text: string; created_at: string }>();
+            const commentMetaMap = new Map<
+              string,
+              { post_id: any; text: string; created_at: string; owner_id?: string | null }
+            >();
           userAuthoredComments.forEach(comment => {
             const key = comment.id?.toString();
             if (!key) return;
@@ -537,6 +605,7 @@ export default function AlertPage() {
               post_id: comment.post_id,
               text: (comment.text || comment.body || '').substring(0, 80),
               created_at: comment.created_at,
+                owner_id: resolveCommentOwnerId(comment),
             });
           });
 
@@ -556,18 +625,19 @@ export default function AlertPage() {
                 return notificationCommentId === commentIdValue && notification.actor_id === actorIdValue;
               });
             })
-            .map(reaction => {
-              const commentIdValue = reaction.comment_id?.toString?.() ?? reaction.comment_id;
-              const meta = commentMetaMap.get(commentIdValue || '');
-              return {
-                comment_id: reaction.comment_id,
-                reactor_id: reaction.user_id,
-                kind: reaction.kind,
-                created_at: reaction.created_at,
-                post_id: meta?.post_id,
-                comment_preview: meta?.text,
-              };
-            });
+              .map(reaction => {
+                const commentIdValue = reaction.comment_id?.toString?.() ?? reaction.comment_id;
+                const meta = commentMetaMap.get(commentIdValue || '');
+                return {
+                  comment_id: reaction.comment_id,
+                  reactor_id: reaction.user_id,
+                  kind: reaction.kind,
+                  created_at: reaction.created_at,
+                  post_id: meta?.post_id,
+                  comment_preview: meta?.text,
+                  comment_owner_id: meta?.owner_id,
+                };
+              });
 
           debugData.commentReactionsAnalysis = {
             userCommentsCount: userAuthoredComments.length,
@@ -578,17 +648,22 @@ export default function AlertPage() {
               post_id: comment.post_id,
               created_at: comment.created_at,
               text: (comment.text || comment.body || '').substring(0, 80),
+                owner_id: resolveCommentOwnerId(comment),
             })),
             recentReactions: relevantCommentReactions.slice(0, 10),
             notificationsSample: commentReactionNotifications?.slice(0, 10) ?? [],
             missingNotifications: missingCommentReactionNotifications,
               errors: {
-                comments: userCommentsErrorMessage || commentsSchemaNote,
+                comments: combinedCommentErrorMessage,
                 reactions: commentReactionsError?.message,
                 notifications: commentReactionNotifError?.message,
               },
               schemaInfo: {
+                ownerColumnUsed: resolvedCommentOwnerColumn,
                 missingColumns: missingCommentColumns,
+                availableColumns: commentSchemaInfo.columns,
+                attemptedColumns: Array.from(attemptedCommentOwnerColumns),
+                metadataError: commentSchemaInfo.metadataError,
               },
           };
         } else {
@@ -596,9 +671,13 @@ export default function AlertPage() {
             userCommentsCount: 0,
             reactionsCount: 0,
             notificationsCount: 0,
-              error: userCommentsErrorMessage || commentsSchemaNote || 'No comments authored by user found',
+              error: combinedCommentErrorMessage || 'No comments authored by user found',
               schemaInfo: {
+                ownerColumnUsed: resolvedCommentOwnerColumn,
                 missingColumns: missingCommentColumns,
+                availableColumns: commentSchemaInfo.columns,
+                attemptedColumns: Array.from(attemptedCommentOwnerColumns),
+                metadataError: commentSchemaInfo.metadataError,
               },
           };
         }
