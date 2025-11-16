@@ -175,7 +175,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   // Local state
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [messageReceipts, setMessageReceipts] = useState<Map<string, 'sent' | 'delivered' | 'read'>>(new Map());
+    const [messageReceipts, setMessageReceipts] = useState<Map<string, 'sent' | 'delivered' | 'read'>>(new Map());
   
   // Theme
   const { theme } = useTheme();
