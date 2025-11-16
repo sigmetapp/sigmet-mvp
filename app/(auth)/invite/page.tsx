@@ -257,19 +257,19 @@ export default function InvitePage() {
 
   return (
     <RequireAuth>
-      <div className="max-w-4xl mx-auto px-4 py-6 md:p-6">
-        <h1 className="text-2xl font-semibold text-white mb-6">Invite System</h1>
+      <div className="max-w-4xl mx-auto px-0 md:px-4 py-6 md:p-6">
+        <h1 className="text-2xl font-semibold text-white mb-6 px-4 md:px-0">Invite System</h1>
 
         {/* Admin Notice */}
         {isAdmin && (
-          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg mx-4 md:mx-0">
             <p className="text-green-300 text-sm font-semibold">👑 Admin mode: You can generate unlimited invite codes without restrictions.</p>
           </div>
         )}
 
         {/* Stats Cards */}
         {stats && !isAdmin && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 px-4 md:px-0">
             <div className="bg-gray-800 p-4 rounded-lg">
               <div className="text-gray-400 text-sm mb-1">Total Sent</div>
               <div className="text-2xl font-bold text-white">{stats.total_sent}</div>
@@ -293,7 +293,7 @@ export default function InvitePage() {
         )}
 
         {/* Create Invite Form */}
-        <div className="bg-gray-800 p-6 rounded-lg mb-6">
+        <div className="bg-gray-800 p-6 rounded-lg mb-6 mx-4 md:mx-0">
           <h2 className="text-lg font-semibold text-white mb-4">Create Invite Code</h2>
           <p className="text-gray-400 text-sm mb-4">
             Generate a unique invite code to share with friends. They can use it during registration.
@@ -321,7 +321,7 @@ export default function InvitePage() {
         </div>
 
         {/* Invites List */}
-        <div className="bg-gray-800 p-6 rounded-lg">
+        <div className="bg-gray-800 p-6 rounded-lg mx-4 md:mx-0">
           <h2 className="text-lg font-semibold text-white mb-4">Your Invites</h2>
           {invites.length === 0 ? (
             <p className="text-gray-400">No invites yet. Send your first invite above.</p>
