@@ -409,6 +409,71 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     Promise.all([loadReactions(), loadGrowthStatuses()]);
   }, [loadReactions, loadGrowthStatuses]);
 
+  const loadCommentReactions = useCallback(async (commentIds: (number | string)[]) => {
+    if (commentIds.length === 0) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('comment_reactions')
+        .select('comment_id, kind, user_id')
+        .in('comment_id', commentIds);
+      
+      if (error) {
+        console.error('Failed to load comment reactions:', error);
+        return;
+      }
+
+      const reactionsMap: Record<string | number, {
+        counts: Record<ReactionType, number>;
+        selected: ReactionType | null;
+      }> = {};
+
+      // Initialize all comments with empty counts
+      commentIds.forEach(id => {
+        reactionsMap[id] = {
+          counts: { inspire: 0, respect: 0, relate: 0, support: 0, celebrate: 0 },
+          selected: null,
+        };
+      });
+
+      // Process reactions
+        const reactionMap: Record<string, ReactionType> = {
+          inspire: 'inspire',
+          respect: 'inspire',
+          relate: 'inspire',
+          support: 'inspire',
+          celebrate: 'inspire',
+          like: 'inspire',
+          growth: 'inspire',
+          value: 'inspire',
+          with_you: 'inspire',
+          proud: 'inspire',
+          grateful: 'inspire',
+          drained: 'inspire',
+          verify: 'inspire',
+        };
+
+      for (const row of (data || []) as Array<{ comment_id: string | number; kind: string; user_id: string }>) {
+        const commentId = String(row.comment_id);
+        if (!reactionsMap[commentId] && !reactionsMap[row.comment_id]) continue;
+        
+        const reactionType = reactionMap[row.kind];
+        if (!reactionType) continue;
+        
+        const key = reactionsMap[commentId] ? commentId : row.comment_id;
+        reactionsMap[key].counts.inspire = (reactionsMap[key].counts.inspire || 0) + 1;
+        
+        if (uid && row.user_id === uid) {
+          reactionsMap[key].selected = 'inspire';
+        }
+      }
+
+      setCommentReactions(prev => ({ ...prev, ...reactionsMap }));
+    } catch (error) {
+      console.error('Error loading comment reactions:', error);
+    }
+  }, [uid]);
+
   const loadComments = useCallback(async () => {
     setCommentsLoading(true);
     setCommentsError(null);
@@ -514,71 +579,6 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, comments.length]);
-
-  const loadCommentReactions = useCallback(async (commentIds: (number | string)[]) => {
-    if (commentIds.length === 0) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('comment_reactions')
-        .select('comment_id, kind, user_id')
-        .in('comment_id', commentIds);
-      
-      if (error) {
-        console.error('Failed to load comment reactions:', error);
-        return;
-      }
-
-      const reactionsMap: Record<string | number, {
-        counts: Record<ReactionType, number>;
-        selected: ReactionType | null;
-      }> = {};
-
-      // Initialize all comments with empty counts
-      commentIds.forEach(id => {
-        reactionsMap[id] = {
-          counts: { inspire: 0, respect: 0, relate: 0, support: 0, celebrate: 0 },
-          selected: null,
-        };
-      });
-
-      // Process reactions
-        const reactionMap: Record<string, ReactionType> = {
-          inspire: 'inspire',
-          respect: 'inspire',
-          relate: 'inspire',
-          support: 'inspire',
-          celebrate: 'inspire',
-          like: 'inspire',
-          growth: 'inspire',
-          value: 'inspire',
-          with_you: 'inspire',
-          proud: 'inspire',
-          grateful: 'inspire',
-          drained: 'inspire',
-          verify: 'inspire',
-        };
-
-      for (const row of (data || []) as Array<{ comment_id: string | number; kind: string; user_id: string }>) {
-        const commentId = String(row.comment_id);
-        if (!reactionsMap[commentId] && !reactionsMap[row.comment_id]) continue;
-        
-        const reactionType = reactionMap[row.kind];
-        if (!reactionType) continue;
-        
-        const key = reactionsMap[commentId] ? commentId : row.comment_id;
-        reactionsMap[key].counts.inspire = (reactionsMap[key].counts.inspire || 0) + 1;
-        
-        if (uid && row.user_id === uid) {
-          reactionsMap[key].selected = 'inspire';
-        }
-      }
-
-      setCommentReactions(prev => ({ ...prev, ...reactionsMap }));
-    } catch (error) {
-      console.error('Error loading comment reactions:', error);
-    }
-  }, [uid]);
 
   const handleCommentReactionChange = useCallback(
     async (commentId: number | string, reaction: ReactionType | null, counts?: Record<ReactionType, number>) => {
