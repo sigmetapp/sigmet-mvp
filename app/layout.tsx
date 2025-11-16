@@ -1,11 +1,15 @@
 import "../styles/globals.css";
 import type { Metadata, Viewport } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import PostHogInit from "@/components/PostHogInit";
+import dynamic from "next/dynamic";
 import SupabaseAuthSync from "@/components/SupabaseAuthSync";
 import Layout from "@/components/Layout";
 import { SiteSettingsProvider } from "@/components/SiteSettingsContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
+
+const PostHogInit = dynamic(() => import("@/components/PostHogInit"), {
+  ssr: false,
+});
 
 export const metadata: Metadata = {
   title: "Settings",

@@ -51,14 +51,41 @@ export default function Header() {
   }, [logo_url]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
+    // Загружаем из кеша для мгновенного отображения
+    const { userCache } = require('@/lib/cache/userCache');
+    const cachedUser = userCache.get();
+    if (cachedUser) {
+      setUser(cachedUser);
+    }
+
+    // Затем загружаем актуальные данные
+    supabase.auth.getUser().then(({ data }) => {
+      const user = data.user ?? null;
+      setUser(user);
+      // Сохраняем в кеш
+      userCache.set(user);
+    });
+
     const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
+      const user = session?.user ?? null;
+      setUser(user);
+      // Обновляем кеш при изменении состояния
+      userCache.set(user);
+      // Очищаем кеш при logout
+      if (!user) {
+        userCache.invalidate();
+      }
     });
     return () => listener.subscription.unsubscribe();
   }, []);
 
   async function handleLogout() {
+    // Очищаем кеши при выходе
+    const { userCache } = require('@/lib/cache/userCache');
+    const { profileCache } = require('@/lib/cache/profileCache');
+    userCache.invalidate();
+    profileCache.clear();
+    
     await supabase.auth.signOut();
     if (typeof window !== "undefined") {
       window.location.href = "/login";

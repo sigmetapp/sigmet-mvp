@@ -1,9 +1,24 @@
 'use client';
 
-import { AnimatePresence, motion } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatTextWithMentions } from '@/lib/formatText';
+
+const MotionDiv = dynamic(
+  () => import('framer-motion').then((mod) => ({ default: mod.motion.div })),
+  { ssr: false }
+);
+
+const MotionSpan = dynamic(
+  () => import('framer-motion').then((mod) => ({ default: mod.motion.span })),
+  { ssr: false }
+);
+
+const AnimatePresence = dynamic(
+  () => import('framer-motion').then((mod) => ({ default: mod.AnimatePresence })),
+  { ssr: false }
+);
 
 type PostCardPost = {
   id: string;
@@ -246,8 +261,10 @@ export default function PostCard({
 
   const body = renderContent ? renderContent(post, defaultContent) : defaultContent;
 
+  const MotionWrapper = MotionDiv as any;
+
   return (
-    <motion.div
+    <MotionWrapper
       ref={cardRef}
       role={disableNavigation ? undefined : 'button'}
       aria-label={disableNavigation ? undefined : 'Open post'}
@@ -270,25 +287,28 @@ export default function PostCard({
       {!disableNavigation && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <AnimatePresence>
-            {ripples.map((ripple) => (
-              <motion.span
-                key={ripple.id}
-                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500/20"
-                style={{
-                  left: ripple.x,
-                  top: ripple.y,
-                  width: ripple.size,
-                  height: ripple.size,
-                }}
-                initial={{ opacity: 0.5, scale: 0 }}
-                animate={{ opacity: 0, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
-              />
-            ))}
+            {ripples.map((ripple) => {
+              const MotionRipple = MotionSpan as any;
+              return (
+                <MotionRipple
+                  key={ripple.id}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500/20"
+                  style={{
+                    left: ripple.x,
+                    top: ripple.y,
+                    width: ripple.size,
+                    height: ripple.size,
+                  }}
+                  initial={{ opacity: 0.5, scale: 0 }}
+                  animate={{ opacity: 0, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                />
+              );
+            })}
           </AnimatePresence>
         </div>
       )}
-    </motion.div>
+    </MotionWrapper>
   );
 }

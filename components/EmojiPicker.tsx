@@ -1,11 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import data from '@emoji-mart/data';
-import Picker from '@emoji-mart/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Smile } from 'lucide-react';
 
-const EMOJI_TWO_CDN_BASE = 'https://cdn.jsdelivr.net/gh/EmojiTwo/emojitwo@master/png';
+const EmojiPickerContent = dynamic(() => import('./EmojiPickerContent'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-[352px] h-[435px] bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+      <div className="text-gray-400 dark:text-gray-500">Loading emoji picker...</div>
+    </div>
+  ),
+});
 
 type Props = {
   onEmojiSelect: (emoji: string) => void;
@@ -20,24 +26,6 @@ const VARIANT_STYLES: Record<NonNullable<Props['variant']>, string> = {
   dark:
     'border border-white/15 text-white/90 bg-white/5 hover:bg-white/10 transition-colors',
 };
-
-function extractNativeFromEmoji(emoji: any): string | null {
-  if (!emoji) return null;
-  if (typeof emoji.native === 'string' && emoji.native.length > 0) {
-    return emoji.native;
-  }
-  if (typeof emoji.unified === 'string' && emoji.unified.length > 0) {
-    try {
-      return emoji.unified
-        .split('-')
-        .map((code: string) => String.fromCodePoint(parseInt(code, 16)))
-        .join('');
-    } catch (error) {
-      console.warn('Failed to convert emoji unified code to native representation', error);
-    }
-  }
-  return null;
-}
 
 export default function EmojiPicker({
   onEmojiSelect,
@@ -88,34 +76,17 @@ export default function EmojiPicker({
 
   const pickerTheme = useMemo(() => (variant === 'light' ? 'light' : 'dark'), [variant]);
 
-  const getEmojiImageUrl = useCallback((_, unified?: string) => {
-    if (!unified) {
-      return undefined;
-    }
-
-    return `${EMOJI_TWO_CDN_BASE}/${unified.toLowerCase()}.png`;
-  }, []);
-
-  const handleSelect = useCallback(
-    (emoji: any) => {
-      const native = extractNativeFromEmoji(emoji);
-      if (!native) {
-        return;
+  const handleEmojiSelect = (native: string) => {
+    onEmojiSelect(native);
+    setRecentEmojis((prev) => {
+      const withoutDuplicate = prev.filter((item) => item !== native);
+      const updated = [native, ...withoutDuplicate].slice(0, 20);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('recentEmojis', JSON.stringify(updated));
       }
-
-      onEmojiSelect(native);
-      setIsOpen(false);
-      setRecentEmojis((prev) => {
-        const withoutDuplicate = prev.filter((item) => item !== native);
-        const updated = [native, ...withoutDuplicate].slice(0, 20);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('recentEmojis', JSON.stringify(updated));
-        }
-        return updated;
-      });
-    },
-    [onEmojiSelect],
-  );
+      return updated;
+    });
+  };
 
   const triggerClasses = VARIANT_STYLES[variant];
   const alignmentClasses = align === 'left' ? 'left-0' : 'right-0';
@@ -146,18 +117,10 @@ export default function EmojiPicker({
           role="dialog"
           aria-label="Emoji picker"
         >
-          <Picker
-            data={data}
-            set="emojitwo"
+          <EmojiPickerContent
+            onEmojiSelect={handleEmojiSelect}
             theme={pickerTheme}
-            onEmojiSelect={handleSelect}
-            previewPosition="none"
-            skinTonePosition="none"
-            navPosition="top"
-            searchPosition="top"
-            perLine={8}
-            autoFocus
-            getImageURL={getEmojiImageUrl}
+            onClose={() => setIsOpen(false)}
           />
         </div>
       )}
