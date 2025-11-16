@@ -758,14 +758,21 @@ export default function PostFeed({
             const userId = r.user_id as string;
 
             // Map DB reaction types to component types
-            const reactionMap: Record<string, ReactionType> = {
-              inspire: 'inspire',
-              respect: 'inspire', // Migrate to inspire
-              relate: 'inspire', // Migrate to inspire
-              support: 'inspire', // Migrate to inspire
-              celebrate: 'inspire', // Migrate to inspire
-              verify: 'verify', // Verify is separate
-            };
+          const reactionMap: Record<string, ReactionType> = {
+            inspire: 'inspire',
+            respect: 'inspire', // Legacy alias
+            relate: 'inspire', // Legacy alias
+            support: 'inspire', // Legacy alias
+            celebrate: 'inspire', // Legacy alias
+            like: 'inspire', // Legacy alias
+            growth: 'inspire', // Legacy alias
+            value: 'inspire', // Legacy alias
+            with_you: 'inspire', // Legacy alias
+            proud: 'inspire', // Legacy alias
+            grateful: 'inspire', // Legacy alias
+            drained: 'inspire', // Legacy alias
+            verify: 'verify', // Verify is separate
+          };
 
             const reactionType = reactionMap[kind];
             if (reactionType && counts[pid]) {
@@ -1746,14 +1753,21 @@ export default function PostFeed({
                           if (data) {
                             for (const r of data as any[]) {
                               const kind = r.kind as string;
-                              const reactionMap: Record<string, ReactionType> = {
-                                inspire: 'inspire',
-                                respect: 'inspire', // Migrate to inspire
-                                relate: 'inspire', // Migrate to inspire
-                                support: 'inspire', // Migrate to inspire
-                                celebrate: 'inspire', // Migrate to inspire
-                                verify: 'verify', // Verify is separate
-                              };
+                                const reactionMap: Record<string, ReactionType> = {
+                                  inspire: 'inspire',
+                                  respect: 'inspire', // Legacy alias
+                                  relate: 'inspire', // Legacy alias
+                                  support: 'inspire', // Legacy alias
+                                  celebrate: 'inspire', // Legacy alias
+                                  like: 'inspire', // Legacy alias
+                                  growth: 'inspire', // Legacy alias
+                                  value: 'inspire', // Legacy alias
+                                  with_you: 'inspire', // Legacy alias
+                                  proud: 'inspire', // Legacy alias
+                                  grateful: 'inspire', // Legacy alias
+                                  drained: 'inspire', // Legacy alias
+                                  verify: 'verify', // Verify is separate
+                                };
                               const reactionType = reactionMap[kind];
                               if (reactionType) {
                                 if (reactionType === 'verify') {

@@ -343,14 +343,21 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     };
     let selected: ReactionType | null = null;
 
-    const reactionMap: Record<string, ReactionType> = {
-      inspire: 'inspire',
-      respect: 'inspire', // Migrate to inspire
-      relate: 'inspire', // Migrate to inspire
-      support: 'inspire', // Migrate to inspire
-      celebrate: 'inspire', // Migrate to inspire
-      verify: 'verify', // Verify is separate
-    };
+      const reactionMap: Record<string, ReactionType> = {
+        inspire: 'inspire',
+        respect: 'inspire', // Legacy alias
+        relate: 'inspire', // Legacy alias
+        support: 'inspire', // Legacy alias
+        celebrate: 'inspire', // Legacy alias
+        like: 'inspire', // Legacy alias
+        growth: 'inspire', // Legacy alias
+        value: 'inspire', // Legacy alias
+        with_you: 'inspire', // Legacy alias
+        proud: 'inspire', // Legacy alias
+        grateful: 'inspire', // Legacy alias
+        drained: 'inspire', // Legacy alias
+        verify: 'verify', // Verify is separate
+      };
 
     for (const row of data as Array<{ kind: string; user_id: string }>) {
       const reactionType = reactionMap[row.kind];
@@ -527,13 +534,21 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       });
 
       // Process reactions
-      const reactionMap: Record<string, ReactionType> = {
-        inspire: 'inspire',
-        respect: 'inspire',
-        relate: 'inspire',
-        support: 'inspire',
-        celebrate: 'inspire',
-      };
+        const reactionMap: Record<string, ReactionType> = {
+          inspire: 'inspire',
+          respect: 'inspire',
+          relate: 'inspire',
+          support: 'inspire',
+          celebrate: 'inspire',
+          like: 'inspire',
+          growth: 'inspire',
+          value: 'inspire',
+          with_you: 'inspire',
+          proud: 'inspire',
+          grateful: 'inspire',
+          drained: 'inspire',
+          verify: 'inspire',
+        };
 
       for (const row of (data || []) as Array<{ comment_id: string | number; kind: string; user_id: string }>) {
         const commentId = String(row.comment_id);
