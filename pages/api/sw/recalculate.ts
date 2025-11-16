@@ -342,7 +342,7 @@ export default async function handler(
 
     const reactionsPoints = reactionsCount * weights.reaction_points;
 
-    // Get invites count - count accepted invites where user got 70 pts (registration + profile complete)
+      // Get invites count - count accepted invites regardless of profile completion
       let invitesCount = 0;
       let inviteeGrowthTotalPoints = 0;
 
@@ -351,8 +351,7 @@ export default async function handler(
           .from('invites')
           .select('id, consumed_by_user_sw, consumed_by_user_id')
           .eq('inviter_user_id', userId)
-          .eq('status', 'accepted')
-          .eq('consumed_by_user_sw', 70);
+            .eq('status', 'accepted');
 
         if (invitesError) {
           console.warn('Error fetching invites:', invitesError);

@@ -37,6 +37,7 @@ export default function InvitePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
+  const [inviteeProfiles, setInviteeProfiles] = useState<Record<string, { username: string | null; full_name: string | null }>>({});
   const [stats, setStats] = useState<InviteStats | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [userLimit, setUserLimit] = useState<UserInviteLimit | null>(null);
@@ -98,16 +99,57 @@ export default function InvitePage() {
 
   const loadInvites = async () => {
     try {
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUser = authData?.user;
+      if (!currentUser) {
+        return;
+      }
+
       const { data, error } = await supabase
         .from('invites')
         .select('*')
+        .eq('inviter_user_id', currentUser.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setInvites(data || []);
+
+      const inviteRows = data || [];
+      setInvites(inviteRows);
+
+      const inviteeIds = Array.from(
+        new Set(
+          inviteRows
+            .map((invite) => invite.consumed_by_user_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+
+      if (inviteeIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, username, full_name')
+          .in('user_id', inviteeIds);
+
+        if (profilesError) {
+          console.error('Error loading invitee profiles:', profilesError);
+          setInviteeProfiles({});
+        } else {
+          const profileMap = (profilesData || []).reduce((acc, profile) => {
+            acc[profile.user_id] = {
+              username: profile.username,
+              full_name: profile.full_name,
+            };
+            return acc;
+          }, {} as Record<string, { username: string | null; full_name: string | null }>);
+          setInviteeProfiles(profileMap);
+        }
+      } else {
+        setInviteeProfiles({});
+      }
     } catch (err: any) {
       console.error('Error loading invites:', err);
       setError(err.message || 'Failed to load invites');
+      setInviteeProfiles({});
     }
   };
 
@@ -231,6 +273,37 @@ export default function InvitePage() {
       return <span className="text-yellow-400">{hours}h {minutes}m left</span>;
     }
     return <span className="text-red-400">{minutes}m left</span>;
+  };
+
+  const renderInviteeInfo = (invite: Invite) => {
+    if (!invite.consumed_by_user_id) {
+      return <span className="text-gray-500">-</span>;
+    }
+
+    const profile = inviteeProfiles[invite.consumed_by_user_id];
+
+    if (profile) {
+      return (
+        <div className="flex flex-col leading-tight">
+          {profile.full_name && (
+            <span className="text-white text-sm">{profile.full_name}</span>
+          )}
+          {profile.username ? (
+            <span className="text-blue-400 text-xs">@{profile.username}</span>
+          ) : (
+            <span className="text-blue-400 font-mono text-xs">
+              {invite.consumed_by_user_id.slice(0, 8)}...
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <span className="text-blue-400 font-mono text-xs">
+        {invite.consumed_by_user_id.slice(0, 8)}...
+      </span>
+    );
   };
 
   const handleDeleteInvite = async (inviteId: string) => {
@@ -372,15 +445,9 @@ export default function InvitePage() {
                         {invite.status === 'pending' ? formatExpiration(invite.expires_at) : '-'}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.accepted_at)}</td>
-                      <td className="py-3 px-4 text-sm text-gray-400">
-                        {invite.consumed_by_user_id ? (
-                          <span className="text-blue-400 font-mono text-xs">
-                            {invite.consumed_by_user_id.slice(0, 8)}...
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
-                      </td>
+                        <td className="py-3 px-4 text-sm text-gray-400">
+                          {renderInviteeInfo(invite)}
+                        </td>
                       <td className="py-3 px-4 text-sm text-gray-400">
                         {invite.consumed_by_user_sw !== null ? (
                           <span className="text-green-400 font-semibold">
