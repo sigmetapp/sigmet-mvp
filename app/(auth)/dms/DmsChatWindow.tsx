@@ -16,6 +16,7 @@ import { listThreadReceipts } from '@/lib/dm/receipts';
 const INITIAL_MESSAGE_LIMIT = 30;
 const HISTORY_PAGE_LIMIT = 30;
 const READ_RECEIPT_ENDPOINT = '/api/dms/messages.read';
+const DELIVERY_RECEIPT_ENDPOINT = '/api/dms/messages.deliver';
 
 type SelectedAttachment = {
   id: string;
@@ -202,7 +203,8 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   const [searchIndex, setSearchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const messagesRef = useRef<Message[]>([]);
-  const messageNodeMap = useRef<Map<number, HTMLDivElement>>(new Map());
+    const messageNodeMap = useRef<Map<number, HTMLDivElement>>(new Map());
+    const deliveredUpToRef = useRef<string | null>(null);
     const latestReadPayloadRef = useRef<ReadReceiptPayload | null>(null);
 
     const AVATAR_FALLBACK =
@@ -315,6 +317,64 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         }
       },
       [emitDebugEvent]
+    );
+
+    const sendDeliveryReceipt = useCallback(
+      async (payload: ReadReceiptPayload, context: string): Promise<boolean> => {
+        if (!payload.thread_id || !payload.up_to_message_id) {
+          return false;
+        }
+
+        try {
+          const response = await fetch(DELIVERY_RECEIPT_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true,
+          });
+
+          if (!response.ok) {
+            let body: any = null;
+            try {
+              body = await response.json();
+            } catch {
+              body = null;
+            }
+            emitDebugEvent('delivery-receipt-failed', {
+              level: 'warn',
+              context,
+              payload,
+              status: response.status,
+              error: body?.error ?? null,
+            });
+            return false;
+          }
+
+          emitDebugEvent('delivery-receipt-sent', {
+            level: 'info',
+            context,
+            payload,
+          });
+
+          deliveredUpToRef.current = payload.up_to_message_id;
+          setMessageReceipts((prev) => {
+            const next = new Map(prev);
+            next.set(payload.up_to_message_id, 'delivered');
+            return next;
+          });
+
+          return true;
+        } catch (err: any) {
+          emitDebugEvent('delivery-receipt-error', {
+            level: 'error',
+            context,
+            payload,
+            error: err?.message ?? String(err),
+          });
+          return false;
+        }
+      },
+      [emitDebugEvent, setMessageReceipts]
     );
 
     useEffect(() => {
@@ -1370,40 +1430,6 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         // Use useLayoutEffect will handle the scroll synchronously before paint
         initialScrollDoneRef.current = false;
           
-          // Mark all messages as read when thread is opened and messages are loaded
-          // This ensures that when user opens a chat, all visible messages are marked as read
-          const newestMessage = sorted[sorted.length - 1] ?? null;
-          const messageId =
-            newestMessage && newestMessage.id !== undefined && newestMessage.id !== null
-              ? String(newestMessage.id)
-              : '';
-          const shouldMarkRead =
-            messageId &&
-            messageId !== '-1' &&
-            currentUserId &&
-            partnerId &&
-            threadId;
-
-            if (shouldMarkRead) {
-              const payload: ReadReceiptPayload = {
-                thread_id: String(threadId),
-                up_to_message_id: messageId,
-                up_to_sequence_number: newestMessage.sequence_number ?? null,
-              };
-              void sendReadReceipt(payload, 'thread-open').then((success) => {
-                if (success) {
-                  window.dispatchEvent(
-                    new CustomEvent('dm:message-read', {
-                      detail: {
-                        threadId: String(threadId),
-                        partnerId,
-                      },
-                    })
-                  );
-                }
-              });
-            }
-
         setHasMoreHistory(sorted.length === INITIAL_MESSAGE_LIMIT);
         
         // Calculate days streak after thread is loaded
@@ -1486,6 +1512,32 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       setHasMoreHistory(false);
     }
   }, [messages.length]);
+
+    useEffect(() => {
+      if (!thread?.id || !partnerId || !currentUserId) {
+        return;
+      }
+      if (messages.length === 0) {
+        return;
+      }
+      const lastPartnerMessage = [...messages]
+        .slice()
+        .reverse()
+        .find((msg) => msg.sender_id === partnerId);
+      if (!lastPartnerMessage) {
+        return;
+      }
+      const messageId = String(lastPartnerMessage.id);
+      if (!messageId || messageId === deliveredUpToRef.current) {
+        return;
+      }
+      const payload: ReadReceiptPayload = {
+        thread_id: String(thread.id),
+        up_to_message_id: messageId,
+        up_to_sequence_number: lastPartnerMessage.sequence_number ?? null,
+      };
+      void sendDeliveryReceipt(payload, 'auto-deliver');
+    }, [messages, thread?.id, partnerId, currentUserId, sendDeliveryReceipt]);
 
   // Play sound on new messages (partner messages only) and acknowledge them
   useEffect(() => {
@@ -1923,6 +1975,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
   useEffect(() => {
     initialScrollDoneRef.current = false;
     historyAutoLoadReadyRef.current = false;
+      deliveredUpToRef.current = null;
   }, [thread?.id]);
 
   // Handle emoji selection

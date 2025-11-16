@@ -123,15 +123,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const privilegedClient = serviceClient ?? client;
 
     // Mark receipts via SQL helper to avoid client-side batching limits
-    const { data: rpcData, error: rpcError } = await privilegedClient.rpc('dms_mark_read_up_to', {
+    const { data: rpcData, error: rpcError } = await privilegedClient.rpc('dms_mark_receipts_up_to', {
       p_user_id: user.id,
       p_thread_id: threadId,
       p_message_id: nextId,
       p_sequence_number: upToSequence,
+      p_status: 'read',
     });
 
     if (rpcError) {
-      console.error('dms_mark_read_up_to failed:', rpcError);
+      console.error('dms_mark_receipts_up_to failed:', rpcError);
       return res.status(400).json({ ok: false, error: rpcError.message || 'Failed to mark messages as read' });
     }
 

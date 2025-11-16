@@ -260,14 +260,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Create receipts for all recipients (except sender)
-      if (otherIds.length > 0 && isServiceClient) {
-        const receipts = otherIds.map((recipientId) => ({
-          message_id: finalMessage.id,
-          user_id: recipientId,
-          status: 'delivered',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
+        if (otherIds.length > 0 && isServiceClient) {
+          const receipts = otherIds.map((recipientId) => ({
+            message_id: finalMessage.id,
+            user_id: recipientId,
+            status: 'sent',
+          }));
 
       const receiptsBuilder = serviceClient.from('dms_message_receipts') as any;
       if (typeof receiptsBuilder.upsert === 'function') {
@@ -278,7 +276,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               ignoreDuplicates: false,
             })
             .then(() => {})
-            .catch((receiptErr: unknown) => {
+              .catch((receiptErr: unknown) => {
               console.error('Error creating receipts:', receiptErr);
             })
         );
@@ -288,7 +286,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           receiptsBuilder
             .insert(receipts)
             .then(() => {})
-            .catch((receiptErr: unknown) => {
+              .catch((receiptErr: unknown) => {
               console.error('Error creating receipts via insert:', receiptErr);
             })
         );
