@@ -411,46 +411,296 @@ export default function AlertPage() {
           };
       }
 
-        const { data: userAuthoredComments, error: userCommentsError } = await supabase
-          .from('comments')
-          .select('id, post_id, author_id, user_id, text, body, created_at')
-          .or(`author_id.eq.${user.id},user_id.eq.${user.id}`)
-          .order('created_at', { ascending: false })
-          .limit(10);
+        const isMissingColumnError = (error: any, column: string) => {
+          if (!error) return false;
+          if (error.code === '42703') return true;
+          const message = error.message?.toLowerCase?.() ?? '';
+          return message.includes('column') && message.includes(column.toLowerCase());
+        };
 
-        if (userAuthoredComments && userAuthoredComments.length > 0) {
-          const commentIdsRaw = userAuthoredComments
-            .map(comment => comment.id)
-            .filter((id): id is string | number => id !== null && id !== undefined);
-          const commentIdsForNotifications = Array.from(
-            new Set(commentIdsRaw.map(id => id.toString()))
+        const missingCommentColumnsSet = new Set<string>();
+        const attemptedCommentOwnerColumns = new Set<string>();
+        const detectedCommentColumns: string[] = [];
+        let commentSchemaProbeError: string | null = null;
+        let dynamicCommentsError: string | null = null;
+        let dynamicCommentsUsed = false;
+        let heuristicOwnerColumns: string[] = [];
+        let fallbackUsed = false;
+
+        let resolvedCommentOwnerColumn: string | null = null;
+        let userAuthoredComments: any[] = [];
+        let userCommentsErrorMessage: string | null = null;
+
+        try {
+          const { data: dynamicComments, error: dynamicCommentsRpcError } = await supabase.rpc(
+            'get_user_authored_comments_dynamic',
+            { p_user_id: user.id, p_limit: 50 }
           );
 
-          let commentReactions: any[] = [];
-          let commentReactionsError: any = null;
-          if (commentIdsRaw.length > 0) {
-            const commentReactionsResponse = await supabase
-              .from('comment_reactions')
-              .select('comment_id, user_id, kind, created_at')
-              .in('comment_id', commentIdsRaw)
-              .order('created_at', { ascending: false })
-              .limit(50);
-            commentReactions = commentReactionsResponse.data || [];
-            commentReactionsError = commentReactionsResponse.error;
-          } else {
-            commentReactions = [];
+          if (dynamicCommentsRpcError) {
+            dynamicCommentsError = dynamicCommentsRpcError.message;
+          } else if (Array.isArray(dynamicComments)) {
+            dynamicCommentsUsed = true;
+            if (dynamicComments.length > 0) {
+              userAuthoredComments = dynamicComments.map(comment => ({
+                id: comment.comment_id,
+                post_id: comment.post_id,
+                created_at: comment.created_at,
+                text: comment.preview,
+                owner_id: comment.owner_id,
+                owner_column: comment.owner_column,
+                source_table: comment.source_table,
+              }));
+              resolvedCommentOwnerColumn = dynamicComments[0]?.owner_column ?? null;
+            } else {
+              userCommentsErrorMessage = 'No comments authored by user found';
+            }
+          }
+        } catch (rpcErr: any) {
+          dynamicCommentsError = rpcErr.message || 'Failed to load dynamic comments';
+        }
+
+        if (!dynamicCommentsUsed && dynamicCommentsError) {
+          fallbackUsed = true;
+
+          const commentOwnerColumnsPreference = [
+            // snake_case
+            'author_id',
+            'user_id',
+            'profile_id',
+            'profileid',
+            'user_profile_id',
+            'profile_uuid',
+            'owner_id',
+            'owner',
+            'created_by',
+            'created_by_id',
+            'created_by_uuid',
+            'commenter_id',
+            'creator_id',
+            'creator_uuid',
+            'poster_id',
+            'member_id',
+            'account_id',
+            'user_uuid',
+            'author_uuid',
+            'user_uid',
+            'author_uid',
+            // camelCase / Pascal variants
+            'authorId',
+            'userId',
+            'profileId',
+            'userProfileId',
+            'profileUuid',
+            'ownerId',
+            'createdBy',
+            'createdById',
+            'createdByUuid',
+            'commenterId',
+            'creatorId',
+            'creatorUuid',
+            'posterId',
+            'memberId',
+            'accountId',
+            'userUuid',
+            'authorUuid',
+            'userUid',
+            'authorUid',
+          ];
+
+          const buildCommentSelect = (columnName?: string | null) => {
+            const baseFields = ['id', 'post_id', 'text', 'body', 'created_at'];
+            if (columnName && !baseFields.includes(columnName)) {
+              baseFields.push(columnName);
+            }
+            return baseFields.join(', ');
+          };
+
+          try {
+            const { data: commentProbeData, error: commentProbeError } = await supabase
+              .from('comments')
+              .select('*')
+              .limit(1);
+            if (commentProbeError) {
+              commentSchemaProbeError = commentProbeError.message;
+            } else if (commentProbeData && commentProbeData.length > 0) {
+              const sample = commentProbeData[0];
+              Object.keys(sample || {}).forEach(key => {
+                if (key) {
+                  detectedCommentColumns.push(key);
+                }
+              });
+            }
+          } catch (probeErr: any) {
+            commentSchemaProbeError = probeErr?.message || 'Unknown schema probe error';
           }
 
-          const { data: commentReactionNotifications, error: commentReactionNotifError } = await supabase
-            .from('notifications')
-            .select('id, type, comment_id, post_id, actor_id, created_at')
-            .eq('user_id', user.id)
-            .eq('type', 'reaction_on_comment')
-            .in('comment_id', commentIdsForNotifications.length > 0 ? commentIdsForNotifications : ['-1'])
-            .order('created_at', { ascending: false })
-            .limit(100);
+          heuristicOwnerColumns = detectedCommentColumns
+            .filter(column => {
+              const lower = column.toLowerCase();
+              if (['id', 'post_id', 'parent_id', 'created_at', 'text', 'body'].includes(lower)) {
+                return false;
+              }
+              return (
+                lower.includes('author') ||
+                lower.includes('user') ||
+                lower.includes('profile') ||
+                lower.includes('owner') ||
+                lower.includes('creator') ||
+                lower.includes('commenter') ||
+                lower.endsWith('_id')
+              );
+            })
+            .filter(column => !commentOwnerColumnsPreference.includes(column));
 
-          const commentMetaMap = new Map<string, { post_id: any; text: string; created_at: string }>();
+          const commentOwnerColumnsCandidates = Array.from(
+            new Set([...commentOwnerColumnsPreference, ...heuristicOwnerColumns])
+          );
+
+          const fetchCommentsByColumn = async (columnName: string) => {
+            return supabase
+              .from('comments')
+              .select(buildCommentSelect(columnName))
+              .eq(columnName as any, user.id)
+              .order('created_at', { ascending: false })
+              .limit(20);
+          };
+
+          for (const columnName of commentOwnerColumnsCandidates) {
+            attemptedCommentOwnerColumns.add(columnName);
+            const commentsResponse = await fetchCommentsByColumn(columnName);
+            if (commentsResponse.error) {
+              if (isMissingColumnError(commentsResponse.error, columnName)) {
+                missingCommentColumnsSet.add(columnName);
+                continue;
+              }
+              userCommentsErrorMessage = commentsResponse.error.message;
+              break;
+            }
+
+            resolvedCommentOwnerColumn = columnName;
+            userAuthoredComments = commentsResponse.data || [];
+            break;
+          }
+        }
+
+        const missingCommentColumns = Array.from(missingCommentColumnsSet);
+        const schemaDiagnostics: string[] = [];
+        if (missingCommentColumns.length > 0) {
+          schemaDiagnostics.push(`Missing columns: ${missingCommentColumns.join(', ')}`);
+        }
+        if (commentSchemaProbeError) {
+          schemaDiagnostics.push(`Schema probe error: ${commentSchemaProbeError}`);
+        }
+        const commentsSchemaNote = schemaDiagnostics.length > 0 ? schemaDiagnostics.join(' | ') : null;
+
+        let combinedCommentErrorMessage = [
+          dynamicCommentsUsed ? null : dynamicCommentsError,
+          userCommentsErrorMessage,
+          commentsSchemaNote,
+        ]
+          .filter(Boolean)
+          .join(' | ') || null;
+
+        if (!combinedCommentErrorMessage && userAuthoredComments.length === 0) {
+          userCommentsErrorMessage = 'No comments authored by user found';
+          combinedCommentErrorMessage =
+            [dynamicCommentsUsed ? null : dynamicCommentsError, userCommentsErrorMessage, commentsSchemaNote]
+              .filter(Boolean)
+              .join(' | ') || null;
+        }
+
+          if (userAuthoredComments && userAuthoredComments.length > 0) {
+            const resolveCommentOwnerId = (comment: any) => {
+              if (!comment) return undefined;
+              if (comment.owner_id) {
+                return comment.owner_id;
+              }
+              if (
+                resolvedCommentOwnerColumn &&
+                Object.prototype.hasOwnProperty.call(comment, resolvedCommentOwnerColumn)
+              ) {
+                return comment?.[resolvedCommentOwnerColumn];
+              }
+              return comment.author_id || comment.user_id;
+            };
+
+            const commentIdsRaw = userAuthoredComments
+              .map(comment => comment.id)
+              .filter((id): id is string | number => id !== null && id !== undefined)
+              .map(id => id.toString());
+
+            const isUuid = (value: string) =>
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+            const isNumericId = (value: string) => /^[0-9]+$/.test(value);
+
+            const commentIdsUuid = commentIdsRaw.filter(id => isUuid(id));
+            const commentIdsNumeric = commentIdsRaw
+              .filter(id => isNumericId(id))
+              .map(id => parseInt(id, 10))
+              .filter(Number.isFinite);
+
+            const commentIdsForNotifications = Array.from(new Set(commentIdsUuid));
+
+            let commentReactions: any[] = [];
+            let commentReactionsError: any = null;
+
+            try {
+              if (commentIdsUuid.length > 0) {
+                const commentReactionsResponse = await supabase
+                  .from('comment_reactions')
+                  .select('comment_id, user_id, kind, created_at')
+                  .in('comment_id', commentIdsUuid)
+                  .order('created_at', { ascending: false })
+                  .limit(50);
+                commentReactions = commentReactionsResponse.data || [];
+                commentReactionsError = commentReactionsResponse.error;
+              }
+            } catch (uuidErr: any) {
+              commentReactionsError = uuidErr;
+            }
+
+            try {
+              if (commentIdsNumeric.length > 0) {
+                const blogCommentReactionsResponse = await supabase
+                  .from('blog_comment_reactions')
+                  .select('comment_id, user_id, kind, created_at')
+                  .in('comment_id', commentIdsNumeric)
+                  .order('created_at', { ascending: false })
+                  .limit(50);
+                commentReactions = [
+                  ...(commentReactions || []),
+                  ...(blogCommentReactionsResponse.data || []).map(reaction => ({
+                    ...reaction,
+                    comment_id: reaction.comment_id?.toString(),
+                  })),
+                ];
+                if (blogCommentReactionsResponse.error) {
+                  commentReactionsError = blogCommentReactionsResponse.error;
+                }
+              }
+            } catch (blogErr: any) {
+              commentReactionsError = blogErr;
+            }
+
+            const { data: commentReactionNotifications, error: commentReactionNotifError } = await supabase
+              .from('notifications')
+              .select('id, type, comment_id, post_id, actor_id, created_at')
+              .eq('user_id', user.id)
+              .eq('type', 'reaction_on_comment')
+              .in(
+                'comment_id',
+                commentIdsForNotifications.length > 0
+                  ? commentIdsForNotifications
+                  : ['00000000-0000-0000-0000-000000000000']
+              )
+              .order('created_at', { ascending: false })
+              .limit(100);
+
+            const commentMetaMap = new Map<
+              string,
+              { post_id: any; text: string; created_at: string; owner_id?: string | null }
+            >();
           userAuthoredComments.forEach(comment => {
             const key = comment.id?.toString();
             if (!key) return;
@@ -458,6 +708,7 @@ export default function AlertPage() {
               post_id: comment.post_id,
               text: (comment.text || comment.body || '').substring(0, 80),
               created_at: comment.created_at,
+                owner_id: resolveCommentOwnerId(comment),
             });
           });
 
@@ -477,18 +728,19 @@ export default function AlertPage() {
                 return notificationCommentId === commentIdValue && notification.actor_id === actorIdValue;
               });
             })
-            .map(reaction => {
-              const commentIdValue = reaction.comment_id?.toString?.() ?? reaction.comment_id;
-              const meta = commentMetaMap.get(commentIdValue || '');
-              return {
-                comment_id: reaction.comment_id,
-                reactor_id: reaction.user_id,
-                kind: reaction.kind,
-                created_at: reaction.created_at,
-                post_id: meta?.post_id,
-                comment_preview: meta?.text,
-              };
-            });
+              .map(reaction => {
+                const commentIdValue = reaction.comment_id?.toString?.() ?? reaction.comment_id;
+                const meta = commentMetaMap.get(commentIdValue || '');
+                return {
+                  comment_id: reaction.comment_id,
+                  reactor_id: reaction.user_id,
+                  kind: reaction.kind,
+                  created_at: reaction.created_at,
+                  post_id: meta?.post_id,
+                  comment_preview: meta?.text,
+                  comment_owner_id: meta?.owner_id,
+                };
+              });
 
           debugData.commentReactionsAnalysis = {
             userCommentsCount: userAuthoredComments.length,
@@ -499,22 +751,45 @@ export default function AlertPage() {
               post_id: comment.post_id,
               created_at: comment.created_at,
               text: (comment.text || comment.body || '').substring(0, 80),
+                owner_id: resolveCommentOwnerId(comment),
             })),
             recentReactions: relevantCommentReactions.slice(0, 10),
             notificationsSample: commentReactionNotifications?.slice(0, 10) ?? [],
             missingNotifications: missingCommentReactionNotifications,
-            errors: {
-              comments: userCommentsError?.message,
-              reactions: commentReactionsError?.message,
-              notifications: commentReactionNotifError?.message,
-            },
+              errors: {
+                comments: combinedCommentErrorMessage,
+                reactions: commentReactionsError?.message,
+                notifications: commentReactionNotifError?.message,
+              },
+              schemaInfo: {
+                ownerColumnUsed: resolvedCommentOwnerColumn,
+                missingColumns: missingCommentColumns,
+                attemptedColumns: Array.from(attemptedCommentOwnerColumns),
+                  detectedColumns: detectedCommentColumns,
+                  heuristicColumnsTried: heuristicOwnerColumns,
+                  schemaProbeError: commentSchemaProbeError,
+                  dynamicRpcUsed: dynamicCommentsUsed,
+                  dynamicRpcError: dynamicCommentsError,
+                  fallbackUsed,
+              },
           };
         } else {
           debugData.commentReactionsAnalysis = {
             userCommentsCount: 0,
             reactionsCount: 0,
             notificationsCount: 0,
-            error: userCommentsError?.message || 'No comments authored by user found',
+              error: combinedCommentErrorMessage || 'No comments authored by user found',
+              schemaInfo: {
+                ownerColumnUsed: resolvedCommentOwnerColumn,
+                missingColumns: missingCommentColumns,
+                attemptedColumns: Array.from(attemptedCommentOwnerColumns),
+                detectedColumns: detectedCommentColumns,
+                heuristicColumnsTried: heuristicOwnerColumns,
+                schemaProbeError: commentSchemaProbeError,
+                dynamicRpcUsed: dynamicCommentsUsed,
+                dynamicRpcError: dynamicCommentsError,
+                fallbackUsed,
+              },
           };
         }
 
