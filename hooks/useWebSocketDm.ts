@@ -561,7 +561,7 @@ export function useWebSocketDm(
                 (msg as any).client_msg_id === clientMsgIdFromServer
                   ? {
                       ...msg,
-                      delivery_state: "sent",
+                        delivery_state: "delivered",
                       send_error: undefined,
                     }
                   : msg,
@@ -1098,8 +1098,8 @@ export function useWebSocketDm(
       filterTimeoutsRef.current.set(clientMsgId, filterTimeout);
 
       // Create local-echo message with 'sending' status
-      const localEchoMessage: Message & {
-        delivery_state?: "sending" | "failed" | "sent";
+        const localEchoMessage: Message & {
+          delivery_state?: "sending" | "failed" | "sent" | "delivered" | "read";
         send_error?: string;
       } = {
         id: -1, // Temporary ID
@@ -1201,7 +1201,7 @@ export function useWebSocketDm(
                             ...saved,
                             client_msg_id: clientMsgId,
                             send_error: undefined,
-                            delivery_state: "sent",
+                              delivery_state: "delivered",
                           }
                         : m,
                     ),
@@ -1278,7 +1278,7 @@ export function useWebSocketDm(
                     ...savedMessage,
                     client_msg_id: clientMsgId,
                     send_error: undefined,
-                    delivery_state: "sent",
+                    delivery_state: "delivered",
                   };
                 }
                 return msg;
@@ -1306,7 +1306,7 @@ export function useWebSocketDm(
               ...savedMessage,
               client_msg_id: clientMsgId,
               send_error: undefined,
-              delivery_state: "sent",
+                delivery_state: "delivered",
             },
           ]);
         });

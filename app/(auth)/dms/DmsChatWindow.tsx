@@ -17,6 +17,11 @@ const INITIAL_MESSAGE_LIMIT = 30;
 const HISTORY_PAGE_LIMIT = 30;
 const READ_RECEIPT_ENDPOINT = '/api/dms/messages.read';
 const DELIVERY_RECEIPT_ENDPOINT = '/api/dms/messages.deliver';
+const RECEIPT_STATUS_PRIORITY = {
+  sent: 0,
+  delivered: 1,
+  read: 2,
+} as const;
 
 type SelectedAttachment = {
   id: string;
@@ -1006,19 +1011,35 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         return;
       }
 
+      let appliedStatus: 'sent' | 'delivered' | 'read' | null = null;
+
       setMessageReceipts((prev) => {
         const previousStatus = prev.get(messageId);
-        if (previousStatus === status) {
-          console.debug('[DM] Receipt status unchanged', {
-            messageId,
-            status,
-            source,
-          });
-          return prev;
+        if (previousStatus) {
+          const prevRank = RECEIPT_STATUS_PRIORITY[previousStatus];
+          const nextRank = RECEIPT_STATUS_PRIORITY[status];
+          if (nextRank < prevRank) {
+            console.debug('[DM] Ignoring receipt downgrade attempt', {
+              messageId,
+              attemptedStatus: status,
+              previousStatus,
+              source,
+            });
+            return prev;
+          }
+          if (previousStatus === status) {
+            console.debug('[DM] Receipt status unchanged', {
+              messageId,
+              status,
+              source,
+            });
+            return prev;
+          }
         }
 
         const next = new Map(prev);
         next.set(messageId, status);
+        appliedStatus = status;
         console.log('[DM] Receipt status updated', {
           messageId,
           previousStatus,
@@ -1028,6 +1049,10 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         return next;
       });
 
+      if (!appliedStatus) {
+        return;
+      }
+
       setMessagesFromHook((prev) => {
         let changed = false;
         const updated = prev.map((msg) => {
@@ -1036,9 +1061,9 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           }
 
           const nextDeliveryState =
-            status === 'read'
+            appliedStatus === 'read'
               ? 'read'
-              : status === 'delivered'
+              : appliedStatus === 'delivered'
                 ? 'delivered'
                 : 'sent';
 
@@ -1060,7 +1085,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         if (changed) {
           console.debug('[DM] Updated message delivery_state due to receipt', {
             messageId,
-            status,
+              status: appliedStatus,
             source,
           });
           return updated;
@@ -1185,7 +1210,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           if (message.sender_id === currentUserId) {
               const receiptKey = String(event.server_msg_id ?? '');
               if (receiptKey && receiptKey !== 'undefined') {
-                updateMessageReceiptStatus(receiptKey, 'sent', 'local');
+                  updateMessageReceiptStatus(receiptKey, 'delivered', 'local');
               }
 
               setMessagesFromHook((prev: any[]) =>
@@ -1199,7 +1224,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   return {
                     ...msg,
                     send_error: undefined,
-                    delivery_state: 'sent',
+                      delivery_state: 'delivered',
                   };
                 })
               );
@@ -2175,7 +2200,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
           ? `temp-${globalThis.crypto.randomUUID()}`
           : `temp-${Date.now()}-${Math.random().toString(16).slice(2)}`);
     const localEcho: Message & {
-        delivery_state?: 'sending' | 'failed' | 'sent';
+        delivery_state?: 'sending' | 'failed' | 'sent' | 'delivered' | 'read';
         send_error?: string;
       } = {
         id: -1,
@@ -2229,13 +2254,13 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
               ? ({
                   ...(savedMessage as Message),
                   client_msg_id: (savedMessage as any)?.client_msg_id ?? tempId,
-                  delivery_state: 'sent',
+                  delivery_state: 'delivered',
                   send_error: undefined,
-                } as Message & { delivery_state?: 'sent'; send_error?: undefined })
+                } as Message & { delivery_state?: 'delivered'; send_error?: undefined })
               : msg
           )
         );
-        updateMessageReceiptStatus(String(savedMessage.id), 'sent', 'local');
+        updateMessageReceiptStatus(String(savedMessage.id), 'delivered', 'local');
 
       setMessageText('');
       setSelectedFiles((prev) => {
@@ -2395,13 +2420,13 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
                   ? ({
                       ...(savedMessage as Message),
                       client_msg_id: (savedMessage as any)?.client_msg_id ?? item.clientMsgId,
-                      delivery_state: 'sent',
+                      delivery_state: 'delivered',
                       send_error: undefined,
-                    } as Message & { delivery_state?: 'sent'; send_error?: undefined })
+                    } as Message & { delivery_state?: 'delivered'; send_error?: undefined })
                   : msg
               )
             );
-            updateMessageReceiptStatus(String(savedMessage.id), 'sent', 'local');
+            updateMessageReceiptStatus(String(savedMessage.id), 'delivered', 'local');
             setOutbox((prev) => prev.slice(1));
             await new Promise((r) => setTimeout(r, 150));
           } catch (err) {
