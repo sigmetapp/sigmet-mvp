@@ -1264,7 +1264,7 @@ function DmsInner() {
                             const avatar = resolveAvatarUrl(partner.avatar_url) ?? AVATAR_FALLBACK;
                             const isSelected = selectedPartnerId === partner.user_id;
                             const isHighlighted = highlightedPartnerId === partner.user_id;
-                            const previewMeta = deriveMessagePreview(partner, currentUserId);
+                              const previewMeta = deriveMessagePreview(partner, currentUserId);
                             const timestampLabel = formatRelativeTime(
                               partner.last_message_at ?? partner.created_at
                             );
@@ -1330,7 +1330,14 @@ function DmsInner() {
                               {/* Main text */}
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <div className="text-sm font-medium text-white truncate">{name}</div>
+                                  <div className="text-sm font-medium text-white truncate flex items-center gap-1">
+                                    <span>{name}</span>
+                                    {partner.unread_count > 0 && (
+                                      <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-rose-600/80 px-1.5 text-[11px] font-semibold text-white">
+                                        {partner.unread_count}
+                                      </span>
+                                    )}
+                                  </div>
                                   <button
                                     type="button"
                                     aria-label={partner.is_pinned ? 'Unpin' : 'Pin'}
