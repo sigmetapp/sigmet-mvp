@@ -313,52 +313,104 @@ export default function PostFeed({
       // Preload comment counts for visible posts
       preloadCommentCounts(data as Post[]);
 
-      // Preload author profiles (username, full_name, avatar)
+      // Preload author profiles (username, full_name, avatar) with caching
       // Load profiles together with posts to ensure avatars are available
       const userIds = Array.from(
         new Set((data as Post[]).map((p) => p.user_id).filter((x): x is string => Boolean(x)))
       );
       if (userIds.length > 0) {
         try {
-          const { data: profs, error: profError } = await supabase
-            .from("profiles")
-            .select("user_id, username, full_name, avatar_url")
-            .in("user_id", userIds);
+          // Загружаем из кеша
+          const { profileCache } = await import('@/lib/cache/profileCache');
+          const cachedProfiles = profileCache.batchGet(userIds);
           
-          if (profError) {
-            console.error('Error loading profiles:', profError);
-          }
-          
-          if (profs && profs.length > 0) {
+          // Сразу обновляем state с кешированными профилями
+          if (cachedProfiles.size > 0) {
             setProfilesByUserId((prev) => {
               const map = { ...prev };
-              for (const p of profs as any[]) {
-                map[p.user_id as string] = { 
-                  username: p.username ?? null, 
-                  full_name: p.full_name ?? null,
-                  avatar_url: p.avatar_url ?? null 
+              cachedProfiles.forEach((profile, userId) => {
+                map[userId] = {
+                  username: profile.username ?? null,
+                  full_name: profile.full_name ?? null,
+                  avatar_url: profile.avatar_url ?? null,
                 };
-              }
+              });
               return map;
             });
-          } else {
-            // If no profiles found, still set empty profiles to prevent re-fetching
-            setProfilesByUserId((prev) => {
-              const map = { ...prev };
-              for (const uid of userIds) {
-                if (!map[uid]) {
-                  map[uid] = { 
-                    username: null, 
-                    full_name: null,
-                    avatar_url: null 
+          }
+
+          // Определяем какие профили нужно загрузить
+          const missingUserIds = userIds.filter((id) => !cachedProfiles.has(id));
+          
+          if (missingUserIds.length > 0) {
+            // Загружаем недостающие профили из базы
+            const { data: profs, error: profError } = await supabase
+              .from("profiles")
+              .select("user_id, username, full_name, avatar_url")
+              .in("user_id", missingUserIds);
+            
+            if (profError) {
+              console.error('Error loading profiles:', profError);
+            }
+            
+            if (profs && profs.length > 0) {
+              // Сохраняем в кеш
+              profileCache.batchSet(profs as any[]);
+              
+              setProfilesByUserId((prev) => {
+                const map = { ...prev };
+                for (const p of profs as any[]) {
+                  map[p.user_id as string] = { 
+                    username: p.username ?? null, 
+                    full_name: p.full_name ?? null,
+                    avatar_url: p.avatar_url ?? null 
                   };
                 }
-              }
-              return map;
-            });
+                return map;
+              });
+            }
           }
+
+          // Устанавливаем пустые профили для тех, кого нет ни в кеше, ни в БД
+          setProfilesByUserId((prev) => {
+            const map = { ...prev };
+            for (const uid of userIds) {
+              if (!map[uid]) {
+                map[uid] = { 
+                  username: null, 
+                  full_name: null,
+                  avatar_url: null 
+                };
+              }
+            }
+            return map;
+          });
         } catch (error) {
           console.error('Error loading profiles:', error);
+          // Fallback: загружаем без кеша
+          try {
+            const { data: profs } = await supabase
+              .from("profiles")
+              .select("user_id, username, full_name, avatar_url")
+              .in("user_id", userIds);
+            
+            if (profs && profs.length > 0) {
+              setProfilesByUserId((prev) => {
+                const map = { ...prev };
+                for (const p of profs as any[]) {
+                  map[p.user_id as string] = { 
+                    username: p.username ?? null, 
+                    full_name: p.full_name ?? null,
+                    avatar_url: p.avatar_url ?? null 
+                  };
+                }
+                return map;
+              });
+            }
+          } catch (fallbackError) {
+            console.error('Fallback profile loading failed:', fallbackError);
+          }
+          
           // Set empty profiles to prevent re-fetching
           setProfilesByUserId((prev) => {
             const map = { ...prev };
@@ -401,6 +453,7 @@ export default function PostFeed({
 
   // Load directions from growth-directions API - only primary (priority) directions
   // Load immediately on mount, in parallel with posts
+  // Uses caching for faster loading
   const loadingDirectionsRef = useRef(false);
   const loadDirections = useCallback(async () => {
     if (loadingDirectionsRef.current) return; // Prevent duplicate loads
@@ -408,6 +461,23 @@ export default function PostFeed({
     loadingDirectionsRef.current = true;
     setLoadingDirections(true);
     try {
+      // Проверяем кеш
+      const { directionsCache } = await import('@/lib/cache/directionsCache');
+      const cached = directionsCache.get();
+      
+      if (cached && cached.length > 0) {
+        // Используем кешированные направления
+        setAvailableDirections(cached);
+        const priorityIds = cached.map((dir) => dir.id);
+        setMyDirections(priorityIds);
+        setActiveDirection(null);
+        loadingDirectionsRef.current = false;
+        setLoadingDirections(false);
+        
+        // Загружаем актуальные данные в фоне для обновления кеша
+        // (не блокируем UI)
+      }
+
       const { data: auth } = await supabase.auth.getUser();
       const userId = auth.user?.id;
       if (!userId) {
@@ -445,6 +515,10 @@ export default function PostFeed({
             title: dir.title,
             emoji: resolveDirectionEmoji(dir.slug, dir.emoji),
           }));
+        
+        // Сохраняем в кеш
+        directionsCache.set(mapped);
+        
         setAvailableDirections(mapped);
 
         // Use primary directions IDs directly (no need to check profile)
