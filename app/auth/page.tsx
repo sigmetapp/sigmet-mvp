@@ -92,45 +92,49 @@ export default function AuthPage() {
           metadata.invite_code = normalizedInviteCode;
         }
 
-        const { data: signData, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${origin}/auth/callback`,
-            data: metadata,
-          },
-        });
-        if (error) throw error;
+          const { data: signData, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: `${origin}/auth/callback`,
+              data: metadata,
+            },
+          });
+          if (error) throw error;
 
-        let inviteAccepted = false;
-        if (normalizedInviteCode && signData?.user) {
-          try {
-            const { data: inviteId, error: acceptErr } = await supabase.rpc(
-              "accept_invite_by_code",
-              {
-                invite_code: normalizedInviteCode,
-              },
-            );
+          let inviteAccepted = false;
+          const canAcceptImmediately = Boolean(signData?.session?.access_token);
 
-            if (!acceptErr && inviteId) {
-              inviteAccepted = true;
-              const { trackInviteAccepted } = await import(
-                "@/lib/invite-tracking"
+          if (canAcceptImmediately && normalizedInviteCode && signData?.user) {
+            try {
+              const { data: inviteId, error: acceptErr } = await supabase.rpc(
+                "accept_invite_by_code",
+                {
+                  invite_code: normalizedInviteCode,
+                },
               );
-              await trackInviteAccepted(inviteId, signData.user.id);
-            } else if (acceptErr) {
-              console.warn("Invite acceptance error:", acceptErr);
-            }
-          } catch (acceptErr) {
-            console.warn("Invite acceptance exception:", acceptErr);
-          }
-        }
 
-        setMsg(
-          inviteAccepted
-            ? "Invite accepted! Account created. Please confirm your email."
-            : "Account created. Please confirm your email.",
-        );
+              if (!acceptErr && inviteId) {
+                inviteAccepted = true;
+                const { trackInviteAccepted } = await import(
+                  "@/lib/invite-tracking"
+                );
+                await trackInviteAccepted(inviteId, signData.user.id);
+              } else if (acceptErr) {
+                console.warn("Invite acceptance error:", acceptErr);
+              }
+            } catch (acceptErr) {
+              console.warn("Invite acceptance exception:", acceptErr);
+            }
+          }
+
+          setMsg(
+            inviteAccepted
+              ? "Invite accepted! Account created. Please confirm your email."
+              : normalizedInviteCode && !canAcceptImmediately
+                ? "Account created. Your invite will be applied automatically after you sign in."
+                : "Account created. Please confirm your email.",
+          );
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,

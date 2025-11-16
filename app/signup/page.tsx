@@ -176,37 +176,41 @@ export default function SignupPage() {
           data: metadata,
         },
       });
-      if (signErr) throw signErr;
+        if (signErr) throw signErr;
 
-      let inviteAccepted = false;
-      if (normalizedInviteCode && signData?.user) {
-        try {
-          const { data: inviteId, error: acceptErr } = await supabase.rpc(
-            "accept_invite_by_code",
-            {
-              invite_code: normalizedInviteCode,
-            },
-          );
+        let inviteAccepted = false;
+        const canAcceptImmediately = Boolean(signData?.session?.access_token);
 
-          if (!acceptErr && inviteId) {
-            inviteAccepted = true;
-            const { trackInviteAccepted } = await import(
-              "@/lib/invite-tracking"
+        if (canAcceptImmediately && normalizedInviteCode && signData?.user) {
+          try {
+            const { data: inviteId, error: acceptErr } = await supabase.rpc(
+              "accept_invite_by_code",
+              {
+                invite_code: normalizedInviteCode,
+              },
             );
-            await trackInviteAccepted(inviteId, signData.user.id);
-          } else if (acceptErr) {
-            console.warn("Invite acceptance error:", acceptErr);
-          }
-        } catch (acceptErr) {
-          console.warn("Invite acceptance exception:", acceptErr);
-        }
-      }
 
-      setNotice(
-        inviteAccepted
-          ? "Invite accepted! Please check your email inbox. A confirmation link has been sent."
-          : "Please check your email inbox. A confirmation link has been sent.",
-      );
+            if (!acceptErr && inviteId) {
+              inviteAccepted = true;
+              const { trackInviteAccepted } = await import(
+                "@/lib/invite-tracking"
+              );
+              await trackInviteAccepted(inviteId, signData.user.id);
+            } else if (acceptErr) {
+              console.warn("Invite acceptance error:", acceptErr);
+            }
+          } catch (acceptErr) {
+            console.warn("Invite acceptance exception:", acceptErr);
+          }
+        }
+
+        setNotice(
+          inviteAccepted
+            ? "Invite accepted! Please check your email inbox. A confirmation link has been sent."
+            : normalizedInviteCode && !canAcceptImmediately
+              ? "Please confirm your email. Your invite will be applied automatically after you sign in."
+              : "Please check your email inbox. A confirmation link has been sent.",
+        );
 
       try {
         await fetch("/api/notify-signup", {
