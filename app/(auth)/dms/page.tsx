@@ -880,24 +880,41 @@ function DmsInner() {
             });
           });
 
-          await Promise.all(
-            presenceWatchList.map(async (userId) => {
-              try {
-                const presenceState = await module.getPresenceMap(userId);
-                const online = !!presenceState?.[userId]?.[0];
-                if (!cancelled) {
-                  setPresenceOnlineMap((prev) => {
-                    if (prev[userId] === online) {
-                      return prev;
-                    }
-                    return { ...prev, [userId]: online };
-                  });
+          if (typeof module.getPresenceSnapshot === 'function') {
+            const snapshot = await module.getPresenceSnapshot(presenceWatchList);
+            if (!cancelled) {
+              setPresenceOnlineMap((prev) => {
+                const next = { ...prev };
+                let changed = false;
+                for (const [userId, online] of Object.entries(snapshot)) {
+                  if (next[userId] !== online) {
+                    next[userId] = online;
+                    changed = true;
+                  }
                 }
-              } catch (err) {
-                console.error('Failed to fetch presence map for user', userId, err);
-              }
-            })
-          );
+                return changed ? next : prev;
+              });
+            }
+          } else {
+            await Promise.all(
+              presenceWatchList.map(async (userId) => {
+                try {
+                  const presenceState = await module.getPresenceMap(userId);
+                  const online = !!presenceState?.[userId]?.[0];
+                  if (!cancelled) {
+                    setPresenceOnlineMap((prev) => {
+                      if (prev[userId] === online) {
+                        return prev;
+                      }
+                      return { ...prev, [userId]: online };
+                    });
+                  }
+                } catch (err) {
+                  console.error('Failed to fetch presence map for user', userId, err);
+                }
+              })
+            );
+          }
         } catch (err) {
           console.error('Failed to subscribe to presence updates', err);
         }

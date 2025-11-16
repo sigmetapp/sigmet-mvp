@@ -11,11 +11,29 @@ interface PresenceEntry {
 }
 
 const presenceEntries = new Map<string, PresenceEntry>();
+const presenceCache = new Map<string, { online: boolean; timestamp: number }>();
+const PRESENCE_CACHE_TTL_MS = 15_000;
 let listenerIdCounter = 0;
 
 function nextListenerId(): string {
   listenerIdCounter += 1;
   return `presence-listener-${listenerIdCounter}`;
+}
+
+function updatePresenceCache(userId: string, online: boolean): void {
+  presenceCache.set(userId, { online, timestamp: Date.now() });
+}
+
+function getCachedPresence(userId: string): boolean | null {
+  const cached = presenceCache.get(userId);
+  if (!cached) {
+    return null;
+  }
+  if (Date.now() - cached.timestamp > PRESENCE_CACHE_TTL_MS) {
+    presenceCache.delete(userId);
+    return null;
+  }
+  return cached.online;
 }
 
 function getOrCreateEntry(userId: string): PresenceEntry {
@@ -68,6 +86,7 @@ function setEntryOnline(userId: string, online: boolean): void {
   }
 
   entry.online = online;
+  updatePresenceCache(userId, online);
 
   for (const listener of entry.listeners.values()) {
     try {
@@ -90,6 +109,19 @@ function updatePresenceStateFromChannel(userId: string): void {
     setEntryOnline(userId, online);
   } catch (error) {
     console.error(`Error reading presence state for ${userId}:`, error);
+  }
+}
+
+function readOnlineState(entry: PresenceEntry, userId: string): boolean {
+  try {
+    const state = entry.channel.presenceState();
+    const online = Array.isArray(state[userId]) && state[userId].length > 0;
+    entry.online = online;
+    updatePresenceCache(userId, online);
+    return online;
+  } catch (error) {
+    console.error(`Error reading presence state for ${userId}:`, error);
+    return entry.online;
   }
 }
 
@@ -175,7 +207,7 @@ export async function subscribeToPresence(
 ): Promise<() => void> {
   const subscriptions: { userId: string; listenerId: string }[] = [];
 
-  for (const userId of userIds) {
+  const setupTasks = userIds.map(async (userId) => {
     try {
       const entry = getOrCreateEntry(userId);
       entry.refCount += 1;
@@ -190,14 +222,20 @@ export async function subscribeToPresence(
 
       await ensureSubscribed(entry, userId);
 
-      const state = entry.channel.presenceState();
-      const online = Array.isArray(state[userId]) && state[userId].length > 0;
-      entry.online = online;
+      const cached = getCachedPresence(userId);
+      if (cached !== null) {
+        handler(cached);
+        return;
+      }
+
+      const online = readOnlineState(entry, userId);
       handler(online);
     } catch (error) {
       console.error(`Error setting up presence for ${userId}:`, error);
     }
-  }
+  });
+
+  await Promise.all(setupTasks);
 
   return async () => {
     for (const { userId, listenerId } of subscriptions) {
@@ -226,6 +264,10 @@ export async function subscribeToPresence(
  * Get current presence state for a user
  */
 export function getPresenceState(userId: string): boolean {
+  const cached = getCachedPresence(userId);
+  if (cached !== null) {
+    return cached;
+  }
   const entry = presenceEntries.get(userId);
   if (!entry) {
     return false;
@@ -247,9 +289,43 @@ export async function getPresenceMap(userId: string): Promise<Record<string, any
   try {
     const entry = getOrCreateEntry(userId);
     await ensureSubscribed(entry, userId);
-    return entry.channel.presenceState();
+    const state = entry.channel.presenceState();
+    readOnlineState(entry, userId);
+    return state;
   } catch (error) {
     console.error(`Error getting presence map for ${userId}:`, error);
     return {};
   }
+}
+
+/**
+ * Get presence snapshot for multiple users
+ */
+export async function getPresenceSnapshot(
+  userIds: string[]
+): Promise<Record<string, boolean>> {
+  const result: Record<string, boolean> = {};
+
+  await Promise.all(
+    userIds.map(async (userId) => {
+      if (!userId) {
+        return;
+      }
+      try {
+        const cached = getCachedPresence(userId);
+        if (cached !== null) {
+          result[userId] = cached;
+          return;
+        }
+
+        const entry = getOrCreateEntry(userId);
+        await ensureSubscribed(entry, userId);
+        result[userId] = readOnlineState(entry, userId);
+      } catch (error) {
+        console.error(`Error getting presence snapshot for ${userId}:`, error);
+      }
+    })
+  );
+
+  return result;
 }
