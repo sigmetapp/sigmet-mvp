@@ -411,34 +411,90 @@ export default function AlertPage() {
           };
       }
 
+        const isMissingColumnError = (error: any, column: string) => {
+          if (!error) return false;
+          if (error.code === '42703') return true;
+          const message = error.message?.toLowerCase?.() ?? '';
+          return message.includes('column') && message.includes(column.toLowerCase());
+        };
+
         let userAuthoredComments: any[] = [];
-        let userCommentsError: any = null;
+        let userCommentsErrorMessage: string | null = null;
+        const missingCommentColumns: string[] = [];
 
-        const authoredCommentsResponse = await supabase
+        const commentsByAuthorResponse = await supabase
           .from('comments')
-          .select('id, post_id, author_id, user_id, text, body, created_at')
-          .or(`author_id.eq.${user.id},user_id.eq.${user.id}`)
+          .select('id, post_id, author_id, text, body, created_at')
+          .eq('author_id', user.id)
           .order('created_at', { ascending: false })
-          .limit(10);
+          .limit(20);
 
-        const missingAuthorIdColumn =
-          authoredCommentsResponse.error &&
-          (authoredCommentsResponse.error.code === '42703' ||
-            authoredCommentsResponse.error.message?.toLowerCase().includes('author_id'));
+        if (commentsByAuthorResponse.error) {
+          if (isMissingColumnError(commentsByAuthorResponse.error, 'author_id')) {
+            missingCommentColumns.push('author_id');
+          } else {
+            userCommentsErrorMessage = commentsByAuthorResponse.error.message || userCommentsErrorMessage;
+          }
+        }
 
-        if (missingAuthorIdColumn) {
-          const fallbackCommentsResponse = await supabase
-            .from('comments')
-            .select('id, post_id, user_id, text, body, created_at')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(10);
+        const commentsByUserResponse = await supabase
+          .from('comments')
+          .select('id, post_id, user_id, text, body, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(20);
 
-          userAuthoredComments = fallbackCommentsResponse.data || [];
-          userCommentsError = fallbackCommentsResponse.error;
-        } else {
-          userAuthoredComments = authoredCommentsResponse.data || [];
-          userCommentsError = authoredCommentsResponse.error;
+        if (commentsByUserResponse.error) {
+          if (isMissingColumnError(commentsByUserResponse.error, 'user_id')) {
+            missingCommentColumns.push('user_id');
+          } else {
+            userCommentsErrorMessage = userCommentsErrorMessage
+              ? `${userCommentsErrorMessage}; ${commentsByUserResponse.error.message}`
+              : commentsByUserResponse.error.message;
+          }
+        }
+
+        const combinedComments = [
+          ...(commentsByAuthorResponse.data ?? []),
+          ...(commentsByUserResponse.data ?? []),
+        ];
+
+        if (combinedComments.length > 0) {
+          const deduped = Array.from(
+            combinedComments.reduce((map, comment) => {
+              const key = comment.id?.toString();
+              if (!key) {
+                return map;
+              }
+              if (map.has(key)) {
+                const existing = map.get(key);
+                map.set(key, {
+                  ...existing,
+                  ...comment,
+                  author_id: existing.author_id ?? comment.author_id,
+                  user_id: existing.user_id ?? comment.user_id,
+                });
+              } else {
+                map.set(key, { ...comment });
+              }
+              return map;
+            }, new Map<string, any>())
+          )
+            .sort((a, b) => {
+              const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+              const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+              return bTime - aTime;
+            })
+            .slice(0, 10);
+
+          userAuthoredComments = deduped;
+        }
+
+        const commentsSchemaNote =
+          missingCommentColumns.length > 0 ? `Missing columns: ${missingCommentColumns.join(', ')}` : null;
+
+        if (!userCommentsErrorMessage && !commentsSchemaNote && userAuthoredComments.length === 0) {
+          userCommentsErrorMessage = 'No comments authored by user found';
         }
 
         if (userAuthoredComments && userAuthoredComments.length > 0) {
@@ -526,18 +582,24 @@ export default function AlertPage() {
             recentReactions: relevantCommentReactions.slice(0, 10),
             notificationsSample: commentReactionNotifications?.slice(0, 10) ?? [],
             missingNotifications: missingCommentReactionNotifications,
-            errors: {
-              comments: userCommentsError?.message,
-              reactions: commentReactionsError?.message,
-              notifications: commentReactionNotifError?.message,
-            },
+              errors: {
+                comments: userCommentsErrorMessage || commentsSchemaNote,
+                reactions: commentReactionsError?.message,
+                notifications: commentReactionNotifError?.message,
+              },
+              schemaInfo: {
+                missingColumns: missingCommentColumns,
+              },
           };
         } else {
           debugData.commentReactionsAnalysis = {
             userCommentsCount: 0,
             reactionsCount: 0,
             notificationsCount: 0,
-            error: userCommentsError?.message || 'No comments authored by user found',
+              error: userCommentsErrorMessage || commentsSchemaNote || 'No comments authored by user found',
+              schemaInfo: {
+                missingColumns: missingCommentColumns,
+              },
           };
         }
 
