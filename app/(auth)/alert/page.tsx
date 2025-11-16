@@ -799,8 +799,8 @@ export default function AlertPage() {
 
   return (
     <RequireAuth>
-      <div className="max-w-4xl mx-auto px-4 py-6 md:p-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="max-w-4xl mx-auto px-0 md:px-4 py-6 md:p-6">
+        <div className="flex items-center justify-between mb-6 px-4 md:px-0">
           <h1 className="text-2xl font-semibold text-white flex items-center gap-2">
             <Bell size={24} />
             Notifications
@@ -840,7 +840,7 @@ export default function AlertPage() {
 
           {/* Debug Panel for Admins */}
           {isAdmin && isDebugPanelOpen && (
-            <div className="mb-6 bg-gray-900 border border-yellow-600/30 rounded-lg p-4 text-xs font-mono">
+            <div className="mb-6 bg-gray-900 border border-yellow-600/30 rounded-lg p-4 text-xs font-mono mx-4 md:mx-0">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-yellow-400 font-bold text-sm">🔧 Debug Information (Admin Only)</h2>
                 <div className="flex items-center gap-2">
@@ -1179,7 +1179,7 @@ export default function AlertPage() {
         )}
 
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-4 px-4 md:px-0">
             {[1, 2, 3].map(i => (
               <div key={i} className="bg-gray-800 p-4 rounded-lg animate-pulse">
                 <div className="h-4 bg-gray-700 rounded w-3/4 mb-2"></div>
@@ -1188,12 +1188,12 @@ export default function AlertPage() {
             ))}
           </div>
         ) : notifications.length === 0 ? (
-          <div className="bg-gray-800 p-8 rounded-lg text-center">
+          <div className="bg-gray-800 p-8 rounded-lg text-center mx-4 md:mx-0">
             <Bell size={48} className="mx-auto mb-4 text-gray-500" />
             <p className="text-gray-400">You have no notifications yet</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 px-4 md:px-0">
             {notifications.map((notification) => {
               const link = getNotificationLink(notification);
               const isUnread = !notification.read_at;
