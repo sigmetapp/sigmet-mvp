@@ -2390,9 +2390,9 @@ export default function PublicProfilePage() {
 
       {/* History modal (owner only) */}
       {historyOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+        <div className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-2 sm:p-4" style={{ paddingTop: 'max(4.5rem, calc(env(safe-area-inset-top, 0px) + 4.5rem))' }}>
           <div className="absolute inset-0 bg-black/80" onClick={() => setHistoryOpen(false)} />
-          <div className="relative z-10 w-full max-w-xl max-h-[90vh] flex flex-col">
+          <div className="relative z-10 w-full max-w-xl max-h-[calc(100vh-6rem)] sm:max-h-[90vh] flex flex-col">
             <div className="card p-3 sm:p-4 md:p-5 flex flex-col flex-1 min-h-0 space-y-3">
               <div className="flex items-center justify-between flex-shrink-0">
                 <div className="text-white/90 font-medium text-sm sm:text-base">Change history</div>
