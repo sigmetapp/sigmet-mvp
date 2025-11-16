@@ -124,13 +124,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const privilegedClient = serviceClient ?? client;
 
-      if (nextId !== prev) {
+        if (nextId !== prev) {
+          const lastReadTimestamp = targetMessage?.created_at || new Date().toISOString();
         try {
           await privilegedClient
             .from('dms_thread_participants')
             .update({
               last_read_message_id: targetMessage.id ?? upTo,
-              last_read_at: targetMessage.created_at || new Date().toISOString(),
+                last_read_at: lastReadTimestamp,
             })
             .eq('thread_id', threadId)
             .eq('user_id', user.id);
