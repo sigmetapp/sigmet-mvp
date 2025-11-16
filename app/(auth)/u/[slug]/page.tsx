@@ -2214,25 +2214,39 @@ export default function PublicProfilePage() {
                     {userGoals.map((goal, index) => (
                       <div
                         key={goal.id}
-                        className={`flex items-center justify-between gap-4 py-2.5 px-3 rounded-lg border ${
+                        className={`flex flex-col gap-3 py-3 px-3 md:py-2.5 md:px-3 rounded-lg border ${
                           isLight
                             ? 'border-gray-200 bg-gray-50/50 hover:bg-gray-100/50'
                             : 'border-white/10 bg-white/5 hover:bg-white/10'
                         } transition-all`}
                       >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold mt-0.5 ${
                             isLight
                               ? 'bg-primary-blue/20 text-primary-blue'
                               : 'bg-primary-blue/20 text-primary-blue-light'
                           }`}>
                             {index + 1}
                           </div>
-                          <div className={`text-sm flex-1 min-w-0 ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
+                          <div className={`text-base md:text-sm flex-1 min-w-0 font-medium leading-relaxed ${isLight ? 'text-primary-text' : 'text-white/90'}`}>
                             {goal.text}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="flex items-center gap-3 flex-shrink-0 pl-9 md:pl-0 md:justify-end">
+                          {profile?.user_id && (
+                            <GoalReactions
+                              goalUserId={profile.user_id}
+                              goalId={goal.id}
+                              initialCount={goalReactions[goal.id]?.count || 0}
+                              initialSelected={goalReactions[goal.id]?.selected || false}
+                              onReactionChange={(selected, count) => {
+                                setGoalReactions(prev => ({
+                                  ...prev,
+                                  [goal.id]: { count, selected }
+                                }));
+                              }}
+                            />
+                          )}
                           {goal.target_date && (
                             <div className={`text-xs flex items-center gap-1.5 ${
                               isLight ? 'text-primary-text-secondary' : 'text-white/60'
@@ -2248,20 +2262,6 @@ export default function PublicProfilePage() {
                                 })}
                               </span>
                             </div>
-                          )}
-                          {profile?.user_id && (
-                            <GoalReactions
-                              goalUserId={profile.user_id}
-                              goalId={goal.id}
-                              initialCount={goalReactions[goal.id]?.count || 0}
-                              initialSelected={goalReactions[goal.id]?.selected || false}
-                              onReactionChange={(selected, count) => {
-                                setGoalReactions(prev => ({
-                                  ...prev,
-                                  [goal.id]: { count, selected }
-                                }));
-                              }}
-                            />
                           )}
                         </div>
                       </div>
