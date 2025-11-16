@@ -37,6 +37,9 @@ import {
 const MESSAGE_CACHE_KEY_PREFIX = "dm:messages:";
 const MESSAGE_CACHE_LIMIT = 200;
 const MAX_HTTP_FALLBACK_ATTEMPTS = 3;
+const WS_PRIMARY_DELIVERY_TIMEOUT_MS = 2500;
+const WS_POST_ACK_GRACE_MS = 4500;
+const WS_FALLBACK_RETRY_DELAY_MS = 5000;
 
 function compareMessages(a: Message, b: Message): number {
   const seqA = a.sequence_number ?? null;
@@ -177,6 +180,7 @@ export function useWebSocketDm(
   const filterTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   // Watchdog for local-echo: fallback HTTP send if WS persist doesn't arrive in time
   const pendingEchoTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const pendingEchoHandlersRef = useRef<Map<string, () => void>>(new Map());
   const pendingEchoAttemptsRef = useRef<Map<string, number>>(new Map());
 
   const wsClientRef = useRef(getWebSocketClient());
@@ -312,6 +316,22 @@ export function useWebSocketDm(
       currentUserIdRef.current = user?.id || null;
     })();
   }, []);
+
+  const extendPendingEchoWatchdog = useCallback(
+    (clientMsgId: string, delayMs: number) => {
+      const handler = pendingEchoHandlersRef.current.get(clientMsgId);
+      if (!handler) {
+        return;
+      }
+      const current = pendingEchoTimeoutsRef.current.get(clientMsgId);
+      if (current) {
+        clearTimeout(current);
+      }
+      const timeoutId = setTimeout(handler, delayMs);
+      pendingEchoTimeoutsRef.current.set(clientMsgId, timeoutId);
+    },
+    []
+  );
 
   // Subscribe to thread (WebSocket or Supabase fallback)
   useEffect(() => {
@@ -615,6 +635,7 @@ export function useWebSocketDm(
               clearTimeout(watchdog);
               pendingEchoTimeoutsRef.current.delete(clientMsgIdFromServer);
             }
+            pendingEchoHandlersRef.current.delete(clientMsgIdFromServer);
             pendingEchoAttemptsRef.current.delete(clientMsgIdFromServer);
 
             const filterTimeout = filterTimeoutsRef.current.get(
@@ -652,26 +673,39 @@ export function useWebSocketDm(
         }
       };
 
-      const handleMessageAck = (event: WSEvent) => {
-        if (event.type === "message_ack") {
-          // Cancel HTTP fallback if message_ack is received
-          // This indicates message was successfully sent via WebSocket
-          const echoTimeout = pendingEchoTimeoutsRef.current.get(
-            event.client_msg_id,
-          );
-          if (echoTimeout) {
-            // Don't cancel yet - wait for message_persisted to confirm it's in DB
-            // But we can reduce the timeout since we know it was sent
+        const handleMessageAck = (event: WSEvent) => {
+          if (event.type !== "message_ack" || !event.client_msg_id) {
+            return;
           }
-          // Update message status to 'sent' when ack is received
-          // This is handled by the WebSocket client internally
-          // We can trigger a re-render if needed by updating state
-        }
-      };
 
-      const handleMessagePersisted = (event: WSEvent) => {
-        if (event.type === "message_persisted") {
-          // Cancel HTTP fallback since message was persisted via WebSocket
+          setMessagesState((prev) => {
+            let mutated = false;
+            const updated = prev.map((msg) => {
+              if ((msg as any).client_msg_id !== event.client_msg_id) {
+                return msg;
+              }
+              const currentState = (msg as any).delivery_state;
+              if (currentState === "sent" && !(msg as any).send_error) {
+                return msg;
+              }
+              mutated = true;
+              return {
+                ...msg,
+                delivery_state: "sent",
+                send_error: undefined,
+              };
+            });
+            return mutated ? updated : prev;
+          });
+
+          extendPendingEchoWatchdog(event.client_msg_id, WS_POST_ACK_GRACE_MS);
+        };
+
+        const handleMessagePersisted = (event: WSEvent) => {
+          if (event.type !== "message_persisted") {
+            return;
+          }
+
           const echoTimeout = pendingEchoTimeoutsRef.current.get(
             event.client_msg_id,
           );
@@ -679,34 +713,25 @@ export function useWebSocketDm(
             clearTimeout(echoTimeout);
             pendingEchoTimeoutsRef.current.delete(event.client_msg_id);
           }
+          pendingEchoHandlersRef.current.delete(event.client_msg_id);
           pendingEchoAttemptsRef.current.delete(event.client_msg_id);
 
-          // Mark message as persisted in reliable queue
-          // Note: We need to get the server_msg_id from the message event, not db_message_id
-          // db_message_id is a UUID string, but we need the numeric ID
-          // The server_msg_id should come from the message event itself
-          // For now, we'll mark it as persisted and remove from queue
-          // The actual server_msg_id will be updated when we receive the message event
           markMessagePersisted(
             event.client_msg_id,
-            0, // Will be updated when message event arrives
-            event.db_message_id
+            0,
+            event.db_message_id,
           ).then(() => {
-            // Remove from queue after successful persistence
             removeMessage(event.client_msg_id);
           });
 
-          // Update message status to 'persisted' and update metadata
-          // Note: db_message_id is UUID (string), not a number
-          // We keep the original message ID but update created_at and mark as persisted
           setMessagesState((prev) => {
             const updated = prev.map((msg) => {
               if ((msg as any).client_msg_id === event.client_msg_id) {
-                // Update message with persisted status and DB timestamp
                 return {
                   ...msg,
                   created_at: event.db_created_at || msg.created_at,
-                  // Store db_message_id in meta if needed
+                  delivery_state: "delivered",
+                  send_error: undefined,
                   ...((msg as any).db_message_id
                     ? {}
                     : { db_message_id: event.db_message_id }),
@@ -718,21 +743,16 @@ export function useWebSocketDm(
             return updated;
           });
 
-          // Clear filter and watchdog timers if they exist
           const timeout = filterTimeoutsRef.current.get(event.client_msg_id);
           if (timeout) {
             clearTimeout(timeout);
             filterTimeoutsRef.current.delete(event.client_msg_id);
           }
 
-          // Remove from filter after persistence (message is now in DB)
-          // Keep filter for a bit longer to catch any delayed WebSocket events
-          // But clear it eventually to allow new messages with same client_msg_id (shouldn't happen, but safety)
           setTimeout(() => {
             sentClientMsgIdsRef.current.delete(event.client_msg_id);
-          }, 3000); // 3 seconds to catch delayed events
-        }
-      };
+          }, 3000);
+        };
 
       const handleTyping = (event: WSEvent) => {
         if (event.type === "typing" && event.thread_id === normalizedThreadId) {
@@ -912,7 +932,7 @@ export function useWebSocketDm(
           clearSyncState(normalizedThreadId);
         };
     }
-  }, [threadId, transport, initialLimit]);
+    }, [threadId, transport, initialLimit, extendPendingEchoWatchdog]);
 
   useEffect(() => {
     if (!threadId || typeof window === "undefined") {
@@ -1140,113 +1160,124 @@ export function useWebSocketDm(
         transport === "websocket" && wsClient.getState() === "authenticated";
 
       if (canUseWebSocket) {
-        try {
-          const result = await wsClient.sendMessage(
-            normalizedThreadId,
-            body,
-            attachments,
-            clientMsgId,
-          );
+          try {
+            const result = await wsClient.sendMessage(
+              normalizedThreadId,
+              body,
+              attachments,
+              clientMsgId,
+            );
 
-          // Schedule HTTP fallback only if message_persisted doesn't arrive in time
-          // This prevents duplicate messages on server
-          const scheduleHttpFallback = (attempt: number) => {
-            const delay = attempt === 1 ? 3000 : 5000; // Increased delay to give WebSocket more time
-            const watchdog = setTimeout(async () => {
-              // Check if message was already persisted via WebSocket
-              // If pendingEchoTimeoutsRef doesn't have this clientMsgId, it means message_persisted arrived
-              // Also check if message already exists in state with a real ID (not -1)
-              if (!pendingEchoTimeoutsRef.current.has(clientMsgId)) {
-                return; // Message was already persisted, don't send HTTP fallback
-              }
+            // Schedule HTTP fallback only if message_persisted doesn't arrive in time.
+            // This prevents duplicate messages on server while still guaranteeing delivery.
+            const scheduleHttpFallback = (attempt: number, delayOverride?: number) => {
+              const delay =
+                typeof delayOverride === "number"
+                  ? delayOverride
+                  : attempt === 1
+                    ? WS_PRIMARY_DELIVERY_TIMEOUT_MS
+                    : WS_FALLBACK_RETRY_DELAY_MS;
 
-              // Double-check: verify message hasn't been persisted by checking state
-              // Use setMessagesState with function to get current state
-              let messageAlreadyPersisted = false;
-              setMessagesState((prev) => {
-                const messageExists = prev.some(
-                  (m) =>
-                    (m as any).client_msg_id === clientMsgId && m.id !== -1,
-                );
-                if (messageExists) {
-                  messageAlreadyPersisted = true;
+              const handler = async () => {
+                if (!pendingEchoTimeoutsRef.current.has(clientMsgId)) {
+                  return;
                 }
-                return prev; // Don't modify state, just check
-              });
 
-              if (messageAlreadyPersisted) {
-                // Message was already persisted, cancel fallback
-                pendingEchoTimeoutsRef.current.delete(clientMsgId);
-                pendingEchoAttemptsRef.current.delete(clientMsgId);
-                return;
-              }
-
-              pendingEchoTimeoutsRef.current.delete(clientMsgId);
-              try {
-                const { sendMessage: sendMessageHttp } = await import(
-                  "@/lib/dms"
-                );
-                const saved = await sendMessageHttp(
-                  normalizedThreadId,
-                  body || null,
-                  attachments,
-                  clientMsgId,
-                );
+                // Double-check if message already replaced local echo
+                let messageAlreadyPersisted = false;
                 setMessagesState((prev) => {
-                  const hasEcho = prev.some(
+                  const exists = prev.some(
                     (m) =>
-                      (m as any).client_msg_id === clientMsgId && m.id === -1,
+                      (m as any).client_msg_id === clientMsgId && m.id !== -1,
                   );
-                  if (!hasEcho) return prev;
-                  return sortMessagesChronologically(
-                    prev.map((m) =>
-                      (m as any).client_msg_id === clientMsgId && m.id === -1
-                        ? {
-                            ...saved,
-                            client_msg_id: clientMsgId,
-                            send_error: undefined,
-                              delivery_state: "delivered",
-                          }
-                        : m,
-                    ),
-                  );
+                  if (exists) {
+                    messageAlreadyPersisted = true;
+                  }
+                  return prev;
                 });
-                setLastServerMsgId(saved.id);
-                lastServerMsgIdRef.current = saved.id;
-                pendingEchoAttemptsRef.current.delete(clientMsgId);
-              } catch (fallbackError) {
-                if (attempt < MAX_HTTP_FALLBACK_ATTEMPTS) {
-                  scheduleHttpFallback(attempt + 1);
-                } else {
+
+                if (messageAlreadyPersisted) {
+                  pendingEchoTimeoutsRef.current.delete(clientMsgId);
+                  pendingEchoHandlersRef.current.delete(clientMsgId);
                   pendingEchoAttemptsRef.current.delete(clientMsgId);
-                  setMessagesState((prev) =>
-                    prev.map((msg) => {
-                      if (
-                        (msg as any).client_msg_id === clientMsgId &&
-                        msg.id === -1
-                      ) {
-                        return {
-                          ...msg,
-                          send_error:
-                            (fallbackError as Error)?.message ??
-                            "Failed to send",
-                          delivery_state: "failed",
-                        };
-                      }
-                      return msg;
-                    }),
-                  );
+                  return;
                 }
+
+                pendingEchoTimeoutsRef.current.delete(clientMsgId);
+                pendingEchoHandlersRef.current.delete(clientMsgId);
+
+                try {
+                  const { sendMessage: sendMessageHttp } = await import(
+                    "@/lib/dms"
+                  );
+                  const saved = await sendMessageHttp(
+                    normalizedThreadId,
+                    body || null,
+                    attachments,
+                    clientMsgId,
+                  );
+                  setMessagesState((prev) => {
+                    const hasEcho = prev.some(
+                      (m) =>
+                        (m as any).client_msg_id === clientMsgId && m.id === -1,
+                    );
+                    if (!hasEcho) return prev;
+                    return sortMessagesChronologically(
+                      prev.map((m) =>
+                        (m as any).client_msg_id === clientMsgId && m.id === -1
+                          ? {
+                              ...saved,
+                              client_msg_id: clientMsgId,
+                              send_error: undefined,
+                              delivery_state: "delivered",
+                            }
+                          : m,
+                      ),
+                    );
+                  });
+                  setLastServerMsgId(saved.id);
+                  lastServerMsgIdRef.current = saved.id;
+                  pendingEchoAttemptsRef.current.delete(clientMsgId);
+                } catch (fallbackError) {
+                  if (attempt < MAX_HTTP_FALLBACK_ATTEMPTS) {
+                    scheduleHttpFallback(attempt + 1);
+                  } else {
+                    pendingEchoAttemptsRef.current.delete(clientMsgId);
+                    setMessagesState((prev) =>
+                      prev.map((msg) => {
+                        if (
+                          (msg as any).client_msg_id === clientMsgId &&
+                          msg.id === -1
+                        ) {
+                          return {
+                            ...msg,
+                            send_error:
+                              (fallbackError as Error)?.message ??
+                              "Failed to send",
+                            delivery_state: "failed",
+                          };
+                        }
+                        return msg;
+                      }),
+                    );
+                  }
+                }
+              };
+
+              const existing = pendingEchoTimeoutsRef.current.get(clientMsgId);
+              if (existing) {
+                clearTimeout(existing);
               }
-            }, delay);
-            pendingEchoTimeoutsRef.current.set(clientMsgId, watchdog);
-            pendingEchoAttemptsRef.current.set(clientMsgId, attempt);
-          };
+              const timeoutId = setTimeout(handler, delay);
+              pendingEchoTimeoutsRef.current.set(clientMsgId, timeoutId);
+              pendingEchoHandlersRef.current.set(clientMsgId, handler);
+              pendingEchoAttemptsRef.current.set(clientMsgId, attempt);
+            };
 
-          scheduleHttpFallback(1);
+            scheduleHttpFallback(1);
 
-          return result;
-        } catch (error) {
+            return result;
+          } catch (error) {
           console.warn(
             "WebSocket sendMessage failed, falling back to Supabase realtime:",
             error,
@@ -1322,6 +1353,14 @@ export function useWebSocketDm(
         await markMessagePersisted(clientMsgId, savedMessage.id);
         await removeMessage(clientMsgId);
 
+          const residualWatchdog = pendingEchoTimeoutsRef.current.get(clientMsgId);
+          if (residualWatchdog) {
+            clearTimeout(residualWatchdog);
+            pendingEchoTimeoutsRef.current.delete(clientMsgId);
+          }
+          pendingEchoHandlersRef.current.delete(clientMsgId);
+          pendingEchoAttemptsRef.current.delete(clientMsgId);
+
         // Keep client_msg_id in filter to prevent echo from WebSocket events
         // Don't delete immediately - wait for message_persisted or timeout
 
@@ -1345,6 +1384,7 @@ export function useWebSocketDm(
       // clear any pending timeouts on unmount
       pendingEchoTimeoutsRef.current.forEach((t) => clearTimeout(t));
       pendingEchoTimeoutsRef.current.clear();
+      pendingEchoHandlersRef.current.clear();
       pendingEchoAttemptsRef.current.clear();
     };
   }, []);

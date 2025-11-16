@@ -87,6 +87,19 @@ function mergeMessages(existing: Message[], additions: Message[]): Message[] {
   return sortMessagesChronologically(Array.from(byId.values()));
 }
 
+function findLatestPartnerMessage(messages: Message[], currentUserId: string | null): Message | null {
+  if (!currentUserId) {
+    return null;
+  }
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const candidate = messages[i];
+    if (candidate && candidate.sender_id && candidate.sender_id !== currentUserId) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 function sanitizeMessageIdsForQuery(ids: Array<unknown>): string[] {
   const result: string[] = [];
   const seen = new Set<string>();
@@ -2051,7 +2064,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       return;
     }
 
-    if (!initialScrollDoneRef.current) {
+      if (!initialScrollDoneRef.current) {
       // Set scroll position synchronously before paint to avoid visible scrolling
       container.scrollTop = container.scrollHeight;
       historyAutoLoadReadyRef.current = true;
@@ -2059,14 +2072,14 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       
       // Mark all messages as read when initially scrolling to bottom
       // This ensures that when user opens a chat, all visible messages are marked as read
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage && thread?.id) {
+        const lastPartnerMessage = findLatestPartnerMessage(messages, currentUserId);
+        if (lastPartnerMessage && thread?.id) {
         // Mark all messages as read immediately when chat is opened
         // This ensures that on page refresh, these messages won't be unread
           const payload: ReadReceiptPayload = {
             thread_id: String(thread.id),
-            up_to_message_id: String(lastMessage.id),
-            up_to_sequence_number: lastMessage.sequence_number ?? null,
+              up_to_message_id: String(lastPartnerMessage.id),
+              up_to_sequence_number: lastPartnerMessage.sequence_number ?? null,
           };
           void sendReadReceipt(payload, 'initial-scroll').then((success) => {
             if (success) {
@@ -2088,22 +2101,22 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
       container.scrollHeight - container.scrollTop - container.clientHeight;
     const shouldStickToBottom = distanceFromBottom <= 200;
 
-    if (shouldStickToBottom && historyAutoLoadReadyRef.current) {
+      if (shouldStickToBottom && historyAutoLoadReadyRef.current) {
       container.scrollTop = container.scrollHeight;
       
       // Mark all messages as read when auto-scrolling to bottom
-      const lastMessage = messages[messages.length - 1];
-        if (lastMessage && thread?.id) {
-          acknowledgeMessage(
-            lastMessage.id,
-            thread.id,
-            'read',
-            lastMessage.sequence_number ?? null
-          );
+        const lastPartnerMessage = findLatestPartnerMessage(messages, currentUserId);
+          if (lastPartnerMessage && thread?.id) {
+              acknowledgeMessage(
+                lastPartnerMessage.id,
+                thread.id,
+                'read',
+                lastPartnerMessage.sequence_number ?? null
+              );
           const payload: ReadReceiptPayload = {
             thread_id: String(thread.id),
-            up_to_message_id: String(lastMessage.id),
-            up_to_sequence_number: lastMessage.sequence_number ?? null,
+                up_to_message_id: String(lastPartnerMessage.id),
+                up_to_sequence_number: lastPartnerMessage.sequence_number ?? null,
           };
           void sendReadReceipt(payload, 'auto-scroll').then((success) => {
             if (success) {
@@ -2128,7 +2141,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     if (!container || !thread?.id || !currentUserId || !partnerId) return;
 
     let markReadTimeout: NodeJS.Timeout | null = null;
-    let lastMarkedReadMessageId: number | null = null;
+    let lastMarkedReadMessageId: string | null = null;
 
     const onScroll = () => {
       const distanceFromBottom =
@@ -2141,28 +2154,28 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         setShowNewBanner(false);
 
         // Mark all messages as read when user is at bottom
-        if (messages.length > 0) {
-          const lastMessage = messages[messages.length - 1];
-          if (lastMessage && lastMessage.id !== lastMarkedReadMessageId) {
+          if (messages.length > 0) {
+            const lastPartnerMessage = findLatestPartnerMessage(messages, currentUserId);
+            if (lastPartnerMessage && lastPartnerMessage.id !== lastMarkedReadMessageId) {
             // Debounce mark as read to avoid too many requests
             if (markReadTimeout) {
               clearTimeout(markReadTimeout);
             }
             markReadTimeout = setTimeout(() => {
               // Only mark as read if message is from partner
-                if (lastMessage.sender_id === partnerId && lastMessage.sender_id !== currentUserId && thread?.id) {
-                  acknowledgeMessage(
-                    lastMessage.id,
-                    thread.id,
-                    'read',
-                    lastMessage.sequence_number ?? null
-                  );
-                lastMarkedReadMessageId = lastMessage.id;
+                  if (lastPartnerMessage.sender_id === partnerId && lastPartnerMessage.sender_id !== currentUserId && thread?.id) {
+                      acknowledgeMessage(
+                        lastPartnerMessage.id,
+                        thread.id,
+                        'read',
+                        lastPartnerMessage.sequence_number ?? null
+                      );
+                    lastMarkedReadMessageId = String(lastPartnerMessage.id);
                 
                   const payload: ReadReceiptPayload = {
                     thread_id: String(thread.id),
-                    up_to_message_id: String(lastMessage.id),
-                    up_to_sequence_number: lastMessage.sequence_number ?? null,
+                        up_to_message_id: String(lastPartnerMessage.id),
+                        up_to_sequence_number: lastPartnerMessage.sequence_number ?? null,
                   };
                   void sendReadReceipt(payload, 'manual-scroll').then((success) => {
                     if (success) {
@@ -2201,7 +2214,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     }
   }, []);
 
-  const handleJumpToBottom = useCallback(() => {
+    const handleJumpToBottom = useCallback(() => {
     const container = scrollRef.current;
     if (!container || !thread?.id || !currentUserId || !partnerId) return;
     container.scrollTop = container.scrollHeight;
@@ -2209,19 +2222,19 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
     setShowNewBanner(false);
     
     // Mark all messages as read when jumping to bottom
-    if (messages.length > 0 && thread?.id) {
-        const lastMessage = messages[messages.length - 1];
-        if (lastMessage) {
-          acknowledgeMessage(
-            lastMessage.id,
-            thread.id,
-            'read',
-            lastMessage.sequence_number ?? null
-          );
+      if (messages.length > 0 && thread?.id) {
+          const lastPartnerMessage = findLatestPartnerMessage(messages, currentUserId);
+          if (lastPartnerMessage) {
+              acknowledgeMessage(
+                lastPartnerMessage.id,
+                thread.id,
+                'read',
+                lastPartnerMessage.sequence_number ?? null
+              );
             const payload: ReadReceiptPayload = {
               thread_id: String(thread.id),
-              up_to_message_id: String(lastMessage.id),
-              up_to_sequence_number: lastMessage.sequence_number ?? null,
+                up_to_message_id: String(lastPartnerMessage.id),
+                up_to_sequence_number: lastPartnerMessage.sequence_number ?? null,
             };
             void sendReadReceipt(payload, 'jump-to-bottom').then((success) => {
               if (success) {
