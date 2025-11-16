@@ -2428,10 +2428,11 @@ export default function PublicProfilePage() {
             className="relative z-10 w-full max-w-xl flex flex-col"
             style={{
               maxHeight: 'calc(100vh - max(4.5rem, calc(env(safe-area-inset-top, 0px) + 4.5rem)) - 2rem)',
+              height: 'calc(100vh - max(4.5rem, calc(env(safe-area-inset-top, 0px) + 4.5rem)) - 2rem)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="card p-3 sm:p-4 md:p-5 flex flex-col flex-1 min-h-0 space-y-3 overflow-hidden">
+            <div className="card p-3 sm:p-4 md:p-5 flex flex-col flex-1 min-h-0 space-y-3 overflow-hidden h-full sm:h-auto">
               <div className="flex items-center justify-between flex-shrink-0">
                 <div className="text-white/90 font-medium text-sm sm:text-base">Change history</div>
                 <button onClick={() => setHistoryOpen(false)} className="text-white/60 hover:text-white text-lg sm:text-xl leading-none">✕</button>
