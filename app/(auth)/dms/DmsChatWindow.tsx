@@ -2158,7 +2158,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         delivery_state?: 'sending' | 'failed' | 'sent';
         send_error?: string;
       } = {
-        id: tempId,
+        id: -1,
         thread_id: threadId,
         sender_id: currentUserId,
         kind: 'text',
@@ -2199,9 +2199,10 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
 
         setMessagesFromHook((prev: Message[]) =>
           prev.map((msg) =>
-            String(msg.id) === tempId
+            (msg as any).client_msg_id === tempId && msg.id === -1
               ? ({
                   ...(savedMessage as Message),
+                  client_msg_id: (savedMessage as any)?.client_msg_id ?? tempId,
                   delivery_state: 'sent',
                   send_error: undefined,
                 } as Message & { delivery_state?: 'sent'; send_error?: undefined })
@@ -2230,7 +2231,7 @@ export default function DmsChatWindow({ partnerId, onBack }: Props) {
         console.error('Error sending message:', err);
         setMessagesFromHook((prev) =>
           prev.map((msg) =>
-            String(msg.id) === tempId
+            (msg as any).client_msg_id === tempId && msg.id === -1
               ? {
                   ...msg,
                   delivery_state: 'failed',
