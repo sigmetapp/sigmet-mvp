@@ -478,7 +478,14 @@ export default function PublicProfilePage() {
           router.replace(`/u/${encodeURIComponent(prof.username)}`);
           return; // keep loading until navigation
         }
-        // No username – treat as not found
+        // No username – check if this is the current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && user.id === slug) {
+          // Current user trying to view their own profile that doesn't exist yet
+          router.replace('/profile');
+          return; // keep loading until navigation
+        }
+        // Not current user – treat as not found
         setProfile(null);
         setLoadingProfile(false);
         return;
@@ -491,6 +498,32 @@ export default function PublicProfilePage() {
         .eq('username', slug)
         .maybeSingle();
       const profileData = ((data as unknown) as Profile) || null;
+      
+      // If profile not found, check if this is the current user trying to view their own profile
+      if (!profileData) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Check if slug matches current user's user_id (UUID)
+          if (user.id === slug) {
+            router.replace('/profile');
+            return; // Keep loading until navigation
+          }
+          
+          // Check if slug matches current user's username
+          const { data: currentUserProfile } = await supabase
+            .from('profiles')
+            .select('username, user_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          
+          // If slug matches current user's username, redirect to profile settings
+          if (currentUserProfile && currentUserProfile.username === slug) {
+            router.replace('/profile');
+            return; // Keep loading until navigation
+          }
+        }
+      }
+      
       setProfile(profileData);
       
       // Load suspended status if profile exists
