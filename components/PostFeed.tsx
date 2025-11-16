@@ -8,8 +8,18 @@ import {
   useCallback,
 } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from 'framer-motion';
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
+
+const MotionDiv = dynamic(
+  () => import('framer-motion').then((mod) => ({ default: mod.motion.div })),
+  { ssr: false }
+);
+
+const AnimatePresence = dynamic(
+  () => import('framer-motion').then((mod) => ({ default: mod.AnimatePresence })),
+  { ssr: false }
+);
 import Button from "@/components/Button";
 import PostCard from "@/components/PostCard";
 import { useTheme } from "@/components/ThemeProvider";
@@ -461,8 +471,8 @@ export default function PostFeed({
     
     initialLoadDoneRef.current = true;
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
-    // Initial load - load all posts without filter
-    const initialLimit = enableLazyLoad ? 10 : 50;
+    // Initial load - load all posts without filter (reduced from 50 to 15 for better performance)
+    const initialLimit = enableLazyLoad ? 10 : 15;
     loadFeed(null, 'all', 0, initialLimit);
     // Load directions in parallel
     if (showFilters) {
@@ -487,7 +497,7 @@ export default function PostFeed({
     
     prevFilterRef.current = { filter: activeFilter, direction: activeDirection };
     
-    const limit = enableLazyLoad ? 10 : 50;
+    const limit = enableLazyLoad ? 10 : 15; // Reduced from 50 to 15 for better performance
     if (!showFilters) {
       // If filters are hidden, just load all posts (or filtered by user_id)
       loadFeed(null, 'all', 0, limit);
@@ -1293,8 +1303,9 @@ export default function PostFeed({
 
           const isMyPost = uid === p.user_id;
 
+          const MotionWrapper = MotionDiv as any;
           return (
-            <motion.div
+            <MotionWrapper
               key={p.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1790,7 +1801,7 @@ export default function PostFeed({
                 </div>
               )}
             />
-            </motion.div>
+            </MotionWrapper>
           );
           })}
         </AnimatePresence>
@@ -1902,7 +1913,7 @@ export default function PostFeed({
         document.body
       )}
 
-      {/* Composer modal - rendered via portal to cover entire viewport */}
+      {/* Composer modal - rendered via portal to cover entire viewport (lazy loaded) */}
       {showComposer && composerOpen && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           <div

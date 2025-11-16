@@ -1,7 +1,12 @@
 import React from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import { useTheme } from "./ThemeProvider";
+
+const MotionSpan = dynamic(
+  () => import("framer-motion").then((mod) => ({ default: mod.motion.span })),
+  { ssr: false }
+);
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "icon" | "orange";
 type ButtonSize = "sm" | "md" | "lg";
@@ -86,15 +91,16 @@ export function Button(props: ButtonProps) {
     className
   );
 
+  const MotionContent = MotionSpan as any;
   const content = (
-    <motion.span
+    <MotionContent
       className={cx("inline-flex items-center", isIconOnly ? "" : "gap-2")}
       whileHover={{ scale: 1.03 }}
       whileTap={{ scale: 0.98 }}
     >
       {icon}
       {children && <span>{children}</span>}
-    </motion.span>
+    </MotionContent>
   );
 
   if (href) {
