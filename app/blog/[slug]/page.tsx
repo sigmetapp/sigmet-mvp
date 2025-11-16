@@ -215,16 +215,17 @@ export default function BlogPostPage() {
     }
   }, [post]);
   
-  // Reload reactions when user changes
+  // Reload reactions when user changes (after auth is established)
   useEffect(() => {
     if (comments.length > 0 && user) {
       const commentIds = comments.map(c => c.id);
       loadBlogCommentReactions(commentIds);
     }
-      if (post && user) {
-        loadBlogPostReactions();
-      }
-    }, [user]);
+    if (post && user) {
+      loadBlogPostReactions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, comments.length, post]);
     
     const loadBlogPostReactions = async () => {
     if (!post) return;
@@ -381,7 +382,7 @@ export default function BlogPostPage() {
           }
         }
         
-        // Load reactions for all comments
+        // Load reactions for all comments (will be reloaded when user is available)
         const commentIds = (data.comments || []).map((c: Comment) => c.id);
         if (commentIds.length > 0 && user) {
           loadBlogCommentReactions(commentIds);
