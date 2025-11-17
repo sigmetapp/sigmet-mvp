@@ -48,6 +48,29 @@ export default function InvitePage() {
     loadStats();
     checkAdmin();
     loadUserLimit();
+    
+    // Reload invites when page becomes visible (handles tab switching)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadInvites();
+        loadStats();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also reload on focus (handles window focus)
+    const handleFocus = () => {
+      loadInvites();
+      loadStats();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // Use admin function if user is admin, otherwise use regular function
@@ -363,7 +386,21 @@ export default function InvitePage() {
 
         {/* Invites List */}
         <div className="bg-gray-800 p-6 rounded-lg mx-4 md:mx-0">
-          <h2 className="text-lg font-semibold text-white mb-4">Your Invites</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Your Invites</h2>
+            <button
+              onClick={() => {
+                loadInvites();
+                loadStats();
+                loadUserLimit();
+              }}
+              disabled={loading}
+              className="px-4 py-2 text-sm bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              title="Refresh invites list"
+            >
+              🔄 Refresh
+            </button>
+          </div>
           {invites.length === 0 ? (
             <p className="text-gray-400">No invites yet. Send your first invite above.</p>
           ) : (
