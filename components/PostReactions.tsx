@@ -169,15 +169,13 @@ export default function PostReactions({
         }}
       >
         <span 
-          className={`${reaction.id === 'verify' ? 'text-sm md:text-base' : 'text-base md:text-lg'} leading-none select-none inline-flex items-center justify-center transition-all duration-200 ${
-            isSelected ? 'opacity-100' : isLight ? 'opacity-50' : 'opacity-70'
-          }`}
+          className="text-base md:text-lg leading-none select-none inline-flex items-center justify-center transition-all duration-200"
           role="img" 
           aria-label={`${reaction.id} reaction`}
           style={{ 
-            fontSize: reaction.id === 'verify' ? '0.75rem' : '1rem',
-            minWidth: reaction.id === 'verify' ? '1rem' : '1.25rem',
-            minHeight: reaction.id === 'verify' ? '1rem' : '1.25rem',
+            fontSize: '1rem',
+            minWidth: '0.875rem',
+            minHeight: '0.875rem',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -188,6 +186,7 @@ export default function PostReactions({
               : isLight 
                 ? 'grayscale(40%) brightness(0.8)' 
                 : 'grayscale(100%) brightness(1.5)',
+            opacity: isSelected ? 1 : isLight ? 0.5 : 0.7,
           }}
         >
           <span style={{ fontSize: 'inherit', lineHeight: '1', display: 'block' }}>{reaction.emoji}</span>
