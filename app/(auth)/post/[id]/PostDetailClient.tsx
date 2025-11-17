@@ -997,7 +997,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
       // First, verify the comment exists and we have the right to delete it
       const { data: verifyData, error: verifyError } = await supabase
         .from('comments')
-        .select('id, author_id, user_id')
+        .select('id, user_id')
         .eq('id', commentId)
         .maybeSingle();
 
@@ -1010,8 +1010,8 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         throw new Error('Comment not found');
       }
 
-      const dbAuthorId = verifyData.author_id || verifyData.user_id;
-      if (uid !== dbAuthorId) {
+      const dbAuthorId = verifyData.user_id;
+      if (!dbAuthorId || uid !== dbAuthorId) {
         throw new Error('You can only delete your own comments');
       }
 

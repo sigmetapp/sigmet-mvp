@@ -1,5 +1,6 @@
 -- Add RLS policies for comments table
 -- This allows users to read, update, and delete their own comments
+-- Note: This migration uses user_id as the primary column (author_id may not exist in all environments)
 
 -- First, enable RLS if not already enabled
 alter table if exists public.comments enable row level security;
@@ -16,27 +17,18 @@ create policy "Anyone can view comments"
   using (true);
 
 -- Create policy for users to update their own comments
--- This checks both author_id and user_id for backward compatibility
+-- Uses user_id column (which is the standard in this database)
 create policy "Users can update own comments"
   on public.comments
   for update
   to authenticated
-  using (
-    auth.uid() = author_id 
-    or auth.uid() = user_id
-  )
-  with check (
-    auth.uid() = author_id 
-    or auth.uid() = user_id
-  );
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 -- Create policy for users to delete their own comments
--- This checks both author_id and user_id for backward compatibility
+-- Uses user_id column (which is the standard in this database)
 create policy "Users can delete own comments"
   on public.comments
   for delete
   to authenticated
-  using (
-    auth.uid() = author_id 
-    or auth.uid() = user_id
-  );
+  using (auth.uid() = user_id);
