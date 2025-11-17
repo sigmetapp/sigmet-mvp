@@ -342,7 +342,12 @@ export default async function handler(
 
     const reactionsPoints = reactionsCount * weights.reaction_points;
 
-    // Get invites count - count accepted invites where user got 70 pts (registration + profile complete)
+      const inviteEligibilitySw = Math.max(
+        0,
+        (weights.registration_points ?? 0) + (weights.profile_complete_points ?? 0)
+      );
+
+      // Get invites count - count accepted invites where invitees reached the configured SW threshold
       let invitesCount = 0;
       let inviteeGrowthTotalPoints = 0;
 
@@ -351,15 +356,12 @@ export default async function handler(
           .from('invites')
           .select('id, consumed_by_user_sw, consumed_by_user_id')
           .eq('inviter_user_id', userId)
-          .eq('status', 'accepted')
-          .eq('consumed_by_user_sw', 70);
+          .eq('status', 'accepted');
 
         if (invitesError) {
           console.warn('Error fetching invites:', invitesError);
           // Continue without invites if there's an error (e.g., RLS issue)
-        } else if (invites) {
-          invitesCount = invites.length;
-
+        } else if (invites && invites.length > 0) {
           const inviteeIds = Array.from(
             new Set(
               invites
@@ -368,11 +370,54 @@ export default async function handler(
             )
           );
 
-          if (inviteeIds.length > 0) {
+          let inviteeScoreMap = new Map<string, number>();
+          if (inviteEligibilitySw > 0 && inviteeIds.length > 0) {
+            const { data: inviteeScores, error: inviteeScoresError } = await supabase
+              .from('sw_scores')
+              .select('user_id, total')
+              .in('user_id', inviteeIds);
+
+            if (inviteeScoresError) {
+              console.warn('Error fetching invitee sw_scores:', inviteeScoresError);
+            } else if (inviteeScores) {
+              inviteeScores.forEach((score: any) => {
+                if (score.user_id) {
+                  inviteeScoreMap.set(score.user_id, score.total || 0);
+                }
+              });
+            }
+          }
+
+          const qualifyingInvites =
+            inviteEligibilitySw > 0
+              ? invites.filter((invite: any) => {
+                  const storedSW = Number(invite.consumed_by_user_sw ?? 0);
+                  if (storedSW >= inviteEligibilitySw) {
+                    return true;
+                  }
+                  if (!invite.consumed_by_user_id) {
+                    return false;
+                  }
+                  const currentSW = inviteeScoreMap.get(invite.consumed_by_user_id) ?? 0;
+                  return currentSW >= inviteEligibilitySw;
+                })
+              : invites;
+
+          invitesCount = qualifyingInvites.length;
+
+          const qualifyingInviteeIds = Array.from(
+            new Set(
+              qualifyingInvites
+                .map((invite: any) => invite.consumed_by_user_id)
+                .filter((id: string | null | undefined): id is string => Boolean(id))
+            )
+          );
+
+          if (qualifyingInviteeIds.length > 0) {
             const { data: inviteeLedgerRows, error: inviteeLedgerError } = await supabase
               .from('sw_ledger')
               .select('user_id, points')
-              .in('user_id', inviteeIds);
+              .in('user_id', qualifyingInviteeIds);
 
             if (inviteeLedgerError) {
               console.warn('Error fetching invited users growth ledger:', inviteeLedgerError);
@@ -381,7 +426,8 @@ export default async function handler(
                 (sum, entry) => sum + (entry.points || 0),
                 0
               );
-              inviteeGrowthTotalPoints = inviteeRawGrowthPoints * weights.growth_total_points_multiplier;
+              inviteeGrowthTotalPoints =
+                inviteeRawGrowthPoints * (weights.growth_total_points_multiplier || 1);
             }
           }
         }

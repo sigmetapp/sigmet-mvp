@@ -282,6 +282,12 @@ export default function SWPage() {
   } | null>(null);
   const [isLoadingGrowth, setIsLoadingGrowth] = useState(true);
 
+  const inviteRequirementPoints = Math.max(
+    0,
+    (swData?.weights?.registration_points ?? 0) +
+      (swData?.weights?.profile_complete_points ?? 0)
+  );
+
   useEffect(() => {
     // Оптимизированная загрузка: получаем auth данные один раз и загружаем все параллельно
     async function loadAllData() {
@@ -1489,8 +1495,12 @@ export default function SWPage() {
               {/* Invites */}
               <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
-                  <div className="text-white font-medium text-sm">Invite People</div>
-                  <div className="text-white/60 text-xs">People who joined via your invite code and received 70 pts</div>
+                <div className="text-white font-medium text-sm">Invite People</div>
+                <div className="text-white/60 text-xs">
+                  {inviteRequirementPoints > 0
+                    ? `People who joined via your invite code and reached ${inviteRequirementPoints} pts`
+                    : 'People who joined via your invite code'}
+                </div>
                 </div>
                 <div className="text-right">
                   <div className="text-white font-semibold text-sm">{breakdown.invites?.points || 0} pts</div>
