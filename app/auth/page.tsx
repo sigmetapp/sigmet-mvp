@@ -105,26 +105,47 @@ export default function AuthPage() {
           let inviteAccepted = false;
           const canAcceptImmediately = Boolean(signData?.session?.access_token);
 
-          if (canAcceptImmediately && normalizedInviteCode && signData?.user) {
-            try {
-              const { data: inviteId, error: acceptErr } = await supabase.rpc(
-                "accept_invite_by_code",
-                {
-                  invite_code: normalizedInviteCode,
-                },
-              );
-
-              if (!acceptErr && inviteId) {
-                inviteAccepted = true;
-                const { trackInviteAccepted } = await import(
-                  "@/lib/invite-tracking"
+          if (normalizedInviteCode && signData?.user) {
+            if (canAcceptImmediately) {
+              try {
+                const { data: inviteId, error: acceptErr } = await supabase.rpc(
+                  "accept_invite_by_code",
+                  {
+                    invite_code: normalizedInviteCode,
+                  },
                 );
-                await trackInviteAccepted(inviteId, signData.user.id);
-              } else if (acceptErr) {
-                console.warn("Invite acceptance error:", acceptErr);
+
+                if (!acceptErr && inviteId) {
+                  inviteAccepted = true;
+                  const { trackInviteAccepted } = await import(
+                    "@/lib/invite-tracking"
+                  );
+                  await trackInviteAccepted(inviteId, signData.user.id);
+                } else if (acceptErr) {
+                  console.warn("Invite acceptance error:", acceptErr);
+                }
+              } catch (acceptErr) {
+                console.warn("Invite acceptance exception:", acceptErr);
               }
-            } catch (acceptErr) {
-              console.warn("Invite acceptance exception:", acceptErr);
+            } else {
+              try {
+                const response = await fetch("/api/invites/accept", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    inviteCode: normalizedInviteCode,
+                    userId: signData.user.id,
+                  }),
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                  inviteAccepted = true;
+                } else {
+                  console.warn("Server invite accept error:", result?.error);
+                }
+              } catch (serverErr) {
+                console.warn("Server invite accept exception:", serverErr);
+              }
             }
           }
 

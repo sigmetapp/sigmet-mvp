@@ -76,4 +76,130 @@ $$;
 
 grant execute on function public.accept_invite_by_code(text) to authenticated;
 
+-- Service-level helper to accept invites on behalf of a specific user (used when no session yet)
+create or replace function public.accept_invite_for_user(invite_code text, target_user_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  invite_record public.invites%rowtype;
+  user_sw numeric;
+  normalized_code text;
+begin
+  if target_user_id is null then
+    raise exception 'Target user required';
+  end if;
+
+  normalized_code := upper(trim(invite_code));
+  if normalized_code is null or normalized_code = '' then
+    raise exception 'Invalid invite code';
+  end if;
+
+  perform public.cleanup_expired_invites();
+
+  select *
+    into invite_record
+    from public.invites
+   where public.invites.invite_code = normalized_code
+   for update;
+
+  if invite_record is null then
+    raise exception 'Invalid or expired invite code';
+  end if;
+
+  if invite_record.status = 'accepted' then
+    if invite_record.consumed_by_user_id = target_user_id then
+      return invite_record.id;
+    else
+      raise exception 'Invite code already used by another user';
+    end if;
+  end if;
+
+  if invite_record.status <> 'pending' then
+    raise exception 'Invalid or expired invite code';
+  end if;
+
+  if invite_record.expires_at is not null and invite_record.expires_at < now() then
+    raise exception 'Invite code has expired';
+  end if;
+
+  user_sw := public.calculate_user_sw_at_registration(target_user_id);
+
+  update public.invites
+     set status = 'accepted',
+         accepted_at = now(),
+         consumed_by_user_id = target_user_id,
+         consumed_by_user_sw = user_sw
+   where id = invite_record.id;
+
+  insert into public.invite_events (invite_id, event, meta)
+  values (invite_record.id, 'accepted', jsonb_build_object(
+    'user_id', target_user_id,
+    'via_code', true,
+    'user_sw', user_sw,
+    'synced_by', 'service'
+  ));
+
+  return invite_record.id;
+end;
+$$;
+
+grant execute on function public.accept_invite_for_user(text, uuid) to service_role;
+
+-- Allow inviters to manually sync pending invite codes if acceptance failed earlier
+create or replace function public.sync_invite_by_code(invite_code text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_code text;
+  invite_record public.invites%rowtype;
+  matched_user_id uuid;
+  sync_result jsonb := jsonb_build_object('synced', false);
+begin
+  normalized_code := upper(trim(invite_code));
+  if normalized_code is null or normalized_code = '' then
+    raise exception 'Invalid invite code';
+  end if;
+
+  select *
+    into invite_record
+    from public.invites
+   where public.invites.invite_code = normalized_code;
+
+  if invite_record is null then
+    raise exception 'Invite not found';
+  end if;
+
+  if invite_record.inviter_user_id <> auth.uid() then
+    raise exception 'Access denied';
+  end if;
+
+  if invite_record.status = 'accepted' then
+    return jsonb_build_object('synced', true, 'user_id', invite_record.consumed_by_user_id);
+  end if;
+
+  select u.id
+    into matched_user_id
+    from auth.users u
+   where coalesce((u.raw_user_meta_data->>'invite_code'), '') = normalized_code
+   order by u.created_at desc
+   limit 1;
+
+  if matched_user_id is null then
+    return sync_result || jsonb_build_object('reason', 'USER_NOT_FOUND');
+  end if;
+
+  perform public.accept_invite_for_user(normalized_code, matched_user_id);
+
+  return jsonb_build_object('synced', true, 'user_id', matched_user_id);
+end;
+$$;
+
+grant execute on function public.sync_invite_by_code(text) to authenticated;
+
 commit;

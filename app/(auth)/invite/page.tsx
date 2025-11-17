@@ -105,20 +105,48 @@ export default function InvitePage() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('invites')
-        .select('*')
-        .eq('inviter_user_id', currentUser.id)
-        .order('created_at', { ascending: false });
+      const fetchInvites = async () => {
+        const { data, error } = await supabase
+          .from('invites')
+          .select('*')
+          .eq('inviter_user_id', currentUser.id)
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
+        if (error) throw error;
+        return data || [];
+      };
 
-      const inviteRows = data || [];
-      setInvites(inviteRows);
+      const inviteRows = await fetchInvites();
+
+      const pendingCodes = inviteRows
+        .filter(invite => invite.status === 'pending' && invite.invite_code)
+        .map(invite => invite.invite_code!);
+
+      let didSyncPending = false;
+      for (const code of pendingCodes) {
+        try {
+          const { data: syncResult, error: syncError } = await supabase
+            .rpc('sync_invite_by_code', { invite_code: code });
+
+          if (syncError) {
+            console.warn('Error syncing invite code', code, syncError);
+            continue;
+          }
+
+          if (syncResult?.synced) {
+            didSyncPending = true;
+          }
+        } catch (syncErr) {
+          console.warn('Exception syncing invite code', code, syncErr);
+        }
+      }
+
+      const finalInvites = didSyncPending ? await fetchInvites() : inviteRows;
+      setInvites(finalInvites);
 
       const inviteeIds = Array.from(
         new Set(
-          inviteRows
+          finalInvites
             .map((invite) => invite.consumed_by_user_id)
             .filter((id): id is string => Boolean(id))
         )
