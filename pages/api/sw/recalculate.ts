@@ -367,7 +367,23 @@ export default async function handler(
             )
           );
 
+          let inviteeScoreMap = new Map<string, number>();
           if (inviteeIds.length > 0) {
+            const { data: inviteeScores, error: inviteeScoresError } = await supabase
+              .from('sw_scores')
+              .select('user_id, total')
+              .in('user_id', inviteeIds);
+
+            if (inviteeScoresError) {
+              console.warn('Error fetching invitee sw_scores:', inviteeScoresError);
+            } else if (inviteeScores) {
+              inviteeScores.forEach((score: any) => {
+                if (score.user_id) {
+                  inviteeScoreMap.set(score.user_id, score.total || 0);
+                }
+              });
+            }
+
             const { data: inviteeLedgerRows, error: inviteeLedgerError } = await supabase
               .from('sw_ledger')
               .select('user_id, points')
@@ -376,13 +392,36 @@ export default async function handler(
             if (inviteeLedgerError) {
               console.warn('Error fetching invited users growth ledger:', inviteeLedgerError);
             } else if (inviteeLedgerRows) {
-              const inviteeRawGrowthPoints = inviteeLedgerRows.reduce(
+              let inviteeRawGrowthPoints = inviteeLedgerRows.reduce(
                 (sum, entry) => sum + (entry.points || 0),
                 0
               );
+
+              if (inviteeRawGrowthPoints === 0) {
+                const scoreFallback = inviteeIds.reduce(
+                  (sum, id) => sum + (inviteeScoreMap.get(id) || 0),
+                  0
+                );
+                if (scoreFallback > 0) {
+                  inviteeRawGrowthPoints = scoreFallback;
+                } else {
+                  inviteeRawGrowthPoints = invites.reduce(
+                    (sum, invite: any) => sum + Number(invite.consumed_by_user_sw ?? 0),
+                    0
+                  );
+                }
+              }
+
               inviteeGrowthTotalPoints =
                 inviteeRawGrowthPoints * (weights.growth_total_points_multiplier || 1);
             }
+          } else {
+            const totalConsumedSW = invites.reduce(
+              (sum, invite: any) => sum + Number(invite.consumed_by_user_sw ?? 0),
+              0
+            );
+            inviteeGrowthTotalPoints =
+              totalConsumedSW * (weights.growth_total_points_multiplier || 1);
           }
         }
       } catch (invitesErr) {
