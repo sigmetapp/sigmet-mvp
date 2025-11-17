@@ -1502,11 +1502,11 @@ export default function SWPage() {
               <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">Growth Bonus</div>
-                  <div className="text-white/60 text-xs">{breakdown.growthBonus?.description || "5% bonus on invited users' growth points"}</div>
+                    <div className="text-white/60 text-xs">{breakdown.growthBonus?.description || "5% bonus on invited users' SW"}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-white font-semibold text-sm">{(breakdown.growthBonus?.points || 0).toFixed(2)} pts</div>
-                  <div className="text-white/60 text-xs">{((breakdown.growthBonus?.weight || 0.05) * 100)}% of invited users' growth points</div>
+                    <div className="text-white/60 text-xs">{((breakdown.growthBonus?.weight || 0.05) * 100)}% of invited users' SW</div>
                 </div>
               </div>
             </div>

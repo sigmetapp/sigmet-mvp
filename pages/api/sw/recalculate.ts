@@ -344,7 +344,7 @@ export default async function handler(
 
       // Get invites count - count accepted invites regardless of profile completion
       let invitesCount = 0;
-      let inviteeGrowthTotalPoints = 0;
+        let inviteeSwTotalPoints = 0;
 
       try {
         const { data: invites, error: invitesError } = await supabase
@@ -367,22 +367,21 @@ export default async function handler(
             )
           );
 
-          if (inviteeIds.length > 0) {
-            const { data: inviteeLedgerRows, error: inviteeLedgerError } = await supabase
-              .from('sw_ledger')
-              .select('user_id, points')
-              .in('user_id', inviteeIds);
+            if (inviteeIds.length > 0) {
+              const { data: inviteeScores, error: inviteeScoresError } = await supabase
+                .from('sw_scores')
+                .select('user_id, total')
+                .in('user_id', inviteeIds);
 
-            if (inviteeLedgerError) {
-              console.warn('Error fetching invited users growth ledger:', inviteeLedgerError);
-            } else if (inviteeLedgerRows) {
-              const inviteeRawGrowthPoints = inviteeLedgerRows.reduce(
-                (sum, entry) => sum + (entry.points || 0),
-                0
-              );
-              inviteeGrowthTotalPoints = inviteeRawGrowthPoints * weights.growth_total_points_multiplier;
+              if (inviteeScoresError) {
+                console.warn('Error fetching invited users sw_scores:', inviteeScoresError);
+              } else if (inviteeScores && inviteeScores.length > 0) {
+                inviteeSwTotalPoints = inviteeScores.reduce(
+                  (sum, entry) => sum + (entry?.total || 0),
+                  0
+                );
+              }
             }
-          }
         }
       } catch (invitesErr) {
         console.warn('Exception fetching invites:', invitesErr);
@@ -392,9 +391,9 @@ export default async function handler(
       const invitePointsPerInvite = weights.invite_points ?? 50;
       const invitePoints = invitesCount * invitePointsPerInvite;
 
-      // Calculate bonus on invited users' growth points
-      const growthBonusPercentage = weights.growth_bonus_percentage ?? 0.05;
-      const growthBonusPoints = inviteeGrowthTotalPoints * growthBonusPercentage;
+        // Calculate bonus on invited users' SW totals
+        const growthBonusPercentage = weights.growth_bonus_percentage ?? 0.05;
+        const growthBonusPoints = inviteeSwTotalPoints * growthBonusPercentage;
 
     // Calculate base SW (before admin adjustments)
     const baseSW = 
@@ -528,12 +527,12 @@ export default async function handler(
         count: invitesCount,
         weight: invitePointsPerInvite,
       },
-      growthBonus: {
-        points: Math.round(growthBonusPoints * 100) / 100,
-        count: invitesCount,
-        weight: growthBonusPercentage,
-        description: `${(growthBonusPercentage * 100).toFixed(0)}% bonus on invited users' growth points`,
-      },
+        growthBonus: {
+          points: Math.round(growthBonusPoints * 100) / 100,
+          count: invitesCount,
+          weight: growthBonusPercentage,
+          description: `${(growthBonusPercentage * 100).toFixed(0)}% bonus on invited users' SW`,
+        },
       adminAdjustments: {
         points: adminAdjustmentsTotal,
         count: 0, // Count not available without querying table
