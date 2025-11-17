@@ -2361,10 +2361,10 @@ export default function PublicProfilePage() {
           <div className="relative z-10 w-full max-w-xl mx-auto p-4">
             <div className="card-glow-primary p-4 md:p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="text-white/90 font-medium">Leave Trust Flow Push</div>
+                <div className={`font-medium ${isLight ? 'text-primary-text' : 'text-white/90'}`}>Leave Trust Flow Push</div>
                 <button
                   onClick={() => !feedbackPending && (setFeedbackOpen(false), setPushType(null), setFeedbackText(''))}
-                  className="text-white/60 hover:text-white transition"
+                  className={`transition ${isLight ? 'text-primary-text-secondary hover:text-primary-text' : 'text-white/60 hover:text-white'}`}
                   aria-label="Close"
                 >
                   <CloseIcon className="h-5 w-5" aria-hidden="true" />
@@ -2372,11 +2372,15 @@ export default function PublicProfilePage() {
               </div>
               
               {/* Rules section */}
-              <div className="flex items-start gap-2 px-3 py-2 rounded-lg border bg-amber-900/20 border-amber-700/30 text-amber-300">
+              <div className={`flex items-start gap-2 px-3 py-2 rounded-lg border ${
+                isLight 
+                  ? 'bg-amber-50 border-amber-300 text-amber-900' 
+                  : 'bg-amber-900/20 border-amber-700/30 text-amber-300'
+              }`}>
                 <svg className="h-5 w-5 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                 </svg>
-                <div className="text-sm space-y-1">
+                <div className={`text-sm space-y-1 ${isLight ? 'text-amber-900' : 'text-amber-300'}`}>
                   <div className="font-medium">Push Submission Rules:</div>
                   <ul className="list-disc list-inside space-y-0.5 text-xs">
                     <li><strong>Authenticity:</strong> Provide honest and accurate evaluations based on real interactions and experiences.</li>
@@ -2396,10 +2400,10 @@ export default function PublicProfilePage() {
                   className="input w-full outline-none min-h-[120px] text-base md:text-lg placeholder-primary-text-secondary/50"
                   required
                 />
-                <div className="text-xs text-white/60">
+                <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
                   {feedbackText.length}/100 characters (minimum required)
                   {feedbackText.length > 0 && feedbackText.length < 100 && (
-                    <span className="text-amber-400 ml-2">Please provide more details</span>
+                    <span className={`ml-2 ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>Please provide more details</span>
                   )}
                 </div>
               </div>
@@ -2416,8 +2420,12 @@ export default function PublicProfilePage() {
                   disabled={feedbackPending || feedbackText.trim().length < 100}
                   className={`px-4 py-2 rounded-xl border transition ${
                     pushType === 'positive'
-                      ? 'border-emerald-400 text-emerald-400 bg-emerald-400/10'
-                      : 'border-emerald-300/50 text-emerald-300/70 hover:bg-emerald-300/10'
+                      ? isLight
+                        ? 'border-emerald-600 text-emerald-700 bg-emerald-50'
+                        : 'border-emerald-400 text-emerald-400 bg-emerald-400/10'
+                      : isLight
+                        ? 'border-emerald-400 text-emerald-600 hover:bg-emerald-50'
+                        : 'border-emerald-300/50 text-emerald-300/70 hover:bg-emerald-300/10'
                   } ${feedbackPending || feedbackText.trim().length < 100 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Positive Push
@@ -2432,13 +2440,17 @@ export default function PublicProfilePage() {
                   disabled={feedbackPending || feedbackText.trim().length < 100}
                   className={`px-4 py-2 rounded-xl border transition ${
                     pushType === 'negative'
-                      ? 'border-rose-400 text-rose-400 bg-rose-400/10'
-                      : 'border-rose-300/50 text-rose-300/70 hover:bg-rose-300/10'
+                      ? isLight
+                        ? 'border-rose-600 text-rose-700 bg-rose-50'
+                        : 'border-rose-400 text-rose-400 bg-rose-400/10'
+                      : isLight
+                        ? 'border-rose-400 text-rose-600 hover:bg-rose-50'
+                        : 'border-rose-300/50 text-rose-300/70 hover:bg-rose-300/10'
                   } ${feedbackPending || feedbackText.trim().length < 100 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Negative Push
                 </button>
-                <div className="ml-auto text-sm text-white/60">
+                <div className={`ml-auto text-sm ${isLight ? 'text-primary-text-secondary' : 'text-white/60'}`}>
                   {feedbackPending ? 'Submitting...' : 'This affects Trust Flow'}
                 </div>
               </div>
