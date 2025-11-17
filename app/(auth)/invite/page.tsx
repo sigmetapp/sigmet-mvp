@@ -430,7 +430,7 @@ export default function InvitePage() {
                           </span>
                         </div>
                       )}
-                      {isAdmin && (
+                      {isAdmin && !invite.consumed_by_user_id && (
                         <div className="col-span-2">
                           <button
                             onClick={() => handleDeleteInvite(invite.id)}
@@ -525,13 +525,17 @@ export default function InvitePage() {
                         </td>
                         {isAdmin && (
                           <td className="py-2 px-2 text-xs">
-                            <button
-                              onClick={() => handleDeleteInvite(invite.id)}
-                              disabled={loading}
-                              className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition"
-                            >
-                              Delete
-                            </button>
+                            {!invite.consumed_by_user_id ? (
+                              <button
+                                onClick={() => handleDeleteInvite(invite.id)}
+                                disabled={loading}
+                                className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition"
+                              >
+                                Delete
+                              </button>
+                            ) : (
+                              <span className="text-gray-500 text-xs">-</span>
+                            )}
                           </td>
                         )}
                       </tr>
