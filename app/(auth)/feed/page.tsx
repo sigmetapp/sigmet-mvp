@@ -38,7 +38,7 @@ export default function FeedPage() {
               renderFiltersOutside={true}
               renderFilters={setFiltersElement}
               buttonPosition="inline"
-              enableLazyLoad={false}
+              enableLazyLoad={true}
             />
           </Suspense>
         </div>
