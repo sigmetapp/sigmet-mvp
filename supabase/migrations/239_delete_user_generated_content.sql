@@ -8,8 +8,7 @@ security definer
 set search_path = public
 as $$
 declare
-  posts_author_column text;
-  comments_author_column text;
+  column_name text;
 begin
   if p_user_id is null then
     return;
@@ -44,36 +43,32 @@ begin
        or actor_id = p_user_id;
   end if;
 
-  -- Remove comments authored by the user
+  -- Remove comments authored by the user (supports both author_id/user_id)
   if to_regclass('public.comments') is not null then
-    select column_name
-      into comments_author_column
-    from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'comments'
-      and column_name in ('user_id', 'author_id')
-    limit 1;
-
-    if comments_author_column is not null then
-      execute format('delete from public.comments where %I = $1', comments_author_column)
+    for column_name in
+      select column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'comments'
+        and column_name in ('user_id', 'author_id')
+    loop
+      execute format('delete from public.comments where %I = $1', column_name)
         using p_user_id;
-    end if;
+    end loop;
   end if;
 
-  -- Remove posts authored by the user
+  -- Remove posts authored by the user (supports both author_id/user_id)
   if to_regclass('public.posts') is not null then
-    select column_name
-      into posts_author_column
-    from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'posts'
-      and column_name in ('user_id', 'author_id')
-    limit 1;
-
-    if posts_author_column is not null then
-      execute format('delete from public.posts where %I = $1', posts_author_column)
+    for column_name in
+      select column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'posts'
+        and column_name in ('user_id', 'author_id')
+    loop
+      execute format('delete from public.posts where %I = $1', column_name)
         using p_user_id;
-    end if;
+    end loop;
   end if;
 end;
 $$;
