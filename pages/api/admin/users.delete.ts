@@ -6,7 +6,7 @@ const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
 
 type SupabaseAdminClient = ReturnType<typeof supabaseAdmin>;
 
-const USER_GENERATED_TABLES: Array<{ table: string; columns: string[] }> = [
+const FALLBACK_USER_GENERATED_TABLES: Array<{ table: string; columns: string[] }> = [
   { table: 'post_likes', columns: ['user_id'] },
   { table: 'post_reactions', columns: ['user_id'] },
   { table: 'comments', columns: ['author_id', 'user_id'] },
@@ -27,8 +27,15 @@ function isMissingColumnError(error: PostgrestError | null): boolean {
   return message.includes('column') && message.includes('does not exist');
 }
 
-async function deleteUserGeneratedContent(client: SupabaseAdminClient, userId: string) {
-  for (const { table, columns } of USER_GENERATED_TABLES) {
+function isMissingFunctionError(error: PostgrestError | null): boolean {
+  if (!error) return false;
+  if (error.code === '42883') return true;
+  const message = `${error.message || ''} ${error.details || ''}`.toLowerCase();
+  return message.includes('function') && message.includes('does not exist');
+}
+
+async function deleteUserGeneratedContentFallback(client: SupabaseAdminClient, userId: string) {
+  for (const { table, columns } of FALLBACK_USER_GENERATED_TABLES) {
     let deleted = false;
     for (const column of columns) {
       const { error } = await client.from(table).delete().eq(column, userId);
@@ -48,6 +55,20 @@ async function deleteUserGeneratedContent(client: SupabaseAdminClient, userId: s
       console.warn(`Skipped deleting from ${table} for user ${userId} because none of the expected columns exist`);
     }
   }
+}
+
+async function deleteUserGeneratedContent(client: SupabaseAdminClient, userId: string) {
+  const { error } = await client.rpc('delete_user_generated_content', { p_user_id: userId });
+  if (!error) return;
+
+  if (isMissingFunctionError(error)) {
+    console.warn('delete_user_generated_content RPC not found, falling back to manual cleanup');
+    await deleteUserGeneratedContentFallback(client, userId);
+    return;
+  }
+
+  console.error(`Failed to invoke delete_user_generated_content RPC for user ${userId}`, error);
+  throw new Error(error.message || 'Failed to delete user generated content');
 }
 
 function getAccessTokenFromRequest(req: NextApiRequest): string | undefined {
