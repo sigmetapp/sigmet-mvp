@@ -6,11 +6,11 @@ const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
 
 type SupabaseAdminClient = ReturnType<typeof supabaseAdmin>;
 
-const USER_GENERATED_TABLES: Array<{ table: string; column: string }> = [
-  { table: 'post_likes', column: 'user_id' },
-  { table: 'post_reactions', column: 'user_id' },
-  { table: 'comments', column: 'user_id' },
-  { table: 'posts', column: 'user_id' },
+const USER_GENERATED_TABLES: Array<{ table: string; columns: string[] }> = [
+  { table: 'post_likes', columns: ['user_id'] },
+  { table: 'post_reactions', columns: ['user_id'] },
+  { table: 'comments', columns: ['author_id', 'user_id'] },
+  { table: 'posts', columns: ['author_id', 'user_id'] },
 ];
 
 function isMissingRelationError(error: PostgrestError | null): boolean {
@@ -20,16 +20,34 @@ function isMissingRelationError(error: PostgrestError | null): boolean {
   return message.includes('relation') && message.includes('does not exist');
 }
 
+function isMissingColumnError(error: PostgrestError | null): boolean {
+  if (!error) return false;
+  if (error.code === '42703') return true;
+  const message = `${error.message || ''} ${error.details || ''}`.toLowerCase();
+  return message.includes('column') && message.includes('does not exist');
+}
+
 async function deleteUserGeneratedContent(client: SupabaseAdminClient, userId: string) {
-  await Promise.all(
-    USER_GENERATED_TABLES.map(async ({ table, column }) => {
+  for (const { table, columns } of USER_GENERATED_TABLES) {
+    let deleted = false;
+    for (const column of columns) {
       const { error } = await client.from(table).delete().eq(column, userId);
-      if (error && !isMissingRelationError(error)) {
-        console.error(`Failed to delete ${table} for user ${userId}`, error);
-        throw new Error(`Failed to delete ${table} for user`);
+      if (!error) {
+        deleted = true;
+        break;
       }
-    })
-  );
+      if (isMissingRelationError(error) || isMissingColumnError(error)) {
+        continue;
+      }
+      console.error(`Failed to delete ${table} (${column}) for user ${userId}`, error);
+      throw new Error(`Failed to delete ${table} for user`);
+    }
+
+    // If all attempts failed because columns were missing, log for visibility but continue
+    if (!deleted && columns.length > 0) {
+      console.warn(`Skipped deleting from ${table} for user ${userId} because none of the expected columns exist`);
+    }
+  }
 }
 
 function getAccessTokenFromRequest(req: NextApiRequest): string | undefined {
