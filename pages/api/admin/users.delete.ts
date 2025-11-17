@@ -1,8 +1,36 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type PostgrestError } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 const ADMIN_EMAILS = new Set<string>(['seosasha@gmail.com']);
+
+type SupabaseAdminClient = ReturnType<typeof supabaseAdmin>;
+
+const USER_GENERATED_TABLES: Array<{ table: string; column: string }> = [
+  { table: 'post_likes', column: 'user_id' },
+  { table: 'post_reactions', column: 'user_id' },
+  { table: 'comments', column: 'user_id' },
+  { table: 'posts', column: 'user_id' },
+];
+
+function isMissingRelationError(error: PostgrestError | null): boolean {
+  if (!error) return false;
+  if (error.code === '42P01') return true;
+  const message = `${error.message || ''} ${error.details || ''}`.toLowerCase();
+  return message.includes('relation') && message.includes('does not exist');
+}
+
+async function deleteUserGeneratedContent(client: SupabaseAdminClient, userId: string) {
+  await Promise.all(
+    USER_GENERATED_TABLES.map(async ({ table, column }) => {
+      const { error } = await client.from(table).delete().eq(column, userId);
+      if (error && !isMissingRelationError(error)) {
+        console.error(`Failed to delete ${table} for user ${userId}`, error);
+        throw new Error(`Failed to delete ${table} for user`);
+      }
+    })
+  );
+}
 
 function getAccessTokenFromRequest(req: NextApiRequest): string | undefined {
   const cookie = req.headers.cookie || '';
@@ -47,6 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!user_id) return res.status(400).json({ error: 'user_id is required' });
 
     const admin = supabaseAdmin();
+    await deleteUserGeneratedContent(admin, user_id);
     const { error } = await admin.auth.admin.deleteUser(user_id);
     if (error) throw error;
 
