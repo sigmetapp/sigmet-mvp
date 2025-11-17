@@ -566,9 +566,9 @@ export default function PublicProfilePage() {
 
   // Load Trust Flow score - now uses cached value for fast loading
   useEffect(() => {
-    if (!profile?.user_id) return;
-    (async () => {
-      try {
+      if (!profile?.user_id) return;
+      (async () => {
+        try {
         console.log('[Trust Flow] Loading TF for user:', profile.user_id);
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
@@ -663,65 +663,78 @@ export default function PublicProfilePage() {
     })();
   }, [viewerId, profile?.user_id]);
 
-  // Load social counts
-  useEffect(() => {
-    if (!profile?.user_id) return;
-    (async () => {
-      try {
-        const [followersRes, followingRes, referralsRes] = await Promise.all([
-          supabase
-            .from('follows')
-            .select('follower_id', { count: 'exact', head: true })
-            .eq('followee_id', profile.user_id),
-          supabase
-            .from('follows')
-            .select('followee_id', { count: 'exact', head: true })
-            .eq('follower_id', profile.user_id),
-          supabase
-            .from('invites')
-            .select('code', { count: 'exact', head: true })
-            .eq('creator', profile.user_id)
-            .gt('uses', 0),
-        ]);
-        setFollowersCount(followersRes.count || 0);
-        setFollowingCount(followingRes.count || 0);
-        setReferralsCount(referralsRes.count || 0);
-
-        // Calculate connections (mutual follows): people who follow the user AND are followed by the user
-        const [followersData, followingData] = await Promise.all([
-          supabase
-            .from('follows')
-            .select('follower_id')
-            .eq('followee_id', profile.user_id),
-          supabase
-            .from('follows')
-            .select('followee_id')
-            .eq('follower_id', profile.user_id),
-        ]);
-
-        if (followersData.data && followingData.data) {
-          const followersSet = new Set(followersData.data.map((f: any) => f.follower_id));
-          const followingSet = new Set(followingData.data.map((f: any) => f.followee_id));
+    // Load social counts
+    useEffect(() => {
+      if (!profile?.user_id) return;
+      (async () => {
+        try {
+          const [followersRes, followingRes] = await Promise.all([
+            supabase
+              .from('follows')
+              .select('follower_id', { count: 'exact', head: true })
+              .eq('followee_id', profile.user_id),
+            supabase
+              .from('follows')
+              .select('followee_id', { count: 'exact', head: true })
+              .eq('follower_id', profile.user_id),
+          ]);
+          setFollowersCount(followersRes.count || 0);
+          setFollowingCount(followingRes.count || 0);
           
-          // Find intersection: people who are both followers and following
-          let connections = 0;
-          followersSet.forEach((followerId) => {
-            if (followingSet.has(followerId)) {
-              connections++;
+          try {
+            const referralResponse = await fetch(`/api/users/${profile.user_id}/referrals`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+            if (referralResponse.ok) {
+              const { count } = await referralResponse.json();
+              setReferralsCount(count ?? 0);
+            } else {
+              console.error('Failed to fetch referrals count:', referralResponse.status, referralResponse.statusText);
+              setReferralsCount(0);
             }
-          });
-          setConnectionsCount(connections);
-        } else {
+          } catch (referralError) {
+            console.error('Error fetching referrals count:', referralError);
+            setReferralsCount(0);
+          }
+
+          // Calculate connections (mutual follows): people who follow the user AND are followed by the user
+          const [followersData, followingData] = await Promise.all([
+            supabase
+              .from('follows')
+              .select('follower_id')
+              .eq('followee_id', profile.user_id),
+            supabase
+              .from('follows')
+              .select('followee_id')
+              .eq('follower_id', profile.user_id),
+          ]);
+
+          if (followersData.data && followingData.data) {
+            const followersSet = new Set(followersData.data.map((f: any) => f.follower_id));
+            const followingSet = new Set(followingData.data.map((f: any) => f.followee_id));
+            
+            // Find intersection: people who are both followers and following
+            let connections = 0;
+            followersSet.forEach((followerId) => {
+              if (followingSet.has(followerId)) {
+                connections++;
+              }
+            });
+            setConnectionsCount(connections);
+          } else {
+            setConnectionsCount(0);
+          }
+        } catch {
+          setFollowersCount(0);
+          setFollowingCount(0);
+          setReferralsCount(0);
           setConnectionsCount(0);
         }
-      } catch {
-        setFollowersCount(0);
-        setFollowingCount(0);
-        setReferralsCount(0);
-        setConnectionsCount(0);
-      }
-    })();
-  }, [profile?.user_id]);
+      })();
+    }, [profile?.user_id]);
 
   // Load user goals
   useEffect(() => {
