@@ -971,27 +971,77 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     }
 
     const comment = comments.find(c => c.id === commentId);
-    if (!comment) return;
+    if (!comment) {
+      console.error('Comment not found:', commentId);
+      alert('Comment not found');
+      return;
+    }
 
     const commentAuthorId = comment.author_id || comment.user_id;
+    if (!commentAuthorId) {
+      console.error('Comment author ID not found:', comment);
+      alert('Unable to identify comment author');
+      return;
+    }
+
     if (uid !== commentAuthorId) {
+      console.error('User mismatch:', { uid, commentAuthorId });
       alert('You can only delete your own comments');
       return;
     }
 
+    console.log('Attempting to delete comment:', { commentId, uid, commentAuthorId, comment });
+
     setDeletingComment((prev) => ({ ...prev, [commentId]: true }));
     try {
+      // First, verify the comment exists and we have the right to delete it
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('comments')
+        .select('id, author_id, user_id')
+        .eq('id', commentId)
+        .maybeSingle();
+
+      if (verifyError) {
+        console.error('Verify error:', verifyError);
+        throw verifyError;
+      }
+
+      if (!verifyData) {
+        throw new Error('Comment not found');
+      }
+
+      const dbAuthorId = verifyData.author_id || verifyData.user_id;
+      if (uid !== dbAuthorId) {
+        throw new Error('You can only delete your own comments');
+      }
+
+      console.log('Verification passed, deleting comment...');
+
+      // Now delete the comment
       const { error } = await supabase
         .from('comments')
         .delete()
         .eq('id', commentId);
 
-      if (error) throw error;
+      console.log('Delete result:', { error });
+
+      if (error) {
+        console.error('Delete error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
+
+      console.log('Comment deleted successfully, reloading comments...');
       await loadComments();
       setDeleteCommentConfirmOpen(null);
     } catch (error: any) {
       console.error('Failed to delete comment', error);
-      alert(error?.message || 'Unable to delete comment.');
+      const errorMessage = error?.message || error?.details || error?.hint || 'Unable to delete comment.';
+      alert(errorMessage);
     } finally {
       setDeletingComment((prev) => {
         const newState = { ...prev };
@@ -1056,6 +1106,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         const swScore = commentUserId ? (commenterSWScores[commentUserId] ?? 0) : 0;
         const profileUrl = commentUserId ? (profile?.username ? `/u/${profile.username}` : `/u/${commentUserId}`) : undefined;
 
+        const commentAuthorId = comment.author_id || comment.user_id;
+        const isCommentAuthor = uid && commentAuthorId && uid === commentAuthorId;
+
         return (
           <div key={comment.id} className={`mt-4 ${depth === 0 ? '' : 'ml-4 border-l border-slate-200 dark:border-slate-700 pl-4'}`}>
             <div className={`rounded-xl p-3 ${isLight ? 'bg-white shadow-sm' : 'bg-slate-800/70 shadow-md'} transition-all`}>
@@ -1076,7 +1129,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {uid && uid === commentUserId && (
+                  {isCommentAuthor && (
                     <PostActionMenu
                       onEdit={() => handleEditComment(comment.id)}
                       onDelete={() => setDeleteCommentConfirmOpen(comment.id)}
