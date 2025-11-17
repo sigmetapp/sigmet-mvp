@@ -222,6 +222,13 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
   const [viewsChartOpen, setViewsChartOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
 
+  // Comment edit/delete state
+  const [editingComment, setEditingComment] = useState<Record<number, boolean>>({});
+  const [editCommentDraft, setEditCommentDraft] = useState<Record<number, string>>({});
+  const [updatingComment, setUpdatingComment] = useState<Record<number, boolean>>({});
+  const [deletingComment, setDeletingComment] = useState<Record<number, boolean>>({});
+  const [deleteCommentConfirmOpen, setDeleteCommentConfirmOpen] = useState<number | null>(null);
+
   // Directions for category matching
   const [availableDirections, setAvailableDirections] = useState<Array<{ id: string; slug: string; title: string; emoji: string }>>([]);
 
@@ -858,6 +865,192 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
     }
   }, [post.author_id, post.user_id, postId, router, uid]);
 
+  const handleEditComment = useCallback((commentId: number) => {
+    const comment = comments.find(c => c.id === commentId);
+    if (!comment) return;
+    setEditingComment((prev) => ({ ...prev, [commentId]: true }));
+    setEditCommentDraft((prev) => ({ ...prev, [commentId]: comment.body || comment.text || '' }));
+  }, [comments]);
+
+  const handleCancelEditComment = useCallback((commentId: number) => {
+    setEditingComment((prev) => {
+      const newState = { ...prev };
+      delete newState[commentId];
+      return newState;
+    });
+    setEditCommentDraft((prev) => {
+      const newState = { ...prev };
+      delete newState[commentId];
+      return newState;
+    });
+  }, []);
+
+  const updateComment = useCallback(async (commentId: number) => {
+    if (!uid) {
+      alert('Sign in required');
+      return;
+    }
+
+    const comment = comments.find(c => c.id === commentId);
+    if (!comment) return;
+
+    const commentAuthorId = comment.author_id || comment.user_id;
+    if (uid !== commentAuthorId) {
+      alert('You can only edit your own comments');
+      return;
+    }
+
+    const value = (editCommentDraft[commentId] || '').trim();
+    if (!value) return;
+
+    setUpdatingComment((prev) => ({ ...prev, [commentId]: true }));
+    try {
+      const primaryColumn: 'text' | 'body' = commentColumnPreference;
+      const secondaryColumn: 'text' | 'body' = primaryColumn === 'text' ? 'body' : 'text';
+      const contentColumns =
+        primaryColumn === secondaryColumn ? [primaryColumn] : [primaryColumn, secondaryColumn];
+      let lastError: any = null;
+
+      for (const contentColumn of contentColumns) {
+        const updateData: any = {
+          [contentColumn]: value,
+        };
+
+        const { error } = await supabase
+          .from('comments')
+          .update(updateData)
+          .eq('id', commentId);
+
+        if (!error) {
+          if (contentColumn !== commentColumnPreference) {
+            setCommentColumnPreference(contentColumn);
+          }
+          setEditingComment((prev) => {
+            const newState = { ...prev };
+            delete newState[commentId];
+            return newState;
+          });
+          setEditCommentDraft((prev) => {
+            const newState = { ...prev };
+            delete newState[commentId];
+            return newState;
+          });
+          await loadComments();
+          return;
+        }
+
+        lastError = error;
+
+        if (isMissingColumnError(error, contentColumn)) {
+          if (contentColumn === commentColumnPreference && contentColumns.length > 1) {
+            setCommentColumnPreference(secondaryColumn);
+          }
+          continue;
+        }
+
+        break;
+      }
+
+      throw lastError ?? new Error('Unable to update comment.');
+    } catch (error: any) {
+      console.error('Failed to update comment', error);
+      alert(error?.message || 'Unable to update comment.');
+    } finally {
+      setUpdatingComment((prev) => {
+        const newState = { ...prev };
+        delete newState[commentId];
+        return newState;
+      });
+    }
+  }, [uid, comments, editCommentDraft, commentColumnPreference, loadComments]);
+
+  const deleteComment = useCallback(async (commentId: number) => {
+    if (!uid) {
+      alert('Sign in required');
+      return;
+    }
+
+    const comment = comments.find(c => c.id === commentId);
+    if (!comment) {
+      console.error('Comment not found:', commentId);
+      alert('Comment not found');
+      return;
+    }
+
+    const commentAuthorId = comment.author_id || comment.user_id;
+    if (!commentAuthorId) {
+      console.error('Comment author ID not found:', comment);
+      alert('Unable to identify comment author');
+      return;
+    }
+
+    if (uid !== commentAuthorId) {
+      console.error('User mismatch:', { uid, commentAuthorId });
+      alert('You can only delete your own comments');
+      return;
+    }
+
+    console.log('Attempting to delete comment:', { commentId, uid, commentAuthorId, comment });
+
+    setDeletingComment((prev) => ({ ...prev, [commentId]: true }));
+    try {
+      // First, verify the comment exists and we have the right to delete it
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('comments')
+        .select('id, user_id')
+        .eq('id', commentId)
+        .maybeSingle();
+
+      if (verifyError) {
+        console.error('Verify error:', verifyError);
+        throw verifyError;
+      }
+
+      if (!verifyData) {
+        throw new Error('Comment not found');
+      }
+
+      const dbAuthorId = verifyData.user_id;
+      if (!dbAuthorId || uid !== dbAuthorId) {
+        throw new Error('You can only delete your own comments');
+      }
+
+      console.log('Verification passed, deleting comment...');
+
+      // Now delete the comment
+      const { error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', commentId);
+
+      console.log('Delete result:', { error });
+
+      if (error) {
+        console.error('Delete error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
+
+      console.log('Comment deleted successfully, reloading comments...');
+      await loadComments();
+      setDeleteCommentConfirmOpen(null);
+    } catch (error: any) {
+      console.error('Failed to delete comment', error);
+      const errorMessage = error?.message || error?.details || error?.hint || 'Unable to delete comment.';
+      alert(errorMessage);
+    } finally {
+      setDeletingComment((prev) => {
+        const newState = { ...prev };
+        delete newState[commentId];
+        return newState;
+      });
+    }
+  }, [uid, comments, loadComments]);
+
   const handleReportSubmit = useCallback(async (complaintType: 'harassment' | 'misinformation' | 'inappropriate_content' | 'unreliable_information', description: string) => {
     if (!uid) {
       alert('Sign in required');
@@ -913,6 +1106,9 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         const swScore = commentUserId ? (commenterSWScores[commentUserId] ?? 0) : 0;
         const profileUrl = commentUserId ? (profile?.username ? `/u/${profile.username}` : `/u/${commentUserId}`) : undefined;
 
+        const commentAuthorId = comment.author_id || comment.user_id;
+        const isCommentAuthor = uid && commentAuthorId && uid === commentAuthorId;
+
         return (
           <div key={comment.id} className={`mt-4 ${depth === 0 ? '' : 'ml-4 border-l border-slate-200 dark:border-slate-700 pl-4'}`}>
             <div className={`rounded-xl p-3 ${isLight ? 'bg-white shadow-sm' : 'bg-slate-800/70 shadow-md'} transition-all`}>
@@ -932,19 +1128,59 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                     </time>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs"
-                  onClick={() => toggleReply(comment.id)}
-                >
-                  Reply
-                </Button>
+                <div className="flex items-center gap-2">
+                  {isCommentAuthor && (
+                    <PostActionMenu
+                      onEdit={() => handleEditComment(comment.id)}
+                      onDelete={() => setDeleteCommentConfirmOpen(comment.id)}
+                      className="shrink-0"
+                    />
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => toggleReply(comment.id)}
+                  >
+                    Reply
+                  </Button>
+                </div>
               </div>
-              {(comment.body ?? comment.text) && (
-                <p className={`mt-3 whitespace-pre-wrap text-sm ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
-                  {formatTextWithMentions(comment.body ?? comment.text ?? '')}
-                </p>
+              {editingComment[comment.id] ? (
+                <div className="mt-3 space-y-2">
+                  <textarea
+                    value={editCommentDraft[comment.id] || ''}
+                    onChange={(event) =>
+                      setEditCommentDraft((prev) => ({ ...prev, [comment.id]: event.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring focus:ring-sky-500/40"
+                    placeholder="Edit your comment..."
+                    rows={3}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleCancelEditComment(comment.id)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={updatingComment[comment.id]}
+                      onClick={() => updateComment(comment.id)}
+                    >
+                      {updatingComment[comment.id] ? 'Saving...' : 'Save'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                (comment.body ?? comment.text) && (
+                  <p className={`mt-3 whitespace-pre-wrap text-sm ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
+                    {formatTextWithMentions(comment.body ?? comment.text ?? '')}
+                  </p>
+                )
               )}
               {comment.media_url && (
                 <div className="mt-3">
@@ -1020,7 +1256,7 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
         );
       });
     },
-    [commenterProfiles, commenterSWScores, isLight, replyInput, replyOpen, replySubmitting, submitComment, toggleReply, commentsByParent, commentReactions, handleCommentReactionChange]
+    [commenterProfiles, commenterSWScores, isLight, replyInput, replyOpen, replySubmitting, submitComment, toggleReply, commentsByParent, commentReactions, handleCommentReactionChange, uid, editingComment, editCommentDraft, updatingComment, handleEditComment, updateComment, handleCancelEditComment]
   );
 
   const formattedDate = useMemo(() => {
@@ -1548,6 +1784,31 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
               </Button>
               <Button variant="primary" className="bg-rose-600 hover:bg-rose-700" onClick={deletePost}>
                 Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteCommentConfirmOpen !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteCommentConfirmOpen(null)} />
+          <div className={`relative z-10 w-full max-w-sm rounded-2xl border p-5 ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-900'}`}>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Delete comment</h3>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete this comment? This action cannot be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setDeleteCommentConfirmOpen(null)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="primary" 
+                className="bg-rose-600 hover:bg-rose-700" 
+                onClick={() => deleteComment(deleteCommentConfirmOpen)}
+                disabled={deletingComment[deleteCommentConfirmOpen]}
+              >
+                {deletingComment[deleteCommentConfirmOpen] ? 'Deleting...' : 'Delete'}
               </Button>
             </div>
           </div>
