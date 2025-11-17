@@ -78,12 +78,23 @@ begin
 end;
 $$;
 
--- Fire the cleanup whenever the user's profile row is removed (covers auth deletions and manual removals)
 drop trigger if exists profiles_delete_user_generated_content on public.profiles;
+
+create or replace function public.on_profile_delete_cleanup()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.delete_user_generated_content(OLD.user_id);
+  return OLD;
+end;
+$$;
 
 create trigger profiles_delete_user_generated_content
 after delete on public.profiles
 for each row
-execute function public.delete_user_generated_content(OLD.user_id);
+execute function public.on_profile_delete_cleanup();
 
 commit;
