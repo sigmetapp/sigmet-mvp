@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { ph } from '@/lib/analytics.client';
 import { RequireAuth } from '@/components/RequireAuth';
@@ -17,6 +18,7 @@ interface Invite {
   consumed_by_user_id: string | null;
   consumed_by_user_sw: number | null;
   expires_at: string | null;
+  consumed_by_username: string | null;
 }
 
 interface InviteStats {
@@ -104,7 +106,33 @@ export default function InvitePage() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setInvites(data || []);
+      
+      // Fetch usernames for users who consumed invites
+      const userIds = (data || [])
+        .map((inv: any) => inv.consumed_by_user_id)
+        .filter((id: string | null): id is string => id !== null);
+      
+      const usernameMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, username')
+          .in('user_id', userIds);
+        
+        profiles?.forEach((profile) => {
+          if (profile.username) {
+            usernameMap[profile.user_id] = profile.username;
+          }
+        });
+      }
+      
+      // Transform data to include username
+      const transformedData = (data || []).map((invite: any) => ({
+        ...invite,
+        consumed_by_username: invite.consumed_by_user_id ? usernameMap[invite.consumed_by_user_id] || null : null
+      }));
+      
+      setInvites(transformedData);
     } catch (err: any) {
       console.error('Error loading invites:', err);
       setError(err.message || 'Failed to load invites');
@@ -208,7 +236,6 @@ export default function InvitePage() {
   const formatDate = (date: string | null) => {
     if (!date) return '-';
     return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -327,26 +354,26 @@ export default function InvitePage() {
             <p className="text-gray-400">No invites yet. Send your first invite above.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-auto">
                 <thead>
                   <tr className="border-b border-gray-700">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Invite Code</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Status</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Created</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Expires</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Accepted</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Used By</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">SW</th>
-                    {isAdmin && <th className="text-left py-3 px-4 text-sm font-medium text-gray-300">Actions</th>}
+                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Invite Code</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Status</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Created</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Expires</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Accepted</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Used By</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">SW</th>
+                    {isAdmin && <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {invites.map((invite) => (
                     <tr key={invite.id} className="border-b border-gray-700/50">
-                      <td className="py-3 px-4 text-sm">
+                      <td className="py-2 px-2 text-xs">
                         {invite.invite_code ? (
-                          <div className="flex items-center gap-2">
-                            <code className="px-3 py-1.5 bg-gray-700 text-blue-400 font-mono font-bold rounded text-base">
+                          <div className="flex items-center gap-1">
+                            <code className="px-2 py-1 bg-gray-700 text-blue-400 font-mono font-semibold rounded text-xs">
                               {invite.invite_code}
                             </code>
                             <button
@@ -354,34 +381,46 @@ export default function InvitePage() {
                                 navigator.clipboard.writeText(invite.invite_code!);
                                 alert('Invite code copied to clipboard!');
                               }}
-                              className="px-2 py-1 text-xs text-gray-400 hover:text-white bg-gray-700 rounded transition"
+                              className="px-1.5 py-0.5 text-xs text-gray-400 hover:text-white bg-gray-700 rounded transition"
                               title="Copy code"
                             >
-                              📋 Copy
+                              📋
                             </button>
                           </div>
                         ) : (
                           <span className="text-gray-500 text-xs">Generating...</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-sm">
+                      <td className="py-2 px-2 text-xs">
                         <span className={getStatusColor(invite.status)}>{invite.status}</span>
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.sent_at)}</td>
-                      <td className="py-3 px-4 text-sm">
+                      <td className="py-2 px-2 text-xs text-gray-400 whitespace-nowrap">{formatDate(invite.sent_at)}</td>
+                      <td className="py-2 px-2 text-xs">
                         {invite.status === 'pending' ? formatExpiration(invite.expires_at) : '-'}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-400">{formatDate(invite.accepted_at)}</td>
-                      <td className="py-3 px-4 text-sm text-gray-400">
+                      <td className="py-2 px-2 text-xs text-gray-400 whitespace-nowrap">{formatDate(invite.accepted_at)}</td>
+                      <td className="py-2 px-2 text-xs text-gray-400">
                         {invite.consumed_by_user_id ? (
-                          <span className="text-blue-400 font-mono text-xs">
-                            {invite.consumed_by_user_id.slice(0, 8)}...
-                          </span>
+                          invite.consumed_by_username ? (
+                            <Link 
+                              href={`/u/${encodeURIComponent(invite.consumed_by_username)}`}
+                              className="text-blue-400 hover:text-blue-300 hover:underline transition"
+                            >
+                              {invite.consumed_by_username}
+                            </Link>
+                          ) : (
+                            <Link 
+                              href={`/u/${encodeURIComponent(invite.consumed_by_user_id)}`}
+                              className="text-blue-400 hover:text-blue-300 hover:underline transition font-mono text-xs"
+                            >
+                              {invite.consumed_by_user_id.slice(0, 8)}...
+                            </Link>
+                          )
                         ) : (
                           <span className="text-gray-500">-</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-400">
+                      <td className="py-2 px-2 text-xs text-gray-400">
                         {invite.consumed_by_user_sw !== null ? (
                           <span className="text-green-400 font-semibold">
                             {invite.consumed_by_user_sw.toFixed(0)}
@@ -391,11 +430,11 @@ export default function InvitePage() {
                         )}
                       </td>
                       {isAdmin && (
-                        <td className="py-3 px-4 text-sm">
+                        <td className="py-2 px-2 text-xs">
                           <button
                             onClick={() => handleDeleteInvite(invite.id)}
                             disabled={loading}
-                            className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition"
+                            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition"
                           >
                             Delete
                           </button>
