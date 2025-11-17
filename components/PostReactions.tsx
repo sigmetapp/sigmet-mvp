@@ -169,15 +169,15 @@ export default function PostReactions({
         }}
       >
         <span 
-          className={`text-base md:text-lg leading-none select-none inline-flex items-center justify-center transition-all duration-200 ${
+          className={`${reaction.id === 'verify' ? 'text-sm md:text-base' : 'text-base md:text-lg'} leading-none select-none inline-flex items-center justify-center transition-all duration-200 ${
             isSelected ? 'opacity-100' : isLight ? 'opacity-50' : 'opacity-70'
           }`}
           role="img" 
           aria-label={`${reaction.id} reaction`}
           style={{ 
-            fontSize: '1rem',
-            minWidth: '1.25rem',
-            minHeight: '1.25rem',
+            fontSize: reaction.id === 'verify' ? '0.75rem' : '1rem',
+            minWidth: reaction.id === 'verify' ? '1rem' : '1.25rem',
+            minHeight: reaction.id === 'verify' ? '1rem' : '1.25rem',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
