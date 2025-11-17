@@ -1249,15 +1249,15 @@ function GrowthDirectionsInner() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-0 md:px-4 py-4 md:p-4 transition-opacity duration-300">
+    <div className="max-w-7xl mx-auto px-4 md:px-4 py-4 md:p-4 transition-opacity duration-300">
       {/* Header */}
-      <div className="mb-6 md:mb-8">
-        <div className="flex items-center justify-between">
+      <div className="mb-4 md:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
           <div>
-            <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+            <h1 className={`text-xl md:text-2xl lg:text-3xl font-semibold tracking-tight ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
               Growth Directions
             </h1>
-            <p className={`mt-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+            <p className={`mt-1 text-sm md:text-base ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
               Select directions and activate tasks to track your growth.
             </p>
           </div>
@@ -1267,7 +1267,7 @@ function GrowthDirectionsInner() {
                 onClick={resetAllAchievements}
                 disabled={resettingAchievements}
                 variant="secondary"
-                className="text-sm"
+                className="text-xs md:text-sm"
               >
                 {resettingAchievements ? 'Resetting...' : 'Reset All Achievements'}
               </Button>
@@ -1278,17 +1278,17 @@ function GrowthDirectionsInner() {
 
       {/* Notification */}
       {notification && (
-        <div className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-[9999] text-white px-6 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-5 ${
+        <div className={`fixed top-16 md:top-20 left-1/2 transform -translate-x-1/2 z-[9999] text-white px-4 md:px-6 py-2 md:py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-5 max-w-[90vw] md:max-w-none ${
           notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
         }`}>
-          <div className="flex items-center gap-3">
-            <span className="text-lg" aria-hidden="true">
+          <div className="flex items-center gap-2 md:gap-3">
+            <span className="text-base md:text-lg flex-shrink-0" aria-hidden="true">
               {notification.type === 'success' ? String.fromCodePoint(0x2705) : String.fromCodePoint(0x26A0)}
             </span>
-            <p className="font-medium">{notification.message}</p>
+            <p className="font-medium text-sm md:text-base break-words">{notification.message}</p>
             <button
               onClick={() => setNotification(null)}
-              className="ml-4 text-white/80 hover:text-white transition"
+              className="ml-2 md:ml-4 text-white/80 hover:text-white transition flex-shrink-0"
               aria-label="Close notification"
             >
               {String.fromCodePoint(0x2715)}
@@ -1300,26 +1300,26 @@ function GrowthDirectionsInner() {
 
       {/* Completed Tasks & Total Points Section */}
       {!loading && (
-        <div className={`p-4 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+        <div className={`p-3 md:p-4 lg:p-6 mb-4 md:mb-6 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 md:mb-6">
             <div>
-              <h2 className={`font-semibold text-base mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+              <h2 className={`font-semibold text-sm md:text-base mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 {String.fromCodePoint(0x1F389)} Completed Tasks & Points
               </h2>
-              <p className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+              <p className={`text-xs md:text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                 Track your achievements and earned points
               </p>
             </div>
-            <div className={`relative inline-flex items-center justify-center px-6 py-4 rounded-2xl ${
+            <div className={`relative inline-flex items-center justify-center px-4 md:px-6 py-3 md:py-4 rounded-2xl ${
               isLight 
                 ? 'bg-gradient-to-r from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/20' 
                 : 'bg-gradient-to-r from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/30'
             }`}>
               <div className="text-center">
-                <div className={`text-xs uppercase tracking-wider mb-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                <div className={`text-[10px] md:text-xs uppercase tracking-wider mb-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                   Total Points
                 </div>
-                <div className={`text-3xl font-bold bg-gradient-to-r ${isLight ? 'from-primary-blue to-primary-blue-light bg-clip-text text-transparent' : 'from-primary-blue-light to-primary-blue bg-clip-text text-transparent'}`}>
+                <div className={`text-2xl md:text-3xl font-bold bg-gradient-to-r ${isLight ? 'from-primary-blue to-primary-blue-light bg-clip-text text-transparent' : 'from-primary-blue-light to-primary-blue bg-clip-text text-transparent'}`}>
                   {totalPoints.toLocaleString('en-US')}
                 </div>
               </div>
@@ -1341,7 +1341,85 @@ function GrowthDirectionsInner() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Mobile Card View */}
+              <div className="block md:hidden space-y-3">
+                {paginatedCompletedTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className={`p-3 rounded-lg border ${
+                      isLight
+                        ? 'bg-white/40 border-primary-blue/10'
+                        : 'bg-white/5 border-primary-blue/20'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 mb-2">
+                      <div className={`flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 ${
+                        task.taskType === 'habit'
+                          ? 'bg-emerald-500/10'
+                          : 'bg-blue-500/10'
+                      }`}>
+                        <span className="text-xl">
+                          {resolveDirectionEmoji(task.direction.slug, task.direction.emoji)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <div className={`font-semibold text-sm leading-tight ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                            {task.title}
+                          </div>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider flex-shrink-0 ${
+                              task.taskType === 'habit'
+                                ? 'bg-emerald-500/15 text-emerald-400'
+                                : 'bg-blue-500/15 text-blue-400'
+                            }`}
+                          >
+                            {task.taskType === 'habit' ? 'Habit' : 'Goal'}
+                          </span>
+                        </div>
+                        <div className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                          {task.direction.title}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600/30">
+                      <div>
+                        {task.completedAt ? (
+                          <div className="flex flex-col leading-tight">
+                            <span className={`font-medium text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                              {new Date(task.completedAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </span>
+                            <span className="text-[10px] opacity-70">
+                              {new Date(task.completedAt).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                              })}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="opacity-50 text-xs">{String.fromCodePoint(0x2014)}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end leading-tight">
+                        <div className={`text-base font-semibold ${isLight ? 'text-primary-blue' : 'text-primary-blue-light'}`}>
+                          {task.pointsAwarded.toLocaleString('en-US')}
+                        </div>
+                        {task.pointsAwarded !== task.basePoints && (
+                          <div className={`text-[10px] ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                            <span className="opacity-70">base: {task.basePoints.toLocaleString('en-US')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className={`border-b ${isLight ? 'border-primary-blue/10' : 'border-primary-blue/20'}`}>
@@ -1440,16 +1518,16 @@ function GrowthDirectionsInner() {
                 </table>
               </div>
               {completedTasks.length > COMPLETED_PAGE_SIZE && (
-                <div className="flex flex-wrap items-center justify-between gap-3 mt-3 text-xs">
-                  <span className={`${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-3 text-xs">
+                  <span className={`text-center sm:text-left ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                     Showing {completedRangeStart}-{completedRangeEnd} of {completedTasks.length}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center gap-2">
                     <button
                       type="button"
                       onClick={() => setCompletedPage((prev) => Math.max(prev - 1, 0))}
                       disabled={completedPage === 0}
-                      className={`px-2 py-1 rounded-lg border text-[11px] font-medium transition ${
+                      className={`px-3 py-1.5 md:px-2 md:py-1 rounded-lg border text-[11px] font-medium transition ${
                         completedPage === 0
                           ? 'opacity-40 cursor-not-allowed'
                           : isLight
@@ -1459,14 +1537,14 @@ function GrowthDirectionsInner() {
                     >
                       Prev
                     </button>
-                    <span className={`text-[11px] font-medium ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                    <span className={`text-[11px] font-medium px-2 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                       Page {completedPage + 1} / {totalCompletedPages}
                     </span>
                     <button
                       type="button"
                       onClick={() => setCompletedPage((prev) => Math.min(prev + 1, totalCompletedPages - 1))}
                       disabled={completedPage >= totalCompletedPages - 1}
-                      className={`px-2 py-1 rounded-lg border text-[11px] font-medium transition ${
+                      className={`px-3 py-1.5 md:px-2 md:py-1 rounded-lg border text-[11px] font-medium transition ${
                         completedPage >= totalCompletedPages - 1
                           ? 'opacity-40 cursor-not-allowed'
                           : isLight
@@ -1530,8 +1608,8 @@ function GrowthDirectionsInner() {
         <div className="space-y-6">
           {/* Directions List */}
           <div>
-            <div className={`p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
-              <h2 className={`font-semibold mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+            <div className={`p-3 md:p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+              <h2 className={`font-semibold mb-3 text-sm md:text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Directions
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -1563,7 +1641,7 @@ function GrowthDirectionsInner() {
                   return (
                     <div
                       key={dir.id}
-                      className={`p-2 rounded-lg transition ${
+                      className={`p-2 md:p-2.5 rounded-lg transition ${
                         isInDevelopment 
                           ? 'cursor-not-allowed opacity-60' 
                           : 'cursor-pointer'
@@ -1584,10 +1662,10 @@ function GrowthDirectionsInner() {
                     >
                       <div className="flex items-center justify-between gap-1.5">
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          <span className="text-base flex-shrink-0">{resolveDirectionEmoji(dir.slug, dir.emoji)}</span>
+                          <span className="text-base md:text-lg flex-shrink-0">{resolveDirectionEmoji(dir.slug, dir.emoji)}</span>
                           <div className="flex-1 min-w-0">
-                            <span className="font-medium text-[15px] block truncate leading-tight">{dir.title}</span>
-                            <div className={`text-[12px] uppercase tracking-wide leading-tight ${isSelected ? 'text-white/70' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                            <span className="font-medium text-sm md:text-[15px] block truncate leading-tight">{dir.title}</span>
+                            <div className={`text-[11px] md:text-[12px] uppercase tracking-wide leading-tight ${isSelected ? 'text-white/70' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                               {isInDevelopment ? 'In dev' : dir.isSelected ? 'Priority' : 'Available'}
                             </div>
                           </div>
@@ -1607,7 +1685,7 @@ function GrowthDirectionsInner() {
                               ? 'Cannot add more than 3 priority directions' 
                               : undefined
                           }
-                          className={`flex-shrink-0 px-2 py-1 rounded-full text-[13px] font-semibold transition whitespace-nowrap ${
+                          className={`flex-shrink-0 px-2 py-1 rounded-full text-xs md:text-[13px] font-semibold transition whitespace-nowrap ${
                             isInDevelopment
                               ? 'border-2 border-gray-400/50 text-gray-500 bg-gray-100/50 cursor-not-allowed'
                               : dir.isSelected
@@ -1621,7 +1699,7 @@ function GrowthDirectionsInner() {
                         </button>
                       </div>
                       {dir.stats.swPoints > 0 && (
-                        <div className={`mt-1 text-[13px] ${isSelected ? 'text-white/80' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                        <div className={`mt-1 text-xs md:text-[13px] ${isSelected ? 'text-white/80' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           {dir.stats.swPoints} SW
                         </div>
                       )}
@@ -1641,11 +1719,11 @@ function GrowthDirectionsInner() {
                     Loading tasks...
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 animate-fade-in">
+                  <div className="grid grid-cols-1 gap-6 md:gap-8 lg:grid-cols-2 animate-fade-in">
                     {/* Habits */}
-                    <section className="space-y-4">
+                    <section className="space-y-3 md:space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                        <h3 className={`font-semibold text-sm md:text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           Habits ({totalHabits})
                         </h3>
                       </div>
@@ -1665,7 +1743,7 @@ function GrowthDirectionsInner() {
                             <div
                               key={habit.id}
                               id={elementId}
-                              className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
+                              className={`p-3 md:p-4 lg:p-6 space-y-3 md:space-y-4 rounded-lg border transition ${
                                 isHighlighted ? 'ring-2 ring-primary-blue' : ''
                               } ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
                             >
@@ -1743,9 +1821,9 @@ function GrowthDirectionsInner() {
                     </section>
 
                     {/* Goals */}
-                    <section className="space-y-4">
+                    <section className="space-y-3 md:space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                        <h3 className={`font-semibold text-sm md:text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           Goals ({totalGoals})
                         </h3>
                       </div>
@@ -1766,7 +1844,7 @@ function GrowthDirectionsInner() {
                             <div
                               key={goal.id}
                               id={elementId}
-                              className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
+                              className={`p-3 md:p-4 lg:p-6 space-y-3 md:space-y-4 rounded-lg border transition ${
                                 isHighlighted ? 'ring-2 ring-primary-blue' : ''
                               } ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
                             >
@@ -1872,12 +1950,12 @@ function GrowthDirectionsInner() {
 
       {/* Complete Goal Modal */}
       {showCompleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingCompletePost && !completing.has(showCompleteModal.userTaskId) && setShowCompleteModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 space-y-2 shadow-2xl`}>
+          <div className={`relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 md:p-6 space-y-2 md:space-y-3 shadow-2xl`}>
             <div className="flex items-center justify-between">
               <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Complete Goal & Publish
@@ -2035,12 +2113,12 @@ function GrowthDirectionsInner() {
 
       {/* Check-in Post Modal */}
       {showCheckInModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingPost && setShowCheckInModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 space-y-2 shadow-2xl`}>
+          <div className={`relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 md:p-6 space-y-2 md:space-y-3 shadow-2xl`}>
             <div className="flex items-center justify-between">
               <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Create Check-in Post
