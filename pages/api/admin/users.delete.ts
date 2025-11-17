@@ -47,6 +47,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!user_id) return res.status(400).json({ error: 'user_id is required' });
 
     const admin = supabaseAdmin();
+
+    // Explicitly delete all user content before deleting the user
+    // This ensures all posts, comments, reactions, and related data are removed
+    // even if cascade deletion doesn't work due to RLS policies
+    
+    // Delete user's posts (this will cascade delete post_reactions and comments)
+    await admin.from('posts').delete().eq('author_id', user_id);
+    
+    // Delete user's comments (this will cascade delete comment_reactions)
+    await admin.from('comments').delete().eq('author_id', user_id);
+    
+    // Delete user's reactions on posts
+    await admin.from('post_reactions').delete().eq('user_id', user_id);
+    
+    // Delete user's reactions on comments
+    await admin.from('comment_reactions').delete().eq('user_id', user_id);
+    
+    // Delete user's goal reactions (both as reactor and as goal owner)
+    await admin.from('goal_reactions').delete().eq('user_id', user_id);
+    await admin.from('goal_reactions').delete().eq('goal_user_id', user_id);
+    
+    // Delete user's blog posts (this will cascade delete blog_post_reactions and blog_comments)
+    await admin.from('blog_posts').delete().eq('author_id', user_id);
+    
+    // Delete user's blog comments (this will cascade delete blog_comment_reactions)
+    await admin.from('blog_comments').delete().eq('author_id', user_id);
+    
+    // Delete user's blog post reactions
+    await admin.from('blog_post_reactions').delete().eq('user_id', user_id);
+    
+    // Delete user's blog comment reactions
+    await admin.from('blog_comment_reactions').delete().eq('user_id', user_id);
+    
+    // Delete user connections (mentions)
+    await admin.from('user_connections').delete().eq('user_id', user_id);
+    await admin.from('user_connections').delete().eq('connected_user_id', user_id);
+
+    // Now delete the user (this will cascade delete profiles and other related data)
     const { error } = await admin.auth.admin.deleteUser(user_id);
     if (error) throw error;
 
