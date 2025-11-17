@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import dynamic from "next/dynamic";
 import SupabaseAuthSync from "@/components/SupabaseAuthSync";
+import InviteAcceptanceSync from "@/components/InviteAcceptanceSync";
 import Layout from "@/components/Layout";
 import { SiteSettingsProvider } from "@/components/SiteSettingsContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <PostHogInit />
         <SupabaseAuthSync />
+        <InviteAcceptanceSync />
         <SpeedInsights />
         <ThemeProvider>
           <SiteSettingsProvider>

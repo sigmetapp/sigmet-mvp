@@ -105,21 +105,37 @@ export default function AuthPage() {
         let inviteAccepted = false;
         if (normalizedInviteCode && signData?.user) {
           try {
-            const { data: inviteId, error: acceptErr } = await supabase.rpc(
-              "accept_invite_by_code",
-              {
-                invite_code: normalizedInviteCode,
-              },
-            );
+            const response = await fetch("/api/invite/accept", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                inviteCode: normalizedInviteCode,
+                userId: signData.user.id,
+              }),
+            });
 
-            if (!acceptErr && inviteId) {
+            if (response.ok) {
+              const payload = (await response.json()) as { inviteId?: string };
+              if (payload?.inviteId) {
+                inviteAccepted = true;
+                const { trackInviteAccepted } = await import(
+                  "@/lib/invite-tracking"
+                );
+                await trackInviteAccepted(payload.inviteId, signData.user.id);
+              } else {
+                console.warn(
+                  "Invite acceptance returned without invite id",
+                  payload,
+                );
+              }
+            } else if (response.status === 409) {
               inviteAccepted = true;
-              const { trackInviteAccepted } = await import(
-                "@/lib/invite-tracking"
-              );
-              await trackInviteAccepted(inviteId, signData.user.id);
-            } else if (acceptErr) {
-              console.warn("Invite acceptance error:", acceptErr);
+            } else {
+              const payload = await response.json().catch(() => null);
+              console.warn("Invite acceptance API error", {
+                status: response.status,
+                payload,
+              });
             }
           } catch (acceptErr) {
             console.warn("Invite acceptance exception:", acceptErr);
