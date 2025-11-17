@@ -679,18 +679,13 @@ export default function PublicProfilePage() {
               .eq('follower_id', profile.user_id),
             supabase
               .from('invites')
-              .select('uses')
-              .eq('creator', profile.user_id)
-              .gt('uses', 0),
+              .select('id', { count: 'exact', head: true })
+              .eq('inviter_user_id', profile.user_id)
+              .eq('status', 'accepted'),
           ]);
           setFollowersCount(followersRes.count || 0);
           setFollowingCount(followingRes.count || 0);
-          const referralsData = (referralsRes.data ?? []) as Array<{ uses: number | null }>;
-          const totalReferrals = referralsData.reduce(
-            (sum, invite) => sum + (invite.uses ?? 0),
-            0
-          );
-          setReferralsCount(totalReferrals);
+          setReferralsCount(referralsRes.count || 0);
 
           // Calculate connections (mutual follows): people who follow the user AND are followed by the user
           const [followersData, followingData] = await Promise.all([
