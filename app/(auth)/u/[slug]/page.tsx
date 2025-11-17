@@ -2420,8 +2420,12 @@ export default function PublicProfilePage() {
                   disabled={feedbackPending || feedbackText.trim().length < 100}
                   className={`px-4 py-2 rounded-xl border transition ${
                     pushType === 'positive'
-                      ? 'border-emerald-400 text-emerald-400 bg-emerald-400/10'
-                      : 'border-emerald-300/50 text-emerald-300/70 hover:bg-emerald-300/10'
+                      ? isLight
+                        ? 'border-emerald-600 text-emerald-700 bg-emerald-50'
+                        : 'border-emerald-400 text-emerald-400 bg-emerald-400/10'
+                      : isLight
+                        ? 'border-emerald-400 text-emerald-600 hover:bg-emerald-50'
+                        : 'border-emerald-300/50 text-emerald-300/70 hover:bg-emerald-300/10'
                   } ${feedbackPending || feedbackText.trim().length < 100 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Positive Push
@@ -2436,8 +2440,12 @@ export default function PublicProfilePage() {
                   disabled={feedbackPending || feedbackText.trim().length < 100}
                   className={`px-4 py-2 rounded-xl border transition ${
                     pushType === 'negative'
-                      ? 'border-rose-400 text-rose-400 bg-rose-400/10'
-                      : 'border-rose-300/50 text-rose-300/70 hover:bg-rose-300/10'
+                      ? isLight
+                        ? 'border-rose-600 text-rose-700 bg-rose-50'
+                        : 'border-rose-400 text-rose-400 bg-rose-400/10'
+                      : isLight
+                        ? 'border-rose-400 text-rose-600 hover:bg-rose-50'
+                        : 'border-rose-300/50 text-rose-300/70 hover:bg-rose-300/10'
                   } ${feedbackPending || feedbackText.trim().length < 100 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Negative Push
