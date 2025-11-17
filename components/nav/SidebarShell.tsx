@@ -27,7 +27,7 @@ export default function SidebarShell({ user, children }: { user: User; children:
         {/* Main content */}
         <main
           data-scroll-container="true"
-          className={`min-h-screen flex-1 overflow-y-auto px-4 pt-4 pb-24 lg:pb-6 lg:px-8 lg:py-6 lg:pt-6 transition-colors relative z-0 ${
+          className={`min-h-screen flex-1 px-4 pt-4 pb-24 lg:pb-6 lg:px-8 lg:py-6 lg:pt-6 transition-colors relative z-0 ${
           isLight ? "text-primary-text" : "text-primary-text"
           }`}
         >
