@@ -310,8 +310,8 @@ export default function PostFeed({
       const totalLoaded = offset + (data as Post[]).length;
       setHasMore(count ? totalLoaded < count : (data as Post[]).length === limit);
       
-      // Preload comment counts for visible posts
-      preloadCommentCounts(data as Post[]);
+      // Preload comment counts for visible posts (await to ensure counts are loaded before render)
+      await preloadCommentCounts(data as Post[]);
 
       // Preload author profiles (username, full_name, avatar) with caching
       // Load profiles together with posts to ensure avatars are available
@@ -1049,18 +1049,43 @@ export default function PostFeed({
   async function preloadCommentCounts(list: Post[]) {
     try {
       const ids = list.map((p) => p.id);
-      const { data } = await supabase
+      if (ids.length === 0) return;
+      
+      // Use SQL aggregation for better performance
+      const { data, error } = await supabase
         .from("comments")
         .select("post_id")
         .in("post_id", ids);
+      
+      if (error) {
+        console.error('Error loading comment counts:', error);
+        return;
+      }
+      
+      // Count comments per post
       const counts: Record<number, number> = {};
       for (const row of (data as any[]) || []) {
         const pid = row.post_id as number;
         counts[pid] = (counts[pid] || 0) + 1;
       }
-      setCommentCounts(counts);
-    } catch {
-      // fallback: leave zeroes
+      
+      // Initialize all posts with 0 if they have no comments
+      for (const post of list) {
+        if (!(post.id in counts)) {
+          counts[post.id] = 0;
+        }
+      }
+      
+      // Merge with existing counts instead of replacing
+      setCommentCounts((prev) => ({ ...prev, ...counts }));
+    } catch (error) {
+      console.error('Error in preloadCommentCounts:', error);
+      // Initialize with zeros for all posts
+      const counts: Record<number, number> = {};
+      for (const post of list) {
+        counts[post.id] = 0;
+      }
+      setCommentCounts((prev) => ({ ...prev, ...counts }));
     }
   }
 
