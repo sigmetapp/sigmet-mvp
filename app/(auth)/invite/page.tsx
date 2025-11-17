@@ -100,10 +100,24 @@ export default function InvitePage() {
 
   const loadInvites = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Check admin status to determine if we should show all invites
+      const { data: adminStatus } = await supabase.rpc('is_admin_uid');
+      const userIsAdmin = adminStatus ?? false;
+
+      // Build query - filter by inviter_user_id unless admin
+      let query = supabase
         .from('invites')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
+      
+      // If not admin, filter by current user's invites
+      if (!userIsAdmin) {
+        query = query.eq('inviter_user_id', user.id);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
       
