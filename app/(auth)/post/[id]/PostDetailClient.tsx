@@ -1492,23 +1492,23 @@ export default function PostDetailClient({ postId, initialPost }: PostDetailClie
                 role="button"
                 aria-label={`View ${mediaCount} media file${mediaCount > 1 ? 's' : ''}`}
               >
-                <div className={`relative rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700`} style={{ maxHeight: '600px', aspectRatio: '16/9' }}>
+                <div className={`relative rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center`} style={{ maxHeight: '800px' }}>
                   {firstMedia.type === 'image' ? (
                     <ProgressiveImage
                       src={firstMedia.url}
                       alt={`Post preview (${mediaCount} file${mediaCount > 1 ? 's' : ''})`}
-                      className="w-full h-full"
+                      className="max-w-full max-h-full w-auto h-auto"
                       placeholder="blur"
                       priority={true}
-                      objectFit="cover"
+                      objectFit="contain"
                     />
                   ) : (
-                    <div className="w-full h-full relative bg-gray-900">
+                    <div className="relative bg-gray-900 flex items-center justify-center" style={{ width: '100%', minHeight: '300px' }}>
                       <video 
                         preload="metadata"
                         playsInline
                         muted
-                        className="w-full h-full object-cover"
+                        className="max-w-full max-h-[800px] w-auto h-auto object-contain"
                         poster={imageUrls[0] || undefined}
                       >
                         <source src={firstMedia.url} type="video/mp4" />

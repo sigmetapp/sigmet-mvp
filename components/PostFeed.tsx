@@ -1641,21 +1641,21 @@ export default function PostFeed({
                             role="button"
                             aria-label={`View ${mediaCount} media file${mediaCount > 1 ? 's' : ''}`}
                           >
-                            <div className={`relative rounded-lg overflow-hidden ${isLight ? "border border-primary-blue/20" : "border border-primary-blue/30"}`} style={{ maxHeight: '500px', aspectRatio: '16/9' }}>
+                            <div className={`relative rounded-lg overflow-hidden flex items-center justify-center ${isLight ? "border border-primary-blue/20" : "border border-primary-blue/30"}`} style={{ maxHeight: '500px' }}>
                               {firstMedia.type === 'image' ? (
                                 <img 
                                   src={firstMedia.url} 
                                   loading="lazy" 
-                                  className="w-full h-full object-cover" 
+                                  className="max-w-full max-h-full w-auto h-auto object-contain" 
                                   alt={`Post preview (${mediaCount} file${mediaCount > 1 ? 's' : ''})`} 
                                 />
                               ) : (
-                                <div className="w-full h-full relative bg-gray-900">
+                                <div className="relative bg-gray-900 flex items-center justify-center" style={{ width: '100%', minHeight: '200px' }}>
                                   <video 
                                     preload="metadata"
                                     playsInline
                                     muted
-                                    className="w-full h-full object-cover"
+                                    className="max-w-full max-h-[500px] w-auto h-auto object-contain"
                                     poster={imageUrls[0] || undefined}
                                   >
                                     <source src={firstMedia.url} type="video/mp4" />
