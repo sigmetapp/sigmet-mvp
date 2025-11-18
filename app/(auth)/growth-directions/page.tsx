@@ -1249,25 +1249,25 @@ function GrowthDirectionsInner() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-4 py-4 md:py-6 transition-opacity duration-300">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6 transition-opacity duration-300">
       {/* Header */}
       <div className="mb-6 md:mb-8">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex-1 min-w-0">
             <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
               Growth Directions
             </h1>
-            <p className={`mt-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+            <p className={`mt-1 text-sm sm:text-base ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
               Select directions and activate tasks to track your growth.
             </p>
           </div>
             {isAdmin && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-shrink-0">
               <Button
                 onClick={resetAllAchievements}
                 disabled={resettingAchievements}
                 variant="secondary"
-                className="text-sm"
+                className="text-xs sm:text-sm whitespace-nowrap"
               >
                 {resettingAchievements ? 'Resetting...' : 'Reset All Achievements'}
               </Button>
@@ -1278,17 +1278,17 @@ function GrowthDirectionsInner() {
 
       {/* Notification */}
       {notification && (
-        <div className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-[9999] text-white px-6 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-5 ${
+        <div className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-[9999] text-white px-4 sm:px-6 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-5 max-w-[90vw] sm:max-w-md ${
           notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
         }`}>
-          <div className="flex items-center gap-3">
-            <span className="text-lg" aria-hidden="true">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-base sm:text-lg flex-shrink-0" aria-hidden="true">
               {notification.type === 'success' ? String.fromCodePoint(0x2705) : String.fromCodePoint(0x26A0)}
             </span>
-            <p className="font-medium">{notification.message}</p>
+            <p className="font-medium text-sm sm:text-base break-words flex-1 min-w-0">{notification.message}</p>
             <button
               onClick={() => setNotification(null)}
-              className="ml-4 text-white/80 hover:text-white transition"
+              className="ml-2 sm:ml-4 text-white/80 hover:text-white transition flex-shrink-0"
               aria-label="Close notification"
             >
               {String.fromCodePoint(0x2715)}
@@ -1300,26 +1300,26 @@ function GrowthDirectionsInner() {
 
       {/* Completed Tasks & Total Points Section */}
       {!loading && (
-        <div className={`p-4 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-            <div>
-              <h2 className={`font-semibold text-base mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+        <div className={`p-4 sm:p-5 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div className="flex-1 min-w-0">
+              <h2 className={`font-semibold text-base sm:text-lg mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 {String.fromCodePoint(0x1F389)} Completed Tasks & Points
               </h2>
-              <p className={`text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+              <p className={`text-xs sm:text-sm ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                 Track your achievements and earned points
               </p>
             </div>
-            <div className={`relative inline-flex items-center justify-center px-6 py-4 rounded-2xl ${
+            <div className={`relative inline-flex items-center justify-center px-4 sm:px-6 py-3 sm:py-4 rounded-2xl flex-shrink-0 ${
               isLight 
                 ? 'bg-gradient-to-r from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/20' 
                 : 'bg-gradient-to-r from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/30'
             }`}>
               <div className="text-center">
-                <div className={`text-xs uppercase tracking-wider mb-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                <div className={`text-[10px] sm:text-xs uppercase tracking-wider mb-1 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                   Total Points
                 </div>
-                <div className={`text-3xl font-bold bg-gradient-to-r ${isLight ? 'from-primary-blue to-primary-blue-light bg-clip-text text-transparent' : 'from-primary-blue-light to-primary-blue bg-clip-text text-transparent'}`}>
+                <div className={`text-2xl sm:text-3xl font-bold bg-gradient-to-r ${isLight ? 'from-primary-blue to-primary-blue-light bg-clip-text text-transparent' : 'from-primary-blue-light to-primary-blue bg-clip-text text-transparent'}`}>
                   {totalPoints.toLocaleString('en-US')}
                 </div>
               </div>
@@ -1502,8 +1502,8 @@ function GrowthDirectionsInner() {
                 </div>
 
                 {completedTasks.length > COMPLETED_PAGE_SIZE && (
-                <div className="flex flex-wrap items-center justify-between gap-3 mt-3 text-xs">
-                  <span className={`${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between gap-2 sm:gap-3 mt-3 text-xs">
+                  <span className={`text-[11px] sm:text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                     Showing {completedRangeStart}-{completedRangeEnd} of {completedTasks.length}
                   </span>
                   <div className="flex items-center gap-2">
@@ -1511,7 +1511,7 @@ function GrowthDirectionsInner() {
                       type="button"
                       onClick={() => setCompletedPage((prev) => Math.max(prev - 1, 0))}
                       disabled={completedPage === 0}
-                      className={`px-2 py-1 rounded-lg border text-[11px] font-medium transition ${
+                      className={`px-3 py-1.5 rounded-lg border text-[11px] sm:text-xs font-medium transition ${
                         completedPage === 0
                           ? 'opacity-40 cursor-not-allowed'
                           : isLight
@@ -1521,14 +1521,14 @@ function GrowthDirectionsInner() {
                     >
                       Prev
                     </button>
-                    <span className={`text-[11px] font-medium ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                    <span className={`text-[11px] sm:text-xs font-medium px-2 ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                       Page {completedPage + 1} / {totalCompletedPages}
                     </span>
                     <button
                       type="button"
                       onClick={() => setCompletedPage((prev) => Math.min(prev + 1, totalCompletedPages - 1))}
                       disabled={completedPage >= totalCompletedPages - 1}
-                      className={`px-2 py-1 rounded-lg border text-[11px] font-medium transition ${
+                      className={`px-3 py-1.5 rounded-lg border text-[11px] sm:text-xs font-medium transition ${
                         completedPage >= totalCompletedPages - 1
                           ? 'opacity-40 cursor-not-allowed'
                           : isLight
@@ -1592,11 +1592,11 @@ function GrowthDirectionsInner() {
         <div className="space-y-6">
           {/* Directions List */}
           <div>
-            <div className={`p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
-              <h2 className={`font-semibold mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+            <div className={`p-3 sm:p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+              <h2 className={`font-semibold text-sm sm:text-base mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Directions
               </h2>
-                <div className="flex snap-x gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-2 md:overflow-visible md:px-0 md:mx-0">
+                <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-2 md:overflow-visible md:px-0 md:mx-0 scrollbar-hide">
                 {directions
                   .filter((dir) => {
                     // Filter out directions in development
@@ -1625,7 +1625,7 @@ function GrowthDirectionsInner() {
                   return (
                       <div
                         key={dir.id}
-                        className={`p-2 rounded-lg transition flex-shrink-0 min-w-[240px] snap-start md:min-w-0 ${
+                        className={`p-2.5 sm:p-2 rounded-lg transition flex-shrink-0 min-w-[200px] sm:min-w-[240px] snap-start md:min-w-0 ${
                         isInDevelopment 
                           ? 'cursor-not-allowed opacity-60' 
                           : 'cursor-pointer'
@@ -1645,11 +1645,11 @@ function GrowthDirectionsInner() {
                       }}
                     >
                       <div className="flex items-center justify-between gap-1.5">
-                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          <span className="text-base flex-shrink-0">{resolveDirectionEmoji(dir.slug, dir.emoji)}</span>
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
+                          <span className="text-base sm:text-lg flex-shrink-0">{resolveDirectionEmoji(dir.slug, dir.emoji)}</span>
                           <div className="flex-1 min-w-0">
-                            <span className="font-medium text-[15px] block truncate leading-tight">{dir.title}</span>
-                            <div className={`text-[12px] uppercase tracking-wide leading-tight ${isSelected ? 'text-white/70' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                            <span className="font-medium text-sm sm:text-[15px] block truncate leading-tight">{dir.title}</span>
+                            <div className={`text-[11px] sm:text-[12px] uppercase tracking-wide leading-tight ${isSelected ? 'text-white/70' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                               {isInDevelopment ? 'In dev' : dir.isSelected ? 'Priority' : 'Available'}
                             </div>
                           </div>
@@ -1669,7 +1669,7 @@ function GrowthDirectionsInner() {
                               ? 'Cannot add more than 3 priority directions' 
                               : undefined
                           }
-                          className={`flex-shrink-0 px-2 py-1 rounded-full text-[13px] font-semibold transition whitespace-nowrap ${
+                          className={`flex-shrink-0 px-2 sm:px-2.5 py-1 rounded-full text-xs sm:text-[13px] font-semibold transition whitespace-nowrap ${
                             isInDevelopment
                               ? 'border-2 border-gray-400/50 text-gray-500 bg-gray-100/50 cursor-not-allowed'
                               : dir.isSelected
@@ -1683,7 +1683,7 @@ function GrowthDirectionsInner() {
                         </button>
                       </div>
                       {dir.stats.swPoints > 0 && (
-                        <div className={`mt-1 text-[13px] ${isSelected ? 'text-white/80' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                        <div className={`mt-1 text-xs sm:text-[13px] ${isSelected ? 'text-white/80' : isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                           {dir.stats.swPoints} SW
                         </div>
                       )}
@@ -1703,11 +1703,11 @@ function GrowthDirectionsInner() {
                     Loading tasks...
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 animate-fade-in">
+                  <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-2 animate-fade-in">
                     {/* Habits */}
-                    <section className="space-y-4">
+                    <section className="space-y-3 sm:space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                        <h3 className={`font-semibold text-sm sm:text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           Habits ({totalHabits})
                         </h3>
                       </div>
@@ -1727,7 +1727,7 @@ function GrowthDirectionsInner() {
                             <div
                               key={habit.id}
                               id={elementId}
-                              className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
+                              className={`p-4 sm:p-5 md:p-6 space-y-3 sm:space-y-4 rounded-lg border transition ${
                                 isHighlighted ? 'ring-2 ring-primary-blue' : ''
                               } ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
                             >
@@ -1805,9 +1805,9 @@ function GrowthDirectionsInner() {
                     </section>
 
                     {/* Goals */}
-                    <section className="space-y-4">
+                    <section className="space-y-3 sm:space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                        <h3 className={`font-semibold text-sm sm:text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                           Goals ({totalGoals})
                         </h3>
                       </div>
@@ -1828,7 +1828,7 @@ function GrowthDirectionsInner() {
                             <div
                               key={goal.id}
                               id={elementId}
-                              className={`p-4 md:p-6 space-y-4 rounded-lg border transition ${
+                              className={`p-4 sm:p-5 md:p-6 space-y-3 sm:space-y-4 rounded-lg border transition ${
                                 isHighlighted ? 'ring-2 ring-primary-blue' : ''
                               } ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}
                             >
@@ -1934,12 +1934,12 @@ function GrowthDirectionsInner() {
 
       {/* Complete Goal Modal */}
       {showCompleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingCompletePost && !completing.has(showCompleteModal.userTaskId) && setShowCompleteModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 space-y-2 shadow-2xl`}>
+          <div className={`relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 sm:p-6 space-y-3 sm:space-y-4 shadow-2xl`}>
             <div className="flex items-center justify-between">
               <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Complete Goal & Publish
@@ -2071,12 +2071,12 @@ function GrowthDirectionsInner() {
                 </div>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
               <Button
                 onClick={() => completeGoal(showCompleteModal.userTaskId)}
                 disabled={publishingCompletePost || completing.has(showCompleteModal.userTaskId)}
                 variant="primary"
-                className="flex-1"
+                className="flex-1 w-full sm:w-auto"
               >
                 {publishingCompletePost ? 'Publishing...' : completing.has(showCompleteModal.userTaskId) ? 'Completing...' : 'Complete & Publish'}
               </Button>
@@ -2087,6 +2087,7 @@ function GrowthDirectionsInner() {
                 }}
                 disabled={publishingCompletePost || completing.has(showCompleteModal.userTaskId)}
                 variant="secondary"
+                className="w-full sm:w-auto"
               >
                 Cancel
               </Button>
@@ -2097,12 +2098,12 @@ function GrowthDirectionsInner() {
 
       {/* Check-in Post Modal */}
       {showCheckInModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingPost && setShowCheckInModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl mx-4 ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 space-y-2 shadow-2xl`}>
+          <div className={`relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 sm:p-6 space-y-3 sm:space-y-4 shadow-2xl`}>
             <div className="flex items-center justify-between">
               <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Create Check-in Post
@@ -2235,12 +2236,12 @@ function GrowthDirectionsInner() {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
               <Button
                 onClick={publishCheckInPost}
                 disabled={publishingPost}
                 variant="primary"
-                className="flex-1"
+                className="flex-1 w-full sm:w-auto"
               >
                 {publishingPost ? 'Publishing...' : 'Publish & Check-in'}
               </Button>
@@ -2251,6 +2252,7 @@ function GrowthDirectionsInner() {
                 }}
                 disabled={publishingPost}
                 variant="secondary"
+                className="w-full sm:w-auto"
               >
                 Cancel
               </Button>
