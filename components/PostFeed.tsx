@@ -32,7 +32,7 @@ import { useRouter } from "next/navigation";
 import { resolveDirectionEmoji } from "@/lib/directions";
 import EmojiPicker from "@/components/EmojiPicker";
 import MentionInput from "@/components/MentionInput";
-import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag, UserPlus, HelpCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Image as ImageIcon, Paperclip, X as CloseIcon, Flag, UserPlus, HelpCircle, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { formatTextWithMentions, hasMentions } from "@/lib/formatText";
 import ViewsChart from "@/components/ViewsChart";
 import AvatarWithBadge from "@/components/AvatarWithBadge";
@@ -1641,21 +1641,21 @@ export default function PostFeed({
                             role="button"
                             aria-label={`View ${mediaCount} media file${mediaCount > 1 ? 's' : ''}`}
                           >
-                            <div className={`relative rounded-lg overflow-hidden ${isLight ? "border border-primary-blue/20" : "border border-primary-blue/30"}`} style={{ maxHeight: '500px', aspectRatio: '16/9' }}>
+                            <div className={`relative rounded-lg overflow-hidden flex items-center justify-center ${isLight ? "border border-primary-blue/20" : "border border-primary-blue/30"}`} style={{ maxHeight: '500px' }}>
                               {firstMedia.type === 'image' ? (
                                 <img 
                                   src={firstMedia.url} 
                                   loading="lazy" 
-                                  className="w-full h-full object-cover" 
+                                  className="max-w-full max-h-full w-auto h-auto object-contain" 
                                   alt={`Post preview (${mediaCount} file${mediaCount > 1 ? 's' : ''})`} 
                                 />
                               ) : (
-                                <div className="w-full h-full relative bg-gray-900">
+                                <div className="relative bg-gray-900 flex items-center justify-center" style={{ width: '100%', minHeight: '200px' }}>
                                   <video 
                                     preload="metadata"
                                     playsInline
                                     muted
-                                    className="w-full h-full object-cover"
+                                    className="max-w-full max-h-[500px] w-auto h-auto object-contain"
                                     poster={imageUrls[0] || undefined}
                                   >
                                     <source src={firstMedia.url} type="video/mp4" />
@@ -2196,7 +2196,12 @@ export default function PostFeed({
         <div className="fixed inset-0 z-[10000] flex items-center justify-center">
           <div
             className={`absolute inset-0 ${isLight ? "bg-black/90" : "bg-black/95"}`}
-            onClick={() => setMediaGalleryOpen(null)}
+            onClick={(e) => {
+              // Only close if clicking directly on the backdrop (not on media)
+              if (e.target === e.currentTarget) {
+                setMediaGalleryOpen(null);
+              }
+            }}
           />
           <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
             <button
@@ -2205,6 +2210,20 @@ export default function PostFeed({
               aria-label="Close gallery"
             >
               <CloseIcon className="h-6 w-6" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (mediaGalleryOpen) {
+                  router.push(getPostUrl(mediaGalleryOpen.postId));
+                  setMediaGalleryOpen(null);
+                }
+              }}
+              className={`absolute top-4 right-16 md:right-20 flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg ${isLight ? "bg-white/20 hover:bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white"} transition-colors z-20`}
+              aria-label="View full post"
+            >
+              <span className="text-xs md:text-sm font-medium">View full post</span>
+              <ExternalLink className="h-3 w-3 md:h-4 md:w-4" />
             </button>
             
             {mediaGalleryOpen.media.length > 1 && (
