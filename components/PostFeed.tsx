@@ -1967,7 +1967,7 @@ export default function PostFeed({
       {buttonPosition === 'inline' && showComposer ? (
         <div className="flex flex-col-reverse lg:flex-row gap-4 lg:gap-6 items-stretch lg:items-start">
           {/* Posts */}
-          <div className="flex-1 space-y-3 min-w-0 lg:max-w-3xl">
+          <div className="flex-1 space-y-3 min-w-0 lg:max-w-3xl" style={{ overflowY: 'hidden' }}>
             {renderPostsList()}
           </div>
 
@@ -1991,7 +1991,7 @@ export default function PostFeed({
           {/* Feed */}
           <div 
             className="space-y-3"
-            style={postsMaxWidth ? { maxWidth: postsMaxWidth, margin: '0 auto' } : undefined}
+            style={postsMaxWidth ? { maxWidth: postsMaxWidth, margin: '0 auto', overflowY: 'hidden' } : { overflowY: 'hidden' }}
           >
             {renderPostsList()}
           </div>
