@@ -1249,7 +1249,7 @@ function GrowthDirectionsInner() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6 transition-opacity duration-300">
+    <div className="w-full max-w-full mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6 transition-opacity duration-300 overflow-x-hidden">
       {/* Header */}
       <div className="mb-6 md:mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1300,7 +1300,7 @@ function GrowthDirectionsInner() {
 
       {/* Completed Tasks & Total Points Section */}
       {!loading && (
-        <div className={`p-4 sm:p-5 md:p-6 mb-6 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+        <div className={`p-4 sm:p-5 md:p-6 mb-6 rounded-lg border w-full ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div className="flex-1 min-w-0">
               <h2 className={`font-semibold text-base sm:text-lg mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
@@ -1592,11 +1592,11 @@ function GrowthDirectionsInner() {
         <div className="space-y-6">
           {/* Directions List */}
           <div>
-            <div className={`p-3 sm:p-4 rounded-lg border ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
+            <div className={`p-3 sm:p-4 rounded-lg border w-full ${isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'}`}>
               <h2 className={`font-semibold text-sm sm:text-base mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Directions
               </h2>
-                <div className="flex snap-x snap-mandatory gap-2 sm:gap-3 overflow-x-auto pb-2 -mx-3 sm:-mx-4 px-3 sm:px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-2 md:overflow-visible scrollbar-hide">
+                <div className="flex snap-x snap-mandatory gap-2 sm:gap-3 overflow-x-auto pb-2 -mx-3 sm:-mx-4 px-3 sm:px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-2 md:overflow-visible scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
                 {directions
                   .filter((dir) => {
                     // Filter out directions in development
