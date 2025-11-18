@@ -63,26 +63,26 @@ const ConnectionItem = memo(function ConnectionItem({
   const dmUrl = `/dms?partnerId=${encodeURIComponent(connection.userId)}`;
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
+    <div className="flex items-center gap-2 p-2 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
       <AvatarWithBadge
         avatarUrl={avatar}
         swScore={swScore}
-        size="md"
+        size="sm"
         alt={displayName}
         href={profileUrl}
       />
       <div className="min-w-0 flex-1">
         <Link href={profileUrl} className="block hover:underline">
-          <div className="text-white font-medium truncate">{displayName}</div>
-          <div className="text-white/60 text-sm truncate">@{username}</div>
+          <div className="text-white font-medium truncate text-sm">{displayName}</div>
+          <div className="text-white/60 text-xs truncate">@{username}</div>
         </Link>
       </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <div className="text-right space-y-1">
-          <div className="text-white/80 text-sm font-medium">
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="text-right space-y-0.5">
+          <div className="text-white/80 text-xs font-medium">
             {connection.connectionsCount} {connection.connectionsCount === 1 ? 'connection' : 'connections'}
           </div>
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-2 text-xs">
             {swScore > 0 && (
               <div className="text-white/60">
                 SW: {swScore}
@@ -131,7 +131,7 @@ const FollowItem = memo(function FollowItem({
   const profileUrl = username ? `/u/${username}` : `/u/${userId}`;
 
   return (
-    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
+    <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/5 transition-colors">
       <AvatarWithBadge
         avatarUrl={avatar}
         swScore={swScore}
@@ -140,9 +140,9 @@ const FollowItem = memo(function FollowItem({
         href={profileUrl}
       />
       <Link href={profileUrl} className="min-w-0 flex-1 hover:underline">
-        <div className="text-white font-medium truncate">{displayName}</div>
-        <div className="text-white/60 text-sm truncate">@{username}</div>
-        <div className="flex items-center gap-3 text-xs mt-1">
+        <div className="text-white font-medium truncate text-sm">{displayName}</div>
+        <div className="text-white/60 text-xs truncate">@{username}</div>
+        <div className="flex items-center gap-2 text-xs mt-0.5">
           {swScore > 0 && (
             <div className="text-white/60">
               SW: {swScore}
@@ -192,22 +192,22 @@ const RecommendedItem = memo(function RecommendedItem({
     : 'Mutual follow';
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
+    <div className="flex items-center gap-2 p-2 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
       <AvatarWithBadge
         avatarUrl={avatar}
         swScore={swScore}
-        size="md"
+        size="sm"
         alt={displayName}
         href={profileUrl}
       />
       <div className="min-w-0 flex-1">
         <Link href={profileUrl} className="block hover:underline">
-          <div className="text-white font-medium truncate">{displayName}</div>
-          <div className="text-white/60 text-sm truncate">@{username}</div>
-          <div className="text-white/50 text-xs mt-1">{reasonText}</div>
+          <div className="text-white font-medium truncate text-sm">{displayName}</div>
+          <div className="text-white/60 text-xs truncate">@{username}</div>
+          <div className="text-white/50 text-xs mt-0.5">{reasonText}</div>
         </Link>
       </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         <Link href={dmUrl}>
           <Button variant="primary" size="sm">
             Write
@@ -221,18 +221,18 @@ const RecommendedItem = memo(function RecommendedItem({
 // Skeleton loader for connection items
 const ConnectionSkeleton = memo(function ConnectionSkeleton() {
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border border-white/10">
-      <Skeleton variant="circular" width={48} height={48} />
-      <div className="min-w-0 flex-1 space-y-2">
-        <Skeleton width="60%" height={16} />
-        <Skeleton width="40%" height={14} />
+    <div className="flex items-center gap-2 p-2 rounded-lg border border-white/10">
+      <Skeleton variant="circular" width={40} height={40} />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <Skeleton width="60%" height={14} />
+        <Skeleton width="40%" height={12} />
       </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <div className="text-right space-y-2">
-          <Skeleton width={80} height={14} />
-          <Skeleton width={60} height={12} />
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="text-right space-y-1">
+          <Skeleton width={80} height={12} />
+          <Skeleton width={60} height={10} />
         </div>
-        <Skeleton width={60} height={32} />
+        <Skeleton width={60} height={28} />
       </div>
     </div>
   );
@@ -241,14 +241,14 @@ const ConnectionSkeleton = memo(function ConnectionSkeleton() {
 // Skeleton loader for follow items
 const FollowSkeleton = memo(function FollowSkeleton() {
   return (
-    <div className="flex items-center gap-3 p-2 rounded-lg">
-      <Skeleton variant="circular" width={40} height={40} />
-      <div className="min-w-0 flex-1 space-y-2">
-        <Skeleton width="50%" height={16} />
-        <Skeleton width="40%" height={14} />
-        <Skeleton width="30%" height={12} />
+    <div className="flex items-center gap-2 p-2 rounded-lg">
+      <Skeleton variant="circular" width={36} height={36} />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <Skeleton width="50%" height={14} />
+        <Skeleton width="40%" height={12} />
+        <Skeleton width="30%" height={10} />
       </div>
-      <Skeleton width={80} height={32} />
+      <Skeleton width={80} height={28} />
     </div>
   );
 });
@@ -376,7 +376,7 @@ function ConnectionsInner() {
   }, [data?.myFollowers]);
 
   return (
-    <div className="max-w-7xl mx-auto px-0 md:px-4 py-4 md:p-4 space-y-6">
+    <div className="max-w-7xl mx-auto px-0 md:px-4 py-4 md:p-4 space-y-4">
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">{title}</h1>
@@ -385,10 +385,10 @@ function ConnectionsInner() {
       </div>
 
       {/* Connections Block */}
-      <div className="card p-4 md:p-6 space-y-4">
+      <div className="card p-3 md:p-4 space-y-2">
         <div className="text-white/80 font-medium text-lg">Connections</div>
         {loading ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {[1, 2, 3].map((i) => (
               <ConnectionSkeleton key={i} />
             ))}
@@ -396,7 +396,7 @@ function ConnectionsInner() {
         ) : !data || data.connections.length === 0 ? (
           <div className="text-white/60 text-sm">No connections yet. Tag people in posts to create connections.</div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {data.connections.map((c) => (
               <ConnectionItem
                 key={c.userId}
@@ -414,10 +414,10 @@ function ConnectionsInner() {
       {/* Followers/Following Blocks */}
       {meId && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="card p-4 md:p-6 space-y-4">
+          <div className="card p-3 md:p-4 space-y-2">
             <div className="text-white/80 font-medium text-lg">Followers</div>
             {loading ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {[1, 2, 3].map((i) => (
                   <FollowSkeleton key={i} />
                 ))}
@@ -425,7 +425,7 @@ function ConnectionsInner() {
             ) : !data || myFollowersSet.size === 0 ? (
               <div className="text-white/60 text-sm">No followers yet.</div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {Array.from(myFollowersSet).map((uid) => (
                   <FollowItem
                     key={uid}
@@ -443,10 +443,10 @@ function ConnectionsInner() {
               </div>
             )}
           </div>
-          <div className="card p-4 md:p-6 space-y-4">
+          <div className="card p-3 md:p-4 space-y-2">
             <div className="text-white/80 font-medium text-lg">Following</div>
             {loading ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {[1, 2, 3].map((i) => (
                   <FollowSkeleton key={i} />
                 ))}
@@ -454,7 +454,7 @@ function ConnectionsInner() {
             ) : !data || myFollowingSet.size === 0 ? (
               <div className="text-white/60 text-sm">You are not following anyone yet.</div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {Array.from(myFollowingSet).map((uid) => (
                   <FollowItem
                     key={uid}
@@ -477,10 +477,15 @@ function ConnectionsInner() {
 
       {/* Recommended People Block */}
       {meId && (
-        <div className="card p-4 md:p-6 space-y-4">
-          <div className="text-white/80 font-medium text-lg">Recommended People</div>
+        <div className="card p-3 md:p-4 space-y-2">
+          <div>
+            <div className="text-white/80 font-medium text-lg">Recommended People</div>
+            <div className="text-white/50 text-xs mt-1">
+              People connected through your connections or mutual follows
+            </div>
+          </div>
           {loading ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {[1, 2, 3].map((i) => (
                 <ConnectionSkeleton key={i} />
               ))}
@@ -488,7 +493,7 @@ function ConnectionsInner() {
           ) : !data || data.recommendedPeople.length === 0 ? (
             <div className="text-white/60 text-sm">No recommendations available yet.</div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {data.recommendedPeople.map((rec) => (
                 <RecommendedItem
                   key={rec.userId}
