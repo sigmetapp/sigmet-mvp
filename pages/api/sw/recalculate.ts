@@ -340,19 +340,19 @@ export default async function handler(
       }
     }
 
-    const reactionsPoints = reactionsCount * weights.reaction_points;
+      const reactionsPoints = reactionsCount * weights.reaction_points;
 
-    // Get invites count - count accepted invites where user got 70 pts (registration + profile complete)
+      // Get invites count - count all accepted invites (registration completed)
       let invitesCount = 0;
       let inviteeGrowthTotalPoints = 0;
 
       try {
         const { data: invites, error: invitesError } = await supabase
           .from('invites')
-          .select('id, consumed_by_user_sw, consumed_by_user_id')
+          .select('id, consumed_by_user_id')
           .eq('inviter_user_id', userId)
           .eq('status', 'accepted')
-          .eq('consumed_by_user_sw', 70);
+          .not('consumed_by_user_id', 'is', null);
 
         if (invitesError) {
           console.warn('Error fetching invites:', invitesError);
