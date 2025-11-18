@@ -1445,32 +1445,32 @@ function GrowthDirectionsInner() {
                     return (
                       <div
                         key={task.id}
-                        className={`rounded-lg border p-4 space-y-3 ${
+                        className={`rounded-lg border p-3 sm:p-4 space-y-2 sm:space-y-3 ${
                           isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary-blue/10">
-                              <span className="text-lg">
+                        <div className="flex items-start justify-between gap-2 sm:gap-3">
+                          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                            <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-primary-blue/10 flex-shrink-0">
+                              <span className="text-base sm:text-lg">
                                 {resolveDirectionEmoji(task.direction.slug, task.direction.emoji)}
                               </span>
                             </div>
-                            <div>
-                              <p className={`text-sm font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs sm:text-sm font-semibold truncate ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                                 {task.title}
                               </p>
-                              <p className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                              <p className={`text-[11px] sm:text-xs truncate ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                 {task.direction.title}
                               </p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className={`text-sm font-semibold ${isLight ? 'text-primary-blue' : 'text-primary-blue-light'}`}>
+                          <div className="text-right flex-shrink-0">
+                            <p className={`text-xs sm:text-sm font-semibold ${isLight ? 'text-primary-blue' : 'text-primary-blue-light'}`}>
                               {task.pointsAwarded.toLocaleString('en-US')} pts
                             </p>
                             {task.pointsAwarded !== task.basePoints && (
-                              <p className={`text-[11px] ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                              <p className={`text-[10px] sm:text-[11px] ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                                 base {task.basePoints.toLocaleString('en-US')}
                               </p>
                             )}
@@ -1596,7 +1596,7 @@ function GrowthDirectionsInner() {
               <h2 className={`font-semibold text-sm sm:text-base mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Directions
               </h2>
-                <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-2 md:overflow-visible md:px-0 md:mx-0 scrollbar-hide">
+                <div className="flex snap-x snap-mandatory gap-2 sm:gap-3 overflow-x-auto pb-2 -mx-3 sm:-mx-4 px-3 sm:px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-2 md:overflow-visible scrollbar-hide">
                 {directions
                   .filter((dir) => {
                     // Filter out directions in development
@@ -1625,7 +1625,7 @@ function GrowthDirectionsInner() {
                   return (
                       <div
                         key={dir.id}
-                        className={`p-2.5 sm:p-2 rounded-lg transition flex-shrink-0 min-w-[200px] sm:min-w-[240px] snap-start md:min-w-0 ${
+                        className={`p-3 sm:p-2.5 md:p-2 rounded-lg transition flex-shrink-0 min-w-[180px] sm:min-w-[220px] md:min-w-[240px] snap-start md:min-w-0 ${
                         isInDevelopment 
                           ? 'cursor-not-allowed opacity-60' 
                           : 'cursor-pointer'
@@ -1669,7 +1669,7 @@ function GrowthDirectionsInner() {
                               ? 'Cannot add more than 3 priority directions' 
                               : undefined
                           }
-                          className={`flex-shrink-0 px-2 sm:px-2.5 py-1 rounded-full text-xs sm:text-[13px] font-semibold transition whitespace-nowrap ${
+                          className={`flex-shrink-0 px-3 sm:px-2.5 py-1.5 sm:py-1 rounded-full text-xs sm:text-[13px] font-semibold transition whitespace-nowrap min-h-[36px] sm:min-h-[32px] ${
                             isInDevelopment
                               ? 'border-2 border-gray-400/50 text-gray-500 bg-gray-100/50 cursor-not-allowed'
                               : dir.isSelected
@@ -1775,7 +1775,7 @@ function GrowthDirectionsInner() {
                                       onClick={() => checkInHabit(habit.userTask!.id)}
                                       disabled={publishingPost || isModalOpen}
                                       variant="primary"
-                                      className="flex-1"
+                                      className="flex-1 min-h-[44px] text-sm sm:text-base"
                                     >
                                       {publishingPost && isModalOpen ? 'Publishing...' : 'Check in'}
                                     </Button>
@@ -1783,6 +1783,7 @@ function GrowthDirectionsInner() {
                                       onClick={() => deactivateTask(habit.userTask!.id)}
                                       disabled={isActivating}
                                       variant="secondary"
+                                      className="min-h-[44px] text-sm sm:text-base"
                                     >
                                       Deactivate
                                     </Button>
@@ -1792,7 +1793,7 @@ function GrowthDirectionsInner() {
                                     onClick={() => activateTask(habit.id)}
                                     disabled={isActivating}
                                     variant="primary"
-                                    className="flex-1"
+                                    className="flex-1 min-h-[44px] text-sm sm:text-base"
                                   >
                                     {isActivating ? 'Activating...' : 'Activate'}
                                   </Button>
@@ -1876,7 +1877,7 @@ function GrowthDirectionsInner() {
                                     onClick={() => activateTask(goal.id)}
                                     disabled={isActivating}
                                     variant="primary"
-                                    className="flex-1"
+                                    className="flex-1 min-h-[44px] text-sm sm:text-base"
                                   >
                                     {isActivating ? 'Reactivating...' : 'Activate again'}
                                   </Button>
@@ -1892,7 +1893,7 @@ function GrowthDirectionsInner() {
                                       }}
                                       disabled={isCompleting || publishingCompletePost}
                                       variant="primary"
-                                      className="flex-1"
+                                      className="flex-1 min-h-[44px] text-sm sm:text-base"
                                     >
                                       {(isCompleting || publishingCompletePost) ? 'Completing...' : 'Complete'}
                                     </Button>
@@ -1900,6 +1901,7 @@ function GrowthDirectionsInner() {
                                       onClick={() => deactivateTask(goal.userTask!.id)}
                                       disabled={isActivating}
                                       variant="secondary"
+                                      className="min-h-[44px] text-sm sm:text-base"
                                     >
                                       Cancel
                                     </Button>
@@ -1909,7 +1911,7 @@ function GrowthDirectionsInner() {
                                     onClick={() => activateTask(goal.id)}
                                     disabled={isActivating}
                                     variant="primary"
-                                    className="flex-1"
+                                    className="flex-1 min-h-[44px] text-sm sm:text-base"
                                   >
                                     {isActivating ? 'Activating...' : 'Activate'}
                                   </Button>
@@ -1939,17 +1941,17 @@ function GrowthDirectionsInner() {
             className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingCompletePost && !completing.has(showCompleteModal.userTaskId) && setShowCompleteModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 sm:p-6 space-y-3 sm:space-y-4 shadow-2xl`}>
+          <div className={`relative z-10 w-full max-w-[95vw] sm:max-w-xl max-h-[90vh] overflow-y-auto ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 shadow-2xl`}>
             <div className="flex items-center justify-between">
-              <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+              <h3 className={`font-semibold text-sm sm:text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Complete Goal & Publish
               </h3>
               <button
                 onClick={() => !publishingCompletePost && !completing.has(showCompleteModal.userTaskId) && setShowCompleteModal(null)}
-                className={`transition ${isLight ? 'text-primary-text-secondary hover:text-primary-blue' : 'text-primary-text-secondary hover:text-primary-blue-light'}`}
+                className={`transition text-lg sm:text-xl min-w-[32px] min-h-[32px] flex items-center justify-center ${isLight ? 'text-primary-text-secondary hover:text-primary-blue' : 'text-primary-text-secondary hover:text-primary-blue-light'}`}
                 aria-label="Close"
               >
-                ?
+                ×
               </button>
             </div>
             
@@ -1968,7 +1970,7 @@ function GrowthDirectionsInner() {
 
             <div className="space-y-2">
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                <label className={`block text-xs sm:text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Post Content
                 </label>
                 <div className="relative">
@@ -1976,8 +1978,8 @@ function GrowthDirectionsInner() {
                     value={completeForm.body}
                     onChange={(e) => setCompleteForm((prev) => ({ ...prev, body: e.target.value }))}
                     placeholder="Share your achievement and thoughts about completing this goal..."
-                    rows={6}
-                    className={`input w-full pr-10 ${isLight ? 'placeholder-primary-text-secondary/60' : 'placeholder-primary-text-secondary/50'}`}
+                    rows={5}
+                    className={`input w-full pr-10 text-sm sm:text-base ${isLight ? 'placeholder-primary-text-secondary/60' : 'placeholder-primary-text-secondary/50'}`}
                   />
                   <div className="absolute bottom-2 right-2">
                     <input
@@ -1998,7 +2000,7 @@ function GrowthDirectionsInner() {
                     />
                     <label
                       htmlFor="complete-media-input"
-                      className={`inline-flex items-center px-2 py-1.5 rounded-lg border text-xs cursor-pointer transition ${
+                      className={`inline-flex items-center justify-center px-2.5 py-2 rounded-lg border text-sm cursor-pointer transition min-w-[44px] min-h-[44px] ${
                         isLight
                           ? 'border-primary-blue/30 text-primary-blue hover:bg-primary-blue/10 bg-white'
                           : 'border-primary-blue/30 text-primary-blue-light hover:bg-primary-blue/15 bg-[rgba(15,22,35,0.98)]'
@@ -2031,7 +2033,7 @@ function GrowthDirectionsInner() {
               </div>
 
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                <label className={`block text-xs sm:text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Reactions
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2053,7 +2055,7 @@ function GrowthDirectionsInner() {
                               : [...prev.reactions, reaction.kind],
                           }));
                         }}
-                        className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+                        className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm border transition min-h-[44px] ${
                           isSelected
                             ? isLight
                               ? 'bg-primary-blue text-white border-primary-blue shadow-md'
@@ -2076,7 +2078,7 @@ function GrowthDirectionsInner() {
                 onClick={() => completeGoal(showCompleteModal.userTaskId)}
                 disabled={publishingCompletePost || completing.has(showCompleteModal.userTaskId)}
                 variant="primary"
-                className="flex-1 w-full sm:w-auto"
+                className="flex-1 w-full sm:w-auto min-h-[44px] text-sm sm:text-base"
               >
                 {publishingCompletePost ? 'Publishing...' : completing.has(showCompleteModal.userTaskId) ? 'Completing...' : 'Complete & Publish'}
               </Button>
@@ -2087,7 +2089,7 @@ function GrowthDirectionsInner() {
                 }}
                 disabled={publishingCompletePost || completing.has(showCompleteModal.userTaskId)}
                 variant="secondary"
-                className="w-full sm:w-auto"
+                className="w-full sm:w-auto min-h-[44px] text-sm sm:text-base"
               >
                 Cancel
               </Button>
@@ -2103,17 +2105,17 @@ function GrowthDirectionsInner() {
             className={`absolute inset-0 ${isLight ? 'bg-black/60' : 'bg-black/90'}`}
             onClick={() => !publishingPost && setShowCheckInModal(null)}
           />
-          <div className={`relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-4 sm:p-6 space-y-3 sm:space-y-4 shadow-2xl`}>
+          <div className={`relative z-10 w-full max-w-[95vw] sm:max-w-xl max-h-[90vh] overflow-y-auto ${isLight ? 'bg-gradient-to-br from-primary-blue/10 to-primary-blue-light/10 border-2 border-primary-blue/30 bg-white' : 'bg-gradient-to-br from-primary-blue/20 to-primary-blue-light/20 border-2 border-primary-blue/40 bg-[rgba(15,22,35,0.98)]'} rounded-xl p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 shadow-2xl`}>
             <div className="flex items-center justify-between">
-              <h3 className={`font-semibold text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+              <h3 className={`font-semibold text-sm sm:text-base ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Create Check-in Post
               </h3>
               <button
                 onClick={() => !publishingPost && setShowCheckInModal(null)}
-                className={`transition ${isLight ? 'text-primary-text-secondary hover:text-primary-blue' : 'text-primary-text-secondary hover:text-primary-blue-light'}`}
+                className={`transition text-lg sm:text-xl min-w-[32px] min-h-[32px] flex items-center justify-center ${isLight ? 'text-primary-text-secondary hover:text-primary-blue' : 'text-primary-text-secondary hover:text-primary-blue-light'}`}
                 aria-label="Close"
               >
-                ?
+                ×
               </button>
             </div>
             
@@ -2132,7 +2134,7 @@ function GrowthDirectionsInner() {
 
             <div className="space-y-2">
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                <label className={`block text-xs sm:text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Post Content
                 </label>
                 <div className="relative">
@@ -2181,7 +2183,7 @@ function GrowthDirectionsInner() {
               </div>
               
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                <label className={`block text-xs sm:text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Category (automatically set)
                 </label>
                 <div className={`p-2 rounded-lg ${isLight ? 'bg-white' : 'bg-white/5'}`}>
@@ -2195,7 +2197,7 @@ function GrowthDirectionsInner() {
               </div>
 
               <div>
-                <label className={`block text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                <label className={`block text-xs sm:text-sm font-medium mb-1 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                   Reactions
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2241,7 +2243,7 @@ function GrowthDirectionsInner() {
                 onClick={publishCheckInPost}
                 disabled={publishingPost}
                 variant="primary"
-                className="flex-1 w-full sm:w-auto"
+                className="flex-1 w-full sm:w-auto min-h-[44px] text-sm sm:text-base"
               >
                 {publishingPost ? 'Publishing...' : 'Publish & Check-in'}
               </Button>
@@ -2252,7 +2254,7 @@ function GrowthDirectionsInner() {
                 }}
                 disabled={publishingPost}
                 variant="secondary"
-                className="w-full sm:w-auto"
+                className="w-full sm:w-auto min-h-[44px] text-sm sm:text-base"
               >
                 Cancel
               </Button>
