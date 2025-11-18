@@ -1486,17 +1486,17 @@ export default function SWPage() {
                 </div>
               </div>
 
-              {/* Invites */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-                <div>
-                  <div className="text-white font-medium text-sm">Invite People</div>
-                  <div className="text-white/60 text-xs">People who joined via your invite code and received 70 pts</div>
+                {/* Invites */}
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
+                  <div>
+                    <div className="text-white font-medium text-sm">Invite People</div>
+                    <div className="text-white/60 text-xs">People who joined via your invite code and registered</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-white font-semibold text-sm">{breakdown.invites?.points || 0} pts</div>
+                    <div className="text-white/60 text-xs">{breakdown.invites?.count || 0} × {breakdown.invites?.weight || 50}</div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-white font-semibold text-sm">{breakdown.invites?.points || 0} pts</div>
-                  <div className="text-white/60 text-xs">{breakdown.invites?.count || 0} × {breakdown.invites?.weight || 50}</div>
-                </div>
-              </div>
 
               {/* Growth Bonus */}
               <div className="flex items-center justify-between p-2 rounded-lg bg-white/5">
