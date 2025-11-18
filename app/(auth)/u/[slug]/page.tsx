@@ -666,26 +666,36 @@ export default function PublicProfilePage() {
   // Load social counts
   useEffect(() => {
     if (!profile?.user_id) return;
-    (async () => {
-      try {
-        const [followersRes, followingRes, referralsRes] = await Promise.all([
-          supabase
-            .from('follows')
-            .select('follower_id', { count: 'exact', head: true })
-            .eq('followee_id', profile.user_id),
-          supabase
-            .from('follows')
-            .select('followee_id', { count: 'exact', head: true })
-            .eq('follower_id', profile.user_id),
-          supabase
-            .from('invites')
-            .select('code', { count: 'exact', head: true })
-            .eq('creator', profile.user_id)
-            .gt('uses', 0),
-        ]);
-        setFollowersCount(followersRes.count || 0);
-        setFollowingCount(followingRes.count || 0);
-        setReferralsCount(referralsRes.count || 0);
+      (async () => {
+        try {
+          const [followersRes, followingRes, referralsStatsRes] = await Promise.all([
+            supabase
+              .from('follows')
+              .select('follower_id', { count: 'exact', head: true })
+              .eq('followee_id', profile.user_id),
+            supabase
+              .from('follows')
+              .select('followee_id', { count: 'exact', head: true })
+              .eq('follower_id', profile.user_id),
+            supabase
+              .from('invite_stats')
+              .select('accepted_count')
+              .eq('user_id', profile.user_id)
+              .maybeSingle(),
+          ]);
+          if (followersRes.error) {
+            console.error('[Profile] Error loading followers count:', followersRes.error);
+          }
+          if (followingRes.error) {
+            console.error('[Profile] Error loading following count:', followingRes.error);
+          }
+          if (referralsStatsRes.error) {
+            console.error('[Profile] Error loading referral stats:', referralsStatsRes.error);
+          }
+          setFollowersCount(followersRes.count || 0);
+          setFollowingCount(followingRes.count || 0);
+          const referralCount = referralsStatsRes.data?.accepted_count ?? 0;
+          setReferralsCount(referralCount);
 
         // Calculate connections (mutual follows): people who follow the user AND are followed by the user
         const [followersData, followingData] = await Promise.all([
