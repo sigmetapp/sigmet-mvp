@@ -450,6 +450,8 @@ export default async function handler(
             )
           );
 
+          const inviteeGrowthPointsByUser: Record<string, number> = {};
+
           if (inviteeIds.length > 0) {
             const { data: inviteeLedgerRows, error: inviteeLedgerError } = await supabase
               .from('sw_ledger')
@@ -459,13 +461,57 @@ export default async function handler(
             if (inviteeLedgerError) {
               console.warn('Error fetching invited users growth ledger:', inviteeLedgerError);
             } else if (inviteeLedgerRows) {
-              const inviteeRawGrowthPoints = inviteeLedgerRows.reduce(
-                (sum, entry) => sum + (entry.points || 0),
-                0
-              );
-              inviteeGrowthTotalPoints = inviteeRawGrowthPoints * weights.growth_total_points_multiplier;
+              const ledgerTotalsByUser: Record<string, number> = {};
+              for (const entry of inviteeLedgerRows) {
+                if (!entry?.user_id) continue;
+                ledgerTotalsByUser[entry.user_id] = (ledgerTotalsByUser[entry.user_id] || 0) + (entry.points || 0);
+              }
+
+              Object.entries(ledgerTotalsByUser).forEach(([id, rawPoints]) => {
+                if (rawPoints > 0) {
+                  inviteeGrowthPointsByUser[id] = rawPoints * (weights.growth_total_points_multiplier || 1);
+                }
+              });
+            }
+
+            const inviteeIdsMissingGrowth = inviteeIds.filter(
+              (id) => !id || !(inviteeGrowthPointsByUser[id] > 0)
+            );
+
+            if (inviteeIdsMissingGrowth.length > 0) {
+              const { data: inviteeScores, error: inviteeScoresError } = await supabase
+                .from('sw_scores')
+                .select('user_id, total, breakdown')
+                .in('user_id', inviteeIdsMissingGrowth);
+
+              if (inviteeScoresError) {
+                console.warn('Error fetching invited users SW scores:', inviteeScoresError);
+              } else if (inviteeScores) {
+                for (const score of inviteeScores) {
+                  const inviteeId = score?.user_id;
+                  if (!inviteeId) continue;
+
+                  const breakdown: any = score.breakdown || {};
+                  const breakdownGrowth = Number(breakdown?.growth?.points) || 0;
+
+                  if (breakdownGrowth > 0) {
+                    inviteeGrowthPointsByUser[inviteeId] = breakdownGrowth;
+                    continue;
+                  }
+
+                  const total = typeof score.total === 'number' ? score.total : Number(score.total) || 0;
+                  if (total > 0) {
+                    inviteeGrowthPointsByUser[inviteeId] = total;
+                  }
+                }
+              }
             }
           }
+
+          inviteeGrowthTotalPoints = Object.values(inviteeGrowthPointsByUser).reduce(
+            (sum, value) => sum + value,
+            0
+          );
         }
       } catch (invitesErr) {
         console.warn('Exception fetching invites:', invitesErr);
