@@ -109,6 +109,8 @@ export default function AuthPage() {
               "accept_invite_by_code",
               {
                 invite_code: normalizedInviteCode,
+                target_user_id: signData.user.id,
+                target_user_email: email.trim(),
               },
             );
 

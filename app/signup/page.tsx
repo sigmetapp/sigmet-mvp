@@ -181,12 +181,14 @@ export default function SignupPage() {
       let inviteAccepted = false;
       if (normalizedInviteCode && signData?.user) {
         try {
-          const { data: inviteId, error: acceptErr } = await supabase.rpc(
-            "accept_invite_by_code",
-            {
-              invite_code: normalizedInviteCode,
-            },
-          );
+            const { data: inviteId, error: acceptErr } = await supabase.rpc(
+              "accept_invite_by_code",
+              {
+                invite_code: normalizedInviteCode,
+                target_user_id: signData.user.id,
+                target_user_email: email.trim(),
+              },
+            );
 
           if (!acceptErr && inviteId) {
             inviteAccepted = true;
