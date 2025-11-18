@@ -282,172 +282,268 @@ export default function InvitePage() {
     }
   };
 
-  return (
-    <RequireAuth>
-      <div className="max-w-4xl mx-auto px-0 md:px-4 py-6 md:p-6">
-        <h1 className="text-2xl font-semibold text-white mb-6 px-4 md:px-0">Invite System</h1>
+    return (
+      <RequireAuth>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-4 py-6 md:py-8">
+          <h1 className="text-2xl font-semibold text-white mb-6">Invite System</h1>
 
-        {/* Admin Notice */}
-        {isAdmin && (
-          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg mx-4 md:mx-0">
-            <p className="text-green-300 text-sm font-semibold">👑 Admin mode: You can generate unlimited invite codes without restrictions.</p>
-          </div>
-        )}
-
-        {/* Stats Cards */}
-        {stats && !isAdmin && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 px-4 md:px-0">
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <div className="text-gray-400 text-sm mb-1">Total Sent</div>
-              <div className="text-2xl font-bold text-white">{stats.total_sent}</div>
-            </div>
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <div className="text-gray-400 text-sm mb-1">Accepted</div>
-              <div className="text-2xl font-bold text-green-400">{stats.accepted_count}</div>
-            </div>
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <div className="text-gray-400 text-sm mb-1">
-                Active ({userLimit?.level || 'Beginner'} Level)
-              </div>
-              <div className="text-2xl font-bold text-yellow-400">
-                {userLimit?.current_count || stats.active_count} / {userLimit?.limit || 3}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                Limit based on your SW level
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Create Invite Form */}
-        <div className="bg-gray-800 p-6 rounded-lg mb-6 mx-4 md:mx-0">
-          <h2 className="text-lg font-semibold text-white mb-4">Create Invite Code</h2>
-          <p className="text-gray-400 text-sm mb-4">
-            Generate a unique invite code to share with friends. They can use it during registration.
-          </p>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
-              <p className="text-red-300 text-sm">{error}</p>
-            </div>
-          )}
-
-          {success && (
+          {/* Admin Notice */}
+          {isAdmin && (
             <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
-              <p className="text-green-300 text-sm">{success}</p>
+              <p className="text-green-300 text-sm font-semibold">
+                👑 Admin mode: You can generate unlimited invite codes without restrictions.
+              </p>
             </div>
           )}
 
-          <button
-            onClick={handleCreateInvite}
-            disabled={loading}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-          >
-            {loading ? 'Creating...' : 'Generate Invite Code'}
-          </button>
-        </div>
+          {/* Stats Cards */}
+          {stats && !isAdmin && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-gray-800 p-4 rounded-lg">
+                <div className="text-gray-400 text-sm mb-1">Total Sent</div>
+                <div className="text-2xl font-bold text-white">{stats.total_sent}</div>
+              </div>
+              <div className="bg-gray-800 p-4 rounded-lg">
+                <div className="text-gray-400 text-sm mb-1">Accepted</div>
+                <div className="text-2xl font-bold text-green-400">{stats.accepted_count}</div>
+              </div>
+              <div className="bg-gray-800 p-4 rounded-lg">
+                <div className="text-gray-400 text-sm mb-1">
+                  Active ({userLimit?.level || 'Beginner'} Level)
+                </div>
+                <div className="text-2xl font-bold text-yellow-400">
+                  {userLimit?.current_count || stats.active_count} / {userLimit?.limit || 3}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">Limit based on your SW level</div>
+              </div>
+            </div>
+          )}
 
-        {/* Invites List */}
-        <div className="bg-gray-800 p-6 rounded-lg mx-4 md:mx-0">
-          <h2 className="text-lg font-semibold text-white mb-4">Your Invites</h2>
-          {invites.length === 0 ? (
-            <p className="text-gray-400">No invites yet. Send your first invite above.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full table-auto">
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Invite Code</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Status</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Created</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Expires</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Accepted</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Used By</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">SW</th>
-                    {isAdmin && <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody>
+          {/* Create Invite Form */}
+          <div className="bg-gray-800 p-4 sm:p-6 rounded-lg mb-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Create Invite Code</h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Generate a unique invite code to share with friends. They can use it during registration.
+            </p>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+                <p className="text-red-300 text-sm">{error}</p>
+              </div>
+            )}
+
+            {success && (
+              <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+                <p className="text-green-300 text-sm">{success}</p>
+              </div>
+            )}
+
+            <button
+              onClick={handleCreateInvite}
+              disabled={loading}
+              className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              {loading ? 'Creating...' : 'Generate Invite Code'}
+            </button>
+          </div>
+
+          {/* Invites List */}
+          <div className="bg-gray-800 p-4 sm:p-6 rounded-lg">
+            <h2 className="text-lg font-semibold text-white mb-4">Your Invites</h2>
+            {invites.length === 0 ? (
+              <p className="text-gray-400">No invites yet. Send your first invite above.</p>
+            ) : (
+              <>
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full table-auto">
+                    <thead>
+                      <tr className="border-b border-gray-700">
+                        <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Invite Code</th>
+                        <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Status</th>
+                        <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Created</th>
+                        <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Expires</th>
+                        <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Accepted</th>
+                        <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Used By</th>
+                        <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">SW</th>
+                        {isAdmin && <th className="text-left py-2 px-2 text-xs font-medium text-gray-300">Actions</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invites.map((invite) => (
+                        <tr key={invite.id} className="border-b border-gray-700/50">
+                          <td className="py-2 px-2 text-xs">
+                            {invite.invite_code ? (
+                              <div className="flex items-center gap-1">
+                                <code className="px-2 py-1 bg-gray-700 text-blue-400 font-mono font-semibold rounded text-xs">
+                                  {invite.invite_code}
+                                </code>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(invite.invite_code!);
+                                    alert('Invite code copied to clipboard!');
+                                  }}
+                                  className="px-1.5 py-0.5 text-xs text-gray-400 hover:text-white bg-gray-700 rounded transition"
+                                  title="Copy code"
+                                >
+                                  📋
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-gray-500 text-xs">Generating...</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-2 text-xs">
+                            <span className={getStatusColor(invite.status)}>{invite.status}</span>
+                          </td>
+                          <td className="py-2 px-2 text-xs text-gray-400 whitespace-nowrap">{formatDate(invite.sent_at)}</td>
+                          <td className="py-2 px-2 text-xs">
+                            {invite.status === 'pending' ? formatExpiration(invite.expires_at) : '-'}
+                          </td>
+                          <td className="py-2 px-2 text-xs text-gray-400 whitespace-nowrap">{formatDate(invite.accepted_at)}</td>
+                          <td className="py-2 px-2 text-xs text-gray-400">
+                            {invite.consumed_by_user_id ? (
+                              invite.consumed_by_username ? (
+                                <Link 
+                                  href={`/u/${encodeURIComponent(invite.consumed_by_username)}`}
+                                  className="text-blue-400 hover:text-blue-300 hover:underline transition"
+                                >
+                                  {invite.consumed_by_username}
+                                </Link>
+                              ) : (
+                                <Link 
+                                  href={`/u/${encodeURIComponent(invite.consumed_by_user_id)}`}
+                                  className="text-blue-400 hover:text-blue-300 hover:underline transition font-mono text-xs"
+                                >
+                                  {invite.consumed_by_user_id.slice(0, 8)}...
+                                </Link>
+                              )
+                            ) : (
+                              <span className="text-gray-500">-</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-2 text-xs text-gray-400">
+                            {invite.consumed_by_user_sw !== null ? (
+                              <span className="text-green-400 font-semibold">
+                                {invite.consumed_by_user_sw.toFixed(0)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-500">-</span>
+                            )}
+                          </td>
+                          {isAdmin && (
+                            <td className="py-2 px-2 text-xs">
+                              <button
+                                onClick={() => handleDeleteInvite(invite.id)}
+                                disabled={loading}
+                                className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile cards */}
+                <div className="space-y-3 md:hidden">
                   {invites.map((invite) => (
-                    <tr key={invite.id} className="border-b border-gray-700/50">
-                      <td className="py-2 px-2 text-xs">
-                        {invite.invite_code ? (
-                          <div className="flex items-center gap-1">
-                            <code className="px-2 py-1 bg-gray-700 text-blue-400 font-mono font-semibold rounded text-xs">
+                    <div
+                      key={invite.id}
+                      className="rounded-xl border border-white/10 bg-gray-900/60 p-4 space-y-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">Code</span>
+                          {invite.invite_code ? (
+                            <code className="px-2 py-1 bg-gray-800 text-blue-400 font-mono rounded text-xs">
                               {invite.invite_code}
                             </code>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(invite.invite_code!);
-                                alert('Invite code copied to clipboard!');
-                              }}
-                              className="px-1.5 py-0.5 text-xs text-gray-400 hover:text-white bg-gray-700 rounded transition"
-                              title="Copy code"
-                            >
-                              📋
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500 text-xs">Generating...</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-2 text-xs">
-                        <span className={getStatusColor(invite.status)}>{invite.status}</span>
-                      </td>
-                      <td className="py-2 px-2 text-xs text-gray-400 whitespace-nowrap">{formatDate(invite.sent_at)}</td>
-                      <td className="py-2 px-2 text-xs">
-                        {invite.status === 'pending' ? formatExpiration(invite.expires_at) : '-'}
-                      </td>
-                      <td className="py-2 px-2 text-xs text-gray-400 whitespace-nowrap">{formatDate(invite.accepted_at)}</td>
-                      <td className="py-2 px-2 text-xs text-gray-400">
-                        {invite.consumed_by_user_id ? (
-                          invite.consumed_by_username ? (
-                            <Link 
-                              href={`/u/${encodeURIComponent(invite.consumed_by_username)}`}
-                              className="text-blue-400 hover:text-blue-300 hover:underline transition"
-                            >
-                              {invite.consumed_by_username}
-                            </Link>
                           ) : (
-                            <Link 
-                              href={`/u/${encodeURIComponent(invite.consumed_by_user_id)}`}
-                              className="text-blue-400 hover:text-blue-300 hover:underline transition font-mono text-xs"
-                            >
-                              {invite.consumed_by_user_id.slice(0, 8)}...
-                            </Link>
-                          )
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-2 text-xs text-gray-400">
-                        {invite.consumed_by_user_sw !== null ? (
-                          <span className="text-green-400 font-semibold">
-                            {invite.consumed_by_user_sw.toFixed(0)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
-                      </td>
-                      {isAdmin && (
-                        <td className="py-2 px-2 text-xs">
+                            <span className="text-gray-500 text-xs">...</span>
+                          )}
+                        </div>
+                        {invite.invite_code && (
                           <button
-                            onClick={() => handleDeleteInvite(invite.id)}
-                            disabled={loading}
-                            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition"
+                            onClick={() => {
+                              navigator.clipboard.writeText(invite.invite_code!);
+                              alert('Invite code copied to clipboard!');
+                            }}
+                            className="text-xs text-blue-300 hover:text-blue-200"
                           >
-                            Delete
+                            Copy
                           </button>
-                        </td>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="text-gray-400 flex flex-col">
+                          <span className="text-gray-500">Status</span>
+                          <span className={getStatusColor(invite.status)}>{invite.status}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-gray-500">SW</span>
+                          <span className="text-green-400 font-semibold">
+                            {invite.consumed_by_user_sw !== null ? invite.consumed_by_user_sw.toFixed(0) : '-'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <p className="text-gray-500">Created</p>
+                          <p className="text-gray-300">{formatDate(invite.sent_at)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Accepted</p>
+                          <p className="text-gray-300">{formatDate(invite.accepted_at)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Expires</p>
+                          <p className="text-gray-300">
+                            {invite.status === 'pending' ? formatExpiration(invite.expires_at) : '-'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Used By</p>
+                          {invite.consumed_by_user_id ? (
+                            invite.consumed_by_username ? (
+                              <Link 
+                                href={`/u/${encodeURIComponent(invite.consumed_by_username)}`}
+                                className="text-blue-400 hover:text-blue-300 hover:underline transition"
+                              >
+                                {invite.consumed_by_username}
+                              </Link>
+                            ) : (
+                              <Link 
+                                href={`/u/${encodeURIComponent(invite.consumed_by_user_id)}`}
+                                className="text-blue-400 hover:text-blue-300 hover:underline transition"
+                              >
+                                {invite.consumed_by_user_id.slice(0, 8)}...
+                              </Link>
+                            )
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteInvite(invite.id)}
+                          disabled={loading}
+                          className="w-full text-center text-xs font-semibold py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 transition"
+                        >
+                          Delete invite
+                        </button>
                       )}
-                    </tr>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
-    </RequireAuth>
-  );
+      </RequireAuth>
+    );
 }

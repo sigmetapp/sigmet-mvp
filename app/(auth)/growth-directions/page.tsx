@@ -1249,7 +1249,7 @@ function GrowthDirectionsInner() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-0 md:px-4 py-4 md:p-4 transition-opacity duration-300">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-4 py-4 md:py-6 transition-opacity duration-300">
       {/* Header */}
       <div className="mb-6 md:mb-8">
         <div className="flex items-center justify-between">
@@ -1261,8 +1261,8 @@ function GrowthDirectionsInner() {
               Select directions and activate tasks to track your growth.
             </p>
           </div>
-          {isAdmin && (
-            <div className="flex gap-2">
+            {isAdmin && (
+              <div className="flex gap-2">
               <Button
                 onClick={resetAllAchievements}
                 disabled={resettingAchievements}
@@ -1340,8 +1340,8 @@ function GrowthDirectionsInner() {
               <p className="text-xs mt-1 opacity-70">Complete your first goal to see it here!</p>
             </div>
           ) : (
-            <>
-              <div className="overflow-x-auto">
+              <>
+                <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className={`border-b ${isLight ? 'border-primary-blue/10' : 'border-primary-blue/20'}`}>
@@ -1439,7 +1439,69 @@ function GrowthDirectionsInner() {
                   </tbody>
                 </table>
               </div>
-              {completedTasks.length > COMPLETED_PAGE_SIZE && (
+                <div className="space-y-3 md:hidden">
+                  {paginatedCompletedTasks.map((task) => {
+                    const completedDate = task.completedAt ? new Date(task.completedAt) : null;
+                    return (
+                      <div
+                        key={task.id}
+                        className={`rounded-lg border p-4 space-y-3 ${
+                          isLight ? 'bg-white border-primary-blue/10' : 'bg-white/5 border-primary-blue/20'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary-blue/10">
+                              <span className="text-lg">
+                                {resolveDirectionEmoji(task.direction.slug, task.direction.emoji)}
+                              </span>
+                            </div>
+                            <div>
+                              <p className={`text-sm font-semibold ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
+                                {task.title}
+                              </p>
+                              <p className={`text-xs ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                                {task.direction.title}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`text-sm font-semibold ${isLight ? 'text-primary-blue' : 'text-primary-blue-light'}`}>
+                              {task.pointsAwarded.toLocaleString('en-US')} pts
+                            </p>
+                            {task.pointsAwarded !== task.basePoints && (
+                              <p className={`text-[11px] ${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                                base {task.basePoints.toLocaleString('en-US')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold ${
+                              task.taskType === 'habit'
+                                ? 'bg-emerald-500/15 text-emerald-400'
+                                : 'bg-blue-500/15 text-blue-400'
+                            }`}
+                          >
+                            {task.taskType === 'habit' ? 'Habit' : 'Goal'}
+                          </span>
+                          <span className={`${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
+                            {completedDate
+                              ? completedDate.toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })
+                              : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {completedTasks.length > COMPLETED_PAGE_SIZE && (
                 <div className="flex flex-wrap items-center justify-between gap-3 mt-3 text-xs">
                   <span className={`${isLight ? 'text-primary-text-secondary' : 'text-primary-text-secondary'}`}>
                     Showing {completedRangeStart}-{completedRangeEnd} of {completedTasks.length}
@@ -1534,7 +1596,7 @@ function GrowthDirectionsInner() {
               <h2 className={`font-semibold mb-3 ${isLight ? 'text-primary-text' : 'text-primary-text'}`}>
                 Directions
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="flex snap-x gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-2 md:overflow-visible md:px-0 md:mx-0">
                 {directions
                   .filter((dir) => {
                     // Filter out directions in development
@@ -1561,9 +1623,9 @@ function GrowthDirectionsInner() {
                     : 'Add';
 
                   return (
-                    <div
-                      key={dir.id}
-                      className={`p-2 rounded-lg transition ${
+                      <div
+                        key={dir.id}
+                        className={`p-2 rounded-lg transition flex-shrink-0 min-w-[240px] snap-start md:min-w-0 ${
                         isInDevelopment 
                           ? 'cursor-not-allowed opacity-60' 
                           : 'cursor-pointer'
@@ -1706,7 +1768,7 @@ function GrowthDirectionsInner() {
                                 </div>
                               </div>
 
-                              <div className="flex gap-2">
+                                <div className="flex flex-col sm:flex-row gap-2">
                                 {isActive ? (
                                   <>
                                     <Button
@@ -1808,7 +1870,7 @@ function GrowthDirectionsInner() {
                                 </div>
                               </div>
 
-                              <div className="flex gap-2">
+                                <div className="flex flex-col sm:flex-row gap-2">
                                 {isCompleted ? (
                                   <Button
                                     onClick={() => activateTask(goal.id)}
