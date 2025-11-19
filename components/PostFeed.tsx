@@ -539,33 +539,37 @@ export default function PostFeed({
         });
         
         // Apply randomization to add variety on page reload
-        // Group posts into small batches and shuffle within each batch
-        // This preserves overall ranking quality while adding variation
-        const batchSize = 3; // Shuffle within groups of 3 posts
-        const shuffled: typeof postsToProcess = [];
-        
-        // Create a seeded random number generator
-        const seed = Date.now();
-        let seedValue = seed;
-        const seededRandom = () => {
-          seedValue = (seedValue * 9301 + 49297) % 233280;
-          return seedValue / 233280;
-        };
-        
-        for (let i = 0; i < postsToProcess.length; i += batchSize) {
-          const batch = postsToProcess.slice(i, i + batchSize);
-          // Fisher-Yates shuffle within batch using seeded random
-          const shuffledBatch = [...batch];
-          for (let j = shuffledBatch.length - 1; j > 0; j--) {
-            const k = Math.floor(seededRandom() * (j + 1));
-            [shuffledBatch[j], shuffledBatch[k]] = [shuffledBatch[k], shuffledBatch[j]];
+        // Only for main feed (not profile pages) - profiles should show posts in chronological order
+        if (!filterUserId) {
+          // Group posts into small batches and shuffle within each batch
+          // This preserves overall ranking quality while adding variation
+          const batchSize = 3; // Shuffle within groups of 3 posts
+          const shuffled: typeof postsToProcess = [];
+          
+          // Create a seeded random number generator
+          const seed = Date.now();
+          let seedValue = seed;
+          const seededRandom = () => {
+            seedValue = (seedValue * 9301 + 49297) % 233280;
+            return seedValue / 233280;
+          };
+          
+          for (let i = 0; i < postsToProcess.length; i += batchSize) {
+            const batch = postsToProcess.slice(i, i + batchSize);
+            // Fisher-Yates shuffle within batch using seeded random
+            const shuffledBatch = [...batch];
+            for (let j = shuffledBatch.length - 1; j > 0; j--) {
+              const k = Math.floor(seededRandom() * (j + 1));
+              [shuffledBatch[j], shuffledBatch[k]] = [shuffledBatch[k], shuffledBatch[j]];
+            }
+            shuffled.push(...shuffledBatch);
           }
-          shuffled.push(...shuffledBatch);
+          
+          postsToProcess = shuffled;
         }
-        
-        postsToProcess = shuffled;
-      } else if (offset === 0 && postsToProcess.length > 0) {
+      } else if (offset === 0 && postsToProcess.length > 0 && !filterUserId) {
         // Apply randomization even when ranking is disabled (for non-main feeds)
+        // But not for profile pages - profiles should show posts in chronological order
         // Use a seeded random based on current time
         const seed = Date.now();
         let seedValue = seed;
