@@ -1830,12 +1830,12 @@ export default function PostFeed({
                             role="button"
                             aria-label={`View ${mediaCount} media file${mediaCount > 1 ? 's' : ''}`}
                           >
-                            <div className={`relative rounded-lg overflow-hidden flex items-center justify-center ${isLight ? "border border-primary-blue/20" : "border border-primary-blue/30"}`} style={filterUserId ? {} : { maxHeight: '500px' }}>
+                            <div className={`relative rounded-lg overflow-hidden flex items-center justify-center ${isLight ? "border border-primary-blue/20" : "border border-primary-blue/30"}`} style={{ maxHeight: '500px' }}>
                               {firstMedia.type === 'image' ? (
                                 <img 
                                   src={firstMedia.url} 
                                   loading="lazy" 
-                                  className={filterUserId ? "max-w-full w-auto h-auto object-contain" : "max-w-full max-h-full w-auto h-auto object-contain"} 
+                                  className="max-w-full max-h-[500px] w-auto h-auto object-contain" 
                                   alt={`Post preview (${mediaCount} file${mediaCount > 1 ? 's' : ''})`} 
                                 />
                               ) : (
@@ -1844,7 +1844,7 @@ export default function PostFeed({
                                     preload="metadata"
                                     playsInline
                                     muted
-                                    className={filterUserId ? "max-w-full w-auto h-auto object-contain" : "max-w-full max-h-[500px] w-auto h-auto object-contain"}
+                                    className="max-w-full max-h-[500px] w-auto h-auto object-contain"
                                     poster={imageUrls[0] || undefined}
                                   >
                                     <source src={firstMedia.url} type="video/mp4" />
