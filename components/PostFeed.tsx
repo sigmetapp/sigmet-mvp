@@ -39,6 +39,8 @@ import AvatarWithBadge from "@/components/AvatarWithBadge";
 import PostSkeleton from "@/components/PostSkeleton";
 import { resolveAvatarUrl } from "@/lib/utils";
 import { useSWLevels } from "@/hooks/useSWLevels";
+import { calculatePostScore, rankPosts, PostRankingData } from "@/lib/feedRanking";
+import EducationalPost, { EducationalPostData } from "@/components/EducationalPost";
 
 function formatPostDate(dateString: string): string {
   const date = new Date(dateString);
@@ -176,6 +178,17 @@ export default function PostFeed({
   
   // Map author user_id -> SW score
   const [swScoresByUserId, setSwScoresByUserId] = useState<Record<string, number>>({});
+  
+  // Map author user_id -> Trust Flow (optional, loaded separately)
+  const [trustFlowByUserId, setTrustFlowByUserId] = useState<Record<string, number>>({});
+  
+  // Refs for ranking data (to avoid stale closures)
+  const commentCountsRef = useRef<Record<number, number>>({});
+  const swScoresRef = useRef<Record<string, number>>({});
+  const trustFlowRef = useRef<Record<string, number>>({});
+  
+  // Educational posts for feed
+  const [educationalPosts, setEducationalPosts] = useState<EducationalPostData[]>([]);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBody, setEditBody] = useState<string>("");
@@ -256,6 +269,26 @@ export default function PostFeed({
     availableDirectionsRef.current = availableDirections;
   }, [availableDirections]);
 
+  // Load educational posts
+  const loadEducationalPosts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/educational-posts/list');
+      if (res.ok) {
+        const { posts } = await res.json();
+        setEducationalPosts(posts || []);
+      }
+    } catch (error) {
+      console.error('Error loading educational posts:', error);
+    }
+  }, []);
+
+  // Load educational posts on mount (only for main feed, not profile pages)
+  useEffect(() => {
+    if (!filterUserId) {
+      loadEducationalPosts();
+    }
+  }, [filterUserId, loadEducationalPosts]);
+
   const loadFeed = useCallback(async (directionId?: string | null, filterType?: 'all' | 'connections' | 'discuss' | 'direction', offset = 0, limit = 50) => {
     if (offset === 0) {
       setLoading(true);
@@ -295,23 +328,20 @@ export default function PostFeed({
     }
     // filterType === 'all' means no additional filtering
     
+    // For ranking: load more posts initially (2-3x) to have a good pool for ranking
+    // Only do this for the main feed (not profile pages) and first load
+    const shouldRank = !filterUserId && offset === 0 && filterType === 'all';
+    const fetchLimit = shouldRank ? limit * 2 : limit;
+    
     const { data, error, count } = await query
       .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+      .range(offset, offset + fetchLimit - 1);
       
     if (!error && data) {
-      if (offset === 0) {
-        setPosts(data as Post[]);
-      } else {
-        setPosts((prev) => [...prev, ...(data as Post[])]);
-      }
-      
-      // Check if there are more posts
-      const totalLoaded = offset + (data as Post[]).length;
-      setHasMore(count ? totalLoaded < count : (data as Post[]).length === limit);
+      let postsToProcess = data as Post[];
       
       // Preload comment counts for visible posts (await to ensure counts are loaded before render)
-      await preloadCommentCounts(data as Post[]);
+      await preloadCommentCounts(postsToProcess);
 
       // Preload author profiles (username, full_name, avatar) with caching
       // Load profiles together with posts to ensure avatars are available
@@ -439,13 +469,86 @@ export default function PostFeed({
               for (const row of swData as any[]) {
                 map[row.user_id as string] = (row.total as number) || 0;
               }
+              swScoresRef.current = map;
               return map;
             });
           }
         } catch {
           // SW scores table may not exist
         }
+        
+        // Load Trust Flow scores for authors (optional, for better ranking)
+        // This is async and non-blocking, so we'll use cached values if available
+        if (shouldRank && userIds.length > 0) {
+          try {
+            // Try to get Trust Flow from profiles (if cached)
+            const { data: profilesWithTF } = await supabase
+              .from("profiles")
+              .select("user_id, trust_flow")
+              .in("user_id", userIds);
+            
+            if (profilesWithTF) {
+              setTrustFlowByUserId((prev) => {
+                const map = { ...prev };
+                for (const p of profilesWithTF as any[]) {
+                  if (p.trust_flow !== null && p.trust_flow !== undefined) {
+                    map[p.user_id as string] = Number(p.trust_flow);
+                  }
+                }
+                trustFlowRef.current = map;
+                return map;
+              });
+            }
+          } catch {
+            // Trust Flow loading is optional
+          }
+        }
       }
+      
+      // Apply ranking if enabled
+      if (shouldRank && postsToProcess.length > 0) {
+        // Prepare ranking data using refs (most up-to-date values)
+        // Note: commentCounts are loaded synchronously via await preloadCommentCounts above
+        // SW scores and Trust Flow are loaded asynchronously, but refs are updated immediately
+        const rankingData: PostRankingData[] = postsToProcess.map((post) => ({
+          id: post.id,
+          created_at: post.created_at,
+          views: post.views || 0,
+          likes_count: post.likes_count || 0,
+          comments_count: commentCountsRef.current[post.id] || 0,
+          author_sw_score: post.user_id ? (swScoresRef.current[post.user_id] || 0) : 0,
+          author_trust_flow: post.user_id ? (trustFlowRef.current[post.user_id] || undefined) : undefined,
+          has_media: !!(post.image_url || post.video_url || post.image_urls?.length || post.video_urls?.length),
+          text_length: post.body?.length || 0,
+          category: post.category,
+        }));
+        
+        // Rank posts
+        const ranked = rankPosts(rankingData);
+        
+        // Take top N posts (preserve original Post objects)
+        const rankedIds = new Set(ranked.slice(0, limit).map(r => r.id));
+        postsToProcess = postsToProcess.filter(p => rankedIds.has(p.id));
+        
+        // Sort to match ranking order
+        const idToRank = new Map(ranked.map((r, idx) => [r.id, idx]));
+        postsToProcess.sort((a, b) => {
+          const rankA = idToRank.get(a.id) ?? Infinity;
+          const rankB = idToRank.get(b.id) ?? Infinity;
+          return rankA - rankB;
+        });
+      }
+      
+      // Set posts
+      if (offset === 0) {
+        setPosts(postsToProcess);
+      } else {
+        setPosts((prev) => [...prev, ...postsToProcess]);
+      }
+      
+      // Check if there are more posts
+      const totalLoaded = offset + postsToProcess.length;
+      setHasMore(count ? totalLoaded < count : postsToProcess.length === limit);
     }
     setLoading(false);
     setLoadingMore(false);
@@ -1077,7 +1180,11 @@ export default function PostFeed({
       }
       
       // Merge with existing counts instead of replacing
-      setCommentCounts((prev) => ({ ...prev, ...counts }));
+      setCommentCounts((prev) => {
+        const updated = { ...prev, ...counts };
+        commentCountsRef.current = updated;
+        return updated;
+      });
     } catch (error) {
       console.error('Error in preloadCommentCounts:', error);
       // Initialize with zeros for all posts
@@ -1385,8 +1492,42 @@ export default function PostFeed({
         </div>
       ) : (
         <AnimatePresence mode="popLayout">
-          {posts.map((p, index) => {
-          const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
+          {(() => {
+            // Insert educational posts periodically (every 12 posts)
+            const EDUCATIONAL_POST_INTERVAL = 12;
+            const items: Array<{ type: 'post' | 'educational'; data: Post | EducationalPostData; index: number }> = [];
+            let educationalPostIndex = 0;
+            
+            posts.forEach((p, index) => {
+              // Insert educational post before this post if it's the right interval
+              if (!filterUserId && educationalPosts.length > 0 && index > 0 && index % EDUCATIONAL_POST_INTERVAL === 0) {
+                const eduPost = educationalPosts[educationalPostIndex % educationalPosts.length];
+                items.push({ type: 'educational', data: eduPost, index: items.length });
+                educationalPostIndex++;
+              }
+              items.push({ type: 'post', data: p, index: items.length });
+            });
+            
+            return items.map((item) => {
+              if (item.type === 'educational') {
+                return (
+                  <MotionDiv
+                    key={`educational-${item.data.id}`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className="mb-4"
+                  >
+                    <EducationalPost post={item.data as EducationalPostData} />
+                  </MotionDiv>
+                );
+              }
+              
+              const p = item.data as Post;
+              const index = item.index;
+              
+              const profile = p.user_id ? profilesByUserId[p.user_id] : undefined;
           const avatar = resolveAvatarUrl(profile?.avatar_url) ?? AVATAR_FALLBACK;
           const username = profile?.username || (p.user_id ? p.user_id.slice(0, 8) : "Unknown");
           const fullName = profile?.full_name || null;
@@ -1916,7 +2057,8 @@ export default function PostFeed({
             />
             </MotionWrapper>
           );
-          })}
+            });
+          })()}
         </AnimatePresence>
       )}
       {/* Lazy load trigger */}
