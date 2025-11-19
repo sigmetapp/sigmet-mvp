@@ -507,11 +507,9 @@ export default function PostFeed({
       
       // Apply ranking if enabled
       if (shouldRank && postsToProcess.length > 0) {
-        // Use refs to get the most current values (updated by async operations above)
-        // Small delay to ensure refs are updated after async operations
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
         // Prepare ranking data using refs (most up-to-date values)
+        // Note: commentCounts are loaded synchronously via await preloadCommentCounts above
+        // SW scores and Trust Flow are loaded asynchronously, but refs are updated immediately
         const rankingData: PostRankingData[] = postsToProcess.map((post) => ({
           id: post.id,
           created_at: post.created_at,
@@ -528,10 +526,17 @@ export default function PostFeed({
         // Rank posts
         const ranked = rankPosts(rankingData);
         
-        // Take top N posts
-        postsToProcess = ranked.slice(0, limit).map((rankedPost) => 
-          postsToProcess.find((p) => p.id === rankedPost.id)!
-        ).filter(Boolean);
+        // Take top N posts (preserve original Post objects)
+        const rankedIds = new Set(ranked.slice(0, limit).map(r => r.id));
+        postsToProcess = postsToProcess.filter(p => rankedIds.has(p.id));
+        
+        // Sort to match ranking order
+        const idToRank = new Map(ranked.map((r, idx) => [r.id, idx]));
+        postsToProcess.sort((a, b) => {
+          const rankA = idToRank.get(a.id) ?? Infinity;
+          const rankB = idToRank.get(b.id) ?? Infinity;
+          return rankA - rankB;
+        });
       }
       
       // Set posts
